@@ -1,0 +1,24 @@
+{
+  "name": "school-cricket-backend",
+  "version": "1.0.0",
+  "description": "Backend API for School Cricket Management & Live Scoring System",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["cricket", "scoring", "management"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "firebase-admin": "^12.0.0",
+    "express-validator": "^7.0.1",
+    "node-cron": "^3.0.3"
+  }
+}
+
