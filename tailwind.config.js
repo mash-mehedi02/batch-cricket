@@ -7,26 +7,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        'cricbuzz-green': '#2d5016',
-        'cricbuzz-blue': '#1e40af',
-        'cricbuzz-dark': '#1a1a1a',
-        'cricbuzz-light': '#f5f5f5',
-        'primary-teal': '#0d9488',
-        'primary-cyan': '#06b6d4',
-        'primary-green': '#009270',
-        'primary-navy': '#0A2540',
-        'accent-blue': '#4F9CF9',
-        'bg-light': '#F8FAFC',
+        'batchcrick': {
+          'navy-dark': '#0a1a2e',
+          'navy': '#162b4d',
+          'navy-light': '#1e3a5f',
+          'teal': '#14b8a6',
+          'teal-dark': '#0d9488',
+          'teal-light': '#5eead4',
+          'sky': '#0ea5e9',
+          'sky-light': '#38bdf8',
+          'wicket': '#ef4444',
+          'four': '#3b82f6',
+          'six': '#10b981',
+          'wide': '#fbbf24',
+          'noball': '#f97316',
+          'dot': '#6b7280',
+        },
       },
-      screens: {
-        'xs': '475px',
+      fontFamily: {
+        sans: ['Inter', 'Poppins', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
-      touchAction: {
-        'pan-x': 'pan-x',
-        'pan-y': 'pan-y',
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/forms'),
+  ],
 }
-

@@ -1,0 +1,396 @@
+/**
+ * BatchCrick BD - Type Definitions
+ * All TypeScript interfaces and types for the platform
+ */
+
+import { Timestamp } from 'firebase/firestore'
+
+// ==================== AUTH ====================
+
+export type UserRole = 'admin' | 'scorer' | 'viewer'
+
+export interface User {
+  uid: string
+  email: string
+  displayName?: string
+  role: UserRole
+  createdAt: Timestamp
+  lastLogin?: Timestamp
+}
+
+// ==================== TOURNAMENT ====================
+
+export interface Tournament {
+  id: string
+  name: string
+  year: number
+  school: string
+  format: 'T20' | 'ODI' | 'Test'
+  status: 'upcoming' | 'ongoing' | 'completed'
+  startDate?: string
+  endDate?: string
+  description?: string
+  // Tournament structure
+  tournamentType?: 'standard' | 'custom'
+  config?: any // v1 config-driven tournament engine (stored server-side)
+  participantSquadIds?: string[] // squads participating in the tournament
+  // Reliable display names for participants (prevents points table showing raw IDs)
+  participantSquadMeta?: Record<string, { name: string; batch?: string }>
+  groups?: Array<{ id: string; name: string; squadIds: string[] }>
+  qualification?: {
+    perGroup: number // top N from each group
+    wildcards?: number // additional teams by overall standings (optional)
+    method?: 'group' | 'overall' // future extensibility
+  }
+  // Winner info (used by Champions page)
+  winnerSquadId?: string
+  winnerSquadName?: string
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  createdBy: string
+}
+
+// ==================== SQUAD ====================
+
+export interface Squad {
+  id: string
+  name: string
+  // Legacy/compat: used for sorting + season grouping. We'll auto-fill from batch or tournament year.
+  year: number
+  // New: indicates which batch this squad represents (e.g. "2006", "Batch-17")
+  batch: string
+  // Optional: squad logo and banner URLs (for premium design)
+  logoUrl?: string
+  bannerUrl?: string
+  // Deprecated: squads are no longer stored "under" a tournament; tournaments select squads.
+  // Kept optional for legacy data.
+  tournamentId?: string
+  playerIds: string[]
+  captainId?: string
+  wicketKeeperId?: string
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  createdBy: string
+}
+
+// ==================== PLAYER ====================
+
+export type PlayerRole = 'batsman' | 'bowler' | 'all-rounder' | 'wicket-keeper'
+export type BattingStyle = 'right-handed' | 'left-handed'
+export type BowlingStyle = 'right-arm-fast' | 'right-arm-medium' | 'right-arm-spin' | 'left-arm-fast' | 'left-arm-medium' | 'left-arm-spin'
+
+export interface Player {
+  id: string
+  name: string
+  role: PlayerRole
+  battingStyle?: BattingStyle
+  bowlingStyle?: BowlingStyle
+  dateOfBirth?: string
+  photoUrl?: string // Cloudinary URL
+  squadId: string // MANDATORY - player must belong to a squad
+  batch?: string // Batch year/name
+  stats?: {
+    matches?: number
+    innings?: number
+    runs?: number
+    balls?: number
+    fours?: number
+    sixes?: number
+    notOuts?: number
+    dismissals?: number
+    highestScore?: number
+    average?: number
+    strikeRate?: number
+    hundreds?: number
+    fifties?: number
+    // Bowling
+    wickets?: number
+    ballsBowled?: number
+    overs?: number
+    runsConceded?: number
+    maidens?: number
+    economy?: number
+    bowlingAverage?: number
+    bowlingStrikeRate?: number
+    bestBowling?: { wickets: number; runs: number }
+  }
+  pastMatches?: any[]
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  createdBy: string
+}
+
+// Player career stats (aggregated across all matches)
+export interface PlayerCareerStats {
+  playerId: string
+  matches: number
+  innings: number
+  runs: number
+  balls: number
+  fours: number
+  sixes: number
+  notOuts: number
+  highestScore: number
+  average: number
+  strikeRate: number
+  hundreds: number
+  fifties: number
+  // Bowling
+  ballsBowled: number
+  overs: number
+  runsConceded: number
+  wickets: number
+  maidens: number
+  economy: number
+  bowlingAverage: number
+  bowlingStrikeRate: number
+  bestBowling?: { wickets: number; runs: number }
+  // Season-wise stats stored separately
+}
+
+export interface PlayerSeasonStats {
+  playerId: string
+  year: number
+  tournamentId: string
+  // Same fields as PlayerCareerStats but for this season
+  matches: number
+  innings: number
+  runs: number
+  // ... etc
+}
+
+// ==================== MATCH ====================
+
+export type MatchStatus = 'upcoming' | 'live' | 'finished' | 'abandoned'
+export type BallType = 'red' | 'white' | 'pink'
+
+export interface Match {
+  id: string
+  tournamentId: string
+  // Optional: for group-stage tournaments (prevents cross-group fixtures)
+  groupId?: string
+  groupName?: string
+  teamAId: string // Squad ID
+  teamBId: string // Squad ID
+  teamAName: string
+  teamBName: string
+  venue: string
+  date: string
+  time: string
+  startTime?: Timestamp
+  oversLimit: number
+  ballType: BallType
+  tossWinner?: 'teamA' | 'teamB'
+  electedTo?: 'bat' | 'bowl'
+  status: MatchStatus
+  matchPhase: 'FirstInnings' | 'SecondInnings' | 'finished'
+  // Lineups
+  teamAPlayingXI: string[] // Player IDs
+  teamBPlayingXI: string[] // Player IDs
+  teamACaptainId?: string
+  teamAKeeperId?: string
+  teamBCaptainId?: string
+  teamBKeeperId?: string
+  // Current state
+  currentBatting?: 'teamA' | 'teamB'
+  currentStrikerId?: string
+  currentNonStrikerId?: string
+  currentBowlerId?: string
+  lastOverBowlerId?: string
+  freeHit: boolean
+  createdAt: Timestamp
+  updatedAt: Timestamp
+  createdBy: string
+}
+
+// ==================== BALL ====================
+
+export type WicketType =
+  | 'bowled'
+  | 'caught'
+  | 'lbw'
+  | 'run-out'
+  | 'stumped'
+  | 'hit-wicket'
+  | 'obstructing-field'
+  | 'retired'
+
+export interface BallWicket {
+  type: WicketType
+  dismissedPlayerId: string
+  creditedToBowler: boolean // false for run-out, stumped, etc.
+  fielderId?: string
+  bowlerId: string
+}
+
+export interface BallExtras {
+  wides: number
+  noBalls: number
+  byes: number
+  legByes: number
+  penalty: number
+}
+
+export interface Ball {
+  id: string
+  matchId: string
+  inningId: 'teamA' | 'teamB'
+  sequence: number // Chronological order
+  overNumber: number // 1-based
+  ballInOver: number | null // 0-5 for legal balls, null for wides/no-balls
+  batsmanId: string
+  bowlerId: string
+  nonStrikerId: string
+  runsOffBat: number
+  extras: BallExtras
+  totalRuns: number // runsOffBat + extras total
+  isLegal: boolean // true if not wide/no-ball
+  wicket: BallWicket | null
+  freeHit: boolean
+  timestamp: Timestamp
+  createdAt: string
+}
+
+// ==================== INNINGS ====================
+
+export interface BatsmanStats {
+  batsmanId: string
+  batsmanName: string
+  runs: number
+  balls: number
+  fours: number
+  sixes: number
+  strikeRate: number
+  dismissal?: string
+  notOut: boolean
+}
+
+export interface BowlerStats {
+  bowlerId: string
+  bowlerName: string
+  ballsBowled: number
+  overs: string // Format: "3.4"
+  runsConceded: number
+  wickets: number
+  maidens: number
+  economy: number
+  average: number | null
+  strikeRate: number | null
+}
+
+export interface FallOfWicket {
+  wicket: number
+  runs: number
+  over: string
+  batsmanId: string
+  batsmanName: string
+  dismissal: string
+}
+
+export interface RecentOver {
+  overNumber: number
+  balls: Array<{
+    value: string
+    type: string
+    runsOffBat: number
+  }>
+  // Ordered list of ALL deliveries in the over (legal + extras like wide/no-ball) in sequence order
+  // Used for "0 wd 0 0 4 1 0" style UIs.
+  deliveries?: Array<{
+    value: string
+    type: string
+    runsOffBat: number
+    isLegal: boolean
+  }>
+  extras?: Array<{
+    badge: string
+    runs: number
+  }>
+  totalRuns: number
+  isLocked: boolean
+}
+
+export interface Partnership {
+  runs: number
+  balls: number
+  overs: string
+}
+
+export interface InningsStats {
+  matchId: string
+  inningId: 'teamA' | 'teamB'
+  totalRuns: number
+  totalWickets: number
+  legalBalls: number
+  overs: string // Format: "13.4"
+  ballsInCurrentOver: number // 0-5
+  currentRunRate: number
+  requiredRunRate: number | null
+  remainingBalls: number | null
+  target: number | null
+  projectedTotal: number | null
+  lastBallSummary: {
+    runs: number
+    isWicket: boolean
+    isBoundary: boolean
+  } | null
+  partnership: Partnership
+  extras: BallExtras
+  fallOfWickets: FallOfWicket[]
+  batsmanStats: BatsmanStats[]
+  bowlerStats: BowlerStats[]
+  recentOvers: RecentOver[]
+  currentOverBalls: Array<{
+    value: string
+    type: string
+    runsOffBat: number
+  }>
+  currentStrikerId: string
+  nonStrikerId: string
+  currentBowlerId: string
+  lastUpdated: Timestamp
+  updatedAt: string
+}
+
+// ==================== COMMENTARY ====================
+
+export interface Commentary {
+  id: string
+  matchId: string
+  inningId: 'teamA' | 'teamB'
+  text: string
+  over: string
+  ball: number
+  runs: number
+  isWicket: boolean
+  isBoundary: boolean
+  batsman?: string
+  bowler?: string
+  tone: 'neutral' | 'excited' | 'dramatic'
+  isHighlight: boolean
+  timestamp: Timestamp
+  createdAt: string
+}
+
+// ==================== AI INSIGHTS ====================
+
+export interface WinProbability {
+  teamA: number
+  teamB: number
+  reasoning: string
+}
+
+export interface ProjectedScore {
+  at10Overs: number
+  at15Overs: number
+  at20Overs: number
+  final: number
+}
+
+export interface MatchInsights {
+  winProbability: WinProbability
+  projectedScore: ProjectedScore
+  recommendedBowler?: string
+  keyMoments: string[]
+}
+

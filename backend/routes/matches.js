@@ -1194,6 +1194,52 @@ router.put('/:id', verifyToken, async (req, res) => {
   }
 })
 
+/**
+ * Remove match stats from all players who played in this match
+ */
+const removeMatchStatsFromPlayers = async (matchId) => {
+  try {
+    // Get all players
+    const playersSnapshot = await db.collection('players').get()
+    const updatePromises = []
+
+    for (const playerDoc of playersSnapshot.docs) {
+      const playerData = playerDoc.data()
+      const pastMatches = Array.isArray(playerData.pastMatches) ? [...playerData.pastMatches] : []
+
+      // Find and remove the match from pastMatches
+      const matchIndex = pastMatches.findIndex(
+        (match) => match?.matchId === matchId || match?.id === matchId
+      )
+
+      if (matchIndex >= 0) {
+        // Remove the match from pastMatches
+        pastMatches.splice(matchIndex, 1)
+
+        // Recalculate stats without this match
+        const aggregatedStats = aggregateCareerStats(pastMatches)
+
+        // Update player document
+        updatePromises.push(
+          db.collection('players').doc(playerDoc.id).update({
+            pastMatches,
+            stats: aggregatedStats,
+            matchStats: aggregatedStats,
+            updatedAt: new Date(),
+            updatedBy: 'match-delete',
+          })
+        )
+      }
+    }
+
+    await Promise.all(updatePromises)
+    console.log(`Removed match ${matchId} stats from ${updatePromises.length} players`)
+  } catch (error) {
+    console.error('Error removing match stats from players:', error)
+    throw error
+  }
+}
+
 // Delete match (Admin only)
 router.delete('/:id', verifyToken, async (req, res) => {
   try {
@@ -1207,17 +1253,37 @@ router.delete('/:id', verifyToken, async (req, res) => {
       })
     }
 
+    const matchId = req.params.id
+
+    // Remove match stats from all players
+    await removeMatchStatsFromPlayers(matchId)
+
     // Delete commentary subcollection
     const commentarySnapshot = await matchRef.collection('commentary').get()
     const deletePromises = commentarySnapshot.docs.map((commentDoc) => commentDoc.ref.delete())
     await Promise.all(deletePromises)
+
+    // Delete innings subcollections
+    const inningsRefs = ['teamA', 'teamB']
+    for (const inningId of inningsRefs) {
+      const inningRef = matchRef.collection('innings').doc(inningId)
+      const inningDoc = await inningRef.get()
+      if (inningDoc.exists) {
+        // Delete balls subcollection
+        const ballsSnapshot = await inningRef.collection('balls').get()
+        const ballDeletePromises = ballsSnapshot.docs.map((ballDoc) => ballDoc.ref.delete())
+        await Promise.all(ballDeletePromises)
+        // Delete innings document
+        await inningRef.delete()
+      }
+    }
 
     // Delete match
     await matchRef.delete()
 
     res.json({
       success: true,
-      message: 'Match deleted successfully',
+      message: 'Match deleted successfully and player stats updated',
     })
   } catch (error) {
     console.error('Error deleting match:', error)

@@ -27,7 +27,14 @@ export const squadsService = {
    * Get all squads
    */
   getAll: async () => {
-    return await getAllDocuments(COLLECTION_NAME, 'name', 'asc')
+    // Try ordering by teamName first, fallback to no ordering if field doesn't exist
+    try {
+      return await getAllDocuments(COLLECTION_NAME, 'teamName', 'asc')
+    } catch (error) {
+      // If teamName index doesn't exist, try without ordering
+      console.warn('[squadsService] teamName index not available, loading without orderBy')
+      return await getAllDocuments(COLLECTION_NAME, null, 'asc')
+    }
   },
 
   /**

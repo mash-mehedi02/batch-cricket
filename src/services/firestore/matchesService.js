@@ -11,7 +11,18 @@ import {
   subscribeToCollection,
   subscribeToDocument,
 } from './base'
-import { COLLECTIONS, MATCH_STATUS } from '../../types'
+import { COLLECTIONS } from './collections'
+import { MatchStatus } from '../../types' // Assuming MATCH_STATUS isn't an object but a type, this file is JS though. 
+// If MATCH_STATUS was a constant object in types/index.ts, we need to know. 
+// Looking at types/index.ts, MatchStatus is a type alias: type MatchStatus = ...
+// So we cannot import it as a value in JS.
+// We should define it locally or import from constants if available.
+const MATCH_STATUS = {
+  UPCOMING: 'upcoming',
+  LIVE: 'live',
+  FINISHED: 'finished',
+  ABANDONED: 'abandoned'
+}
 
 const COLLECTION_NAME = COLLECTIONS.MATCHES
 

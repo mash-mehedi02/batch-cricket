@@ -18,6 +18,18 @@ service cloud.firestore {
         allow read: if true;
         allow create, update, delete: if isAdmin();
       }
+      
+      // Innings subcollection - readable by all, writable by admins only
+      match /innings/{inningId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin();
+
+        // Balls subcollection (nested under innings) - readable by all, writable by admins only
+        match /balls/{ballId} {
+          allow read: if true;
+          allow create, update, delete: if isAdmin();
+        }
+      }
     }
     
     // Players collection - readable by all, writable by admins only
@@ -53,6 +65,12 @@ service cloud.firestore {
     
     // Squads collection - readable by all, writable by admins only
     match /squads/{squadId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Player match stats collection - readable by all, writable by admins only
+    match /playerMatchStats/{statId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
