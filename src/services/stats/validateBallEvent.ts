@@ -29,8 +29,8 @@ export function validateBallEvent(event: BallEvent): {
     errors.push('Wide cannot be a wicket (except run-out)')
   }
 
-  if (event.isWicket && event.extraType === EXTRA_TYPES.NO_BALL && 
-      event.wicketType !== WICKET_TYPES.RUN_OUT) {
+  if (event.isWicket && event.extraType === EXTRA_TYPES.NO_BALL &&
+    event.wicketType !== WICKET_TYPES.RUN_OUT) {
     errors.push('No-ball cannot be a wicket (except run-out)')
   }
 
@@ -47,7 +47,7 @@ export function validateBallEvent(event: BallEvent): {
   // Check runs consistency
   const totalRuns = Number(event.runs || 0)
   const batRuns = Number(event.batRuns || 0)
-  
+
   if (event.extraType === EXTRA_TYPES.WIDE) {
     // Wide: minimum 1 run (the wide itself)
     if (totalRuns < 1) {
@@ -74,13 +74,13 @@ export function validateBallEvent(event: BallEvent): {
 export function getCountsBall(event: BallEvent): boolean {
   // Wides never count
   if (event.extraType === EXTRA_TYPES.WIDE) return false
-  
+
   // No-balls never count
   if (event.extraType === EXTRA_TYPES.NO_BALL) return false
-  
+
   // Use explicit countsBall if provided
   if (event.countsBall !== undefined) return event.countsBall
-  
+
   // Default: legal balls count
   return true
 }

@@ -25,6 +25,7 @@ import MatchScorecard from '@/pages/MatchScorecard'
 import MatchPlayingXI from '@/pages/MatchPlayingXI'
 import MatchGraphs from '@/pages/MatchGraphs'
 import MatchInfo from '@/pages/MatchInfo'
+import MatchSummary from '@/components/match/MatchSummary'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 export default function MatchLive() {
@@ -390,6 +391,17 @@ export default function MatchLive() {
   const teamAName = match ? resolveSquadName(match as any, 'A') : 'Team A'
   const teamBName = match ? resolveSquadName(match as any, 'B') : 'Team B'
 
+  // Resolve full squad objects for logos/details
+  const resolveSquad = (m: any, side: 'A' | 'B') => {
+    const sidRaw = side === 'A'
+      ? (m.teamAId || m.teamASquadId || m.teamA)
+      : (m.teamBId || m.teamBSquadId || m.teamB)
+    const sid = String(sidRaw || '').trim()
+    return squadsById.get(sid)
+  }
+  const teamASquad = match ? resolveSquad(match as any, 'A') : null
+  const teamBSquad = match ? resolveSquad(match as any, 'B') : null
+
   // Match status flags (must be declared before any hook deps use them)
   const statusLower = String(match?.status || '').toLowerCase()
   const isLiveMatch = statusLower === 'live'
@@ -739,7 +751,7 @@ export default function MatchLive() {
   // Initialize default tab once, based on match status
   useEffect(() => {
     if (!match || didInitTab.current) return
-    setActiveTab(canUseLiveTab ? 'live' : 'summary')
+    setActiveTab(isLiveEffective && !isFinishedMatch ? 'live' : 'summary')
     didInitTab.current = true
   }, [match, canUseLiveTab])
 
@@ -1105,7 +1117,22 @@ export default function MatchLive() {
       case 'playing-xi':
         return <MatchPlayingXI />
       case 'summary':
-        return isUpcomingMatch ? renderUpcoming() : <MatchInfo />
+        if (isUpcomingMatch) return renderUpcoming()
+        // If it's LIVE, we want the standard Info tab (Venue, Toss, etc) as summary is not ready
+        if (isLiveMatch) return <MatchInfo />
+        // Only finished matches get the new specific Summary component
+        return (
+          <MatchSummary
+            match={match}
+            teamAInnings={teamAInnings}
+            teamBInnings={teamBInnings}
+            playersMap={playersMap}
+            teamAName={teamAName}
+            teamBName={teamBName}
+            teamALogo={teamASquad?.logoUrl}
+            teamBLogo={teamBSquad?.logoUrl}
+          />
+        )
       default:
       case 'live':
         if (!canUseLiveTab) return renderUpcoming()

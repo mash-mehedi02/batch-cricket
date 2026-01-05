@@ -83,8 +83,8 @@ export function testBattingAverage() {
   const results = tests.map((test) => {
     const { calculateBattingAverage } = require('./iccDefinitions')
     const result = calculateBattingAverage(test.runs, test.innings, test.notOuts)
-    const passed = result === test.expected || 
-                   (result !== null && Math.abs(result - test.expected) < 0.01)
+    const passed = result === test.expected ||
+      (result !== null && Math.abs(result - test.expected) < 0.01)
     return {
       ...test,
       result,
@@ -146,7 +146,7 @@ export function testBallValidation() {
  */
 export function testOversCalculation() {
   const { ballsToOvers, oversToBalls } = require('./iccDefinitions')
-  
+
   const tests = [
     {
       name: '6 balls = 1.0 overs',
@@ -187,7 +187,7 @@ export function testOversCalculation() {
  */
 export function testBestBowling() {
   const { compareBestBowling } = require('./iccDefinitions')
-  
+
   const tests = [
     {
       name: 'Higher wickets is better',

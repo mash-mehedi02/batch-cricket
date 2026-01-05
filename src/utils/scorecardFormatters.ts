@@ -12,7 +12,7 @@ export function formatOvers(overs: string | number): string {
     const ballPart = Math.round((overs - overPart) * 10)
     return `${overPart}.${ballPart}`
   }
-  
+
   if (typeof overs === 'string') {
     // Validate format (e.g., "3.2")
     const parts = overs.split('.')
@@ -25,7 +25,7 @@ export function formatOvers(overs: string | number): string {
     }
     return overs
   }
-  
+
   return '0.0'
 }
 
@@ -112,7 +112,7 @@ export function formatExtras(extras: {
   penalty?: number
 }): string {
   const parts: string[] = []
-  
+
   if (extras.byes && extras.byes > 0) {
     parts.push(`${extras.byes}b`)
   }
@@ -129,11 +129,11 @@ export function formatExtras(extras: {
     parts.push(`${extras.penalty}pen`)
   }
 
-  const total = (extras.byes || 0) + 
-                (extras.legByes || 0) + 
-                (extras.wides || 0) + 
-                (extras.noBalls || 0) + 
-                (extras.penalty || 0)
+  const total = (extras.byes || 0) +
+    (extras.legByes || 0) +
+    (extras.wides || 0) +
+    (extras.noBalls || 0) +
+    (extras.penalty || 0)
 
   if (parts.length === 0) {
     return '0'

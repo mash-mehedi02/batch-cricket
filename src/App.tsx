@@ -15,6 +15,7 @@ import SquadDetails from './pages/SquadDetails'
 import Players from './pages/Players'
 import PlayerProfile from './pages/PlayerProfile'
 import Champions from './pages/Champions'
+import Schedule from './pages/Schedule'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminTournaments from './pages/admin/AdminTournaments'
 import AdminSquads from './pages/admin/AdminSquads'
@@ -56,10 +57,11 @@ function App() {
       <Routes>
         {/* Login Route - No Layout */}
         <Route path="/login" element={<Login />} />
-        
+
         {/* Public Routes - Wrapped in Layout */}
         <Route element={<LayoutWrapper />}>
           <Route path="/" element={<Home />} />
+          <Route path="/schedule" element={<Schedule />} />
           <Route path="/tournaments" element={<Tournaments />} />
           <Route path="/tournaments/:tournamentId" element={<TournamentDetails />} />
           <Route path="/tournaments/:tournamentId/points" element={<TournamentTabRedirect tab="points" />} />
@@ -69,7 +71,7 @@ function App() {
           <Route path="/players" element={<Players />} />
           <Route path="/players/:playerId" element={<PlayerProfile />} />
           <Route path="/champions" element={<Champions />} />
-          
+
           {/* Match Routes */}
           <Route path="/match/:matchId" element={<MatchLive />} />
           <Route path="/match/:matchId/info" element={<MatchInfo />} />
@@ -77,7 +79,7 @@ function App() {
           <Route path="/match/:matchId/playing-xi" element={<MatchPlayingXI />} />
           <Route path="/match/:matchId/graphs" element={<MatchGraphs />} />
         </Route>
-        
+
         {/* Admin Routes - Wrapped in AdminLayout (no public Layout) */}
         <Route element={<AdminLayoutWrapper />}>
           <Route path="/admin" element={<AdminDashboard />} />

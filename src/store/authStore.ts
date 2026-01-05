@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           adminDoc = await getDoc(adminRef)
           isAdmin = adminDoc.exists()
         }
-        
+
         // Also check users collection for additional data
         let userData: any = {}
         try {
@@ -56,7 +56,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           // Users collection might not be accessible, that's okay
           console.warn('Could not fetch user document:', err)
         }
-        
+
         set({
           user: {
             uid: userCredential.user.uid,
@@ -114,7 +114,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             adminDoc = await getDoc(adminRef)
             isAdmin = adminDoc.exists()
           }
-          
+
           // Also check users collection for additional data
           let userData: any = {}
           try {
@@ -126,7 +126,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             // Users collection might not be accessible, that's okay
             console.warn('Could not fetch user document:', err)
           }
-          
+
           set({
             user: {
               uid: firebaseUser.uid,

@@ -38,12 +38,12 @@ export function aggregateBySeason(
 
   // Group by year
   const yearGroups = new Map<number, MatchWithSummary[]>()
-  
+
   matchesWithSummaries.forEach((item) => {
-    const year = item.year || 
-                 (item.match.year ? Number(item.match.year) : null) ||
-                 new Date().getFullYear()
-    
+    const year = item.year ||
+      (item.match.year ? Number(item.match.year) : null) ||
+      new Date().getFullYear()
+
     if (!yearGroups.has(year)) {
       yearGroups.set(year, [])
     }
@@ -55,15 +55,15 @@ export function aggregateBySeason(
     const battingSummaries = items
       .map((item) => item.battingSummary)
       .filter((s): s is BattingMatchSummary => s !== undefined)
-    
+
     const bowlingSummaries = items
       .map((item) => item.bowlingSummary)
       .filter((s): s is BowlingMatchSummary => s !== undefined)
-    
+
     const matchContexts = items
       .map((item) => item.matchContext)
       .filter((c): c is MatchContext => c !== undefined)
-    
+
     const matches = items.map((item) => item.match)
 
     seasonMap.set(year, {
