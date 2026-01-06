@@ -154,7 +154,7 @@ function ballsToOvers(balls: number): string {
 /**
  * Parse ball event to determine ICC-compliant properties
  */
-function parseBallEvent(ball: any): BallEvent & { 
+function parseBallEvent(ball: any): BallEvent & {
   sequence?: number
   runsOffBat?: number
   extras?: { wides?: number; noBalls?: number; byes?: number; legByes?: number; penalty?: number }
@@ -165,7 +165,7 @@ function parseBallEvent(ball: any): BallEvent & {
   const isWide = ball.extraType === 'wide' || ball.isWide === true
   const isNoBall = ball.extraType === 'no-ball' || ball.isNoBall === true || ball.extraType === 'noBall'
   const isLegal = ball.isLegal !== false && !isWide && !isNoBall
-  
+
   // Determine runs
   // Priority: Use ball.runs (total), otherwise calculate from components
   const runsOffBat = Number(ball.runsOffBat || ball.batRuns || 0)
@@ -182,15 +182,15 @@ function parseBallEvent(ball: any): BallEvent & {
   const runs = ball.runs !== undefined && ball.runs !== null ? Number(ball.runs) : (runsOffBat + totalExtras)
   const batRuns = runsOffBat
   const extraRuns = runs - batRuns
-  
+
   // Determine wicket
   const wicket = ball.wicket || {}
   const isWicket = ball.isWicket === true || Boolean(wicket.type) || Boolean(ball.wicketType) || Boolean(ball.dismissal)
   const wicketType = wicket.type || ball.wicketType || ball.dismissal || ''
-  const isRunOut = wicketType.toLowerCase().includes('run out') || 
-                   wicketType.toLowerCase().includes('runout') ||
-                   wicketType.toLowerCase().includes('ro')
-  
+  const isRunOut = wicketType.toLowerCase().includes('run out') ||
+    wicketType.toLowerCase().includes('runout') ||
+    wicketType.toLowerCase().includes('ro')
+
   return {
     id: ball.id,
     sequence: ball.sequence,
@@ -278,17 +278,17 @@ export async function recalculateInnings(
     const matchRef = doc(db, MATCHES_COLLECTION, matchId)
     const matchDoc = await getDoc(matchRef)
     const matchData = matchDoc.exists() ? matchDoc.data() : null
-    
+
     if (!matchData) {
       throw new Error(`Match ${matchId} not found`)
     }
 
     // Fetch all balls for this innings ordered by sequence
     let balls: ReturnType<typeof parseBallEvent>[] = []
-    
+
     try {
       const ballsRef = collection(db, MATCHES_COLLECTION, matchId, BALLS_SUBCOLLECTION)
-      
+
       // Try sequence orderBy first (most reliable)
       let ballsQuery
       try {
@@ -313,13 +313,13 @@ export async function recalculateInnings(
           )
         }
       }
-      
+
       const ballsSnapshot = await getDocs(ballsQuery)
       ballsSnapshot.forEach((ballDoc) => {
         const parsed = parseBallEvent({ id: ballDoc.id, ...ballDoc.data() })
         balls.push(parsed)
       })
-      
+
       // Sort by sequence if available, otherwise by timestamp
       balls.sort((a, b) => {
         if (a.sequence !== undefined && b.sequence !== undefined && a.sequence !== b.sequence) {
@@ -329,7 +329,7 @@ export async function recalculateInnings(
         const bTime = b.timestamp?.toMillis?.() || (b.timestamp ? new Date(b.timestamp).getTime() : 0) || 0
         return aTime - bTime
       })
-      
+
       console.log(`[MatchEngine] Fetched ${balls.length} balls from subcollection for ${inningId}`)
     } catch (subcollectionError) {
       // Fallback: Use recentBalls from match document
@@ -339,10 +339,10 @@ export async function recalculateInnings(
         .filter((ball) => ball.innings === inningId || ball.team === inningId)
         .reverse() // recentBalls is stored newest first, reverse for chronological
         .map((ball, idx) => parseBallEvent({ ...ball, sequence: idx + 1 }))
-      
+
       console.log(`[MatchEngine] Using ${balls.length} balls from recentBalls array`)
     }
-    
+
     if (balls.length === 0) {
       console.warn(`[MatchEngine] ⚠️ No balls found for ${inningId}`)
     }
@@ -362,7 +362,7 @@ export async function recalculateInnings(
     let legalBalls = 0 // Only legal deliveries (excludes wides/no-balls)
     let partnershipRuns = 0 // Only runs off bat (not extras)
     let partnershipBalls = 0 // Only legal balls
-    
+
     // Extras tracking
     const extras = {
       byes: 0,
@@ -371,7 +371,7 @@ export async function recalculateInnings(
       noBalls: 0,
       penalty: 0,
     }
-    
+
     // Trackers
     const fallOfWickets: InningsStats['fallOfWickets'] = []
     const batsmanStatsMap = new Map<string, {
@@ -398,7 +398,7 @@ export async function recalculateInnings(
     const oversMap = new Map<number, RecentOver>() // overNumber -> RecentOver
 
     // Process each ball chronologically
-    balls.forEach((ball, index) => {
+    balls.forEach((ball) => {
       // ICC Rule: Determine if ball is legal (wide and no-ball are NOT legal)
       const isWide =
         Number((ball as any)?.extras?.wides || 0) > 0 ||
@@ -410,11 +410,11 @@ export async function recalculateInnings(
         ball.extraType === 'no-ball' ||
         ball.extraType === 'noBall'
       const isLegal = ball.isLegal !== false && !isWide && !isNoBall
-      
+
       // Calculate runs from this ball BEFORE updating legalBalls (needed for over assignment)
       const runsOffBat = ball.runsOffBat || ball.batRuns || 0
       const totalBallRuns = ball.runs || (runsOffBat + (ball.extras?.wides || 0) + (ball.extras?.noBalls || 0) + (ball.extras?.byes || 0) + (ball.extras?.legByes || 0) + (ball.extras?.penalty || 0))
-      
+
       // CRITICAL: Determine which over this ball belongs to BEFORE incrementing legalBalls
       // Over number calculation:
       // - For legal balls: overNumber = floor((legalBalls) / 6) + 1 (1-based)
@@ -422,24 +422,24 @@ export async function recalculateInnings(
       // Example: 3 legal balls = Over 1 (floor(3/6) + 1 = 0 + 1 = 1)
       //          6 legal balls = Over 2 (floor(6/6) + 1 = 1 + 1 = 2)
       const currentOverNumber = Math.floor(legalBalls / 6) + 1
-      
+
       // ICC Rule: Only legal deliveries count as legalBalls
       if (isLegal) {
         legalBalls += 1
         partnershipBalls += 1
       }
-      
+
       // Determine which over this ball belongs to
       // For legal balls: calculate based on legalBalls AFTER increment
       // For wides/no-balls: use the over number BEFORE increment (same over)
       const overNumber = isLegal ? Math.floor((legalBalls - 1) / 6) + 1 : currentOverNumber
-      
+
       // ICC Rule: Add runs (always count, even for extras)
       totalRuns += totalBallRuns
-      
+
       // Partnership runs: only runs off bat (not extras)
       partnershipRuns += runsOffBat
-      
+
       // Track extras breakdown
       if (ball.extras) {
         extras.byes += Number(ball.extras.byes || 0)
@@ -464,18 +464,18 @@ export async function recalculateInnings(
           })
         }
         const batsman = batsmanStatsMap.get(batsmanId)!
-        
+
         // Add runs off bat (always count, even on no-ball)
         batsman.runs += runsOffBat
-        
+
         // ICC Rule: Balls faced increments for all deliveries except wides.
         // No-ball counts as a ball faced (but does NOT count as a legal ball for overs).
         if (!isWide) batsman.balls += 1
-        
+
         // Count boundaries
         if (runsOffBat === 4) batsman.fours += 1
         if (runsOffBat === 6) batsman.sixes += 1
-        
+
         // Mark as dismissed if wicket
         if (ball.isWicket && ball.dismissedBatsmanId === batsmanId) {
           batsman.dismissal = ball.wicketType || 'Out'
@@ -498,30 +498,30 @@ export async function recalculateInnings(
           })
         }
         const bowler = bowlerStatsMap.get(bowlerId)!
-        
+
         // ICC Rule: Only legal deliveries count for bowler's ballsBowled
         if (isLegal) {
           const ballsInOver = bowler.ballsBowled % 6
-          
+
           // If starting a new over, check if previous over was maiden
           if (ballsInOver === 0 && bowler.ballsBowled > 0 && bowler.currentOverRuns === 0) {
             bowler.maidens += 1
           }
-          
+
           // Reset current over runs if starting new over
           if (ballsInOver === 0) {
             bowler.currentOverRuns = 0
           }
-          
+
           bowler.ballsBowled += 1
         }
-        
+
         // ICC Rule: Bowler gets runs (runsOffBat + wides + no-balls)
         // Byes and leg-byes do NOT count to bowler's runsConceded
         const bowlerRuns = runsOffBat + (isWide ? (ball.extras?.wides || 0) : 0) + (isNoBall ? (ball.extras?.noBalls || 0) : 0)
         bowler.runsConceded += bowlerRuns
         bowler.currentOverRuns += bowlerRuns
-        
+
         // ICC Rule: Wickets credited to bowler only if creditedToBowler === true
         if (ball.isWicket && ball.creditRunsToBowler !== false) {
           bowler.wickets += 1
@@ -531,7 +531,7 @@ export async function recalculateInnings(
       // ICC Rule: Count wickets
       if (ball.isWicket) {
         totalWickets += 1
-        
+
         // Record fall of wicket
         const wicketOver = ballsToOvers(legalBalls)
         const dismissedBatsmanId = ball.dismissedBatsmanId || ball.batsmanId
@@ -548,7 +548,7 @@ export async function recalculateInnings(
         partnershipRuns = 0
         partnershipBalls = 0
       }
-      
+
       // Add ball to Recent Overs
       if (!oversMap.has(overNumber)) {
         oversMap.set(overNumber, {
@@ -560,10 +560,10 @@ export async function recalculateInnings(
           innings: inningId,
         })
       }
-      
+
       const over = oversMap.get(overNumber)!
       const badge = ballToBadge(ball)
-      
+
       // ICC Rule: Only legal balls go into the 6-ball slots
       // Wides/no-balls go to extras array but are shown in the same over
       if (isLegal) {
@@ -573,9 +573,9 @@ export async function recalculateInnings(
         over.extras = over.extras || []
         over.extras.push({ badge: badge.value, runs: totalBallRuns })
       }
-      
+
       over.totalRuns += totalBallRuns
-      
+
       // Mark over as locked if it has 6 legal balls
       // Check legal balls in this over by counting balls in the over array
       if (over.balls.length >= 6) {
@@ -591,6 +591,21 @@ export async function recalculateInnings(
     const oversDecimal = legalBalls / 6
     const currentRunRate = oversDecimal > 0 ? totalRuns / oversDecimal : (legalBalls > 0 ? (totalRuns * 6) / legalBalls : 0)
 
+    // --- Dynamic Batting Order Calculation ---
+    const { firstSide, secondSide } = (() => {
+      const tw = String(matchData.tossWinner || '').trim()
+      const decRaw = String(matchData.electedTo || matchData.tossDecision || '').trim().toLowerCase()
+      if (!tw || !decRaw) return { firstSide: 'teamA' as const, secondSide: 'teamB' as const }
+
+      const tossSide = (tw === 'teamA' || tw === matchData.teamAId || tw === (matchData as any).teamASquadId) ? 'teamA' : 'teamB'
+      const battedFirst = decRaw.includes('bat') ? tossSide : (tossSide === 'teamA' ? 'teamB' : 'teamA')
+
+      return {
+        firstSide: battedFirst as 'teamA' | 'teamB',
+        secondSide: (battedFirst === 'teamA' ? 'teamB' : 'teamA') as 'teamA' | 'teamB'
+      }
+    })()
+
     // Calculate Required Run Rate (RRR) for second innings
     let requiredRunRate: number | null = null
     let remainingBalls: number | null = null
@@ -598,32 +613,34 @@ export async function recalculateInnings(
     let target: number | null = null
     let projectedTotal: number | null = null
 
-    if (matchData.matchPhase === 'SecondInnings' && inningId === 'teamB') {
+    // If this is the second side to bat according to toss logic
+    if (matchData.matchPhase === 'SecondInnings' && inningId === secondSide) {
       const oversLimit = Number(matchData.oversLimit) || 50
       const maxBalls = oversLimit * 6
-      
-      // Get target from first innings
-      const teamAScore = matchData.score?.teamA?.runs || matchData.runs1 || 0
-      target = teamAScore + 1
+
+      // Get target from the first batting team's score
+      // We look for score.teamA or score.teamB based on who batted first
+      const firstBatScore = (matchData.score?.[firstSide]?.runs) || 0
+      target = firstBatScore + 1
       remainingRuns = target - totalRuns
       remainingBalls = Math.max(maxBalls - legalBalls, 0)
-      
+
       // Check if match is finished
       const allWicketsDown = totalWickets >= 10
       const allOversCompleted = legalBalls >= maxBalls
       const targetAchieved = totalRuns >= target
       const isMatchFinished = allWicketsDown || allOversCompleted || targetAchieved
-      
+
       if (isMatchFinished) {
         remainingBalls = 0
         requiredRunRate = targetAchieved ? 0 : null
-      } else if (remainingBalls > 0 && remainingRuns > 0) {
-        requiredRunRate = (remainingRuns / remainingBalls) * 6
-      } else if (remainingRuns <= 0) {
+      } else if (remainingBalls > 0 && (remainingRuns ?? 0) > 0) {
+        requiredRunRate = ((remainingRuns ?? 0) / remainingBalls) * 6
+      } else if ((remainingRuns ?? 0) <= 0) {
         requiredRunRate = 0
       }
     }
-    
+
     // Calculate projected total using current run rate
     if (oversDecimal > 0 && matchData.oversLimit) {
       const oversLimit = Number(matchData.oversLimit) || 50
@@ -635,15 +652,36 @@ export async function recalculateInnings(
       }
     }
 
+    // Build bowler stats array
+    const bowlerStatsArr = Array.from(bowlerStatsMap.values()).map((bowler) => {
+      const oversDecimalTotal = bowler.ballsBowled / 6
+      const economy = oversDecimalTotal > 0 ? bowler.runsConceded / oversDecimalTotal : 0
+      const average = bowler.wickets > 0 ? bowler.runsConceded / bowler.wickets : null
+      const strikeRate = bowler.wickets > 0 ? bowler.ballsBowled / bowler.wickets : null
+
+      return {
+        bowlerId: bowler.bowlerId,
+        bowlerName: bowler.bowlerName,
+        ballsBowled: bowler.ballsBowled,
+        overs: ballsToOvers(bowler.ballsBowled),
+        runsConceded: bowler.runsConceded,
+        wickets: bowler.wickets,
+        economy: Number(economy.toFixed(2)),
+        average: average ? Number(average.toFixed(2)) : null,
+        strikeRate: strikeRate ? Number(strikeRate.toFixed(1)) : null,
+      }
+    })
+
     // Generate last ball summary
     let lastBallSummary: string | null = null
     if (balls.length > 0) {
       const lastBall = balls[balls.length - 1]
       const lastBatsmanName = getPlayerName(lastBall.batsmanId)
+      const runsOffBatVal = Number(lastBall.runsOffBat || 0)
       if (lastBall.isWicket) {
         lastBallSummary = `Wicket! ${lastBatsmanName} ${lastBall.wicketType || 'out'}`
-      } else if (lastBall.runsOffBat > 0) {
-        lastBallSummary = `${lastBatsmanName} scores ${lastBall.runsOffBat} run${lastBall.runsOffBat > 1 ? 's' : ''}`
+      } else if (runsOffBatVal > 0) {
+        lastBallSummary = `${lastBatsmanName} scores ${runsOffBatVal} run${runsOffBatVal > 1 ? 's' : ''}`
       } else if (lastBall.isWide) {
         lastBallSummary = `Wide ball, ${lastBall.runs} run${lastBall.runs > 1 ? 's' : ''}`
       } else if (lastBall.isNoBall) {
@@ -659,12 +697,12 @@ export async function recalculateInnings(
     let currentStrikerId = matchData?.currentStrikerId || ''
     let nonStrikerId = matchData?.nonStrikerId || ''
     let currentBowlerId = matchData?.currentBowlerId || ''
-    
+
     // CRITICAL: Check if current bowler has completed their over (6 legal balls)
     // If yes, bowler must be changed (set to empty string to force admin to select new bowler)
     const originalBowlerId = currentBowlerId
     if (currentBowlerId) {
-      const currentBowlerStats = bowlerStats.find(b => b.bowlerId === currentBowlerId)
+      const currentBowlerStats = bowlerStatsArr.find(b => b.bowlerId === currentBowlerId)
       if (currentBowlerStats) {
         const bowlerBallsInOver = currentBowlerStats.ballsBowled % 6
         // If bowler has completed exactly 6 legal balls (modulo = 0) and has bowled balls, over is complete
@@ -689,37 +727,13 @@ export async function recalculateInnings(
         strikeRate: batsman.balls > 0 ? Number(((batsman.runs / batsman.balls) * 100).toFixed(2)) : 0,
       }))
 
-    // Build bowler stats array
-    const bowlerStats = Array.from(bowlerStatsMap.values()).map((bowler) => {
-      const oversDecimal = bowler.ballsBowled / 6
-      const economy = oversDecimal > 0 ? bowler.runsConceded / oversDecimal : 0
-      const average = bowler.wickets > 0 ? bowler.runsConceded / bowler.wickets : null
-      const strikeRate = bowler.wickets > 0 ? bowler.ballsBowled / bowler.wickets : null
-      
-      // Check if current over is maiden (if over is complete)
-      let finalMaidens = bowler.maidens
-      const ballsInCurrentOver = bowler.ballsBowled % 6
-      if (ballsInCurrentOver === 0 && bowler.ballsBowled > 0 && bowler.currentOverRuns === 0) {
-        finalMaidens += 1
-      }
+    // Build bowler stats array (already built above)
+    const bowlerStats = bowlerStatsArr
 
-      return {
-        bowlerId: bowler.bowlerId,
-        bowlerName: bowler.bowlerName,
-        ballsBowled: bowler.ballsBowled,
-        overs: ballsToOvers(bowler.ballsBowled),
-        runsConceded: bowler.runsConceded,
-        wickets: bowler.wickets,
-        economy: Number(economy.toFixed(2)),
-        average: average ? Number(average.toFixed(2)) : null,
-        strikeRate: strikeRate ? Number(strikeRate.toFixed(1)) : null,
-      }
-    })
-    
     // Build recent overs array (in chronological order, left→right)
     const recentOvers = Array.from(oversMap.values())
       .sort((a, b) => a.overNumber - b.overNumber)
-    
+
     // Get current over balls (incomplete over)
     const currentOver = recentOvers[recentOvers.length - 1] || null
     const currentOverBalls: OverBall[] = currentOver && !currentOver.isLocked ? [...currentOver.balls] : []
@@ -760,7 +774,7 @@ export async function recalculateInnings(
 
     // Save/update innings document (with transaction if requested)
     const inningsRef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, inningId)
-    
+
     if (useTransaction) {
       await runTransaction(db, async (transaction) => {
         transaction.set(inningsRef, inningsStats, { merge: true })
@@ -817,7 +831,7 @@ export function subscribeToInnings(
   callback: (innings: InningsStats | null) => void
 ) {
   const inningsRef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, inningId)
-  
+
   return onSnapshot(
     inningsRef,
     (snapshot) => {

@@ -60,6 +60,26 @@ export default function MatchGraphs() {
   const teamBName = (match as any)?.teamBName || (match as any)?.teamB || 'Team B'
   const oversLimit = Number((match as any)?.oversLimit || 0)
 
+  // Batting Order logic
+  const { firstSide, secondSide } = useMemo(() => {
+    if (!match) return { firstSide: 'teamA' as const, secondSide: 'teamB' as const }
+    const tw = String((match as any).tossWinner || '').trim()
+    const decRaw = String((match as any).electedTo || (match as any).tossDecision || '').trim().toLowerCase()
+    if (!tw || !decRaw) return { firstSide: 'teamA' as const, secondSide: 'teamB' as const }
+
+    const tossSide = (tw === 'teamA' || tw === (match as any).teamAId || tw === (match as any).teamASquadId) ? 'teamA' : 'teamB'
+    const battedFirst = decRaw.includes('bat') ? tossSide : (tossSide === 'teamA' ? 'teamB' : 'teamA')
+    return {
+      firstSide: battedFirst as 'teamA' | 'teamB',
+      secondSide: (battedFirst === 'teamA' ? 'teamB' : 'teamA') as 'teamA' | 'teamB'
+    }
+  }, [match])
+
+  const firstName = firstSide === 'teamA' ? teamAName : teamBName
+  const secondName = secondSide === 'teamA' ? teamAName : teamBName
+  const firstInns = firstSide === 'teamA' ? teamAInnings : teamBInnings
+  const secondInns = secondSide === 'teamA' ? teamAInnings : teamBInnings
+
   const buildManhattan = (balls: Ball[]) => {
     const byOver = new Map<number, { over: number; runs: number; wickets: number; legalBalls: number }>()
     for (const b of balls || []) {
@@ -161,18 +181,18 @@ export default function MatchGraphs() {
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
               <div className="min-w-0">
-                <div className="text-xl font-extrabold truncate">{teamAName}</div>
+                <div className="text-xl font-extrabold truncate">{firstName}</div>
                 <div className="text-sm text-slate-600">
-                  {teamAInnings?.totalRuns || 0}-{teamAInnings?.totalWickets || 0}{' '}
-                  <span className="text-slate-400">({teamAInnings?.overs || '0.0'})</span>
+                  {firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0}{' '}
+                  <span className="text-slate-400">({firstInns?.overs || '0.0'})</span>
                 </div>
               </div>
               <div className="text-slate-300 font-black">VS</div>
               <div className="min-w-0 text-right">
-                <div className="text-xl font-extrabold truncate">{teamBName}</div>
+                <div className="text-xl font-extrabold truncate">{secondName}</div>
                 <div className="text-sm text-slate-600">
-                  {teamBInnings?.totalRuns || 0}-{teamBInnings?.totalWickets || 0}{' '}
-                  <span className="text-slate-400">({teamBInnings?.overs || '0.0'})</span>
+                  {secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0}{' '}
+                  <span className="text-slate-400">({secondInns?.overs || '0.0'})</span>
                 </div>
               </div>
             </div>
@@ -294,12 +314,12 @@ export default function MatchGraphs() {
                   <div className="mt-6">
                     <div className="flex flex-col gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-10 bg-[#0ea5e9]" />
-                        <div className="text-2xl font-black tracking-wider">{teamAName.toUpperCase()}</div>
+                        <div className={`w-14 h-10 ${firstSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
+                        <div className="text-2xl font-black tracking-wider">{firstName.toUpperCase()}</div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-10 bg-[#f97316]" />
-                        <div className="text-2xl font-black tracking-wider">{teamBName.toUpperCase()}</div>
+                        <div className={`w-14 h-10 ${secondSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
+                        <div className="text-2xl font-black tracking-wider">{secondName.toUpperCase()}</div>
                       </div>
                     </div>
                   </div>
@@ -371,12 +391,12 @@ export default function MatchGraphs() {
           </div>
           <div className="flex gap-6 mt-4 text-sm text-slate-600">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-sky-500 rounded" />
-              <span className="font-semibold">{teamAName}</span>
+              <div className={`w-4 h-4 ${firstSide === 'teamA' ? 'bg-sky-500' : 'bg-orange-500'} rounded`} />
+              <span className="font-semibold">{firstName}</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-orange-500 rounded" />
-              <span className="font-semibold">{teamBName}</span>
+              <div className={`w-4 h-4 ${secondSide === 'teamA' ? 'bg-sky-500' : 'bg-orange-500'} rounded`} />
+              <span className="font-semibold">{secondName}</span>
             </div>
           </div>
         </div>

@@ -12,6 +12,7 @@ import { matchService } from '@/services/firestore/matches'
 import { Player, Squad, Tournament, Match } from '@/types'
 import toast from 'react-hot-toast'
 import { Timestamp } from 'firebase/firestore'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
@@ -192,8 +193,8 @@ export default function SquadDetails() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 md:px-6 py-2 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -251,12 +252,13 @@ export default function SquadDetails() {
                         {/* Player Photo */}
                         <div className="relative w-12 h-12 md:w-16 md:h-16 flex-shrink-0">
                           <div className="absolute inset-0 bg-emerald-500/10 rounded-xl md:rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="relative w-full h-full rounded-xl md:rounded-2xl bg-slate-800 border-2 border-slate-800 group-hover:border-emerald-500/50 transition-all overflow-hidden flex items-center justify-center">
-                            {p.photoUrl ? (
-                              <img src={p.photoUrl} alt={p.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="text-sm md:text-2xl font-black text-slate-600">{p.name[0]}</span>
-                            )}
+                          <div className="relative w-full h-full rounded-xl md:rounded-2xl border-2 border-slate-800 group-hover:border-emerald-500/50 transition-all flex items-center justify-center">
+                            <PlayerAvatar
+                              photoUrl={p.photoUrl || (p as any).photo}
+                              name={p.name}
+                              size="lg"
+                              className="w-full h-full border-none"
+                            />
                           </div>
                           {/* Badges */}
                           {(squad.captainId === p.id || squad.wicketKeeperId === p.id) && (
@@ -344,7 +346,7 @@ export default function SquadDetails() {
                       <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Upcoming</h3>
                     </div>
                     {matches
-                      .filter(m => m.status === 'upcoming' || m.status === 'scheduled')
+                      .filter(m => (m.status as any) === 'upcoming' || (m.status as any) === 'scheduled')
                       .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
                       .map(match => {
                         const isTeamA = match.teamAId === squad.id
@@ -369,7 +371,7 @@ export default function SquadDetails() {
                           </Link>
                         )
                       })}
-                    {matches.filter(m => m.status === 'upcoming' || m.status === 'scheduled').length === 0 && (
+                    {matches.filter(m => (m.status as any) === 'upcoming' || (m.status as any) === 'scheduled').length === 0 && (
                       <div className="text-slate-500 text-xs italic px-2">No upcoming matches.</div>
                     )}
                   </div>

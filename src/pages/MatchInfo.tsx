@@ -9,11 +9,13 @@ import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { Match, Tournament } from '@/types'
-import { Timestamp } from 'firebase/firestore'
-import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { coerceToDate, formatTimeLabel } from '@/utils/date'
 
-export default function MatchInfo() {
+interface MatchInfoProps {
+  compact?: boolean
+}
+
+export default function MatchInfo({ compact = false }: MatchInfoProps) {
   const { matchId } = useParams<{ matchId: string }>()
   const [match, setMatch] = useState<Match | null>(null)
   const [tournament, setTournament] = useState<Tournament | null>(null)
@@ -61,18 +63,21 @@ export default function MatchInfo() {
         }
 
         // Load squads
-        if (match.teamA) {
+        const squadIdA = match.teamAId || (match as any).teamASquadId || (match as any).teamA
+        const squadIdB = match.teamBId || (match as any).teamBSquadId || (match as any).teamB
+
+        if (squadIdA) {
           try {
-            const squadA = await squadService.getById(match.teamA)
+            const squadA = await squadService.getById(squadIdA)
             if (squadA) setTeamASquad(squadA)
           } catch (err) {
             console.warn('Error loading team A squad:', err)
           }
         }
 
-        if (match.teamB) {
+        if (squadIdB) {
           try {
-            const squadB = await squadService.getById(match.teamB)
+            const squadB = await squadService.getById(squadIdB)
             if (squadB) setTeamBSquad(squadB)
           } catch (err) {
             console.warn('Error loading team B squad:', err)
@@ -88,10 +93,12 @@ export default function MatchInfo() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-pulse">
-        <div className="mb-10">
-          <div className="h-10 bg-gray-200 rounded w-64 mb-6"></div>
-        </div>
+      <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} animate-pulse`}>
+        {!compact && (
+          <div className="mb-10">
+            <div className="h-10 bg-gray-200 rounded w-64 mb-6"></div>
+          </div>
+        )}
         <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-gray-200 space-y-6">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="bg-gray-50 rounded-xl p-6">
@@ -117,104 +124,130 @@ export default function MatchInfo() {
   const teamAName = match.teamAName || teamASquad?.name || (match as any).teamA || 'Team A'
   const teamBName = match.teamBName || teamBSquad?.name || (match as any).teamB || 'Team B'
 
+  // Batting Order logic
+  const { firstSide, secondSide } = (() => {
+    if (!match) return { firstSide: 'teamA', secondSide: 'teamB' }
+    const tw = String((match as any).tossWinner || '').trim()
+    const decRaw = String((match as any).electedTo || (match as any).tossDecision || '').trim().toLowerCase()
+    if (!tw || !decRaw) return { firstSide: 'teamA', secondSide: 'teamB' }
+
+    const tossSide = (tw === 'teamA' || tw === (match as any).teamAId || tw === (match as any).teamASquadId) ? 'teamA' : 'teamB'
+    const battedFirst = decRaw.includes('bat') ? tossSide : (tossSide === 'teamA' ? 'teamB' : 'teamA')
+    return {
+      firstSide: battedFirst as 'teamA' | 'teamB',
+      secondSide: (battedFirst === 'teamA' ? 'teamB' : 'teamA') as 'teamA' | 'teamB'
+    }
+  })()
+
+  const firstName = firstSide === 'teamA' ? teamAName : teamBName
+  const secondName = secondSide === 'teamA' ? teamAName : teamBName
+  const firstSquad = firstSide === 'teamA' ? teamASquad : teamBSquad
+  const secondSquad = secondSide === 'teamA' ? teamASquad : teamBSquad
+
   // Handle date (Timestamp or string)
   const matchDate = coerceToDate((match as any).date)
   const timeText = (match as any).time || (matchDate ? formatTimeLabel(matchDate) : '')
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Header */}
-      <div className="mb-10">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="h-1 w-12 bg-gradient-to-r from-teal-500 to-emerald-600 rounded-full"></div>
-          <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-teal-600 to-emerald-600 bg-clip-text text-transparent">
-            Match Information
-          </h1>
-          <div className="h-1 flex-1 bg-gradient-to-r from-teal-500/30 to-transparent rounded-full"></div>
-        </div>
+  const InfoCard = ({ title, icon, value, subValue, gradient }: { title: string, icon: string, value: string, subValue?: string, gradient: string }) => (
+    <div className={`p-5 rounded-2xl border-2 transition-all hover:shadow-lg ${gradient}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xl">{icon}</span>
+        <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] opacity-60">{title}</h3>
       </div>
+      <p className="text-base sm:text-xl font-black text-slate-900 leading-tight">{value}</p>
+      {subValue && <p className="text-[11px] sm:text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">{subValue}</p>}
+    </div>
+  )
 
-      <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xl p-8 border-2 border-slate-200 space-y-6">
-        {/* Teams */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-blue-100">
-          <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider mb-3">Teams</h3>
-          <p className="text-2xl font-extrabold text-slate-900">
-            {teamAName} <span className="text-blue-500">vs</span> {teamBName}
-          </p>
+  return (
+    <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-6' : 'py-12'}`}>
+      {/* Header */}
+      {!compact && (
+        <div className="mb-10">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="h-1.5 w-16 bg-gradient-to-r from-batchcrick-navy to-blue-600 rounded-full"></div>
+            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">
+              Match <span className="text-blue-600">Info</span>
+            </h1>
+          </div>
         </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        {/* Teams */}
+        <InfoCard
+          title="Teams"
+          icon="👥"
+          value={`${firstName} vs ${secondName}`}
+          gradient="bg-blue-50/50 border-blue-100 hover:border-blue-200"
+        />
 
         {/* Venue */}
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-emerald-100">
-          <h3 className="text-sm font-bold text-emerald-700 uppercase tracking-wider mb-3">📍 Venue</h3>
-          <p className="text-xl font-bold text-slate-900">{match.venue || 'Venue TBA'}</p>
-        </div>
+        <InfoCard
+          title="Venue"
+          icon="📍"
+          value={match.venue || 'Venue TBA'}
+          gradient="bg-emerald-50/50 border-emerald-100 hover:border-emerald-200"
+        />
 
         {/* Tournament */}
         {tournament && (
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 border-2 border-indigo-100">
-            <h3 className="text-sm font-bold text-indigo-700 uppercase tracking-wider mb-3">🏆 Tournament</h3>
-            <p className="text-xl font-bold text-slate-900">{tournament.name}</p>
-            <p className="text-sm text-slate-600 mt-1">Year: {tournament.year} • Format: {tournament.format}</p>
-          </div>
+          <InfoCard
+            title="Tournament"
+            icon="🏆"
+            value={tournament.name}
+            subValue={`Year: ${tournament.year} • ${tournament.format}`}
+            gradient="bg-indigo-50/50 border-indigo-100 hover:border-indigo-200"
+          />
         )}
 
         {/* Date & Time */}
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100">
-          <h3 className="text-sm font-bold text-purple-700 uppercase tracking-wider mb-3">📅 Date & Time</h3>
-          <p className="text-xl font-bold text-slate-900">
-            {matchDate
-              ? matchDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-              : 'TBA'}
-            {timeText ? ` at ${timeText}` : ''}
-          </p>
-        </div>
+        <InfoCard
+          title="Date & Time"
+          icon="📅"
+          value={matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'TBA'}
+          subValue={timeText ? `At ${timeText}` : ''}
+          gradient="bg-purple-50/50 border-purple-100 hover:border-purple-200"
+        />
 
         {/* Toss */}
         {match.tossWinner && (
-          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-6 border-2 border-amber-100">
-            <h3 className="text-sm font-bold text-amber-700 uppercase tracking-wider mb-3">🪙 Toss</h3>
-            <p className="text-xl font-bold text-slate-900">
-              {match.tossWinner === 'teamA' ? teamAName : teamBName} won the toss and elected to{' '}
-              <span className="text-amber-600 capitalize">{match.electedTo || 'bat/bowl'}</span>
-            </p>
-          </div>
+          <InfoCard
+            title="Toss"
+            icon="🪙"
+            value={`${(match.tossWinner === 'teamA' || match.tossWinner === (match as any).teamAId || match.tossWinner === (match as any).teamASquadId) ? teamAName : teamBName} won the toss`}
+            subValue={`Elected to ${match.electedTo || 'bat/bowl'}`}
+            gradient="bg-amber-50/50 border-amber-100 hover:border-amber-200"
+          />
         )}
 
         {/* Match Format */}
         {match.oversLimit && (
-          <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl p-6 border-2 border-slate-100">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">⚙️ Match Format</h3>
-            <p className="text-xl font-bold text-slate-900">
-              {match.oversLimit} overs match
-            </p>
-          </div>
+          <InfoCard
+            title="Match Format"
+            icon="⚙️"
+            value={`${match.oversLimit} Overs Match`}
+            gradient="bg-slate-50/50 border-slate-200 hover:border-slate-300"
+          />
         )}
 
         {/* Match Status */}
-        <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-6 border-2 border-teal-100">
-          <h3 className="text-sm font-bold text-teal-700 uppercase tracking-wider mb-3">📊 Status</h3>
-          <p className="text-xl font-bold text-slate-900 capitalize">
-            {match.status || 'Upcoming'}
-          </p>
-        </div>
+        <InfoCard
+          title="Status"
+          icon="📊"
+          value={match.status || 'Upcoming'}
+          gradient="bg-teal-50/50 border-teal-100 hover:border-teal-200"
+        />
 
         {/* Squads Info */}
-        {(teamASquad || teamBSquad) && (
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border-2 border-orange-100">
-            <h3 className="text-sm font-bold text-orange-700 uppercase tracking-wider mb-3">👥 Squads</h3>
-            <div className="space-y-2">
-              {teamASquad && (
-                <p className="text-lg font-semibold text-slate-900">
-                  {teamAName}: {teamASquad.playerIds?.length || 0} players
-                </p>
-              )}
-              {teamBSquad && (
-                <p className="text-lg font-semibold text-slate-900">
-                  {teamBName}: {teamBSquad.playerIds?.length || 0} players
-                </p>
-              )}
-            </div>
-          </div>
+        {(firstSquad || secondSquad) && (
+          <InfoCard
+            title="Squad Size"
+            icon="📋"
+            value={`${firstName}: ${firstSquad?.playerIds?.length || 0} players`}
+            subValue={`${secondName}: ${secondSquad?.playerIds?.length || 0} players`}
+            gradient="bg-orange-50/50 border-orange-100 hover:border-orange-200"
+          />
         )}
       </div>
     </div>

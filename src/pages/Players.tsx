@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { playerService } from '@/services/firestore/players'
 import { Player } from '@/types'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
 
 export default function Players() {
   const [players, setPlayers] = useState<Player[]>([])
@@ -34,12 +35,6 @@ export default function Players() {
     player.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const getInitials = (name: string) => {
-    if (!name) return '?'
-    const parts = name.trim().split(' ')
-    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -52,7 +47,7 @@ export default function Players() {
           </h1>
           <div className="h-1 flex-1 bg-gradient-to-r from-emerald-500/30 to-transparent rounded-full"></div>
         </div>
-        
+
         {/* Search */}
         <div className="relative max-w-md">
           <input
@@ -92,17 +87,12 @@ export default function Players() {
               <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-400/10 rounded-full -mr-12 -mt-12"></div>
               <div className="relative">
                 <div className="flex items-center gap-4 mb-5">
-                  {player.photoUrl ? (
-                    <img
-                      src={player.photoUrl}
-                      alt={player.name}
-                      className="w-16 h-16 rounded-full object-cover border-4 border-emerald-200 shadow-lg group-hover:border-emerald-400 transition"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-xl shadow-lg group-hover:scale-110 transition-transform">
-                      {getInitials(player.name)}
-                    </div>
-                  )}
+                  <PlayerAvatar
+                    photoUrl={player.photoUrl || (player as any).photo}
+                    name={player.name}
+                    size="md"
+                    className="w-16 h-16 border-4 border-emerald-200 shadow-lg group-hover:border-emerald-400 transition"
+                  />
                   <div className="flex-1">
                     <h3 className="text-lg font-extrabold text-slate-900 group-hover:text-emerald-600 transition">
                       {player.name}
@@ -110,7 +100,7 @@ export default function Players() {
                     <p className="text-sm font-semibold text-slate-500 capitalize">{player.role}</p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2 text-sm">
                   {player.battingStyle && (
                     <div className="bg-blue-50 rounded-lg p-2 border border-blue-100">

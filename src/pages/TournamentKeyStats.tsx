@@ -10,6 +10,7 @@ import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import type { InningsStats, Match, Tournament } from '@/types'
+import PlayerLink from '@/components/PlayerLink'
 
 type BatAgg = {
   playerId: string
@@ -66,12 +67,12 @@ export default function TournamentKeyStats(
         // Realtime: keep player/squad names in sync after renames
         const unsubPlayers = playerService.subscribeAll((list) => {
           const pMap = new Map<string, any>()
-          ;(list as any[]).forEach((p) => p?.id && pMap.set(p.id, p))
+            ; (list as any[]).forEach((p) => p?.id && pMap.set(p.id, p))
           setPlayersById(pMap)
         })
         const unsubSquads = squadService.subscribeAll((list) => {
           const sMap = new Map<string, any>()
-          ;(list as any[]).forEach((s) => s?.id && sMap.set(s.id, s))
+            ; (list as any[]).forEach((s) => s?.id && sMap.set(s.id, s))
           setSquadsById(sMap)
         })
 
@@ -97,7 +98,7 @@ export default function TournamentKeyStats(
       }
     }
     let cleanup: undefined | (() => void)
-    run().then((c: any) => { cleanup = typeof c === 'function' ? c : undefined }).catch(() => {})
+    run().then((c: any) => { cleanup = typeof c === 'function' ? c : undefined }).catch(() => { })
     return () => cleanup?.()
   }, [tournamentId])
 
@@ -168,30 +169,30 @@ export default function TournamentKeyStats(
     inningsMap.forEach((inn) => {
       ;[inn.teamA, inn.teamB].filter(Boolean).forEach((i) => {
         const innings = i as any
-        ;(innings?.batsmanStats || []).forEach((b: any) => {
-          const pid = String(b.batsmanId || '')
-          const runs = safeNum(b.runs)
-          const balls = safeNum(b.balls)
-          const notOut = Boolean(b.notOut)
-          addBat(pid, {
-            runs,
-            balls,
-            inns: 1,
-            outs: notOut ? 0 : 1,
-            hundreds: runs >= 100 ? 1 : 0,
-            fifties: runs >= 50 && runs < 100 ? 1 : 0,
-            fours: safeNum(b.fours),
-            sixes: safeNum(b.sixes),
+          ; (innings?.batsmanStats || []).forEach((b: any) => {
+            const pid = String(b.batsmanId || '')
+            const runs = safeNum(b.runs)
+            const balls = safeNum(b.balls)
+            const notOut = Boolean(b.notOut)
+            addBat(pid, {
+              runs,
+              balls,
+              inns: 1,
+              outs: notOut ? 0 : 1,
+              hundreds: runs >= 100 ? 1 : 0,
+              fifties: runs >= 50 && runs < 100 ? 1 : 0,
+              fours: safeNum(b.fours),
+              sixes: safeNum(b.sixes),
+            })
           })
-        })
-        ;(innings?.bowlerStats || []).forEach((bw: any) => {
-          const pid = String(bw.bowlerId || '')
-          addBowl(pid, {
-            wickets: safeNum(bw.wickets),
-            balls: safeNum(bw.ballsBowled),
-            runsConceded: safeNum(bw.runsConceded),
+          ; (innings?.bowlerStats || []).forEach((bw: any) => {
+            const pid = String(bw.bowlerId || '')
+            addBowl(pid, {
+              wickets: safeNum(bw.wickets),
+              balls: safeNum(bw.ballsBowled),
+              runsConceded: safeNum(bw.runsConceded),
+            })
           })
-        })
       })
     })
 
@@ -279,7 +280,11 @@ export default function TournamentKeyStats(
             <tr key={r.id || r.playerId || idx} className="hover:bg-slate-50">
               {columns.map((c) => (
                 <td key={c.key} className={`py-3 px-3 ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
-                  {r[c.key]}
+                  {c.key === 'playerName' ? (
+                    <PlayerLink playerId={r.playerId} playerName={r.playerName} className="font-bold text-slate-900 block" />
+                  ) : (
+                    r[c.key]
+                  )}
                 </td>
               ))}
             </tr>
@@ -314,7 +319,7 @@ export default function TournamentKeyStats(
           </div>
           <div className="flex gap-3">
             <Link
-            to={`/tournaments/${tournamentId}?tab=points`}
+              to={`/tournaments/${tournamentId}?tab=points`}
               className="px-4 py-2 rounded-xl bg-white text-slate-900 border-2 border-slate-200 font-semibold hover:bg-slate-50"
             >
               Points Table

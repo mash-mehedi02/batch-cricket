@@ -3,8 +3,7 @@
  * Shows Striker, Non-striker, Current Bowler, Partnership, Recommended Bowler
  */
 
-import React from 'react'
-import { getInitials } from '../../config/crex-design'
+import PlayerAvatar from '../common/PlayerAvatar'
 
 interface CrexQuickStatsRowProps {
   currentInningsData: any
@@ -41,11 +40,13 @@ export default function CrexQuickStatsRow({
   const StatCard = ({
     title,
     playerName,
+    player,
     stats,
     isBowler = false,
   }: {
     title: string
     playerName: string | null
+    player?: any
     stats?: any
     isBowler?: boolean
   }) => (
@@ -54,9 +55,11 @@ export default function CrexQuickStatsRow({
       {playerName ? (
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-full bg-crex-teal text-white flex items-center justify-center text-sm font-bold">
-              {getInitials(playerName)}
-            </div>
+            <PlayerAvatar
+              photoUrl={player?.photoUrl || (player as any)?.photo}
+              name={playerName}
+              size="sm"
+            />
             <div className="font-semibold text-crex-gray-900 truncate">{playerName}</div>
           </div>
           {stats && (
@@ -86,16 +89,19 @@ export default function CrexQuickStatsRow({
       <StatCard
         title="Striker"
         playerName={striker?.name || strikerStats?.batsmanName}
+        player={striker}
         stats={strikerStats}
       />
       <StatCard
         title="Non-Striker"
         playerName={nonStriker?.name || nonStrikerStats?.batsmanName}
+        player={nonStriker}
         stats={nonStrikerStats}
       />
       <StatCard
         title="Bowler"
         playerName={bowler?.name || bowlerStats?.bowlerName}
+        player={bowler}
         stats={bowlerStats}
         isBowler={true}
       />

@@ -48,7 +48,7 @@ export default function BattingTable({ innings }: BattingTableProps) {
             </div>
             <div className="text-center text-gray-900">{striker.fours || 0}</div>
             <div className="text-center text-gray-900">{striker.sixes || 0}</div>
-            <div className="text-center text-gray-900">{(striker.strikeRate || 0).toFixed(1)}</div>
+            <div className="text-center text-gray-900">{(striker.strikeRate || 0).toFixed(2)}</div>
           </div>
         )}
 
@@ -62,7 +62,7 @@ export default function BattingTable({ innings }: BattingTableProps) {
             </div>
             <div className="text-center text-gray-900">{nonStriker.fours || 0}</div>
             <div className="text-center text-gray-900">{nonStriker.sixes || 0}</div>
-            <div className="text-center text-gray-900">{(nonStriker.strikeRate || 0).toFixed(1)}</div>
+            <div className="text-center text-gray-900">{(nonStriker.strikeRate || 0).toFixed(2)}</div>
           </div>
         )}
       </div>

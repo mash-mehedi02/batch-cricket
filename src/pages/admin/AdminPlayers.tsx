@@ -13,6 +13,7 @@ import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
 
 interface AdminPlayersProps {
   mode?: 'list' | 'create' | 'edit'
@@ -401,17 +402,12 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition"
             >
               <div className="flex items-start gap-4 mb-4">
-                {player.photoUrl ? (
-                  <img
-                    src={player.photoUrl}
-                    alt={player.name}
-                    className="w-16 h-16 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center text-white font-bold text-xl">
-                    {player.name[0]}
-                  </div>
-                )}
+                <PlayerAvatar
+                  photoUrl={player.photoUrl}
+                  name={player.name}
+                  size="md"
+                  className="w-16 h-16"
+                />
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">{player.name}</h3>
                   <p className="text-sm text-gray-600 capitalize">{player.role}</p>

@@ -52,9 +52,8 @@ const PlayerMiniCard = ({
   }
 
   return (
-    <div className={`bg-white rounded-xl shadow-md border p-4 hover:shadow-lg transition-shadow ${
-      isStriker ? 'border-yellow-300 bg-yellow-50/30' : 'border-slate-200'
-    }`}>
+    <div className={`bg-white rounded-xl shadow-md border p-4 hover:shadow-lg transition-shadow ${isStriker ? 'border-yellow-300 bg-yellow-50/30' : 'border-slate-200'
+      }`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-slate-900">{name}</span>
@@ -80,7 +79,7 @@ const PlayerMiniCard = ({
         </div>
         <div>
           <span className="text-slate-500">SR: </span>
-          <span className="font-semibold text-slate-900">{strikeRate.toFixed(1)}</span>
+          <span className="font-semibold text-slate-900">{strikeRate.toFixed(2)}</span>
         </div>
       </div>
     </div>

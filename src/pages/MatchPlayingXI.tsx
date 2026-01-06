@@ -1,9 +1,4 @@
-/**
- * Playing XI Page
- * Display playing XI for both teams
- */
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
@@ -11,13 +6,7 @@ import { squadService } from '@/services/firestore/squads'
 import { Match } from '@/types'
 import { SkeletonText } from '@/components/skeletons/SkeletonCard'
 import PlayerLink from '@/components/PlayerLink'
-
-function getInitials(name: string): string {
-  if (!name) return '?'
-  const parts = name.trim().split(' ')
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
+import PlayerAvatar from '@/components/common/PlayerAvatar'
 
 function formatRole(player: any): string {
   const role = String(player.role || '').toLowerCase()
@@ -57,6 +46,7 @@ export default function MatchPlayingXI() {
   const [selectedTeam, setSelectedTeam] = useState<'A' | 'B'>('A')
   const [squadData, setSquadData] = useState<{ allA: any[], allB: any[] }>({ allA: [], allB: [] })
   const [loadingSquads, setLoadingSquads] = useState(false)
+  const didDefaultTeam = useRef(false)
 
   useEffect(() => {
     if (!matchId) return
@@ -82,7 +72,6 @@ export default function MatchPlayingXI() {
 
   useEffect(() => {
     const resolveSquadId = async (candidate?: string, nameFallback?: string): Promise<string | null> => {
-      // Try as ID
       if (candidate) {
         try {
           const s = await squadService.getById(candidate)
@@ -91,7 +80,6 @@ export default function MatchPlayingXI() {
           // ignore
         }
       }
-      // Try by name (legacy matches stored name instead of ID)
       const name = nameFallback || candidate
       if (name) {
         const list = await squadService.getByName(name)
@@ -161,7 +149,29 @@ export default function MatchPlayingXI() {
     loadSquads()
   }, [match])
 
-  // NOW conditional returns are safe (all hooks are called)
+  // Batting Order logic
+  const { firstSide, secondSide } = (() => {
+    if (!match) return { firstSide: 'A' as const, secondSide: 'B' as const }
+    const tw = String((match as any).tossWinner || '').trim()
+    const decRaw = String((match as any).electedTo || (match as any).tossDecision || '').trim().toLowerCase()
+    if (!tw || !decRaw) return { firstSide: 'A' as const, secondSide: 'B' as const }
+
+    const tossSide = (tw === 'teamA' || tw === (match as any).teamAId || tw === (match as any).teamASquadId) ? 'A' : 'B'
+    const battedFirst = decRaw.includes('bat') ? tossSide : (tossSide === 'A' ? 'B' : 'A')
+    return {
+      firstSide: battedFirst as 'A' | 'B',
+      secondSide: (battedFirst === 'A' ? 'B' : 'A') as 'A' | 'B'
+    }
+  })()
+
+  // Default selection to first batting team once match loads
+  useEffect(() => {
+    if (match && !didDefaultTeam.current) {
+      setSelectedTeam(firstSide)
+      didDefaultTeam.current = true
+    }
+  }, [match, firstSide])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white to-slate-50 flex items-center justify-center">
@@ -193,7 +203,6 @@ export default function MatchPlayingXI() {
   const teamAPlayingXI = match.teamAPlayingXI || []
   const teamBPlayingXI = match.teamBPlayingXI || []
 
-  // Helper function (not a hook)
   const getPlayingAndBench = (allPlayers: any[], playingXIIds: string[]) => {
     const playing = playingXIIds.map(id => allPlayers.find(p => p.id === id)).filter(Boolean)
     const bench = allPlayers.filter(p => !playingXIIds.includes(p.id))
@@ -202,6 +211,29 @@ export default function MatchPlayingXI() {
 
   const teamAData = getPlayingAndBench(squadData.allA, teamAPlayingXI)
   const teamBData = getPlayingAndBench(squadData.allB, teamBPlayingXI)
+
+  const renderPlayerCard = (player: any, isCaptain: boolean, isKeeper: boolean, badgeText?: string, badgeColor: string = 'text-green-500') => {
+    const roleDisplay = formatRole(player)
+    return (
+      <div key={player.id} className="bg-white rounded-lg p-2 sm:p-4 border border-slate-200 flex items-center gap-2 sm:gap-3">
+        <PlayerAvatar
+          photoUrl={player.photoUrl || (player as any).photo}
+          name={player.name}
+          size="lg"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+            <PlayerLink playerId={player.id} playerName={player.name} className="font-bold text-slate-900 truncate text-[11px] sm:text-base" />
+            {isCaptain && <span className="text-[8px] sm:text-xs text-yellow-500 font-bold">(c)</span>}
+            {isKeeper && <span className="text-[8px] sm:text-xs text-green-500 font-bold">(wk)</span>}
+            {badgeText && <span className={`ml-auto text-[8px] sm:text-xs font-bold ${badgeColor}`}>{badgeText}</span>}
+          </div>
+          <div className="text-[9px] sm:text-xs text-slate-600 mt-0.5 line-clamp-1">{roleDisplay}</div>
+          <div className="text-[9px] sm:text-xs text-slate-500 mt-0.5">SR: {player.strikeRate.toFixed(1)}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white to-slate-50 text-slate-900">
@@ -229,198 +261,77 @@ export default function MatchPlayingXI() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex gap-1">
             <button
-              onClick={() => setSelectedTeam('A')}
-              className={`px-6 py-3 text-sm font-semibold transition relative ${selectedTeam === 'A'
+              onClick={() => setSelectedTeam(firstSide)}
+              className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold transition relative ${selectedTeam === firstSide
                 ? 'border-b-2 border-amber-500 text-slate-900'
                 : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
-              {teamAName}
+              {firstSide === 'A' ? teamAName : teamBName}
             </button>
             <button
-              onClick={() => setSelectedTeam('B')}
-              className={`px-6 py-3 text-sm font-semibold transition relative ${selectedTeam === 'B'
+              onClick={() => setSelectedTeam(secondSide)}
+              className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold transition relative ${selectedTeam === secondSide
                 ? 'border-b-2 border-amber-500 text-slate-900'
                 : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
-              {teamBName}
+              {secondSide === 'A' ? teamAName : teamBName}
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {loadingSquads ? (
-          <div className="mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg p-4 border border-slate-200">
-                <SkeletonText lines={3} className="text-slate-300" />
-              </div>
-              <div className="bg-white rounded-lg p-4 border border-slate-200">
-                <SkeletonText lines={3} className="text-slate-300" />
-              </div>
+      <div className="max-w-7xl mx-auto px-2 sm:px-8 py-6">
+        {loadingSquads && (
+          <div className="mb-6 grid grid-cols-2 gap-2 sm:gap-4">
+            <div className="bg-white rounded-lg p-4 border border-slate-200">
+              <SkeletonText lines={2} className="text-slate-300" />
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-slate-200">
+              <SkeletonText lines={2} className="text-slate-300" />
             </div>
           </div>
-        ) : null}
+        )}
 
-        {selectedTeam === 'A' && teamAPlayingXI.length === 0 ? (
+        {(selectedTeam === 'A' && teamAPlayingXI.length === 0) || (selectedTeam === 'B' && teamBPlayingXI.length === 0) ? (
           <div className="mb-4 bg-white border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-            Playing XI is not set yet for <span className="font-bold text-slate-900">{teamAName}</span>.
-          </div>
-        ) : null}
-        {selectedTeam === 'B' && teamBPlayingXI.length === 0 ? (
-          <div className="mb-4 bg-white border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-            Playing XI is not set yet for <span className="font-bold text-slate-900">{teamBName}</span>.
+            Playing XI is not set yet for <span className="font-bold text-slate-900">{selectedTeam === 'A' ? teamAName : teamBName}</span>.
           </div>
         ) : null}
 
         {selectedTeam === 'A' ? (
           <>
-            {/* Main Playing XI - 2 Columns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              {teamAData.playing.map((player) => {
-                const isCaptain = player.id === match.teamACaptainId
-                const isKeeper = player.id === match.teamAKeeperId
-                const roleDisplay = formatRole(player)
-
-                return (
-                  <div key={player.id} className="bg-white rounded-lg p-4 border border-slate-200 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 overflow-hidden border border-slate-100 relative">
-                      <span className="text-slate-900 text-sm font-bold">
-                        {getInitials(player.name)}
-                      </span>
-                      {(player.photoUrl || (player as any).photo) && (
-                        <img
-                          src={player.photoUrl || (player as any).photo}
-                          alt={player.name}
-                          className="absolute inset-0 w-full h-full rounded-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <PlayerLink playerId={player.id} playerName={player.name} className="font-semibold text-slate-900 truncate" />
-                        {isCaptain && <span className="text-xs text-yellow-400 font-bold">(c)</span>}
-                        {isKeeper && <span className="text-xs text-green-400 font-bold">(wk)</span>}
-                        <span className="ml-auto text-xs text-green-400 font-bold">IN ↑</span>
-                      </div>
-                      <div className="text-xs text-slate-600 mt-1">{roleDisplay}</div>
-                      <div className="text-xs text-slate-500 mt-1">SR: {player.strikeRate.toFixed(2)}</div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-6">
+              {teamAData.playing.map((player) =>
+                renderPlayerCard(player, player.id === match.teamACaptainId, player.id === match.teamAKeeperId, 'IN ↑', 'text-green-500')
+              )}
             </div>
-
-            {/* On Bench Section */}
             {teamAData.bench.length > 0 && (
               <div className="mt-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">On Bench</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {teamAData.bench.map((player) => {
-                    const roleDisplay = formatRole(player)
-
-                    return (
-                      <div key={player.id} className="bg-white rounded-lg p-4 border border-slate-200 flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                          {player.photoUrl ? (
-                            <img src={player.photoUrl} alt={player.name} className="w-full h-full rounded-full object-cover" />
-                          ) : (
-                            <span className="text-slate-900 text-sm font-bold">
-                              {getInitials(player.name)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <PlayerLink playerId={player.id} playerName={player.name} className="font-semibold text-slate-900 truncate" />
-                            <span className="ml-auto text-xs text-red-400 font-bold">OUT ↓</span>
-                          </div>
-                          <div className="text-xs text-slate-600 mt-1">{roleDisplay}</div>
-                          <div className="text-xs text-slate-500 mt-1">SR: {player.strikeRate.toFixed(2)}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                <h3 className="text-lg font-bold text-slate-900 mb-4 px-2">On Bench</h3>
+                <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                  {teamAData.bench.map((player) =>
+                    renderPlayerCard(player, false, false, 'OUT ↓', 'text-red-400')
+                  )}
                 </div>
               </div>
             )}
           </>
         ) : (
           <>
-            {/* Main Playing XI - 2 Columns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              {teamBData.playing.map((player) => {
-                const isCaptain = player.id === match.teamBCaptainId
-                const isKeeper = player.id === match.teamBKeeperId
-                const roleDisplay = formatRole(player)
-
-                return (
-                  <div key={player.id} className="bg-white rounded-lg p-4 border border-slate-200 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 overflow-hidden border border-slate-100 relative">
-                      <span className="text-slate-900 text-sm font-bold">
-                        {getInitials(player.name)}
-                      </span>
-                      {(player.photoUrl || (player as any).photo) && (
-                        <img
-                          src={player.photoUrl || (player as any).photo}
-                          alt={player.name}
-                          className="absolute inset-0 w-full h-full rounded-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <PlayerLink playerId={player.id} playerName={player.name} className="font-semibold text-slate-900 truncate" />
-                        {isCaptain && <span className="text-xs text-yellow-400 font-bold">(c)</span>}
-                        {isKeeper && <span className="text-xs text-green-400 font-bold">(wk)</span>}
-                        <span className="ml-auto text-xs text-green-400 font-bold">IN ↑</span>
-                      </div>
-                      <div className="text-xs text-slate-600 mt-1">{roleDisplay}</div>
-                      <div className="text-xs text-slate-500 mt-1">SR: {player.strikeRate.toFixed(2)}</div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-6">
+              {teamBData.playing.map((player) =>
+                renderPlayerCard(player, player.id === match.teamBCaptainId, player.id === match.teamBKeeperId, 'IN ↑', 'text-green-500')
+              )}
             </div>
-
-            {/* On Bench Section */}
             {teamBData.bench.length > 0 && (
               <div className="mt-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">On Bench</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {teamBData.bench.map((player) => {
-                    const roleDisplay = formatRole(player)
-
-                    return (
-                      <div key={player.id} className="bg-white rounded-lg p-4 border border-slate-200 flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                          {player.photoUrl ? (
-                            <img src={player.photoUrl} alt={player.name} className="w-full h-full rounded-full object-cover" />
-                          ) : (
-                            <span className="text-slate-900 text-sm font-bold">
-                              {getInitials(player.name)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <PlayerLink playerId={player.id} playerName={player.name} className="font-semibold text-slate-900 truncate" />
-                            <span className="ml-auto text-xs text-red-400 font-bold">OUT ↓</span>
-                          </div>
-                          <div className="text-xs text-slate-600 mt-1">{roleDisplay}</div>
-                          <div className="text-xs text-slate-500 mt-1">SR: {player.strikeRate.toFixed(2)}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                <h3 className="text-lg font-bold text-slate-900 mb-4 px-2">On Bench</h3>
+                <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                  {teamBData.bench.map((player) =>
+                    renderPlayerCard(player, false, false, 'OUT ↓', 'text-red-400')
+                  )}
                 </div>
               </div>
             )}

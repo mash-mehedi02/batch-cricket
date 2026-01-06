@@ -15,7 +15,7 @@ const BattingCard = ({ player, isStriker = false }) => {
   const balls = player.balls || 0
   const fours = player.fours || 0
   const sixes = player.sixes || 0
-  const strikeRate = balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0'
+  const strikeRate = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00'
 
   return (
     <div className={`bg-gradient-to-br ${isStriker ? 'from-blue-50 to-blue-100 border-blue-300' : 'from-slate-50 to-slate-100 border-slate-200'} rounded-xl shadow-lg p-5 border-2`}>

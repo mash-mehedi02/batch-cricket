@@ -195,6 +195,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
         return 'text-black font-bold'
     }
 
+    const displayOrder = (() => {
+        if (!match.tossWinner || !match.electedTo) return ['teamA', 'teamB'] as const
+        const tossWinner = match.tossWinner === 'teamA' ? 'teamA' : 'teamB'
+        const decision = match.electedTo === 'bat' ? 'bat' : 'bowl'
+        const battedFirst = decision === 'bat' ? tossWinner : (tossWinner === 'teamA' ? 'teamB' : 'teamA')
+        return battedFirst === 'teamA' ? (['teamA', 'teamB'] as const) : (['teamB', 'teamA'] as const)
+    })()
+
     return (
         <Link
             to={`/match/${match.id}${isLive ? '' : isFinished ? '' : '/info'}`}
@@ -224,57 +232,37 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
             <div className="p-4 flex gap-4">
                 {/* Teams and Scores */}
                 <div className="flex-1 space-y-4">
-                    {/* Team A */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
-                                {teamALogo ? (
-                                    <img src={teamALogo} alt={teamAName} className="w-full h-full object-contain" />
-                                ) : (
-                                    <span className="text-[9px] font-bold text-slate-400">{teamAName.substring(0, 2).toUpperCase()}</span>
+                    {displayOrder.map((side) => {
+                        const name = side === 'teamA' ? teamAName : teamBName
+                        const logo = side === 'teamA' ? teamALogo : teamBLogo
+                        const inn = side === 'teamA' ? teamAInnings : teamBInnings
+                        return (
+                            <div key={side} className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                        {logo ? (
+                                            <img src={logo} alt={name} className="w-full h-full object-contain" />
+                                        ) : (
+                                            <span className="text-[9px] font-bold text-slate-400">{name.substring(0, 2).toUpperCase()}</span>
+                                        )}
+                                    </div>
+                                    <span className={`text-[12px] truncate max-w-[120px] transition-all ${getTeamColor(side)}`}>
+                                        {name}
+                                    </span>
+                                </div>
+                                {(isLive || isFinished) && inn && (
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-[10px] font-medium text-slate-400 font-mono">
+                                            ({inn.overs})
+                                        </span>
+                                        <span className="text-xl font-black text-black tabular-nums tracking-tight">
+                                            {inn.totalRuns}-{inn.totalWickets}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
-                            <span className={`text-[12px] truncate max-w-[120px] transition-all ${getTeamColor('teamA')}`}>
-                                {teamAName}
-                            </span>
-                        </div>
-                        {(isLive || isFinished) && teamAInnings && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[10px] font-medium text-slate-400 font-mono">
-                                    ({teamAInnings.overs})
-                                </span>
-                                <span className="text-xl font-black text-black tabular-nums tracking-tight">
-                                    {teamAInnings.totalRuns}-{teamAInnings.totalWickets}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Team B */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
-                                {teamBLogo ? (
-                                    <img src={teamBLogo} alt={teamBName} className="w-full h-full object-contain" />
-                                ) : (
-                                    <span className="text-[9px] font-bold text-slate-400">{teamBName.substring(0, 2).toUpperCase()}</span>
-                                )}
-                            </div>
-                            <span className={`text-[12px] truncate max-w-[120px] transition-all ${getTeamColor('teamB')}`}>
-                                {teamBName}
-                            </span>
-                        </div>
-                        {(isLive || isFinished) && teamBInnings && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[10px] font-medium text-slate-400 font-mono">
-                                    ({teamBInnings.overs})
-                                </span>
-                                <span className="text-xl font-black text-black tabular-nums tracking-tight">
-                                    {teamBInnings.totalRuns}-{teamBInnings.totalWickets}
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                        )
+                    })}
                 </div>
 
                 {/* Status Divider */}

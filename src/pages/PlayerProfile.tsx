@@ -11,13 +11,8 @@ import { matchService } from '@/services/firestore/matches'
 import { Player } from '@/types'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
 import { playerMatchStatsService } from '@/services/firestore/playerMatchStats'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
 
-function getInitials(name: string): string {
-  if (!name) return '?'
-  const parts = name.trim().split(' ')
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
 
 // Helper to format role names consistently
 function formatRole(player: any): string {
@@ -272,8 +267,8 @@ export default function PlayerProfile() {
   // Prioritize calculated stats derived from history & live data
   const matches = Number(career.matches || 0)
   const runs = Number(batting.runs || 0)
-  const average = Number(batting.average || 0) > 0 ? Number(batting.average).toFixed(1) : runs ? String(runs) : '-'
-  const strikeRate = Number(batting.strikeRate || 0) > 0 ? Number(batting.strikeRate).toFixed(1) : '0.0'
+  const average = Number(batting.average || 0) > 0 ? Number(batting.average).toFixed(2) : runs ? (Number(runs / (Number(batting.innings || 0) - Number(batting.notOut || 0))).toFixed(2)) : '-'
+  const strikeRate = Number(batting.strikeRate || 0) > 0 ? Number(batting.strikeRate).toFixed(2) : '0.00'
   const highestScore = (batting as any).highestScore !== undefined ? (batting as any).highestScore : '-'
   const hundreds = Number((batting as any).hundreds || 0)
   const fifties = Number((batting as any).fifties || 0)
@@ -297,24 +292,12 @@ export default function PlayerProfile() {
             <div className="relative group shrink-0">
               <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
               <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-52 md:h-52 rounded-full bg-slate-900 flex items-center justify-center overflow-hidden border-2 md:border-4 border-slate-950 relative z-10 shadow-[0_0_25px_rgba(16,185,129,0.25)] md:shadow-[0_0_50px_rgba(16,185,129,0.3)] group-hover:shadow-[0_0_70px_rgba(16,185,129,0.5)] transition-all duration-700">
-                {(player.photoUrl || (player as any).photo) ? (
-                  <img
-                    src={player.photoUrl || (player as any).photo}
-                    alt={player.name}
-                    className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-110"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      const parent = target.parentElement;
-                      if (parent) {
-                        parent.innerHTML = `<span class="text-white text-3xl sm:text-5xl md:text-7xl font-black opacity-40">${getInitials(player.name)}</span>`;
-                      }
-                    }}
-                  />
-                ) : (
-                  <span className="text-white text-3xl sm:text-5xl md:text-7xl font-black opacity-40 group-hover:opacity-100 transition-opacity">
-                    {getInitials(player.name)}
-                  </span>
-                )}
+                <PlayerAvatar
+                  photoUrl={player.photoUrl || (player as any).photo}
+                  name={player.name}
+                  size="xl"
+                  className="w-full h-full border-none shadow-none bg-transparent"
+                />
               </div>
               {/* Outer Pulse */}
               <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping opacity-20 pointer-events-none"></div>

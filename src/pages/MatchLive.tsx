@@ -4,28 +4,24 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { Match, InningsStats, Ball } from '@/types'
 import { useAuthStore } from '@/store/authStore'
-import HeroScoreboard from '@/components/match/HeroScoreboard'
 import MatchTabs from '@/components/match/MatchTabs'
-import BattingTable from '@/components/match/BattingTable'
-import BowlingTableLive from '@/components/match/BowlingTableLive'
-import WinProbability from '@/components/match/WinProbability'
-import OverStrip from '@/components/match/OverStrip'
+import { getMatchResultString } from '@/utils/matchWinner'
 import MatchLiveSkeleton from '@/components/skeletons/MatchLiveSkeleton'
 import { subscribeToCommentary, type CommentaryEntry } from '@/services/commentary/commentaryService'
 import CrexLiveSection from '@/components/live/CrexLiveSection'
-import { useNavigate } from 'react-router-dom'
 // Import all match page components to render inline
 import MatchScorecard from '@/pages/MatchScorecard'
 import MatchPlayingXI from '@/pages/MatchPlayingXI'
 import MatchGraphs from '@/pages/MatchGraphs'
 import MatchInfo from '@/pages/MatchInfo'
 import MatchSummary from '@/components/match/MatchSummary'
+import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 export default function MatchLive() {
@@ -154,10 +150,8 @@ export default function MatchLive() {
           return null
         }
 
-        const teamAName = (match as any).teamAName || match.teamA || ''
-        const teamBName = (match as any).teamBName || match.teamB || ''
-        const squadAId = await resolveSquadId((match as any).teamASquadId || (match as any).teamAId || match.teamA, teamAName)
-        const squadBId = await resolveSquadId((match as any).teamBSquadId || (match as any).teamBId || match.teamB, teamBName)
+        const squadAId = await resolveSquadId((match as any).teamASquadId || (match as any).teamAId, teamAName)
+        const squadBId = await resolveSquadId((match as any).teamBSquadId || (match as any).teamBId, teamBName)
 
         // Realtime squads cache (for squad rename reflection)
         const unsubSquads = squadService.subscribeAll((list) => {
@@ -260,39 +254,6 @@ export default function MatchLive() {
       economy: bowlerStats.economy || 0,
     }
   }, [currentInnings, playersMap])
-
-  // Match context for AI
-  const matchContext = useMemo(() => {
-    if (!currentInnings || !match) return null
-    return {
-      currentScore: currentInnings.totalRuns,
-      wickets: currentInnings.totalWickets,
-      oversBowled: parseFloat(currentInnings.overs || '0'),
-      oversLimit: match.oversLimit || 20,
-      requiredRuns: currentInnings.target ? currentInnings.target - currentInnings.totalRuns : undefined,
-      oversRemaining: match.oversLimit ? match.oversLimit - parseFloat(currentInnings.overs || '0') : undefined,
-    }
-  }, [currentInnings, match])
-
-  // Ball events for commentary
-  const ballEvents = useMemo(() => {
-    return balls.map((ball, idx) => ({
-      // Support multiple schemas (legacy/current)
-      strikerId: (ball as any).strikerId || (ball as any).batsmanId,
-      bowlerId: (ball as any).bowlerId,
-      batsman: playersMap.get((ball as any).strikerId || (ball as any).batsmanId)?.name || 'Batter',
-      bowler: playersMap.get(ball.bowlerId)?.name || 'Bowler',
-      runs: ball.totalRuns,
-      batRuns: ball.runsOffBat,
-      extraType: (ball.extras.wides > 0 ? 'wide' : ball.extras.noBalls > 0 ? 'no-ball' : ball.extras.byes > 0 ? 'bye' : ball.extras.legByes > 0 ? 'leg-bye' : 'normal') as any,
-      wicketType: (ball.wicket?.type || null) as any,
-      isWicket: !!ball.wicket,
-      isBoundary: ball.runsOffBat === 4 || ball.runsOffBat === 6,
-      over: Math.floor(ball.sequence / 6) + 1,
-      ball: (ball.sequence % 6) + 1,
-      timestamp: ball.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-    }))
-  }, [balls, playersMap])
 
   const lastBallDoc = useMemo(() => {
     return Array.isArray(balls) && balls.length > 0 ? (balls[balls.length - 1] as any) : null
@@ -411,7 +372,24 @@ export default function MatchLive() {
   const xiCountA = Number((match as any)?.teamAPlayingXI?.length || 0)
   const xiCountB = Number((match as any)?.teamBPlayingXI?.length || 0)
   const hasAnyXI = xiCountA > 0 || xiCountB > 0
-  const xiIsComplete = xiCountA === 11 && xiCountB === 11
+  const { firstSide, secondSide } = useMemo(() => {
+    if (!match) return { firstSide: 'teamA' as const, secondSide: 'teamB' as const }
+    const twSide = String((match as any).tossWinner || '').trim()
+    const decRaw = String((match as any).electedTo || (match as any).tossDecision || '').trim().toLowerCase()
+
+    if (!twSide || !decRaw) return { firstSide: 'teamA' as const, secondSide: 'teamB' as const }
+
+    const tossSide = (twSide === 'teamA' || twSide === (match as any).teamAId || twSide === (match as any).teamASquadId) ? 'teamA' : 'teamB'
+    const battedFirst = decRaw.includes('bat') ? tossSide : (tossSide === 'teamA' ? 'teamB' : 'teamA')
+
+    return {
+      firstSide: battedFirst as 'teamA' | 'teamB',
+      secondSide: (battedFirst === 'teamA' ? 'teamB' : 'teamA') as 'teamA' | 'teamB'
+    }
+  }, [match])
+
+  const firstName = firstSide === 'teamA' ? teamAName : teamBName
+  const secondName = secondSide === 'teamA' ? teamAName : teamBName
 
   // Start datetime: prefer Timestamp, but if legacy stored date-only + time, merge them.
   const startDate = useMemo(() => {
@@ -452,43 +430,11 @@ export default function MatchLive() {
 
   // Effective live: either status says live, OR start time has passed (auto-promote)
   const isLiveEffective = isLiveMatch || (isUpcomingMatch && isPastStart)
-  const canUseLiveTab = isLiveEffective || isFinishedMatch
+  const canUseLiveTab = true // Always available to show countdown/status/result
 
   const resultSummary = useMemo(() => {
-    if (!match || !isFinishedMatch) return null
-    if (!teamAInnings || !teamBInnings) return null
-
-    const aRuns = Number((teamAInnings as any).totalRuns || 0)
-    const aWkts = Number((teamAInnings as any).totalWickets || 0)
-    const bRuns = Number((teamBInnings as any).totalRuns || 0)
-    const bWkts = Number((teamBInnings as any).totalWickets || 0)
-
-    const aTarget = (teamAInnings as any).target
-    const bTarget = (teamBInnings as any).target
-    const chasing: 'teamA' | 'teamB' =
-      typeof aTarget === 'number' ? 'teamA' : typeof bTarget === 'number' ? 'teamB' : 'teamB'
-
-    const chasingName = chasing === 'teamA' ? teamAName : teamBName
-    const defendingName = chasing === 'teamA' ? teamBName : teamAName
-    const target = Number((chasing === 'teamA' ? aTarget : bTarget) || 0) || (chasing === 'teamA' ? bRuns : aRuns) + 1
-    const chasingRuns = chasing === 'teamA' ? aRuns : bRuns
-    const chasingWkts = chasing === 'teamA' ? aWkts : bWkts
-
-    if (target && chasingRuns >= target) {
-      const wktsLeft = Math.max(0, 10 - chasingWkts)
-      return `${chasingName} won by ${wktsLeft} wicket${wktsLeft !== 1 ? 's' : ''}`
-    }
-    if (target && chasingRuns < target) {
-      const runsLeft = Math.max(0, (target - 1) - chasingRuns)
-      if (runsLeft === 0) return 'Match Tied'
-      return `${defendingName} won by ${runsLeft} run${runsLeft !== 1 ? 's' : ''}`
-    }
-
-    // Fallback (shouldn't happen): compare totals
-    if (aRuns > bRuns) return `${teamAName} won by ${aRuns - bRuns} runs`
-    if (bRuns > aRuns) return `${teamBName} won by ${bRuns - aRuns} runs`
-    return 'Match Tied'
-  }, [match, isFinishedMatch, teamAInnings, teamBInnings, teamAName, teamBName])
+    return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match || undefined)
+  }, [match, teamAInnings, teamBInnings, teamAName, teamBName])
 
   // Commentary (live only) - lightweight feed used by CrexLiveSection
   useEffect(() => {
@@ -703,7 +649,6 @@ export default function MatchLive() {
         h2hSummary: { winsA, winsB, total: h2h.length },
         h2hRows: h2h.map((m: any) => {
           const aKey = keyForMatchSide(m, 'A')
-          const bKey = keyForMatchSide(m, 'B')
           const aName = getMatchDisplayTeam(m, 'A')
           const bName = getMatchDisplayTeam(m, 'B')
           const aScore = getScoreText(m, 'A')
@@ -737,7 +682,6 @@ export default function MatchLive() {
       }
     }
   }, [currentKeyA, currentKeyB, relatedInningsMap, relatedMatches])
-  const isChasing = match?.currentBatting === 'teamB' && teamAInnings
 
   const startTimeText = useMemo(() => {
     if (!match) return ''
@@ -751,9 +695,10 @@ export default function MatchLive() {
   // Initialize default tab once, based on match status
   useEffect(() => {
     if (!match || didInitTab.current) return
-    setActiveTab(isLiveEffective && !isFinishedMatch ? 'live' : 'summary')
+    // Default to Live for upcoming/active, Summary for finished
+    setActiveTab(isFinishedMatch ? 'summary' : 'live')
     didInitTab.current = true
-  }, [match, canUseLiveTab])
+  }, [match, isFinishedMatch])
 
   // Countdown timer (only when upcoming + we have a start date)
   useEffect(() => {
@@ -796,53 +741,27 @@ export default function MatchLive() {
     return { days, hours, minutes, seconds, totalSeconds }
   }, [startDate, now])
 
-  // Calculate win probability - simple version (MUST be before early returns)
-  const winProb = useMemo(() => {
-    if (!currentInnings || !match) return { teamA: 50, teamB: 50, draw: 0 }
-
-    // Simple probability calculation based on score and wickets
-    if (isChasing && teamAInnings) {
-      const target = teamAInnings.totalRuns + 1
-      const current = currentInnings.totalRuns || 0
-      const needed = target - current
-      const wickets = currentInnings.totalWickets || 0
-      const oversCompleted = parseFloat(currentInnings.overs || '0')
-      const oversRemaining = (match.oversLimit || 20) - oversCompleted
-
-      if (needed <= 0) {
-        return { teamA: 0, teamB: 100, draw: 0 }
-      }
-
-      // Simple calculation: more runs needed = lower probability
-      // More wickets lost = lower probability
-      const runFactor = Math.max(0, Math.min(1, 1 - (needed / target)))
-      const wicketFactor = Math.max(0, Math.min(1, (10 - wickets) / 10))
-      const teamBProb = Math.round((runFactor * 0.6 + wicketFactor * 0.4) * 100)
-
-      return {
-        teamA: Math.max(0, Math.min(100, 100 - teamBProb - 10)),
-        teamB: teamBProb,
-        draw: 10
-      }
-    } else {
-      // First innings - equal probability
-      return { teamA: 45, teamB: 45, draw: 10 }
-    }
-  }, [currentInnings, match, isChasing, teamAInnings])
-
-  const allOversForStrip = useMemo(() => {
-    // One row with ALL overs, horizontally scrollable
-    return currentInnings?.recentOvers || []
-  }, [currentInnings])
-
   // Match tabs (MUST be before early returns) - All tabs in one page
-  const matchTabs = useMemo(() => [
-    { id: 'live', label: 'Live', disabled: !canUseLiveTab },
-    { id: 'summary', label: 'Summary' },
-    { id: 'scorecard', label: 'Scorecard' },
-    { id: 'graphs', label: 'Graphs' },
-    { id: 'playing-xi', label: 'Playing XI' },
-  ], [canUseLiveTab])
+  const matchTabs = useMemo(() => {
+    const baseTabs = [
+      { id: 'live', label: 'Live' },
+      { id: isFinishedMatch ? 'summary' : 'info', label: isFinishedMatch ? 'Summary' : 'Info' },
+      { id: 'scorecard', label: 'Scorecard' },
+      { id: 'playing-xi', label: 'Playing XI' },
+    ]
+
+    // Add Points Table if it's a tournament match
+    if (match?.tournamentId) {
+      baseTabs.push({ id: 'points-table', label: 'Points Table' })
+    }
+
+    // Add Graphs (maybe only for live/finished?)
+    if (isLiveMatch || isFinishedMatch) {
+      baseTabs.push({ id: 'graphs', label: 'Graphs' })
+    }
+
+    return baseTabs
+  }, [match?.tournamentId, isFinishedMatch, isLiveMatch])
 
   // Early returns AFTER all hooks
   if (loading) {
@@ -884,9 +803,9 @@ export default function MatchLive() {
                   <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3">
                     <div
                       className="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight text-center whitespace-normal break-words"
-                      title={teamAName}
+                      title={firstName}
                     >
-                      {teamAName}
+                      {firstName}
                     </div>
                     <div className="pt-1 sm:pt-2 text-center">
                       <div className="text-xs font-black tracking-widest text-white/70 uppercase">VS</div>
@@ -894,9 +813,9 @@ export default function MatchLive() {
                     </div>
                     <div
                       className="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight text-center whitespace-normal break-words"
-                      title={teamBName}
+                      title={secondName}
                     >
-                      {teamBName}
+                      {secondName}
                     </div>
                   </div>
                 </div>
@@ -1065,13 +984,13 @@ export default function MatchLive() {
             <div className="p-5">
               <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0 font-extrabold text-slate-900 truncate">{teamAName}</div>
+                  <div className="min-w-0 font-extrabold text-slate-900 truncate">{firstName}</div>
                   <div className="text-3xl font-extrabold tabular-nums">
-                    <span className="text-emerald-600">{teamFormAndH2H.h2hSummary.winsA}</span>
+                    <span className="text-emerald-600">{firstSide === 'teamA' ? teamFormAndH2H.h2hSummary.winsA : teamFormAndH2H.h2hSummary.winsB}</span>
                     <span className="text-slate-400 mx-2">-</span>
-                    <span className="text-amber-600">{teamFormAndH2H.h2hSummary.winsB}</span>
+                    <span className="text-amber-600">{firstSide === 'teamA' ? teamFormAndH2H.h2hSummary.winsB : teamFormAndH2H.h2hSummary.winsA}</span>
                   </div>
-                  <div className="min-w-0 font-extrabold text-slate-900 truncate text-right">{teamBName}</div>
+                  <div className="min-w-0 font-extrabold text-slate-900 truncate text-right">{secondName}</div>
                 </div>
               </div>
 
@@ -1116,10 +1035,9 @@ export default function MatchLive() {
         return <MatchGraphs />
       case 'playing-xi':
         return <MatchPlayingXI />
+      case 'info':
       case 'summary':
-        if (isUpcomingMatch) return renderUpcoming()
-        // If it's LIVE, we want the standard Info tab (Venue, Toss, etc) as summary is not ready
-        if (isLiveMatch) return <MatchInfo />
+        if (isUpcomingMatch || isLiveMatch) return <MatchInfo compact={true} />
         // Only finished matches get the new specific Summary component
         return (
           <MatchSummary
@@ -1133,9 +1051,15 @@ export default function MatchLive() {
             teamBLogo={teamBSquad?.logoUrl}
           />
         )
+      case 'points-table':
+        return match?.tournamentId ? (
+          <div className="bg-gray-50 min-h-screen py-6">
+            <TournamentPointsTable embedded={true} tournamentId={match.tournamentId} />
+          </div>
+        ) : null
       default:
       case 'live':
-        if (!canUseLiveTab) return renderUpcoming()
+        if (isUpcomingMatch && !isPastStart) return renderUpcoming()
         return (
           <div className="bg-gray-50 min-h-screen">
             {/* CREX/BBL style dark header */}
@@ -1227,9 +1151,9 @@ export default function MatchLive() {
                         <div className="w-[40%] pl-2 h-full flex flex-col justify-center items-center relative">
                           <div className={`
                              font-black tracking-tighter transition-all duration-300 transform drop-shadow-2xl
-                             ${isBoundary ? 'text-emerald-400 scale-105' : isWicket ? 'text-red-500 scale-105' : 'text-[#facc15]'}
+                             ${isBoundary ? 'text-emerald-400 scale-105' : isWicket ? 'text-red-500 scale-105' : 'text-white/95'}
                              ${centerEventAnim ? 'opacity-80 scale-95' : 'opacity-100 scale-100'}
-                             leading-none flex justify-center items-center h-full break-all
+                             leading-none flex justify-center items-center h-full break-normal text-center px-1
                              ${(() => {
                               let label = eventLabel;
                               // Logic to check text length for sizing
@@ -1261,22 +1185,28 @@ export default function MatchLive() {
 
                       {/* BOTTOM ROW: CRR, RRR, Target/Toss */}
                       <div className="flex items-center justify-between pt-4 border-t border-white/5 text-sm md:text-base font-medium">
-                        <div className="flex gap-8 text-white/50 uppercase tracking-widest text-xs font-bold">
-                          <div>
-                            CRR: <span className="text-white text-base ml-1">{Number.isFinite(crr) ? crr.toFixed(2) : '0.00'}</span>
+                        {isFinishedMatch ? (
+                          <div className="text-white/50 uppercase tracking-widest text-[10px] md:text-xs font-bold">
+                            {tossText}
                           </div>
-                          {target && (
+                        ) : (
+                          <div className="flex gap-8 text-white/50 uppercase tracking-widest text-xs font-bold">
                             <div>
-                              RRR: <span className="text-white text-base ml-1">{Number.isFinite(rrr) ? rrr.toFixed(2) : '0.00'}</span>
+                              CRR: <span className="text-white text-base ml-1">{Number.isFinite(crr) ? crr.toFixed(2) : '0.00'}</span>
                             </div>
-                          )}
-                        </div>
+                            {target && (
+                              <div>
+                                RRR: <span className="text-white text-base ml-1">{Number.isFinite(rrr) ? rrr.toFixed(2) : '0.00'}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         <div className="text-white/70 font-semibold">
                           {target ? (
                             <span className="bg-white/10 px-3 py-1 rounded-full text-xs uppercase tracking-wide">Target: <span className="text-white">{target}</span></span>
                           ) : (
-                            <span className="uppercase tracking-wide text-xs opacity-70">{tossText}</span>
+                            !isFinishedMatch && <span className="uppercase tracking-wide text-xs opacity-70">{tossText}</span>
                           )}
                         </div>
                       </div>
@@ -1311,8 +1241,10 @@ export default function MatchLive() {
               matchPhase={(match as any)?.matchPhase}
               currentInnings={(match.currentBatting || 'teamA') as any}
               currentWickets={(currentInnings as any)?.totalWickets || 0}
-              teamAName={teamAName}
-              teamBName={teamBName}
+              teamAName={firstSide === 'teamA' ? teamAName : teamBName}
+              teamBName={secondSide === 'teamA' ? teamAName : teamBName}
+              firstSide={firstSide}
+              secondSide={secondSide}
               resultSummary={isFinishedMatch ? (resultSummary || null) : null}
             />
           </div >

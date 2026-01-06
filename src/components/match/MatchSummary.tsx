@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import PlayerLink from '../PlayerLink'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
 import { Match, InningsStats } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { matchService } from '@/services/firestore/matches'
+import { getMatchResultString } from '@/utils/matchWinner'
 
 interface MatchSummaryProps {
     match: Match
@@ -39,54 +42,16 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     // --- Result Logic ---
     const resultText = useMemo(() => {
         if ((match as any).resultSummary) return (match as any).resultSummary
-        // Calculate result if summary missing
-        if (teamAInnings && teamBInnings) {
-            const inningsA = teamAInnings
-            const inningsB = teamBInnings
-            // Determine who batted first to be accurate (though simple diff works for casual text usually)
-            // Let's rely on standard: if status is finished
-            if (inningsA.totalRuns > inningsB.totalRuns) {
-                return `${teamAName} won by ${inningsA.totalRuns - inningsB.totalRuns} runs`
-            }
-            if (inningsB.totalRuns > inningsA.totalRuns) {
-                return `${teamBName} won by ${10 - inningsB.totalWickets} wickets` // Assuming B chased
-                // Wait, simplistic assumption. Just say "won".
-                // Actually logic: If A batted first and A > B -> A won by runs.
-                // If A batted first and B > A -> B won by wickets.
-                // Let's check toss/elected
-                const battedFirst = (match.tossWinner === 'teamA' && match.electedTo === 'bat') ||
-                    (match.tossWinner === 'teamB' && match.electedTo === 'bowl')
-                    ? 'teamA' : 'teamB'
-
-                const firstInn = battedFirst === 'teamA' ? inningsA : inningsB
-                const secondInn = battedFirst === 'teamA' ? inningsB : inningsA
-                const firstTeam = battedFirst === 'teamA' ? teamAName : teamBName
-                const secondTeam = battedFirst === 'teamA' ? teamBName : teamAName
-
-                if (firstInn.totalRuns > secondInn.totalRuns) {
-                    return `${firstTeam} won by ${firstInn.totalRuns - secondInn.totalRuns} runs`
-                } else if (secondInn.totalRuns > firstInn.totalRuns) {
-                    return `${secondTeam} won by ${10 - secondInn.totalWickets} wickets`
-                } else {
-                    return 'Match Tied'
-                }
-            }
-        }
-        return 'Match Finished'
+        return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match)
     }, [match, teamAInnings, teamBInnings, teamAName, teamBName])
 
     // --- Auto Player of the Match Calculation ---
-    // Simple MVP formula: Runs + (Wickets * 20) + (Maidens * 10) + (Catches * 5)
-    // We assume fielding stats might be missing, so rely mainly on Bat/Bowl
     const calculatedPomId = useMemo(() => {
         if ((match as any).playerOfMatchId) return (match as any).playerOfMatchId
 
         let bestId = ''
         let maxPoints = -1
 
-
-
-        // We need to aggregate first
         const playerPoints = new Map<string, number>()
 
         const addPoints = (id: string, pts: number) => {
@@ -96,7 +61,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
         }
 
         teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)))
-        teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0))) // simple logic
+        teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)))
 
         teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)))
         teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)))
@@ -122,43 +87,44 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
     const pomPlayer = getPlayer(calculatedPomId)
     // Find basic stats for display (Bat or Bowl dominant)
-    const pomStatLabel = useMemo(() => {
-        if (!calculatedPomId) return ''
-        // Check A
+    const pomStats = useMemo(() => {
+        if (!calculatedPomId) return null
         const batA = teamAInnings?.batsmanStats?.find(b => b.batsmanId === calculatedPomId)
         const bowlA = teamAInnings?.bowlerStats?.find(b => b.bowlerId === calculatedPomId)
-        // Check B
         const batB = teamBInnings?.batsmanStats?.find(b => b.batsmanId === calculatedPomId)
         const bowlB = teamBInnings?.bowlerStats?.find(b => b.bowlerId === calculatedPomId)
 
         const bat = batA || batB
         const bowl = bowlA || bowlB
 
-        const parts = []
-        if (bat && bat.runs > 0) parts.push(`${bat.runs} runs`)
-        if (bowl && bowl.wickets > 0) parts.push(`${bowl.wickets} wkts`)
-        return parts.join(' & ')
+        return { bat, bowl }
     }, [calculatedPomId, teamAInnings, teamBInnings])
 
+    // --- Batting Order for Layout ---
+    const firstBatSide = useMemo(() => {
+        if (!match.tossWinner || !match.electedTo) return 'A'
+        const tossSide = (match as any).tossWinner === 'teamA' ? 'A' : 'B'
+        const decision = String((match as any).tossDecision || match.electedTo || '').toLowerCase()
+        if (decision.includes('bat')) return tossSide
+        return tossSide === 'A' ? 'B' : 'A'
+    }, [match])
 
+    const leftTeam = useMemo(() => {
+        if (firstBatSide === 'A') {
+            return { name: teamAName, logo: getTeamLogo('A'), innings: teamAInnings, side: 'A' }
+        }
+        return { name: teamBName, logo: getTeamLogo('B'), innings: teamBInnings, side: 'B' }
+    }, [firstBatSide, teamAName, teamBName, teamAInnings, teamBInnings, match])
 
-    // Top Batters (One from each innings usually, or just top scorers overall? 
-    // Screenshot shows "RGR - 1st Inns" list. So it lists performers by innings.
+    const rightTeam = useMemo(() => {
+        if (firstBatSide === 'A') {
+            return { name: teamBName, logo: getTeamLogo('B'), innings: teamBInnings, side: 'B' }
+        }
+        return { name: teamAName, logo: getTeamLogo('A'), innings: teamAInnings, side: 'A' }
+    }, [firstBatSide, teamAName, teamBName, teamAInnings, teamBInnings, match])
 
     const renderInningsPerformers = (innings: InningsStats | null, teamName: string, inningLabel: string) => {
         if (!innings) return null
-        // Wait, "Top Performers" for "RGR - 1st Inns" usually means RGR batsmen who performed in 1st inns.
-        // The screenshot shows "Mohammad Mahmudullah 51(41)". This is a batsman.
-        // "Ziaur Rahman Sharifi 2-35". This is a bowler. But if RGR batted 1st, Ziaur (bowler) would be from DC.
-        // Standard apps usually group by "Innings 1" and show Best Batter (Team A) and Best Bowler (Team B).
-
-        // Let's stick to the screenshot: "RGR - 1st Inns".
-        // It list Mahmudullah (Bat), Khushdil (Bat), Ziaur (Bowl).
-        // So it mixes Batters of that innings and Bowlers of that innings (who are from opposition).
-
-        // Let's just find the top 3 impact players for this innings (Runs or Wickets).
-        // Batters: from `innings.batsmanStats`.
-        // Bowlers: from `innings.bowlerStats`.
 
         const topBatters = (innings.batsmanStats || [])
             .sort((a, b) => b.runs - a.runs)
@@ -167,7 +133,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
         const topBowlers = (innings.bowlerStats || [])
             .sort((a, b) => b.wickets - a.wickets || a.economy - b.economy)
-            .filter(b => Number(b.overs) > 0) // Ensure they bowled
+            .filter(b => Number(b.overs) > 0)
             .slice(0, 1)
             .map(b => ({ ...b, type: 'bowl' }))
 
@@ -184,17 +150,19 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                         return (
                             <div key={idx} className="flex items-center justify-between p-4">
                                 <div className="flex items-center gap-3">
-                                    <img
-                                        src={player.photoUrl || 'https://via.placeholder.com/40'}
-                                        alt={player.name}
-                                        className="w-10 h-10 rounded-full object-cover border border-slate-100"
+                                    <PlayerAvatar
+                                        photoUrl={player.photoUrl || (player as any).photo}
+                                        name={player.name}
+                                        size="sm"
                                     />
                                     <div>
-                                        <Link to={`/player/${pid}`} className="text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline decoration-blue-400 underline-offset-2 transition-all block">
-                                            {player.name}
-                                        </Link>
+                                        <PlayerLink
+                                            playerId={pid}
+                                            playerName={player.name}
+                                            className="text-sm font-bold text-slate-900 truncate block decoration-blue-400 underline-offset-2"
+                                        />
                                         <div className="text-xs text-slate-500">
-                                            {p.type === 'bat' ? `SR: ${p.strikeRate}` : `ER: ${p.economy}`}
+                                            {p.type === 'bat' ? `SR: ${Number(p.strikeRate || 0).toFixed(2)}` : `ER: ${Number(p.economy || 0).toFixed(2)}`}
                                         </div>
                                     </div>
                                 </div>
@@ -215,31 +183,32 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
             {/* 1. Dark Score Summary Card */}
-            <div className="bg-[#1a1f3c] text-white p-6 pb-8 rounded-b-3xl shadow-lg relative overflow-hidden">
+            <div className="bg-[#1a1f3c] text-white p-4 sm:p-6 pb-8 rounded-b-3xl shadow-lg relative overflow-hidden">
                 {/* Teams Row */}
-                <div className="flex items-center justify-between px-4 mt-8 relative z-10">
-                    {/* Team A */}
-                    <div className="flex flex-col items-center gap-2 w-1/3">
-                        <img src={getTeamLogo('A')} alt={teamAName} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/5 p-2 object-contain" />
-                        <div className="text-sm sm:text-base font-bold text-center uppercase tracking-wide opacity-90">{teamAName}</div>
-                        <div className="text-3xl sm:text-4xl font-black mt-1 tracking-tight">
-                            {teamAInnings?.totalRuns || '0'}-{teamAInnings?.totalWickets || '0'}
-                            <span className="text-base sm:text-lg font-medium text-white/50 ml-1">({teamAInnings?.overs || '0.0'})</span>
+                <div className="flex items-center justify-between px-2 sm:px-4 mt-4 sm:mt-8 relative z-10">
+                    {/* Left Team (First Bat) */}
+                    <div className="flex flex-col items-center gap-1 sm:gap-2 w-[35%]">
+                        <img src={leftTeam.logo} alt={leftTeam.name} className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-white/5 p-1.5 sm:p-2 object-contain" />
+                        <div className="text-[10px] sm:text-base font-bold text-center uppercase tracking-wide opacity-90 leading-tight min-h-[1.5em] flex items-center justify-center">{leftTeam.name}</div>
+                        <div className="text-2xl sm:text-4xl font-black mt-0.5 sm:mt-1 tracking-tight whitespace-nowrap">
+                            {leftTeam.innings?.totalRuns || '0'}-{leftTeam.innings?.totalWickets || '0'}
+                            <span className="text-xs sm:text-lg font-medium text-white/50 ml-0.5 sm:ml-1">({leftTeam.innings?.overs || '0.0'})</span>
                         </div>
                     </div>
 
-                    {/* Lightning Icon */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl md:text-7xl select-none pointer-events-none opacity-20 scale-150 mix-blend-overlay">
-                        ⚡
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-500 opacity-20 pointer-events-none mix-blend-screen">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16 sm:w-32 sm:h-32">
+                            <path fillRule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clipRule="evenodd" />
+                        </svg>
                     </div>
 
-                    {/* Team B */}
-                    <div className="flex flex-col items-center gap-2 w-1/3">
-                        <img src={getTeamLogo('B')} alt={teamBName} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/5 p-2 object-contain" />
-                        <div className="text-sm sm:text-base font-bold text-center uppercase tracking-wide opacity-90">{teamBName}</div>
-                        <div className="text-3xl sm:text-4xl font-black mt-1 tracking-tight">
-                            {teamBInnings?.totalRuns || '0'}-{teamBInnings?.totalWickets || '0'}
-                            <span className="text-base sm:text-lg font-medium text-white/50 ml-1">({teamBInnings?.overs || '0.0'})</span>
+                    {/* Right Team (Second Bat) */}
+                    <div className="flex flex-col items-center gap-1 sm:gap-2 w-[35%]">
+                        <img src={rightTeam.logo} alt={rightTeam.name} className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-white/5 p-1.5 sm:p-2 object-contain" />
+                        <div className="text-[10px] sm:text-base font-bold text-center uppercase tracking-wide opacity-90 leading-tight min-h-[1.5em] flex items-center justify-center">{rightTeam.name}</div>
+                        <div className="text-2xl sm:text-4xl font-black mt-0.5 sm:mt-1 tracking-tight whitespace-nowrap">
+                            {rightTeam.innings?.totalRuns || '0'}-{rightTeam.innings?.totalWickets || '0'}
+                            <span className="text-xs sm:text-lg font-medium text-white/50 ml-0.5 sm:ml-1">({rightTeam.innings?.overs || '0.0'})</span>
                         </div>
                     </div>
                 </div>
@@ -252,10 +221,6 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 </div>
             </div>
 
-
-            {/* 2. Recent Overs (Last Innings) */}
-            {/* Optional: Add if data available. Skipping to keep it simple as per "Summary" focus. */}
-
             {/* 3. Player of the Match */}
             {pomPlayer && (
                 <div className="mx-4 -mt-6 relative z-10">
@@ -263,17 +228,30 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                         {/* Glow effect */}
                         <div className="absolute -left-4 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-300 to-amber-500" />
 
-                        <img
-                            src={pomPlayer.photoUrl || 'https://via.placeholder.com/60'}
-                            alt={pomPlayer.name}
-                            className="w-14 h-14 rounded-full object-cover border-2 border-amber-100 shadow-sm flex-shrink-0"
+                        <PlayerAvatar
+                            photoUrl={pomPlayer.photoUrl || (pomPlayer as any).photo}
+                            name={pomPlayer.name}
+                            size="lg"
+                            className="border-2 border-amber-100 shadow-sm"
                         />
                         <div className="flex-1 min-w-0">
                             <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-0.5">Player of the Match</div>
-                            <Link to={`/player/${calculatedPomId}`} className="text-sm font-black text-slate-900 truncate block hover:text-blue-600 transition-colors">
+                            <Link to={`/players/${calculatedPomId}`} className="text-sm font-black text-slate-900 truncate block hover:text-blue-600 transition-colors">
                                 {pomPlayer.name}
                             </Link>
-                            <div className="text-xs text-slate-500 font-medium">{pomStatLabel}</div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                            {pomStats?.bat && (pomStats.bat.runs > 0 || pomStats.bat.balls > 0) && (
+                                <div className="text-sm font-black text-slate-900">
+                                    {pomStats.bat.runs} <span className="text-xs text-slate-500 font-medium">({pomStats.bat.balls})</span>
+                                </div>
+                            )}
+                            {pomStats?.bowl && (pomStats.bowl.wickets > 0 || parseFloat(String(pomStats.bowl.overs || 0)) > 0) && (
+                                <div className="text-sm font-black text-slate-900 mt-0.5">
+                                    {pomStats.bowl.wickets}-{pomStats.bowl.runsConceded} <span className="text-[10px] text-slate-500 font-medium">({pomStats.bowl.overs})</span>
+                                </div>
+                            )}
                         </div>
 
                         {(user as any)?.isAdmin && (
@@ -320,14 +298,19 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
             <div className="mt-6">
                 <h3 className="px-4 text-sm font-bold text-slate-900 mb-2">Top Performers</h3>
 
-                {/* Innings 1 (Team A batted) */}
-                {renderInningsPerformers(teamAInnings, teamAName, '1st Inns')}
-
-                {/* Innings 2 (Team B batted) */}
-                {renderInningsPerformers(teamBInnings, teamBName, '2nd Inns')}
+                {firstBatSide === 'A' ? (
+                    <>
+                        {renderInningsPerformers(teamAInnings, teamAName, '1st Inns')}
+                        {renderInningsPerformers(teamBInnings, teamBName, '2nd Inns')}
+                    </>
+                ) : (
+                    <>
+                        {renderInningsPerformers(teamBInnings, teamBName, '1st Inns')}
+                        {renderInningsPerformers(teamAInnings, teamAName, '2nd Inns')}
+                    </>
+                )}
             </div>
-
-        </div >
+        </div>
     )
 }
 

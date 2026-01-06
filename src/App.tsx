@@ -51,6 +51,11 @@ function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
   return <Navigate to={`/tournaments/${tournamentId}?tab=${tab}`} replace />
 }
 
+function PlayerRedirect() {
+  const { playerId } = useParams<{ playerId: string }>()
+  return <Navigate to={`/players/${playerId}`} replace />
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -70,6 +75,7 @@ function App() {
           <Route path="/squads/:squadId" element={<SquadDetails />} />
           <Route path="/players" element={<Players />} />
           <Route path="/players/:playerId" element={<PlayerProfile />} />
+          <Route path="/player/:playerId" element={<PlayerRedirect />} />
           <Route path="/champions" element={<Champions />} />
 
           {/* Match Routes */}

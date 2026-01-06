@@ -32,6 +32,8 @@ const CrexLiveSection = ({
   teamBName,
   resultSummary, // Add resultSummary prop for winner display
   match, // Add match prop
+  firstSide, // 'teamA' or 'teamB'
+  secondSide,
 }) => {
   // Format player display: "Name runs (balls)"
   const formatPlayer = (player) => {
@@ -104,6 +106,10 @@ const CrexLiveSection = ({
           return item.isHighlight || item.runs >= 4 // Highlight 4s too
         case 'overs':
           return item.over || text.includes('over')
+        case 'inn1':
+          return item.innings === firstSide
+        case 'inn2':
+          return item.innings === secondSide
         default:
           return true
       }
@@ -128,11 +134,11 @@ const CrexLiveSection = ({
       </svg>
     )
 
-    if (player.photo) {
+    if (player.photoUrl || player.photo) {
       return (
         <div className="relative">
           <img
-            src={player.photo}
+            src={player.photoUrl || player.photo}
             alt={player.name}
             className={`${sizeClass.split(' ')[0]} ${sizeClass.split(' ')[1]} rounded-full object-cover border-2 border-gray-300 shadow-md`}
             onError={(e) => {
@@ -266,7 +272,7 @@ const CrexLiveSection = ({
                         <span className="w-10 font-bold text-slate-900">{striker.runs || 0} <span className="text-slate-400 font-normal">({striker.balls || 0})</span></span>
                         <span className="w-8 hidden sm:block text-slate-500">{striker.fours || 0}</span>
                         <span className="w-8 hidden sm:block text-slate-500">{striker.sixes || 0}</span>
-                        <span className="w-12 text-right text-slate-500">{striker.strikeRate ? Number(striker.strikeRate).toFixed(1) : '0.0'}</span>
+                        <span className="w-12 text-right text-slate-500">{striker.strikeRate ? Number(striker.strikeRate).toFixed(2) : '0.00'}</span>
                       </div>
                     </div>
                   )}
@@ -279,7 +285,7 @@ const CrexLiveSection = ({
                         <span className="w-10 font-bold text-slate-900">{nonStriker.runs || 0} <span className="text-slate-400 font-normal">({nonStriker.balls || 0})</span></span>
                         <span className="w-8 hidden sm:block text-slate-500">{nonStriker.fours || 0}</span>
                         <span className="w-8 hidden sm:block text-slate-500">{nonStriker.sixes || 0}</span>
-                        <span className="w-12 text-right text-slate-500">{nonStriker.strikeRate ? Number(nonStriker.strikeRate).toFixed(1) : '0.0'}</span>
+                        <span className="w-12 text-right text-slate-500">{nonStriker.strikeRate ? Number(nonStriker.strikeRate).toFixed(2) : '0.00'}</span>
                       </div>
                     </div>
                   )}
