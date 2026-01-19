@@ -1,34 +1,33 @@
 /**
- * Professional Tournament Management Page
+ * Professional Tournament Manager
  * Comprehensive admin panel for managing tournaments with all features
  */
 
-import { useEffect, useState } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
-import { tournamentService } from '@/services/firestore/tournaments'
-import { squadService } from '@/services/firestore/squads'
-import { matchService } from '@/services/firestore/matches'
-import { Tournament, Squad, Match } from '@/types'
-import { useAuthStore } from '@/store/authStore'
+import { useEffect, useState } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { tournamentService } from '@/services/firestore/tournaments';
+import { squadService } from '@/services/firestore/squads';
+import { matchService } from '@/services/firestore/matches';
+import { Tournament, Squad, Match } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+import { Timestamp } from 'firebase/firestore';
+import toast from 'react-hot-toast';
+import { generateGroupFixtures } from '@/engine/tournament/fixtures';
+import { generateKnockoutFixtures } from '@/engine/tournament/knockout';
 
-import toast from 'react-hot-toast'
-import { generateGroupFixtures } from '@/engine/tournament/fixtures'
-import { generateKnockoutBracket, generateKnockoutFixtures } from '@/engine/tournament/knockout'
-import TableSkeleton from '@/components/skeletons/TableSkeleton'
-
-interface AdminTournamentsProps {
-  mode?: 'dashboard' | 'list' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
+interface ProfessionalTournamentManagerProps {
+  mode?: 'dashboard' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
 }
 
-export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProps) {
-  const { id } = useParams<{ id?: string }>()
-  const navigate = useNavigate()
-  const { user } = useAuthStore()
-  const [tournaments, setTournaments] = useState<Tournament[]>([])
-  const [squads, setSquads] = useState<Squad[]>([])
-  const [matches, setMatches] = useState<Match[]>([])
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState(mode)
+export default function ProfessionalTournamentManager({ mode = 'dashboard' }: ProfessionalTournamentManagerProps) {
+  const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [squads, setSquads] = useState<Squad[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(mode);
   const [formData, setFormData] = useState({
     name: '',
     year: new Date().getFullYear(),
@@ -53,71 +52,67 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       string,
       { name: string; type: 'normal' | 'priority'; roundFormat: 'round_robin' | 'single_match' | 'custom'; qualifyCount: number; winnerPriority: boolean }
     >,
-  })
-  const [saving, setSaving] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  });
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     setActiveTab(mode);
-    if (mode === 'list' || mode === 'dashboard') {
-      loadTournaments()
-      loadSquads() // Load squads for dashboard mode too
+    if (mode === 'dashboard' || mode === 'list') {
+      loadTournaments();
     } else if (mode === 'create') {
-      loadSquads()
+      loadSquads();
     } else if (id) {
-      loadTournament(id)
-      loadSquads()
-      loadMatches(id)
+      loadTournament(id);
+      loadSquads();
+      loadMatches(id);
     }
-  }, [mode, id])
+  }, [mode, id]);
 
   const loadTournaments = async () => {
     try {
-      const data = await tournamentService.getAll()
-      setTournaments(data)
-      setLoading(false)
+      const data = await tournamentService.getAll();
+      setTournaments(data);
+      setLoading(false);
     } catch (error) {
-      console.error('Error loading tournaments:', error)
-      toast.error('Failed to load tournaments')
-      setLoading(false)
+      console.error('Error loading tournaments:', error);
+      toast.error('Failed to load tournaments');
+      setLoading(false);
     }
-  }
+  };
 
   const loadSquads = async () => {
     try {
-      const data = await squadService.getAll()
-      console.log('[AdminTournaments] Loaded squads:', data.map(s => ({ id: s.id, name: s.name })))
-      setSquads(data)
+      const data = await squadService.getAll();
+      setSquads(data);
     } catch (e) {
-      console.error('Error loading squads:', e)
-      setSquads([])
+      console.error('Error loading squads:', e);
+      setSquads([]);
     }
-  }
+  };
 
   const loadMatches = async (tournamentId: string) => {
     try {
-      const data = await matchService.getByTournament(tournamentId)
-      setMatches(data)
+      const data = await matchService.getByTournament(tournamentId);
+      setMatches(data);
     } catch (e) {
-      console.error('Error loading matches:', e)
-      setMatches([])
+      console.error('Error loading matches:', e);
+      setMatches([]);
     }
-  }
+  };
 
   const loadTournament = async (tournamentId: string) => {
-    console.log('[AdminTournaments] Loading tournament:', tournamentId);
     try {
-      const data = await tournamentService.getById(tournamentId)
-      console.log('[AdminTournaments] Tournament data received:', data);
+      const data = await tournamentService.getById(tournamentId);
       if (data) {
-        const groups = (data as any).groups || []
-        const groupBySquadId: Record<string, string> = {}
+        const groups = (data as any).groups || [];
+        const groupBySquadId: Record<string, string> = {};
         groups.forEach((g: any) => {
-          ;(g.squadIds || []).forEach((sid: string) => {
-            groupBySquadId[sid] = g.id
-          })
-        })
-        const groupMeta: Record<string, any> = {}
+          (g.squadIds || []).forEach((sid: string) => {
+            groupBySquadId[sid] = g.id;
+          });
+        });
+        const groupMeta: Record<string, any> = {};
         groups.forEach((g: any, idx: number) => {
           groupMeta[g.id] = {
             name: g.name || groupLabel(idx),
@@ -125,14 +120,11 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
             roundFormat: g.roundFormat || 'round_robin',
             qualifyCount: (g.qualification?.qualifyCount ?? (data as any)?.qualification?.perGroup ?? 2) as number,
             winnerPriority: Boolean(g.qualification?.winnerPriority),
-          }
-        })
-        const meta = (data as any).participantSquadMeta || {}
-        const metaIds = Object.keys(meta || {})
-        
-        // Ensure all fields are present in the form data
-        setFormData(prev => ({
-          ...prev, // Spread the default values first
+          };
+        });
+        const meta = (data as any).participantSquadMeta || {};
+        const metaIds = Object.keys(meta || {});
+        setFormData({
           name: data.name,
           year: data.year,
           tournamentType: (data as any).tournamentType || (data as any).kind || 'standard',
@@ -146,56 +138,56 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           groupCount: Math.max(1, groups.length || 2),
           qualificationPerGroup: (data as any)?.qualification?.perGroup ?? 2,
           wildcardQualifiers: (data as any)?.qualification?.wildcards ?? 0,
-          oversLimit: (data as any).oversLimit ?? prev.oversLimit,
-          pointsForWin: (data as any).pointsForWin ?? prev.pointsForWin,
-          pointsForLoss: (data as any).pointsForLoss ?? prev.pointsForLoss,
-          pointsForTie: (data as any).pointsForTie ?? prev.pointsForTie,
-          pointsForNoResult: (data as any).pointsForNoResult ?? prev.pointsForNoResult,
+          oversLimit: (data as any).oversLimit ?? 20,
+          pointsForWin: (data as any).pointsForWin ?? 2,
+          pointsForLoss: (data as any).pointsForLoss ?? 0,
+          pointsForTie: (data as any).pointsForTie ?? 1,
+          pointsForNoResult: (data as any).pointsForNoResult ?? 1,
           groupBySquadId,
           groupMeta,
-        }))
+        });
       }
-      setLoading(false)
+      setLoading(false);
     } catch (error) {
-      console.error('Error loading tournament:', error)
-      toast.error('Failed to load tournament')
-      setLoading(false)
+      console.error('Error loading tournament:', error);
+      toast.error('Failed to load tournament');
+      setLoading(false);
     }
-  }
+  };
 
-  const groupIds = (count: number) => Array.from({ length: Math.max(1, count) }).map((_, i) => `group-${i + 1}`)
-  const groupLabel = (idx: number) => `Group ${String.fromCharCode(65 + idx)}`
+  const groupIds = (count: number) => Array.from({ length: Math.max(1, count) }).map((_, i) => `group-${i + 1}`);
+  const groupLabel = (idx: number) => `Group ${String.fromCharCode(65 + idx)}`;
 
   const ensureGroupAssignments = (ids: string[], count: number, current: Record<string, string>) => {
-    const gids = groupIds(count)
-    const next: Record<string, string> = { ...current }
-    let cursor = 0
+    const gids = groupIds(count);
+    const next: Record<string, string> = { ...current };
+    let cursor = 0;
     ids.forEach((sid) => {
       if (!next[sid] || !gids.includes(next[sid])) {
-        next[sid] = gids[cursor % gids.length]
-        cursor += 1
+        next[sid] = gids[cursor % gids.length];
+        cursor += 1;
       }
-    })
+    });
     // Remove stale keys
     Object.keys(next).forEach((sid) => {
-      if (!ids.includes(sid)) delete next[sid]
-    })
-    return next
-  }
+      if (!ids.includes(sid)) delete next[sid];
+    });
+    return next;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
+    e.preventDefault();
+    setSaving(true);
 
     try {
-      const selectedIds = Array.from(new Set(formData.participantSquadIds || [])).filter(Boolean)
+      const selectedIds = Array.from(new Set(formData.participantSquadIds || [])).filter(Boolean);
       if (selectedIds.length < 2) {
-        toast.error('Select at least 2 squads')
-        setSaving(false)
-        return
+        toast.error('Select at least 2 squads');
+        setSaving(false);
+        return;
       }
-      const groupBySquadId = ensureGroupAssignments(selectedIds, formData.groupCount, formData.groupBySquadId)
-      const gids = groupIds(formData.groupCount)
+      const groupBySquadId = ensureGroupAssignments(selectedIds, formData.groupCount, formData.groupBySquadId);
+      const gids = groupIds(formData.groupCount);
       const groups = gids.map((gid, idx) => ({
         id: gid,
         name: formData.groupMeta?.[gid]?.name || groupLabel(idx),
@@ -207,17 +199,16 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           winnerPriority: Boolean(formData.groupMeta?.[gid]?.winnerPriority),
         },
         teamCount: selectedIds.filter((sid) => groupBySquadId[sid] === gid).length,
-      }))
+      }));
 
       // Persist participant display names for reliable points table rendering
-      const participantSquadMeta: Record<string, { name: string; batch?: string }> = {}
+      const participantSquadMeta: Record<string, { name: string; batch?: string }> = {};
       selectedIds.forEach((sid) => {
-        const s = squads.find((x: any) => x.id === sid)
-        // Use available fields from the Squad type - fallback to id if name is not available
-        const name = String((s?.name || s?.id || '')).trim() || sid
-        const batch = String((s?.batch || '')).trim() || undefined
-        participantSquadMeta[sid] = { name, ...(batch ? { batch } : {}) }
-      })
+        const s = squads.find((x: any) => x.id === sid);
+        const name = String((s?.name || s?.teamName || s?.squadName || s?.title || '')).trim() || sid;
+        const batch = String((s?.batch || '')).trim() || undefined;
+        participantSquadMeta[sid] = { name, ...(batch ? { batch } : {}) };
+      });
 
       const config: any = {
         version: 1,
@@ -246,7 +237,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         wildcards: { count: Math.max(0, Number(formData.wildcardQualifiers || 0)), method: 'overall' },
         locks: { groupsLocked: false, fixturesLocked: false, knockoutLocked: false },
         oversLimit: formData.oversLimit,
-      }
+      };
 
       // IMPORTANT: Persist ONLY tournament fields. Avoid spreading full formData (contains UI-only fields
       // like groupCount/groupBySquadId/groupMeta) that can break security rules / schema assumptions.
@@ -274,32 +265,32 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         pointsForLoss: formData.pointsForLoss,
         pointsForTie: formData.pointsForTie,
         pointsForNoResult: formData.pointsForNoResult,
-      }
+      };
 
       if (mode === 'create') {
         await tournamentService.create({
           ...(persistPayload as any),
-          createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
-          updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
           createdBy: user?.uid || '',
-        } as any)
-        toast.success('Tournament created successfully!')
-        navigate('/admin/tournaments')
+        } as any);
+        toast.success('Tournament created successfully!');
+        navigate('/admin/tournaments');
       } else if (mode === 'edit' && id) {
         await tournamentService.update(id, {
           ...(persistPayload as any),
-          updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
-        } as any)
-        toast.success('Tournament updated successfully!')
-        navigate('/admin/tournaments')
+          updatedAt: Timestamp.now(),
+        } as any);
+        toast.success('Tournament updated successfully!');
+        navigate('/admin/tournaments');
       }
     } catch (error) {
-      console.error('Error saving tournament:', error)
-      toast.error(String((error as any)?.message || (error as any)?.code || 'Failed to save tournament'))
+      console.error('Error saving tournament:', error);
+      toast.error(String((error as any)?.message || (error as any)?.code || 'Failed to save tournament'));
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleGenerateFixtures = async () => {
     if (!id) return;
@@ -333,26 +324,27 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           date: '',
           time: '',
           year: formData.year,
-          startTime: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
           oversLimit: formData.oversLimit,
-          ballType: 'white' as const,
-          status: 'upcoming' as const,
-          matchPhase: 'FirstInnings' as const,
+          status: 'Upcoming',
+          stage: 'group',
+          stageLabel: 'Group',
+          ballType: 'white',
+          matchPhase: 'FirstInnings',
           teamAPlayingXI: [],
           teamBPlayingXI: [],
           teamACaptainId: '',
           teamAKeeperId: '',
           teamBCaptainId: '',
           teamBKeeperId: '',
-          currentBatting: 'teamA' as const,
+          currentBatting: 'teamA',
           currentStrikerId: '',
           currentNonStrikerId: '',
           currentBowlerId: '',
           lastOverBowlerId: '',
           freeHit: false,
-          createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
-          updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
-          createdBy: user?.uid || '',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: user?.email || '',
         };
         
         await matchService.create(matchData);
@@ -381,8 +373,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       }
       
       // Check if group stage is enabled and completed matches exist
-      const groupMatches = matches.filter(m => m.stage === 'group' || !m.stage);
-      const completedGroupMatches = groupMatches.filter(m => m.status === 'Completed' || m.status === 'Finished');
+      const groupMatches = matches.filter(m => (m as any).stage === 'group' || !(m as any).stage);
+      const completedGroupMatches = groupMatches.filter(m => m.status === 'Completed' || m.status === 'Finished' || m.status === 'completed' || m.status === 'finished');
       
       if (groupMatches.length > 0 && completedGroupMatches.length === 0) {
         toast.error('Group stage matches must be completed before generating knockout fixtures');
@@ -394,10 +386,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       await generateKnockoutFixtures(id);
       
       toast.success('Knockout fixtures generated successfully!');
-      // Reload matches to show newly generated fixtures
-      if (id) {
-        loadMatches(id);
-      }
+      loadMatches(id); // Reload matches to show newly generated fixtures
     } catch (error) {
       console.error('Error generating knockout fixtures:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to generate knockout fixtures');
@@ -407,17 +396,17 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   };
 
   const handleDelete = async (tournamentId: string) => {
-    if (!confirm('Are you sure you want to delete this tournament? This will also delete all associated matches.')) return
+    if (!confirm('Are you sure you want to delete this tournament? This will also delete all associated matches.')) return;
 
     try {
-      await tournamentService.delete(tournamentId)
-      toast.success('Tournament deleted')
-      loadTournaments()
+      await tournamentService.delete(tournamentId);
+      toast.success('Tournament deleted');
+      loadTournaments();
     } catch (error) {
-      console.error('Error deleting tournament:', error)
-      toast.error('Failed to delete tournament')
+      console.error('Error deleting tournament:', error);
+      toast.error('Failed to delete tournament');
     }
-  }
+  };
 
   // Navigation tabs for the tournament manager
   const renderNavigation = () => (
@@ -653,8 +642,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                       className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-gray-900 truncate">{squad.name || squad.id}</div>
-                      <div className="text-xs text-gray-500">Batch: {squad.batch || 'N/A'}</div>
+                      <div className="font-semibold text-gray-900 truncate">{squad.name}</div>
+                      <div className="text-xs text-gray-500">Batch: {squad.batch || squad.year}</div>
                     </div>
                     {checked && (
                       <select
@@ -836,504 +825,6 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                   (formData.groupCount * formData.qualificationPerGroup) + formData.wildcardQualifiers
                 }
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Fixtures management view
-  const renderFixtures = () => {
-    console.log('[renderFixtures] Squads data:', squads);
-    console.log('[renderFixtures] Matches data:', matches.filter(m => m.tournamentId === id));
-    
-    // Get all matches for this tournament
-    const tournamentMatches = matches.filter(m => m.tournamentId === id);
-    
-    // Group matches by group
-    const groupedMatches: Record<string, Match[]> = {};
-    tournamentMatches.forEach(match => {
-      const groupId = (match as any).groupId || 'ungrouped';
-      if (!groupedMatches[groupId]) {
-        groupedMatches[groupId] = [];
-      }
-      groupedMatches[groupId].push(match);
-    });
-
-    return (
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Manage Fixtures</h2>
-          <div className="flex gap-3">
-            <button
-              onClick={handleGenerateFixtures}
-              disabled={generating}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-50 transition"
-            >
-              {generating ? 'Generating...' : 'Generate Fixtures'}
-            </button>
-            <Link
-              to={`/admin/matches/new?tournament=${id}`}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              + Add Match
-            </Link>
-          </div>
-        </div>
-
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="text-lg font-bold text-blue-800 mb-2">Quick Stats</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-gray-900">{tournamentMatches.length}</div>
-              <div className="text-sm text-gray-600">Total Matches</div>
-            </div>
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-gray-900">{tournamentMatches.filter(m => m.status === 'upcoming').length}</div>
-              <div className="text-sm text-gray-600">Scheduled</div>
-            </div>
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-gray-900">{tournamentMatches.filter(m => m.status === 'finished').length}</div>
-              <div className="text-sm text-gray-600">Completed</div>
-            </div>
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-gray-900">{tournamentMatches.filter(m => m.status === 'live').length}</div>
-              <div className="text-sm text-gray-600">Live Now</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-          {Object.entries(groupedMatches).map(([groupId, groupMatches]) => {
-            const groupName = (formData as any).groups?.find((g: any) => g.id === groupId)?.name || groupId;
-            return (
-              <div key={groupId} className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-bold text-gray-800">{groupName} Matches</h3>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {groupMatches.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">
-                      No matches scheduled for this group.
-                    </div>
-                  ) : (
-                    groupMatches.map((match: any) => {
-                      const teamA = squads.find((s: any) => s.id === match.teamAId)?.name || match.teamAName || 'Team A';
-                      const teamB = squads.find((s: any) => s.id === match.teamBId)?.name || match.teamBName || 'Team B';
-                      
-                      return (
-                        <div key={match.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-gray-50">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3">
-                              <div className="font-semibold text-gray-900 truncate">{teamA} vs {teamB}</div>
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                match.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                                match.status === 'live' ? 'bg-red-100 text-red-800' :
-                                match.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {match.status}
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {match.date && `${new Date(match.date.seconds * 1000).toLocaleDateString()} `}
-                              {match.time && `at ${match.time}`}
-                              {match.venue && ` • ${match.venue}`}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Link
-                              to={`/admin/matches/edit/${match.id}`}
-                              className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
-                            >
-                              Edit
-                            </Link>
-                            <Link
-                              to={`/matches/${match.id}`}
-                              className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
-                            >
-                              View
-                            </Link>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {Object.keys(groupedMatches).length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              No matches created yet. Generate fixtures or add matches manually.
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Knockout stage management view
-  const renderKnockout = () => {
-    return (
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Knockout Stage</h2>
-          <button
-            onClick={handleGenerateKnockout}
-            disabled={generating}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50 transition"
-          >
-            {generating ? 'Generating...' : 'Generate Knockout'}
-          </button>
-        </div>
-
-        <div className="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
-          <h3 className="text-lg font-bold text-purple-800 mb-2">Knockout Configuration</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Format</div>
-              <div className="text-lg font-bold text-gray-900">{formData.tournamentType === 'custom' ? 'Custom' : 'Standard'}</div>
-            </div>
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Qualification</div>
-              <div className="text-lg font-bold text-gray-900">
-                Top {formData.qualificationPerGroup} from each group
-                {formData.wildcardQualifiers > 0 && ` + ${formData.wildcardQualifiers} wildcards`}
-              </div>
-            </div>
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Status</div>
-              <div className="text-lg font-bold text-gray-900 capitalize">{formData.status}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 text-center">
-          <div className="text-gray-500 mb-4">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Knockout Stage</h3>
-          <p className="text-gray-500 mb-4">
-            The knockout stage will be generated after the group stage is completed. 
-            Qualified teams will advance based on tournament configuration.
-          </p>
-          <div className="inline-flex flex-wrap gap-3">
-            <button
-              onClick={handleGenerateKnockout}
-              disabled={generating || formData.status !== 'ongoing'}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                formData.status === 'ongoing' 
-                  ? 'bg-purple-600 text-white hover:bg-purple-700' 
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              Generate Bracket
-            </button>
-            <Link
-              to={`/admin/matches/new?tournament=${id}&stage=knockout`}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-            >
-              Create Manually
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Standings view
-  const renderStandings = () => {
-    // Get all matches for this tournament
-    const tournamentMatches = matches.filter(m => m.tournamentId === id);
-    
-    // Calculate standings for each group
-    const calculateStandings = () => {
-      const standingsMap: Record<string, any[]> = {};
-      
-      // Initialize standings for each group
-      (tournaments.find(t => t.id === id) as any)?.groups?.forEach((group: any) => {
-        const groupTeams = group.squadIds.map((squadId: string) => {
-          const squad = squads.find((s: any) => s.id === squadId);
-          return {
-            id: squadId,
-            name: squad?.name || squadId,
-            played: 0,
-            won: 0,
-            lost: 0,
-            tied: 0,
-            noResult: 0,
-            points: 0,
-            netRunRate: 0,
-            position: 0
-          };
-        });
-        standingsMap[group.id] = groupTeams;
-      });
-      
-      // Process matches to calculate results
-      tournamentMatches.forEach(match => {
-        if (match.status !== 'finished') return; // Only completed matches
-        
-        const groupId = (match as any).groupId;
-        if (!groupId || !standingsMap[groupId]) return;
-        
-        // This is a simplified calculation - in a real app you'd have actual match results
-        // For now, we'll just show the structure
-      });
-      
-      // Sort each group by points and net run rate
-      Object.keys(standingsMap).forEach(groupId => {
-        standingsMap[groupId].sort((a, b) => {
-          if (b.points !== a.points) return b.points - a.points;
-          return b.netRunRate - a.netRunRate; // Simplified NRR comparison
-        });
-        
-        // Assign positions
-        standingsMap[groupId].forEach((team, index) => {
-          team.position = index + 1;
-        });
-      });
-      
-      return standingsMap;
-    };
-    
-    const standings = calculateStandings();
-
-    return (
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Standings & Results</h2>
-          <div className="flex gap-3">
-            <Link
-              to={`/admin/tournaments/${id}/fixtures`}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
-            >
-              View Fixtures
-            </Link>
-            <Link
-              to={`/tournaments/${id}/standings`}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-            >
-              Public View
-            </Link>
-          </div>
-        </div>
-
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="text-lg font-bold text-blue-800 mb-2">Tournament Overview</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Total Teams</div>
-              <div className="text-xl font-bold text-gray-900">{formData.participantSquadIds.length}</div>
-            </div>
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Total Groups</div>
-              <div className="text-xl font-bold text-gray-900">{formData.groupCount}</div>
-            </div>
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Matches Played</div>
-              <div className="text-xl font-bold text-gray-900">{tournamentMatches.filter(m => m.status === 'finished').length}</div>
-            </div>
-            <div className="p-3 bg-white rounded-lg border">
-              <div className="text-sm font-semibold text-gray-700">Matches Remaining</div>
-              <div className="text-xl font-bold text-gray-900">{tournamentMatches.filter(m => m.status !== 'finished').length}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-          {Object.entries(standings).map(([groupId, groupStandings]) => {
-            const tournamentData = tournaments.find(t => t.id === id);
-            const groupName = (tournamentData as any)?.groups?.find((g: any) => g.id === groupId)?.name || groupId;
-            return (
-              <div key={groupId} className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-bold text-gray-800">{groupName} Standings</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                          Pos
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Team
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                          P
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                          W
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                          L
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                          T
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                          Pts
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
-                          NRR
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {groupStandings.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                            No standings calculated yet.
-                          </td>
-                        </tr>
-                      ) : (
-                        groupStandings.map((team, index) => (
-                          <tr key={team.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                              {team.position}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                              {team.name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                              {team.played}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                              {team.won}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                              {team.lost}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                              {team.tied}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold text-gray-900">
-                              {team.points}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                              {team.netRunRate.toFixed(3)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-
-          {Object.keys(standings).length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              No standings available. Matches need to be completed to calculate results.
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Settings view
-  const renderSettings = () => {
-    return (
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Tournament Settings</h2>
-        
-        <div className="space-y-6">
-          <div className="p-5 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Tournament Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-1">Tournament Name</div>
-                <div className="text-gray-900">{formData.name}</div>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-1">Year</div>
-                <div className="text-gray-900">{formData.year}</div>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-1">Format</div>
-                <div className="text-gray-900">{formData.format}</div>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-1">Status</div>
-                <div className="text-gray-900 capitalize">{formData.status}</div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-5 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Scoring System</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-white rounded-lg border">
-                <div className="text-2xl font-bold text-green-600">{formData.pointsForWin}</div>
-                <div className="text-sm text-gray-600">Win</div>
-              </div>
-              <div className="text-center p-3 bg-white rounded-lg border">
-                <div className="text-2xl font-bold text-red-600">{formData.pointsForLoss}</div>
-                <div className="text-sm text-gray-600">Loss</div>
-              </div>
-              <div className="text-center p-3 bg-white rounded-lg border">
-                <div className="text-2xl font-bold text-yellow-600">{formData.pointsForTie}</div>
-                <div className="text-sm text-gray-600">Tie</div>
-              </div>
-              <div className="text-center p-3 bg-white rounded-lg border">
-                <div className="text-2xl font-bold text-blue-600">{formData.pointsForNoResult}</div>
-                <div className="text-sm text-gray-600">No Result</div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-5 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Qualification Rules</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-1">Teams per Group to Qualify</div>
-                <div className="text-gray-900">Top {formData.qualificationPerGroup}</div>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-1">Wildcard Teams</div>
-                <div className="text-gray-900">{formData.wildcardQualifiers}</div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-5 bg-gray-50 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Actions</h3>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => navigate(`/admin/tournaments/${id}/edit`)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-              >
-                Edit Tournament
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to reset all tournament data? This cannot be undone.')) {
-                    // Reset tournament logic would go here
-                    toast.success('Tournament reset functionality would go here');
-                  }
-                }}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg font-semibold hover:bg-yellow-700 transition"
-              >
-                Reset Data
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to delete this tournament? This will also delete all associated matches.')) {
-                    handleDelete(id!);
-                  }
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
-              >
-                Delete Tournament
-              </button>
             </div>
           </div>
         </div>
@@ -1621,94 +1112,6 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     );
   }
 
-  // Fixtures view
-  if (mode === 'fixtures' && id) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <Link to="/admin/tournaments" className="text-teal-600 hover:underline mb-2 inline-block">
-            ← Back to Tournaments
-          </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mt-2">{formData.name}</h1>
-              <p className="text-gray-600">Manage tournament fixtures and schedule</p>
-            </div>
-          </div>
-        </div>
-
-        {renderNavigation()}
-        {renderFixtures()}
-      </div>
-    );
-  }
-
-  // Knockout view
-  if (mode === 'knockout' && id) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <Link to="/admin/tournaments" className="text-teal-600 hover:underline mb-2 inline-block">
-            ← Back to Tournaments
-          </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mt-2">{formData.name}</h1>
-              <p className="text-gray-600">Manage knockout stage and brackets</p>
-            </div>
-          </div>
-        </div>
-
-        {renderNavigation()}
-        {renderKnockout()}
-      </div>
-    );
-  }
-
-  // Standings view
-  if (mode === 'standings' && id) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <Link to="/admin/tournaments" className="text-teal-600 hover:underline mb-2 inline-block">
-            ← Back to Tournaments
-          </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mt-2">{formData.name}</h1>
-              <p className="text-gray-600">View standings and tournament results</p>
-            </div>
-          </div>
-        </div>
-
-        {renderNavigation()}
-        {renderStandings()}
-      </div>
-    );
-  }
-
-  // Settings view
-  if (mode === 'settings' && id) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <Link to="/admin/tournaments" className="text-teal-600 hover:underline mb-2 inline-block">
-            ← Back to Tournaments
-          </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mt-2">{formData.name}</h1>
-              <p className="text-gray-600">Configure tournament settings</p>
-            </div>
-          </div>
-        </div>
-
-        {renderNavigation()}
-        {renderSettings()}
-      </div>
-    );
-  }
-
   // List View
   if (loading) {
     return (
@@ -1720,7 +1123,11 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           </div>
           <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
         </div>
-        <TableSkeleton columns={7} rows={8} />
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded animate-pulse"></div>
+          ))}
+        </div>
       </div>
     );
   }

@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
+import { tournamentService } from '@/services/firestore/tournaments'
 import { Match, InningsStats, Ball } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import MatchTabs from '@/components/match/MatchTabs'
@@ -15,6 +16,7 @@ import { getMatchResultString } from '@/utils/matchWinner'
 import MatchLiveSkeleton from '@/components/skeletons/MatchLiveSkeleton'
 import { subscribeToCommentary, type CommentaryEntry } from '@/services/commentary/commentaryService'
 import CrexLiveSection from '@/components/live/CrexLiveSection'
+import BallEventDisplay from '@/components/live/BallEventDisplay'
 // Import all match page components to render inline
 import MatchScorecard from '@/pages/MatchScorecard'
 import MatchPlayingXI from '@/pages/MatchPlayingXI'
@@ -34,6 +36,7 @@ export default function MatchLive() {
   const [balls, setBalls] = useState<Ball[]>([])
   const [playersMap, setPlayersMap] = useState<Map<string, any>>(new Map())
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
+  const [tournament, setTournament] = useState<any>(null)
   const [relatedMatches, setRelatedMatches] = useState<Match[]>([])
   const [relatedInningsMap, setRelatedInningsMap] = useState<Map<string, { teamA: any | null; teamB: any | null }>>(new Map())
   const [relatedLoading, setRelatedLoading] = useState(false)
@@ -45,6 +48,8 @@ export default function MatchLive() {
   const [now, setNow] = useState<Date>(() => new Date())
   const [centerEventText, setCenterEventText] = useState<string>('Over')
   const [centerEventAnim, setCenterEventAnim] = useState(false)
+  const [ballAnimating, setBallAnimating] = useState(false)
+  const [ballEventType, setBallEventType] = useState<'4' | '6' | 'wicket' | 'normal'>('normal')
 
   // Load match and subscribe
   useEffect(() => {
@@ -54,6 +59,15 @@ export default function MatchLive() {
       if (matchData) {
         setMatch(matchData)
         setLoading(false)
+
+        // Load tournament if tournamentId exists
+        if (matchData.tournamentId) {
+          tournamentService.getById(matchData.tournamentId).then((tournamentData: any) => {
+            if (tournamentData) setTournament(tournamentData)
+          }).catch((err: any) => {
+            console.warn('Error loading tournament:', err)
+          })
+        }
       } else {
         setLoading(false)
       }
@@ -66,6 +80,15 @@ export default function MatchLive() {
       if (matchData) {
         setMatch(matchData)
         setLoading(false)
+
+        // Load tournament if tournamentId exists
+        if (matchData.tournamentId && !tournament) {
+          tournamentService.getById(matchData.tournamentId).then((tournamentData: any) => {
+            if (tournamentData) setTournament(tournamentData)
+          }).catch((err: any) => {
+            console.warn('Error loading tournament:', err)
+          })
+        }
       }
     })
 
@@ -279,7 +302,7 @@ export default function MatchLive() {
     const isWide = Number(extras?.wides || 0) > 0 || type === 'wide'
     const isNoBall = Number(extras?.noBalls || 0) > 0 || type === 'no-ball' || type === 'noball'
     const isWicket = Boolean(ball?.wicket)
-    if (isWicket) return `OUT (${prettyWicket(String(ball?.wicket?.type || ''))})`
+    if (isWicket) return prettyWicket(String(ball?.wicket?.type || ''))
     if (isWide) return 'WIDE'
     if (isNoBall) {
       const total = Number(ball?.totalRuns || 0)
@@ -433,6 +456,7 @@ export default function MatchLive() {
   const canUseLiveTab = true // Always available to show countdown/status/result
 
   const resultSummary = useMemo(() => {
+    if ((match as any)?.resultSummary) return (match as any).resultSummary
     return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match || undefined)
   }, [match, teamAInnings, teamBInnings, teamAName, teamBName])
 
@@ -695,10 +719,10 @@ export default function MatchLive() {
   // Initialize default tab once, based on match status
   useEffect(() => {
     if (!match || didInitTab.current) return
-    // Default to Live for upcoming/active, Summary for finished
-    setActiveTab(isFinishedMatch ? 'summary' : 'live')
+    // Default to Summary for upcoming, Live for active, Summary for finished
+    setActiveTab(isFinishedMatch ? 'summary' : (isUpcomingMatch ? 'summary' : 'live'))
     didInitTab.current = true
-  }, [match, isFinishedMatch])
+  }, [match, isFinishedMatch, isUpcomingMatch])
 
   // Countdown timer (only when upcoming + we have a start date)
   useEffect(() => {
@@ -750,8 +774,11 @@ export default function MatchLive() {
       { id: 'playing-xi', label: 'Playing XI' },
     ]
 
-    // Add Points Table if it's a tournament match
-    if (match?.tournamentId) {
+    // Add Points Table if match has group (groupName or groupId) or tournament has groups
+    const hasGroup = Boolean((match as any)?.groupName || (match as any)?.groupId)
+    const tournamentHasGroups = Boolean(tournament?.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0)
+
+    if (match?.tournamentId && (hasGroup || tournamentHasGroups)) {
       baseTabs.push({ id: 'points-table', label: 'Points Table' })
     }
 
@@ -1037,7 +1064,10 @@ export default function MatchLive() {
         return <MatchPlayingXI />
       case 'info':
       case 'summary':
-        if (isUpcomingMatch || isLiveMatch) return <MatchInfo compact={true} />
+        // Upcoming matches show the upcoming design
+        if (isUpcomingMatch) return renderUpcoming()
+        // Live matches show MatchInfo
+        if (isLiveMatch) return <MatchInfo compact={true} />
         // Only finished matches get the new specific Summary component
         return (
           <MatchSummary
@@ -1069,16 +1099,25 @@ export default function MatchLive() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(56,189,248,0.1),transparent_50%)]" />
 
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10">
-                {/* Top Row: Live Status & Venue */}
+                {/* Top Row: Status & Venue */}
                 <div className="flex items-center justify-between mb-6 text-xs font-bold tracking-wider">
                   <div className="flex items-center gap-2">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
-                    </span>
-                    <span className="text-white/90">LIVE</span>
+                    {isFinishedMatch ? (
+                      <div className="px-3 py-1 bg-emerald-500/20 rounded-full border border-emerald-500/30 backdrop-blur-sm flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span className="text-emerald-400 font-black uppercase tracking-[0.1em]">Completed</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+                        </span>
+                        <span className="text-white/90 tracking-widest">LIVE</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-white/60 uppercase">{match.venue || 'VENUE TBD'}</div>
+                  <div className="text-white/40 font-black uppercase tracking-[0.2em]">{match.venue || 'VENUE TBD'}</div>
                 </div>
 
                 {(() => {
@@ -1099,34 +1138,116 @@ export default function MatchLive() {
                     ? `${tossWinner === 'teamA' ? teamAName : teamBName} Opt to ${tossDecision}`
                     : ''
 
-                  const last = (inn?.currentOverBalls && inn.currentOverBalls.length > 0)
-                    ? inn.currentOverBalls[inn.currentOverBalls.length - 1]
-                    : null
-
                   // Center Event calculation
-                  const eventLabel = (isFinishedMatch && resultSummary) ? resultSummary : (centerEventText || '—')
+                  const eventLabel = isFinishedMatch ? (centerEventText || '—') : (centerEventText || '—')
                   const isBoundary = eventLabel === '4' || eventLabel === '6'
                   const isWicket = eventLabel.includes('OUT')
+
+                  if (isFinishedMatch) {
+                    const scoreA = `${teamAInnings?.totalRuns || 0}-${teamAInnings?.totalWickets || 0}`
+                    const scoreB = `${teamBInnings?.totalRuns || 0}-${teamBInnings?.totalWickets || 0}`
+                    const logoA = teamASquad?.logoUrl || (match as any).teamALogoUrl
+                    const logoB = teamBSquad?.logoUrl || (match as any).teamBLogoUrl
+
+                    return (
+                      <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+                        <div className="relative bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-2xl overflow-hidden">
+                          {/* Background Glow */}
+                          <div className="absolute -right-10 -top-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
+
+                          <div className="relative flex flex-col md:flex-row items-center justify-between gap-4">
+                            {/* Score Row */}
+                            <div className="flex items-center gap-6 md:gap-8 grow">
+                              {/* Team A */}
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center p-1.5 shadow-lg">
+                                  {logoA ? <img src={logoA} className="w-full h-full object-contain" alt={teamAName} /> : <span className="text-sm font-black text-white/20 uppercase">{teamAName.charAt(0)}</span>}
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-[10px] font-black text-white/40 uppercase tracking-tighter leading-none mb-1">{teamAName}</div>
+                                  <div className="flex items-baseline gap-1.5 justify-end">
+                                    <div className="text-xl md:text-2xl font-black text-white tracking-tighter leading-none">{scoreA}</div>
+                                    <div className="text-[10px] font-bold text-white/30 lowercase">({teamAInnings?.overs || '0.0'})</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* VS divider */}
+                              <div className="h-8 w-px bg-white/10 hidden md:block"></div>
+                              <div className="text-[10px] font-black text-white/20 md:hidden">VS</div>
+
+                              {/* Team B */}
+                              <div className="flex items-center gap-3">
+                                <div className="text-left">
+                                  <div className="text-[10px] font-black text-white/40 uppercase tracking-tighter leading-none mb-1">{teamBName}</div>
+                                  <div className="flex items-baseline gap-1.5">
+                                    <div className="text-xl md:text-2xl font-black text-white tracking-tighter leading-none">{scoreB}</div>
+                                    <div className="text-[10px] font-bold text-white/30 lowercase">({teamBInnings?.overs || '0.0'})</div>
+                                  </div>
+                                </div>
+                                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center p-1.5 shadow-lg">
+                                  {logoB ? <img src={logoB} className="w-full h-full object-contain" alt={teamBName} /> : <span className="text-sm font-black text-white/20 uppercase">{teamBName.charAt(0)}</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Result Text */}
+                            <div className="md:border-l md:border-white/10 md:pl-8 md:min-w-[300px] text-center md:text-left py-2 md:py-0">
+                              <div className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1 leading-none">Match Result</div>
+                              <h2 className="text-sm md:text-lg font-black text-white leading-tight drop-shadow-md decoration-emerald-500/30">
+                                {resultSummary}
+                              </h2>
+                            </div>
+                          </div>
+
+                          {/* Toss Info Strip */}
+                          <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
+                            <div className="text-white/30 flex items-center gap-2">
+                              {tossText && <span>{tossText}</span>}
+                            </div>
+                            {target && (
+                              <div className="text-white/40 font-black">
+                                Target: <span className="text-white">{target}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
 
                   return (
                     <div>
                       {/* SPLIT HEADER DESIGN */}
-                      <div className="flex items-center relative max-w-full h-24 mb-0">
+                      <div className={`flex items-center relative max-w-full h-24 mb-0 transition-all duration-300 ${ballAnimating
+                        ? ballEventType === '4'
+                          ? 'ring-2 ring-blue-400/60 shadow-[0_0_15px_rgba(96,165,250,0.3)]'
+                          : ballEventType === '6'
+                            ? 'ring-2 ring-emerald-400/60 shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                            : ballEventType === 'wicket'
+                              ? 'ring-2 ring-red-400/60 shadow-[0_0_15px_rgba(248,113,113,0.3)]'
+                              : ''
+                        : ''
+                        }`}>
                         {/* LEFT: Team, Score, Overs (60%) */}
                         <div className="w-[60%] flex items-center gap-2 md:gap-4 pr-2 h-full">
                           {/* Logo */}
                           <div className="relative flex-shrink-0">
-                            {(match as any)[match.currentBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl'] ? (
-                              <img
-                                src={(match as any)[match.currentBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']}
-                                alt={currentTeamName}
-                                className="w-10 h-10 sm:w-12 sm:h-12 md:w-20 md:h-20 rounded-full object-cover border-2 border-white/10 shadow-lg bg-white/5"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-white/10 flex items-center justify-center text-lg md:text-2xl font-bold text-white/40 shadow-inner">
-                                {currentTeamName.charAt(0)}
-                              </div>
-                            )}
+                            {(() => {
+                              const currentSquad = match.currentBatting === 'teamB' ? teamBSquad : teamASquad
+                              const logoUrl = currentSquad?.logoUrl || (match as any)[match.currentBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
+                              return logoUrl ? (
+                                <img
+                                  src={logoUrl}
+                                  alt={currentTeamName}
+                                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-20 md:h-20 rounded-full object-cover border-2 border-white/10 shadow-lg bg-white/5"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-white/10 flex items-center justify-center text-lg md:text-2xl font-bold text-white/40 shadow-inner">
+                                  {currentTeamName.charAt(0)}
+                                </div>
+                              )
+                            })()}
                           </div>
 
                           <div className="flex flex-col min-w-0 overflow-hidden w-full">
@@ -1147,66 +1268,38 @@ export default function MatchLive() {
                         {/* CENTER DIVIDER - ABSOLUTE FIXED POSITION AT 60% */}
                         <div className="absolute left-[60%] top-1/2 -translate-y-1/2 h-16 w-px bg-gradient-to-b from-transparent via-white/40 to-transparent shadow-[0_0_10px_rgba(255,255,255,0.3)] z-10" />
 
-                        {/* RIGHT: Current Ball Event (40%) */}
+                        {/* RIGHT: Current Ball Event (40%) - Animated */}
                         <div className="w-[40%] pl-2 h-full flex flex-col justify-center items-center relative">
-                          <div className={`
-                             font-black tracking-tighter transition-all duration-300 transform drop-shadow-2xl
-                             ${isBoundary ? 'text-emerald-400 scale-105' : isWicket ? 'text-red-500 scale-105' : 'text-white/95'}
-                             ${centerEventAnim ? 'opacity-80 scale-95' : 'opacity-100 scale-100'}
-                             leading-none flex justify-center items-center h-full break-normal text-center px-1
-                             ${(() => {
-                              let label = eventLabel;
-                              // Logic to check text length for sizing
-                              if (isWicket && (last?.dismissalType?.toLowerCase().includes('run out') || eventLabel.toLowerCase().includes('run out'))) {
-                                label = "RUN OUT";
-                              } else if (isWicket && last?.dismissalType) {
-                                label = last.dismissalType.toUpperCase();
-                              } else if (isWicket && eventLabel.includes('OUT')) {
-                                label = eventLabel.replace(/OUT\s*\(?|\)?/gi, '').trim() || 'WICKET';
-                              }
-
-                              const len = label.length;
-                              if (len <= 2) return 'text-5xl sm:text-6xl md:text-9xl';
-                              if (len <= 4) return 'text-4xl sm:text-5xl md:text-8xl';
-                              return 'text-2xl sm:text-3xl md:text-6xl';
-                            })()}
-                           `}>
-                            <span className="block max-w-full">
-                              {(() => {
-                                if (isWicket && (last?.dismissalType?.toLowerCase().includes('run out') || eventLabel.toLowerCase().includes('run out'))) return "RUN OUT";
-                                if (isWicket && last?.dismissalType) return last.dismissalType.toUpperCase();
-                                if (isWicket && eventLabel.includes('OUT')) return eventLabel.replace(/OUT\s*\(?|\)?/gi, '').trim() || 'WICKET';
-                                return eventLabel === 'Over' ? '•' : eventLabel;
-                              })()}
-                            </span>
-                          </div>
+                          <BallEventDisplay
+                            eventLabel={eventLabel}
+                            isWicket={isWicket}
+                            ballId={lastBallDoc?.id}
+                            onAnimationStateChange={(animating, eventType) => {
+                              setBallAnimating(animating)
+                              setBallEventType(eventType)
+                            }}
+                          />
                         </div>
                       </div>
 
                       {/* BOTTOM ROW: CRR, RRR, Target/Toss */}
                       <div className="flex items-center justify-between pt-4 border-t border-white/5 text-sm md:text-base font-medium">
-                        {isFinishedMatch ? (
-                          <div className="text-white/50 uppercase tracking-widest text-[10px] md:text-xs font-bold">
-                            {tossText}
+                        <div className="flex gap-8 text-white/50 uppercase tracking-widest text-xs font-bold">
+                          <div>
+                            CRR: <span className="text-white text-base ml-1">{Number.isFinite(crr) ? crr.toFixed(2) : '0.00'}</span>
                           </div>
-                        ) : (
-                          <div className="flex gap-8 text-white/50 uppercase tracking-widest text-xs font-bold">
+                          {target && (
                             <div>
-                              CRR: <span className="text-white text-base ml-1">{Number.isFinite(crr) ? crr.toFixed(2) : '0.00'}</span>
+                              RRR: <span className="text-white text-base ml-1">{Number.isFinite(rrr) ? rrr.toFixed(2) : '0.00'}</span>
                             </div>
-                            {target && (
-                              <div>
-                                RRR: <span className="text-white text-base ml-1">{Number.isFinite(rrr) ? rrr.toFixed(2) : '0.00'}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
 
                         <div className="text-white/70 font-semibold">
                           {target ? (
                             <span className="bg-white/10 px-3 py-1 rounded-full text-xs uppercase tracking-wide">Target: <span className="text-white">{target}</span></span>
                           ) : (
-                            !isFinishedMatch && <span className="uppercase tracking-wide text-xs opacity-70">{tossText}</span>
+                            <span className="uppercase tracking-wide text-xs opacity-70">{tossText}</span>
                           )}
                         </div>
                       </div>
@@ -1241,8 +1334,10 @@ export default function MatchLive() {
               matchPhase={(match as any)?.matchPhase}
               currentInnings={(match.currentBatting || 'teamA') as any}
               currentWickets={(currentInnings as any)?.totalWickets || 0}
-              teamAName={firstSide === 'teamA' ? teamAName : teamBName}
-              teamBName={secondSide === 'teamA' ? teamAName : teamBName}
+              teamAName={teamAName}
+              teamBName={teamBName}
+              teamAInnings={teamAInnings}
+              teamBInnings={teamBInnings}
               firstSide={firstSide}
               secondSide={secondSide}
               resultSummary={isFinishedMatch ? (resultSummary || null) : null}
@@ -1261,4 +1356,3 @@ export default function MatchLive() {
     </div>
   )
 }
-

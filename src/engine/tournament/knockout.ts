@@ -17,6 +17,8 @@ import type {
   ValidationIssue,
 } from './types'
 import { buildSeedIndex } from './qualification'
+import { getAuth } from 'firebase/auth'
+import { auth } from '@/config/firebase'
 
 const err = (code: string, message: string, path?: string): ValidationIssue => ({ severity: 'error', code, message, path })
 
@@ -128,4 +130,33 @@ export function validateCustomMapping(specs: KnockoutMatchSpec[], seedIndex: Map
   return errors
 }
 
+export async function generateKnockoutFixtures(tournamentId: string): Promise<void> {
+  try {
+    // Call the backend API to generate knockout fixtures based on group results
+    // Get the Firebase authentication token
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) {
+      throw new Error('Authentication token not found');
+    }
+    
+    const response = await fetch(`/api/tournaments/${tournamentId}/seed-knockout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to generate knockout fixtures');
+    }
+    
+    const result = await response.json();
+    console.log('Knockout fixtures generated successfully:', result);
+  } catch (error) {
+    console.error('Error generating knockout fixtures:', error);
+    throw error;
+  }
+}
 

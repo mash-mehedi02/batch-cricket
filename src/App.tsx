@@ -1,20 +1,23 @@
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useParams } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+// Rebuild trigger 1
 import Layout from './components/Layout'
 import AdminLayout from './components/admin/AdminLayout'
 import Home from './pages/Home'
-import MatchLive from './pages/MatchLive'
-import MatchInfo from './pages/MatchInfo'
-import MatchScorecard from './pages/MatchScorecard'
-import MatchPlayingXI from './pages/MatchPlayingXI'
-import MatchGraphs from './pages/MatchGraphs'
+import Login from './pages/Login'
 import Tournaments from './pages/Tournaments'
 import TournamentDetails from './pages/TournamentDetails'
+import TournamentPointsTable from './pages/TournamentPointsTable'
+import TournamentKeyStats from './pages/TournamentKeyStats'
 import Squads from './pages/Squads'
 import SquadDetails from './pages/SquadDetails'
 import Players from './pages/Players'
 import PlayerProfile from './pages/PlayerProfile'
 import Champions from './pages/Champions'
+import MatchLive from './pages/MatchLive'
+import MatchInfo from './pages/MatchInfo'
+import MatchScorecard from './pages/MatchScorecard'
+import MatchGraphs from './pages/MatchGraphs'
+import MatchPlayingXI from './pages/MatchPlayingXI'
 import Schedule from './pages/Schedule'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminTournaments from './pages/admin/AdminTournaments'
@@ -25,9 +28,7 @@ import AdminLiveMatches from './pages/admin/AdminLiveMatches'
 import AdminLiveScoring from './pages/admin/AdminLiveScoring'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
 import AdminSettings from './pages/admin/AdminSettings'
-import Login from './pages/Login'
 
-// Layout wrapper component
 function LayoutWrapper() {
   return (
     <Layout>
@@ -36,7 +37,6 @@ function LayoutWrapper() {
   )
 }
 
-// Admin Layout wrapper component
 function AdminLayoutWrapper() {
   return (
     <AdminLayout>
@@ -46,14 +46,8 @@ function AdminLayoutWrapper() {
 }
 
 function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
-  const { tournamentId } = useParams<{ tournamentId: string }>()
-  if (!tournamentId) return <Navigate to="/tournaments" replace />
+  const tournamentId = window.location.pathname.split('/')[2]
   return <Navigate to={`/tournaments/${tournamentId}?tab=${tab}`} replace />
-}
-
-function PlayerRedirect() {
-  const { playerId } = useParams<{ playerId: string }>()
-  return <Navigate to={`/players/${playerId}`} replace />
 }
 
 function App() {
@@ -66,7 +60,6 @@ function App() {
         {/* Public Routes - Wrapped in Layout */}
         <Route element={<LayoutWrapper />}>
           <Route path="/" element={<Home />} />
-          <Route path="/schedule" element={<Schedule />} />
           <Route path="/tournaments" element={<Tournaments />} />
           <Route path="/tournaments/:tournamentId" element={<TournamentDetails />} />
           <Route path="/tournaments/:tournamentId/points" element={<TournamentTabRedirect tab="points" />} />
@@ -75,23 +68,29 @@ function App() {
           <Route path="/squads/:squadId" element={<SquadDetails />} />
           <Route path="/players" element={<Players />} />
           <Route path="/players/:playerId" element={<PlayerProfile />} />
-          <Route path="/player/:playerId" element={<PlayerRedirect />} />
           <Route path="/champions" element={<Champions />} />
+          <Route path="/schedule" element={<Schedule />} />
 
           {/* Match Routes */}
           <Route path="/match/:matchId" element={<MatchLive />} />
           <Route path="/match/:matchId/info" element={<MatchInfo />} />
           <Route path="/match/:matchId/scorecard" element={<MatchScorecard />} />
-          <Route path="/match/:matchId/playing-xi" element={<MatchPlayingXI />} />
           <Route path="/match/:matchId/graphs" element={<MatchGraphs />} />
+          <Route path="/match/:matchId/playing-xi" element={<MatchPlayingXI />} />
         </Route>
 
-        {/* Admin Routes - Wrapped in AdminLayout (no public Layout) */}
+        {/* Admin Routes - Wrapped in AdminLayout */}
         <Route element={<AdminLayoutWrapper />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/tournaments" element={<AdminTournaments />} />
-          <Route path="/admin/tournaments/new" element={<AdminTournaments mode="create" />} />
+          <Route path="/admin/tournaments/:id/dashboard" element={<AdminTournaments mode="dashboard" />} />
+          <Route path="/admin/tournaments/:id/groups" element={<AdminTournaments mode="groups" />} />
+          <Route path="/admin/tournaments/:id/fixtures" element={<AdminTournaments mode="fixtures" />} />
+          <Route path="/admin/tournaments/:id/knockout" element={<AdminTournaments mode="knockout" />} />
+          <Route path="/admin/tournaments/:id/standings" element={<AdminTournaments mode="standings" />} />
+          <Route path="/admin/tournaments/:id/settings" element={<AdminTournaments mode="settings" />} />
           <Route path="/admin/tournaments/:id/edit" element={<AdminTournaments mode="edit" />} />
+          <Route path="/admin/tournaments/new" element={<AdminTournaments mode="create" />} />
           <Route path="/admin/squads" element={<AdminSquads />} />
           <Route path="/admin/squads/new" element={<AdminSquads mode="create" />} />
           <Route path="/admin/squads/:id/edit" element={<AdminSquads mode="edit" />} />
@@ -100,18 +99,20 @@ function App() {
           <Route path="/admin/players/:id/edit" element={<AdminPlayers mode="edit" />} />
           <Route path="/admin/matches" element={<AdminMatches />} />
           <Route path="/admin/matches/new" element={<AdminMatches mode="create" />} />
-          <Route path="/admin/matches/:id" element={<AdminMatches mode="view" />} />
           <Route path="/admin/matches/:id/edit" element={<AdminMatches mode="edit" />} />
+          <Route path="/admin/matches/:id" element={<AdminMatches mode="view" />} />
           <Route path="/admin/live" element={<AdminLiveMatches />} />
+          <Route path="/admin/live/:matchId" element={<AdminLiveScoring />} />
           <Route path="/admin/live/:matchId/scoring" element={<AdminLiveScoring />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>
+
+        {/* Catch all - redirect to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <Toaster position="top-right" />
     </BrowserRouter>
   )
 }
 
 export default App
-

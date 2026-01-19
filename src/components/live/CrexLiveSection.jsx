@@ -6,6 +6,12 @@ import React from 'react'
 import ProjectedScoreTable from './ProjectedScoreTable'
 import WinProbability from './WinProbability'
 
+// Helper function to get first word of name
+const getFirstName = (fullName) => {
+  const words = String(fullName || '').trim().split(/\s+/)
+  return words[0] || fullName
+}
+
 const CrexLiveSection = ({
   striker,
   nonStriker,
@@ -30,6 +36,8 @@ const CrexLiveSection = ({
   currentWickets, // Add wickets prop
   teamAName, // Add team names for win probability
   teamBName,
+  teamAInnings,
+  teamBInnings,
   resultSummary, // Add resultSummary prop for winner display
   match, // Add match prop
   firstSide, // 'teamA' or 'teamB'
@@ -64,6 +72,17 @@ const CrexLiveSection = ({
 
   // Get scrolling ref
   const scrollRef = React.useRef(null)
+
+  // Check if mobile view
+  const [isMobile, setIsMobile] = React.useState(false)
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Auto-scroll to end when overs update
   React.useEffect(() => {
@@ -168,28 +187,49 @@ const CrexLiveSection = ({
     )
   }
 
-  return (
-    <div className="bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-0">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-          {/* Left Column - Main Content */}
-          <div className="lg:col-span-2 space-y-2">
+  const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
 
-            {/* 1. Target/Runs Needed Strip - Prominent & Compact */}
+  return (
+    <div className="bg-[#f8fafc] min-h-screen">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-2 md:py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Left Column - Main Content */}
+          <div className="lg:col-span-2 space-y-4">
+
+            {/* Match Status Card (Chasing) */}
             {matchPhase === 'SecondInnings' && target && runsNeeded !== null && (
-              <div className="bg-[#fff7e6] text-[#92400e] py-2 px-4 rounded-md text-center text-sm font-bold border border-amber-100 shadow-sm mx-1">
-                {runsNeeded > 0
-                  ? `${(match.currentBatting === 'teamB' ? teamBName : teamAName)} need ${runsNeeded} runs in ${ballsRemaining} balls`
-                  : resultSummary || 'Match Finished'
-                }
+              <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl shadow-lg p-5 text-white relative overflow-hidden group">
+                <div className="absolute right-0 top-0 h-full w-1/3 bg-white/10 skew-x-[-20deg] translate-x-10 group-hover:translate-x-5 transition-transform duration-700"></div>
+                <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl animate-pulse">🎯</div>
+                    <div>
+                      <h4 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mb-1">Chasing Target</h4>
+                      <p className="text-xl md:text-2xl font-black tracking-tight whitespace-nowrap">
+                        Need <span className="text-yellow-200">{runsNeeded}</span> runs in <span className="text-yellow-200">{ballsRemaining}</span> <span className="text-sm font-bold opacity-80 uppercase tracking-widest">balls</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-px bg-white/20 hidden sm:block"></div>
+                    <div className="text-center sm:text-right">
+                      <span className="block text-[10px] font-bold text-white/60 uppercase tracking-widest">Required Rate</span>
+                      <span className="text-xl font-black">{requiredRunRate ? Number(requiredRunRate).toFixed(2) : '0.00'}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* 2. Recent Overs - Horizontal Scrolling Strip */}
+            {/* Recent Overs - Premium Horizontal Scrolling */}
             {displayOvers.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 overflow-hidden">
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Overs</span>
+              <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 p-4">
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1 h-3 bg-slate-300 rounded-full"></span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Live Timeline</span>
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Scroll for history →</div>
                 </div>
                 <div
                   ref={scrollRef}
@@ -198,47 +238,40 @@ const CrexLiveSection = ({
                   {displayOvers.map((over, idx) => {
                     const overNo = (over?.overNumber ?? over?.number ?? over?.over ?? 0)
                     const total = Number(over?.totalRuns ?? over?.total ?? 0)
-                    const normalizeDelivery = (b) => {
+                    const deliveriesAll = (over?.deliveries || over?.balls || []).map(b => {
                       if (!b) return null
                       if (typeof b === 'string') return { value: b, type: 'run' }
                       return {
                         value: String(b?.value ?? b?.label ?? b?.runsOffBat ?? b?.runs ?? ''),
                         type: String(b?.type ?? (b?.isWicket ? 'wicket' : 'run')),
-                        runsOffBat: b?.runsOffBat,
-                        runs: b?.runs,
-                        isLegal: b?.isLegal,
                       }
-                    }
-                    const deliveriesAll = (over?.deliveries && Array.isArray(over.deliveries))
-                      ? over.deliveries.map(normalizeDelivery).filter(Boolean)
-                      : (over?.balls && Array.isArray(over.balls))
-                        ? over.balls.map(normalizeDelivery).filter(Boolean)
-                        : []
+                    }).filter(Boolean)
 
                     const getBadgeColor = (val, type) => {
                       const v = String(val || '').trim()
-                      if (type === 'wicket' || v.toUpperCase() === 'W') return 'bg-red-500 text-white border-red-500'
-                      if (v === '4') return 'bg-blue-500 text-white border-blue-500'
-                      if (v === '6') return 'bg-emerald-500 text-white border-emerald-500'
-                      return 'bg-slate-50 text-slate-600 border-slate-200'
+                      if (type === 'wicket' || v.toUpperCase() === 'W') return 'bg-rose-500 text-white shadow-rose-200'
+                      if (v === '4') return 'bg-blue-600 text-white shadow-blue-200'
+                      if (v === '6') return 'bg-emerald-600 text-white shadow-emerald-200'
+                      return 'bg-slate-100 text-slate-700 border-slate-200'
                     }
 
                     return (
-                      <div key={idx} className="flex items-center gap-3 bg-slate-50/50 px-3 py-2 rounded-lg border border-slate-100 flex-shrink-0 min-w-max">
-                        <div className="text-xs font-bold text-slate-500 whitespace-nowrap">Over {overNo}</div>
-                        <div className="h-4 w-px bg-slate-200"></div>
-                        <div className="flex items-center gap-1.5">
-                          {deliveriesAll.map((d, i) => {
-                            const v = d ? (d.value ?? d.label ?? d.runsOffBat ?? d.runs ?? '') : ''
-                            const type = d ? (d.type ?? 'run') : 'run'
-                            return (
-                              <div key={i} className={`w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold shadow-sm ${getBadgeColor(v, type)}`}>
-                                {v || '•'}
-                              </div>
-                            )
-                          })}
-                          {/* Total for over */}
-                          <div className="ml-2 text-xs font-bold text-slate-900">= {total}</div>
+                      <div key={idx} className="flex items-center gap-3 bg-slate-50/80 px-4 py-2.5 rounded-2xl border border-slate-100 flex-shrink-0">
+                        <div className="text-xs font-black text-slate-400 uppercase tracking-tighter">OV {overNo}</div>
+                        <div className="h-5 w-px bg-slate-200"></div>
+                        <div className="flex items-center gap-2">
+                          {deliveriesAll.map((d, i) => (
+                            <div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm transform hover:scale-110 transition-transform ${getBadgeColor(d.value, d.type)}`}>
+                              {d.value === '' || d.value === '0' ? '0' : d.value}
+                            </div>
+                          ))}
+                          {Array.from({ length: Math.max(0, 6 - deliveriesAll.length) }).map((_, i) => (
+                            <div key={`empty-${i}`} className="w-7 h-7 rounded-full border-2 border-dashed border-slate-200 bg-white/50 animate-pulse"></div>
+                          ))}
+                          <div className="ml-3 px-2 py-1 bg-white rounded-lg shadow-sm border border-slate-100">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase mr-1">Runs:</span>
+                            <span className="text-xs font-black text-slate-900">{total}</span>
+                          </div>
                         </div>
                       </div>
                     )
@@ -247,182 +280,220 @@ const CrexLiveSection = ({
               </div>
             )}
 
-            {/* 3. Current Players Section - Professional Table Layout */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-
-              {/* Batting Table */}
-              <div>
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batter</span>
-                  <div className="flex gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
-                    <span className="w-10">R (B)</span>
-                    <span className="w-8 hidden sm:block">4s</span>
-                    <span className="w-8 hidden sm:block">6s</span>
-                    <span className="w-12 text-right">SR</span>
+            {/* Players Area - CREX Premium Table Style */}
+            {!isFinishedMatch && (
+              <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  {/* Batting Side */}
+                  <div className="p-4 md:p-5 border-b md:border-b-0 md:border-r border-slate-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 text-[10px] font-black">BAT</div>
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Batting</h4>
+                      </div>
+                      <div className="flex gap-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">
+                        <span className="w-14">R (B)</span>
+                        <span className="w-8 hidden sm:block">4s/6s</span>
+                        <span className="w-10">SR</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {striker && (
+                        <div className="flex justify-between items-center group">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative">
+                              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                                {striker.photoUrl ? <img src={striker.photoUrl} className="w-full h-full object-cover" /> : <span className="text-xs font-bold text-slate-400">{striker.name?.charAt(0)}</span>}
+                              </div>
+                              <div className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[8px] text-white">🏏</div>
+                            </div>
+                            <span className="text-sm font-black text-slate-900 truncate" title={striker.name}>{isMobile ? getFirstName(striker.name) : striker.name}</span>
+                          </div>
+                          <div className="flex gap-4 text-sm font-bold text-slate-700 text-right shrink-0">
+                            <span className="w-14 text-slate-900">{striker.runs || 0} <span className="text-[10px] text-slate-400 font-normal">({striker.balls || 0})</span></span>
+                            <span className="w-8 hidden sm:block text-slate-400 text-xs">{striker.fours || 0}/{striker.sixes || 0}</span>
+                            <span className="w-10 text-slate-500 font-mono text-xs">{striker.strikeRate ? Number(striker.strikeRate).toFixed(1) : '0.0'}</span>
+                          </div>
+                        </div>
+                      )}
+                      {nonStriker && (
+                        <div className="flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-3 min-w-0 ml-1">
+                            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-200">
+                              {nonStriker.photoUrl ? <img src={nonStriker.photoUrl} className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold text-slate-400">{nonStriker.name?.charAt(0)}</span>}
+                            </div>
+                            <span className="text-sm font-bold text-slate-600 truncate" title={nonStriker.name}>{isMobile ? getFirstName(nonStriker.name) : nonStriker.name}</span>
+                          </div>
+                          <div className="flex gap-4 text-sm font-medium text-slate-600 text-right shrink-0">
+                            <span className="w-14">{nonStriker.runs || 0} <span className="text-[10px] text-slate-400 font-normal">({nonStriker.balls || 0})</span></span>
+                            <span className="w-8 hidden sm:block text-slate-400 text-xs">{nonStriker.fours || 0}/{nonStriker.sixes || 0}</span>
+                            <span className="w-10 text-slate-400 font-mono text-xs">{nonStriker.strikeRate ? Number(nonStriker.strikeRate).toFixed(1) : '0.0'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      <div className="flex gap-4">
+                        <span>Partnership: <span className="text-slate-900">{formatPartnership()}</span></span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="divide-y divide-slate-100">
-                  {striker && (
-                    <div className="px-4 py-3 flex justify-between items-center bg-white hover:bg-slate-50 transition-colors">
+
+                  {/* Bowling Side */}
+                  <div className="p-4 md:p-5 bg-slate-50/50">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-slate-900">{striker.name || 'Striker'}</span>
-                        <span className="text-pink-500 text-xs">🏏</span>
+                        <div className="w-6 h-6 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 text-[10px] font-black">BOWL</div>
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Bowling</h4>
                       </div>
-                      <div className="flex gap-4 text-sm font-medium text-slate-700 text-right">
-                        <span className="w-10 font-bold text-slate-900">{striker.runs || 0} <span className="text-slate-400 font-normal">({striker.balls || 0})</span></span>
-                        <span className="w-8 hidden sm:block text-slate-500">{striker.fours || 0}</span>
-                        <span className="w-8 hidden sm:block text-slate-500">{striker.sixes || 0}</span>
-                        <span className="w-12 text-right text-slate-500">{striker.strikeRate ? Number(striker.strikeRate).toFixed(2) : '0.00'}</span>
+                      <div className="flex gap-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">
+                        <span className="w-8">O</span>
+                        <span className="w-8">R-W</span>
+                        <span className="w-10">ECO</span>
                       </div>
                     </div>
-                  )}
-                  {nonStriker && (
-                    <div className="px-4 py-3 flex justify-between items-center bg-white hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-normal text-slate-600">{nonStriker.name || 'Non-Striker'}</span>
-                      </div>
-                      <div className="flex gap-4 text-sm font-medium text-slate-700 text-right">
-                        <span className="w-10 font-bold text-slate-900">{nonStriker.runs || 0} <span className="text-slate-400 font-normal">({nonStriker.balls || 0})</span></span>
-                        <span className="w-8 hidden sm:block text-slate-500">{nonStriker.fours || 0}</span>
-                        <span className="w-8 hidden sm:block text-slate-500">{nonStriker.sixes || 0}</span>
-                        <span className="w-12 text-right text-slate-500">{nonStriker.strikeRate ? Number(nonStriker.strikeRate).toFixed(2) : '0.00'}</span>
-                      </div>
+                    <div className="space-y-4">
+                      {currentBowler ? (
+                        <div className="flex justify-between items-center group">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm">
+                              {currentBowler.photoUrl ? <img src={currentBowler.photoUrl} className="w-full h-full object-cover" /> : <span className="text-xs font-bold text-slate-400">{currentBowler.name?.charAt(0)}</span>}
+                            </div>
+                            <span className="text-sm font-black text-slate-900 truncate" title={currentBowler.name}>{isMobile ? getFirstName(currentBowler.name) : currentBowler.name}</span>
+                          </div>
+                          <div className="flex gap-4 text-sm font-bold text-slate-700 text-right shrink-0">
+                            <span className="w-8 text-slate-500 font-mono">{currentBowler.overs || '0.0'}</span>
+                            <span className="w-8 text-slate-900">{currentBowler.runsConceded || 0}-{currentBowler.wickets || 0}</span>
+                            <span className="w-10 text-orange-600 font-mono text-xs">{currentBowler.economy ? Number(currentBowler.economy).toFixed(1) : '0.0'}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-2 text-xs text-slate-400 italic font-medium">No bowler currently bowling</div>
+                      )}
+                      {lastWicket && (
+                        <div className="pt-2 flex items-center gap-2">
+                          <div className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[8px] font-black uppercase rounded tracking-widest">Last Wicket</div>
+                          <span className="text-[10px] font-bold text-slate-500 truncate">{formatLastWicket()}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {/* Partnership Row */}
-                  <div className="px-4 py-2 bg-slate-50/50 flex items-center gap-2 text-xs text-slate-500 border-t border-slate-100">
-                    <span className="font-semibold">P'ship:</span>
-                    <span>{formatPartnership()}</span>
-                    {lastWicket && (
-                      <>
-                        <span className="mx-1">•</span>
-                        <span className="font-semibold">Last Wkt:</span>
-                        <span>{formatLastWicket()}</span>
-                      </>
-                    )}
                   </div>
                 </div>
               </div>
+            )}
 
-              {/* Bowler Table */}
-              <div className="border-t border-slate-200">
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bowler</span>
-                  <div className="flex gap-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
-                    <span className="w-12">O-M</span>
-                    <span className="w-8">R</span>
-                    <span className="w-8">W</span>
-                    <span className="w-12 text-right">ECO</span>
-                  </div>
+            {/* Commentary Section - Refined Feed Style */}
+            <div className="bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
+              <div className="bg-white px-5 py-4 border-b border-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-6 bg-slate-900 rounded-full"></div>
+                  <h3 className="text-base font-black text-slate-900 uppercase tracking-wider">Commentary</h3>
                 </div>
-                <div className="bg-white">
-                  {currentBowler ? (
-                    <div className="px-4 py-3 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-slate-900">{currentBowler.name || 'Bowler'}</span>
-                      </div>
-                      <div className="flex gap-4 text-sm font-medium text-slate-700 text-right">
-                        <span className="w-12 text-slate-500">{currentBowler.overs || '0.0'}-{currentBowler.maidens || 0}</span>
-                        <span className="w-8 text-slate-500">{currentBowler.runsConceded || 0}</span>
-                        <span className="w-8 font-bold text-slate-900">{currentBowler.wickets || 0}</span>
-                        <span className="w-12 text-right text-slate-500">{currentBowler.economy ? Number(currentBowler.economy).toFixed(2) : '0.00'}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-slate-400 italic">No bowler selected</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Commentary Section - Enhanced */}
-            <div className="bg-white rounded-xl shadow-md overflow-hidden">
-              <div className="bg-gray-50 px-5 sm:px-6 py-4 border-b border-gray-200">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-gray-900">Commentary</h3>
-                  {matchStatus === 'Live' && (
-                    <span className="flex items-center text-xs text-red-600 font-semibold">
-                      <span className="w-2 h-2 bg-red-500 rounded-full mr-1.5 animate-pulse"></span>
-                      Live
+                <div className="flex items-center gap-4">
+                  {!isFinishedMatch && (
+                    <span className="flex items-center text-[10px] text-rose-600 font-black tracking-widest uppercase">
+                      <span className="w-1.5 h-1.5 bg-rose-500 rounded-full mr-1.5 animate-pulse"></span>
+                      Real-time
                     </span>
                   )}
                 </div>
-
-                {/* Commentary Filters - Enhanced */}
-                <div className="flex flex-wrap gap-2">
-                  {filters.map((filter) => (
-                    <button
-                      key={filter.id}
-                      onClick={() => onCommentaryFilterChange && onCommentaryFilterChange(filter.id)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeCommentaryFilter === filter.id
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                        }`}
-                    >
-                      {filter.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              {/* Commentary List - Enhanced */}
-              <div className="max-h-96 overflow-y-auto">
+              {/* Filters Scroll Area */}
+              <div className="px-5 py-3 border-b border-slate-50 overflow-x-auto scrollbar-hide flex items-center gap-2">
+                {filters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => onCommentaryFilterChange && onCommentaryFilterChange(filter.id)}
+                    className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full whitespace-nowrap transition-all duration-300 ${activeCommentaryFilter === filter.id
+                      ? 'bg-slate-900 text-white shadow-lg shadow-slate-200'
+                      : 'bg-white text-slate-400 hover:text-slate-600 border border-slate-100'
+                      }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Commentary Feed */}
+              <div className="max-h-[500px] overflow-y-auto bg-slate-50/30">
                 {filteredCommentary.length > 0 ? (
-                  <div className="divide-y divide-gray-100">
-                    {filteredCommentary.slice().reverse().map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="px-5 sm:px-6 py-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="text-xs font-semibold text-gray-500 min-w-[50px] pt-0.5">
-                            {item.over || '—'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm text-gray-900 leading-relaxed">
-                              {item.text || item.commentary || 'No commentary available'}
+                  <div className="divide-y divide-slate-100">
+                    {filteredCommentary.slice().reverse().map((item, idx) => {
+                      const isWicket = String(item.text || '').toLowerCase().includes('out') || item.isWicket;
+                      const isBoundary = item.runs === 4 || item.runs === 6;
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`px-6 py-5 transition-colors border-l-4 ${isWicket ? 'border-l-rose-500 bg-rose-50/20' : isBoundary ? 'border-l-blue-500 bg-blue-50/10' : 'border-l-transparent hover:bg-white'}`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="flex flex-col items-center gap-1 min-w-[45px]">
+                              <span className="text-xs font-black text-slate-400 leading-none">{item.over || '—'}</span>
+                              {item.runs !== undefined && (
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm ${item.runs === 4 ? 'bg-blue-600 text-white' : item.runs === 6 ? 'bg-emerald-600 text-white' : item.isWicket ? 'bg-rose-500 text-white' : 'bg-white text-slate-600 border border-slate-100'}`}>
+                                  {item.isWicket ? 'W' : item.runs}
+                                </div>
+                              )}
                             </div>
-                            {item.runs !== undefined && item.runs > 0 && (
-                              <div className="text-xs text-gray-500 mt-1.5">
-                                {item.runs} run{item.runs !== 1 ? 's' : ''}
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm ${isWicket ? 'font-bold text-rose-900' : 'text-slate-800'} leading-relaxed`}>
+                                {item.text || item.commentary || '...'}
                               </div>
-                            )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center text-gray-500 py-12">
-                    <div className="text-4xl mb-3">📝</div>
-                    <p className="text-sm">No commentary available</p>
+                  <div className="text-center text-slate-300 py-20">
+                    <div className="text-6xl mb-4 opacity-10">📜</div>
+                    <p className="text-xs font-bold uppercase tracking-widest">No commentary matches this filter</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Right Column - Projected Score (1st Innings) or Win Probability (2nd Innings) */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-6">
-              {/* ICC Rule: Show Projected Score only in First Innings, Win Probability in Second Innings */}
-              {matchPhase === 'SecondInnings' && target ? (
-                <WinProbability
-                  currentRuns={currentRuns || 0}
-                  wickets={currentWickets || 0}
-                  balls={Math.floor(parseFloat(currentOvers || '0.0') * 6)}
-                  target={target}
-                  oversLimit={oversLimit || 50}
-                  teamAName={teamAName || 'Team A'}
-                  teamBName={teamBName || 'Team B'}
-                />
+          {/* Right Column - Matrix / Prob */}
+          <div className="lg:col-span-1 space-y-4">
+            <div className="sticky top-4">
+              {/* ICC Rule: Matrix only for Live/FirstInnings, Win Prob for Live/SecondInnings */}
+              {(!isFinishedMatch && matchPhase === 'SecondInnings' && target) ? (
+                <div className="bg-white rounded-2xl shadow-lg shadow-slate-100 border border-slate-100 overflow-hidden">
+                  <div className="p-4 border-b border-slate-50 bg-slate-50/50">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Live Analysis</h4>
+                  </div>
+                  <WinProbability
+                    currentRuns={currentRuns || 0}
+                    wickets={currentWickets || 0}
+                    balls={Math.floor(parseFloat(currentOvers || '0.0') * 6)}
+                    target={target}
+                    oversLimit={oversLimit || 20}
+                    teamAName={teamAName || 'Team A'}
+                    teamBName={teamBName || 'Team B'}
+                  />
+                </div>
+              ) : !isFinishedMatch ? (
+                <div className="bg-white rounded-2xl shadow-lg shadow-slate-100 border border-slate-100 overflow-hidden">
+                  <div className="p-4 border-b border-slate-50 bg-slate-50/50">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Projection Matrix</h4>
+                  </div>
+                  <ProjectedScoreTable
+                    currentRuns={currentRuns || 0}
+                    currentOvers={currentOvers || '0.0'}
+                    currentRunRate={currentRunRate || 0}
+                    oversLimit={oversLimit || 20}
+                  />
+                </div>
               ) : (
-                <ProjectedScoreTable
-                  currentRuns={currentRuns || 0}
-                  currentOvers={currentOvers || '0.0'}
-                  currentRunRate={currentRunRate || 0}
-                  oversLimit={oversLimit || 50}
-                />
+                <div className="bg-white rounded-2xl shadow-md border border-slate-100 p-6 text-center">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl grayscale opacity-50">🏆</div>
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-2">Match History</h4>
+                  <p className="text-xs text-slate-400 font-medium leading-relaxed">This match has concluded. Full match highlights and stats are available in the Scorecard tab.</p>
+                </div>
               )}
             </div>
           </div>

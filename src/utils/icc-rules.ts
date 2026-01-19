@@ -76,7 +76,11 @@ export function shouldRotateStrike(ball: Ball): boolean {
 
   // Strike rotation depends on "running runs" (not the automatic wide/no-ball +1).
   // Compute running runs as: off-bat + byes + leg byes + any additional runs beyond the automatic extras.
-  const baseAutomaticExtras = (ball.extras.wides || 0) + (ball.extras.noBalls || 0) + (ball.extras.penalty || 0)
+  const automaticWide = (ball.extras.wides || 0) > 0 ? 1 : 0
+  const automaticNoBall = (ball.extras.noBalls || 0) > 0 ? 1 : 0
+  const penalty = ball.extras.penalty || 0
+
+  const baseAutomaticExtras = automaticWide + automaticNoBall + penalty
   const accounted = (ball.runsOffBat || 0) + (ball.extras.byes || 0) + (ball.extras.legByes || 0) + baseAutomaticExtras
   const additionalRunning = Math.max(0, (ball.totalRuns || 0) - accounted)
   const runningRuns = (ball.runsOffBat || 0) + (ball.extras.byes || 0) + (ball.extras.legByes || 0) + additionalRunning

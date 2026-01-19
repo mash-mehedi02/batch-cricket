@@ -43,6 +43,9 @@ export function generateGroupFixtures(config: TournamentConfig): FixturePlan {
   return { matches, warnings }
 }
 
+// Note: generateTournamentFixtures is not implemented as a standalone function.
+// The fixture generation logic is implemented in the AdminTournaments component.
+
 function roundRobin(group: GroupConfig): FixtureMatch[] {
   const teams = (group.squadIds || []).filter(Boolean)
   const out: FixtureMatch[] = []

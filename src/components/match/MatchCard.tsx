@@ -135,9 +135,15 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
 
     const getRunsNeeded = () => {
         if (!isLive || match.matchPhase !== 'SecondInnings') return null
-        const chasingTeam = match.currentBatting
-        if (!chasingTeam) return null
-
+        
+        // Determine which team batted first to identify the chasing team
+        const battedFirst = match.tossWinner === 'teamA'
+            ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
+            : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
+        
+        // The chasing team is the opposite of the team that batted first
+        const chasingTeam = battedFirst === 'teamA' ? 'teamB' : 'teamA'
+        
         const battingInnings = chasingTeam === 'teamA' ? teamAInnings : teamBInnings
         const bowlingInnings = chasingTeam === 'teamA' ? teamBInnings : teamAInnings
 

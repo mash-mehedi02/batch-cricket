@@ -134,6 +134,19 @@ export const squadService = {
    * Create squad
    */
   async create(data: Omit<Squad, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    // Check if any player in the squad already belongs to another squad
+    if (data.playerIds && Array.isArray(data.playerIds) && data.playerIds.length > 0) {
+      const allSquads = await this.getAll();
+      for (const playerId of data.playerIds) {
+        const existingSquad = allSquads.find(squad => 
+          squad.playerIds && squad.playerIds.includes(playerId) && squad.id !== data.id
+        );
+        if (existingSquad) {
+          throw new Error(`Player with ID ${playerId} is already in squad '${existingSquad.name}'. A player cannot be in multiple squads.`);
+        }
+      }
+    }
+    
     const now = Timestamp.now()
     const docRef = await addDoc(squadsRef, {
       ...stripUndefined(data as any),
@@ -147,6 +160,21 @@ export const squadService = {
    * Update squad
    */
   async update(id: string, data: Partial<Squad>): Promise<void> {
+    // Check if any player in the updated squad already belongs to another squad
+    if (data.playerIds && Array.isArray(data.playerIds) && data.playerIds.length > 0) {
+      const allSquads = await this.getAll();
+      for (const playerId of data.playerIds) {
+        const existingSquad = allSquads.find(squad => 
+          squad.id !== id && 
+          squad.playerIds && 
+          squad.playerIds.includes(playerId)
+        );
+        if (existingSquad) {
+          throw new Error(`Player with ID ${playerId} is already in squad '${existingSquad.name}'. A player cannot be in multiple squads.`);
+        }
+      }
+    }
+    
     const docRef = doc(db, COLLECTIONS.SQUADS, id)
     await updateDoc(docRef, {
       ...stripUndefined(data as any),

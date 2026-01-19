@@ -128,10 +128,19 @@ export function recalculateInnings(options: RecalculateOptions): InningsStats {
       }
       
       const stats = batsmanStatsMap.get(batsmanId)!
-      stats.runs += runsOffBat
+      
+      // For leg-bye run-outs, runs completed before run-out should not be added to batter's individual score
+      // Check if this is a run-out caused by a leg-bye delivery
+      let runsToAdd = runsOffBat;
+      if (ball.wicket && ball.wicket.type === 'run-out' && ball.extras.legByes > 0) {
+        // This is a leg-bye run-out, don't add the runs to the batter's individual score
+        runsToAdd = 0;
+      }
+      
+      stats.runs += runsToAdd
       stats.balls += 1
-      if (runsOffBat === 4) stats.fours += 1
-      if (runsOffBat === 6) stats.sixes += 1
+      if (runsToAdd === 4) stats.fours += 1
+      if (runsToAdd === 6) stats.sixes += 1
     }
     
     // Update bowler stats
@@ -157,7 +166,21 @@ export function recalculateInnings(options: RecalculateOptions): InningsStats {
     if (isLegal) {
       bowlerStats.ballsBowled += 1
     }
-    bowlerStats.runsConceded += bowlerRuns
+    
+    // For no-ball run-outs, runs completed before run-out should not be credited to bowler
+    // According to ICC rules, no-balls should not charge the bowler for runs
+    let runsToChargeBowler = bowlerRuns;
+    if (ball.wicket && ball.wicket.type === 'run-out' && ball.extras.noBalls > 0) {
+      // Calculate runs that should not be charged to bowler on no-ball run-out
+      // Only the automatic no-ball run + bat runs should be charged to bowler
+      // Running runs should not be charged if it resulted in a run-out
+      const automaticNoBallRun = ball.extras.noBalls || 0;
+      const batRuns = ball.runsOffBat || 0;
+      const noBallRunsChargedToBowler = automaticNoBallRun + batRuns;
+      runsToChargeBowler = Math.min(bowlerRuns, noBallRunsChargedToBowler);
+    }
+    
+    bowlerStats.runsConceded += runsToChargeBowler
     if (bowlerWicket) {
       bowlerStats.wickets += 1
     }
@@ -205,6 +228,23 @@ export function recalculateInnings(options: RecalculateOptions): InningsStats {
       if (shouldRotateStrike(ball)) {
         // Swap striker and non-striker (odd running runs)
         ;[currentStrikerId, currentNonStrikerId] = [currentNonStrikerId, currentStrikerId]
+      }
+    }
+    
+    // Handle special case: when a wicket occurs on a wide ball (e.g. run-out while attempting runs)
+    // In this case, the runs from the wide ball (except the automatic 1) should not be added to the dismissed batter's score
+    if (ball.wicket && ball.extras.wides > 0) {
+      const dismissedId = ball.wicket.dismissedPlayerId;
+      if (batsmanStatsMap.has(dismissedId)) {
+        const stats = batsmanStatsMap.get(dismissedId)!;
+        // If the batter got out on a wide ball, ensure no runs are added to their individual score
+        // The runs would have been added to the team total via totalBallRuns
+        // but should not be in the individual batter's score if they were out
+        if (ball.wicket.type === 'run-out' && ball.runsOffBat > 0) {
+          // For wide ball run-outs, subtract the runs that were added to the batter's score
+          // if they were attempting runs and got out
+          stats.runs = Math.max(0, stats.runs - ball.runsOffBat);
+        }
       }
     }
 
@@ -339,8 +379,8 @@ export function recalculateInnings(options: RecalculateOptions): InningsStats {
     bowlerStats: Array.from(bowlerStatsMap.values()),
     recentOvers,
     currentOverBalls: currentOver.balls,
-    currentStrikerId: currentStrikerId || matchData.currentStrikerId || '',
-    nonStrikerId: currentNonStrikerId || matchData.currentNonStrikerId || '',
+    currentStrikerId: currentStrikerId, // Don't fall back to matchData if currentStrikerId is empty after wicket
+    nonStrikerId: currentNonStrikerId, // Don't fall back to matchData if nonStrikerId is empty after wicket
     currentBowlerId: matchData.currentBowlerId || '',
     lastUpdated: Timestamp.now(),
     updatedAt: new Date().toISOString(),

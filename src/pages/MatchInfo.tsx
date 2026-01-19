@@ -8,8 +8,9 @@ import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
+import { playerService } from '@/services/firestore/players'
 import { Match, Tournament } from '@/types'
-import { coerceToDate, formatTimeLabel } from '@/utils/date'
+import { coerceToDate, formatTimeLabel, formatTimeHMTo12h } from '@/utils/date'
 
 interface MatchInfoProps {
   compact?: boolean
@@ -21,6 +22,8 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [teamASquad, setTeamASquad] = useState<any>(null)
   const [teamBSquad, setTeamBSquad] = useState<any>(null)
+  const [teamAPlayerCount, setTeamAPlayerCount] = useState<number>(0)
+  const [teamBPlayerCount, setTeamBPlayerCount] = useState<number>(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -69,7 +72,18 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
         if (squadIdA) {
           try {
             const squadA = await squadService.getById(squadIdA)
-            if (squadA) setTeamASquad(squadA)
+            if (squadA) {
+              setTeamASquad(squadA)
+              // Get player count for squad A
+              try {
+                const playersA = await playerService.getBySquad(squadIdA)
+                setTeamAPlayerCount(playersA.length)
+              } catch (err) {
+                // Fallback: check if squad has players array
+                const playersArray = (squadA as any).players || (squadA as any).playerIds || []
+                setTeamAPlayerCount(Array.isArray(playersArray) ? playersArray.length : 0)
+              }
+            }
           } catch (err) {
             console.warn('Error loading team A squad:', err)
           }
@@ -78,7 +92,18 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
         if (squadIdB) {
           try {
             const squadB = await squadService.getById(squadIdB)
-            if (squadB) setTeamBSquad(squadB)
+            if (squadB) {
+              setTeamBSquad(squadB)
+              // Get player count for squad B
+              try {
+                const playersB = await playerService.getBySquad(squadIdB)
+                setTeamBPlayerCount(playersB.length)
+              } catch (err) {
+                // Fallback: check if squad has players array
+                const playersArray = (squadB as any).players || (squadB as any).playerIds || []
+                setTeamBPlayerCount(Array.isArray(playersArray) ? playersArray.length : 0)
+              }
+            }
           } catch (err) {
             console.warn('Error loading team B squad:', err)
           }
@@ -141,12 +166,13 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
 
   const firstName = firstSide === 'teamA' ? teamAName : teamBName
   const secondName = secondSide === 'teamA' ? teamAName : teamBName
-  const firstSquad = firstSide === 'teamA' ? teamASquad : teamBSquad
-  const secondSquad = secondSide === 'teamA' ? teamASquad : teamBSquad
 
   // Handle date (Timestamp or string)
   const matchDate = coerceToDate((match as any).date)
-  const timeText = (match as any).time || (matchDate ? formatTimeLabel(matchDate) : '')
+  const rawTime = String((match as any).time || '').trim()
+  const timeText = rawTime 
+    ? (rawTime.match(/^\d{1,2}:\d{2}$/) ? formatTimeHMTo12h(rawTime) : rawTime)
+    : (matchDate ? formatTimeLabel(matchDate) : '')
 
   const InfoCard = ({ title, icon, value, subValue, gradient }: { title: string, icon: string, value: string, subValue?: string, gradient: string }) => (
     <div className={`p-5 rounded-2xl border-2 transition-all hover:shadow-lg ${gradient}`}>
@@ -196,7 +222,7 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
             title="Tournament"
             icon="🏆"
             value={tournament.name}
-            subValue={`Year: ${tournament.year} • ${tournament.format}`}
+            subValue={`YEAR: ${tournament.year} • ${tournament.format || 'T20'}`}
             gradient="bg-indigo-50/50 border-indigo-100 hover:border-indigo-200"
           />
         )}
@@ -206,7 +232,7 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
           title="Date & Time"
           icon="📅"
           value={matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'TBA'}
-          subValue={timeText ? `At ${timeText}` : ''}
+          subValue={timeText ? `AT ${timeText.toUpperCase()}` : ''}
           gradient="bg-purple-50/50 border-purple-100 hover:border-purple-200"
         />
 
@@ -235,22 +261,19 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
         <InfoCard
           title="Status"
           icon="📊"
-          value={match.status || 'Upcoming'}
+          value={String(match.status || 'upcoming').toLowerCase()}
           gradient="bg-teal-50/50 border-teal-100 hover:border-teal-200"
         />
 
         {/* Squads Info */}
-        {(firstSquad || secondSquad) && (
-          <InfoCard
-            title="Squad Size"
-            icon="📋"
-            value={`${firstName}: ${firstSquad?.playerIds?.length || 0} players`}
-            subValue={`${secondName}: ${secondSquad?.playerIds?.length || 0} players`}
-            gradient="bg-orange-50/50 border-orange-100 hover:border-orange-200"
-          />
-        )}
+        <InfoCard
+          title="Squad Size"
+          icon="📋"
+          value={`${firstName}: ${firstSide === 'teamA' ? teamAPlayerCount : teamBPlayerCount} players`}
+          subValue={`${secondName}: ${secondSide === 'teamA' ? teamAPlayerCount : teamBPlayerCount} PLAYERS`}
+          gradient="bg-orange-50/50 border-orange-100 hover:border-orange-200"
+        />
       </div>
     </div>
   )
 }
-

@@ -13,6 +13,12 @@ import ScorecardSkeleton from '@/components/skeletons/ScorecardSkeleton'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 import { getMatchResultString } from '@/utils/matchWinner'
+
+// Helper function to get first word of name
+const getFirstName = (fullName: string) => {
+  const words = fullName.trim().split(/\s+/)
+  return words[0] || fullName
+}
 // Format overs helper
 const formatOversDisplay = (legalBalls: number): string => {
   const overs = Math.floor(legalBalls / 6)
@@ -29,6 +35,17 @@ export default function MatchScorecard() {
   const [playersMap, setPlayersMap] = useState<Map<string, any>>(new Map())
   const [selectedInning, setSelectedInning] = useState<string>('teamA-1')
   const [loading, setLoading] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check if mobile view
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Load match with comprehensive data
   useEffect(() => {
@@ -520,9 +537,9 @@ export default function MatchScorecard() {
                 {/* Header row (always visible, screenshot-style) */}
                 <div className="mt-3">
                   <div
-                    className="grid items-center gap-2 text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider"
+                    className="grid items-center gap-1 sm:gap-2 text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider"
                     style={{
-                      gridTemplateColumns: 'minmax(0,1fr) 44px 44px 44px 44px 66px',
+                      gridTemplateColumns: 'minmax(0,1fr) 36px 36px 36px 36px 56px',
                     }}
                   >
                     <div className="text-left">Batter</div>
@@ -556,16 +573,21 @@ export default function MatchScorecard() {
                       (batsman.notOut !== false && !batsman.dismissal && !batsman.dismissed && balls > 0)
                     const dismissalText = String(batsman.dismissal || batsman.dismissalText || '').trim()
 
+                    // Get first word of name for mobile view
+                    const displayName = isMobile ? getFirstName(batsmanName) : batsmanName
+
                     return (
                       <div key={idx} className="px-5 py-4">
                         <div
-                          className="grid items-start gap-2"
+                          className="grid items-start gap-1 sm:gap-2"
                           style={{
-                            gridTemplateColumns: 'minmax(0,1fr) 44px 44px 44px 44px 66px',
+                            gridTemplateColumns: 'minmax(0,1fr) 36px 36px 36px 36px 56px',
                           }}
                         >
                           <div className="min-w-0">
-                            <PlayerLink playerId={batsmanId} playerName={batsmanName} className="text-sm sm:text-base font-extrabold text-slate-900 truncate block" />
+                            <PlayerLink playerId={batsmanId} playerName={batsmanName} className="text-sm sm:text-base font-extrabold text-slate-900 truncate block" title={batsmanName}>
+                              {displayName}
+                            </PlayerLink>
                             <div className="text-xs sm:text-sm mt-1">
                               {isNotOut ? (
                                 <span className="text-emerald-700 font-semibold">Not out</span>
@@ -628,9 +650,9 @@ export default function MatchScorecard() {
                 {/* Header row (always visible, screenshot-style) */}
                 <div className="mt-3">
                   <div
-                    className="grid items-center gap-2 text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider"
+                    className="grid items-center gap-1 sm:gap-2 text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider"
                     style={{
-                      gridTemplateColumns: 'minmax(0,1fr) 44px 44px 44px 44px 66px',
+                      gridTemplateColumns: 'minmax(0,1fr) 36px 36px 36px 36px 56px',
                     }}
                   >
                     <div className="text-left">Bowler</div>
@@ -654,15 +676,21 @@ export default function MatchScorecard() {
                     const runsConceded = Number(bowler.runsConceded || 0)
                     const wickets = Number(bowler.wickets || 0)
                     const eco = bowler.economy ? Number(bowler.economy).toFixed(2) : '0.00'
+                    
+                    // Get first word of name for mobile view
+                    const displayName = isMobile ? getFirstName(name) : name
+
                     return (
                       <div key={idx} className="px-5 py-4">
                         <div
-                          className="grid items-center gap-2"
+                          className="grid items-center gap-1 sm:gap-2"
                           style={{
-                            gridTemplateColumns: 'minmax(0,1fr) 44px 44px 44px 44px 66px',
+                            gridTemplateColumns: 'minmax(0,1fr) 36px 36px 36px 36px 56px',
                           }}
                         >
-                          <PlayerLink playerId={bowler.bowlerId} playerName={name} className="min-w-0 text-sm sm:text-base text-slate-900 font-extrabold truncate block" />
+                          <PlayerLink playerId={bowler.bowlerId} playerName={name} className="min-w-0 text-sm sm:text-base text-slate-900 font-extrabold truncate block" title={name}>
+                            {displayName}
+                          </PlayerLink>
                           <div className="text-right tabular-nums text-slate-600">{overs}</div>
                           <div className="text-right tabular-nums text-slate-600">{maidens}</div>
                           <div className="text-right tabular-nums text-slate-600">{runsConceded}</div>
@@ -734,4 +762,3 @@ function DidNotBatSection({
     </div>
   )
 }
-
