@@ -1,7 +1,7 @@
 /**
  * Win Probability Engine
  * Lightweight explainable model for calculating win probability
- * Based on current match state and ICC rules
+ * Based on current match state, resources, and ICC-derived trends
  */
 
 export interface WinProbabilityInput {
@@ -10,13 +10,14 @@ export interface WinProbabilityInput {
   legalBalls: number
   target?: number | null
   oversLimit: number
+  battingTeamSide: 'teamA' | 'teamB'
   batsmenForm?: Array<{ playerId: string; average: number; strikeRate: number }>
   remainingBowlers?: Array<{ playerId: string; economy: number; average: number }>
 }
 
 export interface WinProbabilityOutput {
-  chasingTeamWinProb: number
-  defendingTeamWinProb: number
+  teamAWinProb: number
+  teamBWinProb: number
   explanation: string
   recommendedBowler?: {
     playerId: string
@@ -25,8 +26,7 @@ export interface WinProbabilityOutput {
 }
 
 /**
- * Calculate win probability using lightweight model
- * Formula: w1*(battingPower) - w2*(RRR gap) - w3*(bowlingResistance) + w4*(wicketsFactor)
+ * Calculate win probability using dynamic resource-based model
  */
 export function calculateWinProbability(input: WinProbabilityInput): WinProbabilityOutput {
   const {
@@ -35,111 +35,89 @@ export function calculateWinProbability(input: WinProbabilityInput): WinProbabil
     legalBalls,
     target,
     oversLimit,
-    batsmenForm = [],
-    remainingBowlers = [],
   } = input
 
-  // If no target, return 50/50 (first innings)
+  const totalBalls = oversLimit * 6
+  const remainingBalls = Math.max(totalBalls - legalBalls, 0)
+  const ballsBowled = legalBalls
+  const oversDecimal = ballsBowled / 6
+  const currentRunRate = oversDecimal > 0 ? (currentRuns / (ballsBowled / 6)) : 0
+
+  // 1. --- FIRST INNINGS LOGIC ---
   if (!target || target <= 0) {
+    // Par score for Batch Cricket (School/Academy level) is usually around 7.5 - 8.0 RPO
+    const parRPO = 7.5
+    const parTotal = oversLimit * parRPO
+
+    // Resource Remaining (Wickets = 60%, Balls = 40% weight)
+    const wicketResource = Math.pow((10 - wickets) / 10, 0.7) // Curved to give more value to top wickets
+    const ballResource = remainingBalls / totalBalls
+    const totalResource = (wicketResource * 0.6) + (ballResource * 0.4)
+
+    const projectedFinal = currentRuns + (parTotal * totalResource)
+
+    // If they score more than par, batting team has > 50%
+    let battingProb = 50 + ((projectedFinal - parTotal) / parTotal) * 100
+
+    // Clamp
+    battingProb = Math.max(10, Math.min(90, battingProb))
+
+    // Penalize heavily for excessive wickets in early overs
+    if (wickets > (legalBalls / 12) + 2) {
+      battingProb -= (wickets * 3)
+    }
+
+    const bowlingProb = 100 - battingProb
+
     return {
-      chasingTeamWinProb: 50,
-      defendingTeamWinProb: 50,
-      explanation: 'First innings in progress. Win probability will be calculated during chase.',
+      teamAWinProb: Math.round(input.battingTeamSide === 'teamA' ? battingProb : bowlingProb),
+      teamBWinProb: Math.round(input.battingTeamSide === 'teamB' ? battingProb : bowlingProb),
+      explanation: `Projected score and wickets in hand suggest ${battingProb > 50 ? 'batting' : 'bowling'} team has the upper hand.`,
     }
   }
 
-  const oversLimitBalls = oversLimit * 6
-  const remainingBalls = Math.max(oversLimitBalls - legalBalls, 0)
+  // 2. --- SECOND INNINGS LOGIC ---
   const runsNeeded = target - currentRuns
-  const oversDecimal = legalBalls / 6
-  const currentRunRate = oversDecimal > 0 ? currentRuns / oversDecimal : 0
   const requiredRunRate = remainingBalls > 0 ? (runsNeeded / remainingBalls) * 6 : 0
 
-  // If already won or lost
-  if (runsNeeded <= 0) {
-    return {
-      chasingTeamWinProb: 100,
-      defendingTeamWinProb: 0,
-      explanation: 'Target achieved! Chasing team has won.',
-    }
-  }
+  // Quick exit for finished states
+  if (runsNeeded <= 0) return { teamAWinProb: input.battingTeamSide === 'teamA' ? 100 : 0, teamBWinProb: input.battingTeamSide === 'teamB' ? 100 : 0, explanation: 'Target achieved!' }
+  if (wickets >= 10 || (remainingBalls <= 0 && runsNeeded > 0)) return { teamAWinProb: input.battingTeamSide === 'teamA' ? 0 : 100, teamBWinProb: input.battingTeamSide === 'teamB' ? 0 : 100, explanation: 'Innings complete.' }
 
-  if (wickets >= 10 || remainingBalls <= 0) {
-    return {
-      chasingTeamWinProb: 0,
-      defendingTeamWinProb: 100,
-      explanation: 'All wickets down or overs completed. Defending team has won.',
-    }
-  }
+  /**
+   * Win Probability formula for 2nd innings (simplified WASP):
+   * Base factor is RRR vs CRR.
+   * Most critical factor is Wickets vs Runs Needed.
+   */
 
-  // Weight factors
-  const w1 = 0.3 // Batting power weight
-  const w2 = 0.25 // RRR gap weight
-  const w3 = 0.25 // Bowling resistance weight
-  const w4 = 0.2 // Wickets factor weight
+  // A: Score factor (how many runs per wicket remaining?)
+  const wicketsInHand = 10 - wickets
+  const runsPerWicketNeeded = runsNeeded / (wicketsInHand || 1)
 
-  // 1. Batting Power (based on current run rate and remaining resources)
-  const battingPower = Math.min(currentRunRate / 10, 1) * (1 - wickets / 10) * (remainingBalls / oversLimitBalls)
-  const battingPowerScore = battingPower * 100
+  // In T20, 15+ runs per wicket needed is "Hard", 25+ is "Critical"
+  // We'll use this to create a base probability
+  let chasingProb = 100 - (runsPerWicketNeeded * 3.5)
 
-  // 2. RRR Gap (how far off required rate)
-  const rrrGap = requiredRunRate > 0 ? Math.abs(currentRunRate - requiredRunRate) / requiredRunRate : 0
-  const rrrGapScore = Math.max(0, 50 - (rrrGap * 50))
+  // B: Required Run Rate factor
+  const rrrPenalty = Math.max(0, (requiredRunRate - 7) * 8)
+  chasingProb -= rrrPenalty
 
-  // 3. Bowling Resistance (based on remaining bowlers)
-  const avgBowlerEconomy = remainingBowlers.length > 0
-    ? remainingBowlers.reduce((sum, b) => sum + b.economy, 0) / remainingBowlers.length
-    : 7.0
-  const bowlingResistance = Math.max(0, 1 - (avgBowlerEconomy / 15))
-  const bowlingResistanceScore = bowlingResistance * 50
+  // C: Balls Remaining Bonus
+  const cushion = (remainingBalls / 6) * 2
+  chasingProb += cushion
 
-  // 4. Wickets Factor (more wickets = lower probability)
-  const wicketsFactor = (10 - wickets) / 10
-  const wicketsFactorScore = wicketsFactor * 50
+  // Weighting and Clamping
+  chasingProb = Math.max(1, Math.min(99, chasingProb))
 
-  // Calculate final probability
-  const chasingScore =
-    w1 * battingPowerScore +
-    w2 * rrrGapScore +
-    w3 * bowlingResistanceScore +
-    w4 * wicketsFactorScore
-
-  // Normalize to 0-100
-  const chasingTeamWinProb = Math.max(0, Math.min(100, chasingScore))
-  const defendingTeamWinProb = 100 - chasingTeamWinProb
-
-  // Generate explanation
-  let explanation = ''
-  if (chasingTeamWinProb > 70) {
-    explanation = 'Chasing team is in a strong position. Current run rate is favorable and wickets in hand provide good support.'
-  } else if (chasingTeamWinProb > 50) {
-    explanation = 'Chasing team has a slight advantage. Maintaining current run rate should be sufficient.'
-  } else if (chasingTeamWinProb > 30) {
-    explanation = 'Match is evenly balanced. Chasing team needs to accelerate slightly to stay on track.'
-  } else {
-    explanation = 'Defending team is in a strong position. Chasing team needs to significantly increase run rate.'
-  }
-
-  // Recommend bowler (if defending)
-  let recommendedBowler: { playerId: string; reason: string } | undefined
-  if (remainingBowlers.length > 0) {
-    const bestBowler = remainingBowlers.reduce((best, bowler) => {
-      const bowlerScore = bowler.economy * 0.6 + bowler.average * 0.4
-      const bestScore = best.economy * 0.6 + best.average * 0.4
-      return bowlerScore < bestScore ? bowler : best
-    })
-    
-    recommendedBowler = {
-      playerId: bestBowler.playerId,
-      reason: `Best economy (${bestBowler.economy.toFixed(2)}) and average (${bestBowler.average.toFixed(2)})`,
-    }
+  // Final adjust: If RRR is massive (double CRR) and few wickets left, it's near zero.
+  if (requiredRunRate > currentRuns / (oversDecimal || 1) * 2 && wickets >= 7) {
+    chasingProb = Math.min(chasingProb, 15)
   }
 
   return {
-    chasingTeamWinProb: Math.round(chasingTeamWinProb),
-    defendingTeamWinProb: Math.round(defendingTeamWinProb),
-    explanation,
-    recommendedBowler,
+    teamAWinProb: Math.round(input.battingTeamSide === 'teamA' ? chasingProb : 100 - chasingProb),
+    teamBWinProb: Math.round(input.battingTeamSide === 'teamB' ? chasingProb : 100 - chasingProb),
+    explanation: requiredRunRate > 10 ? 'High required rate putting pressure on chasing team.' : 'Chasing team is maintaining a steady pace.',
   }
 }
 
@@ -153,17 +131,15 @@ export function calculateProjectedScores(
   oversLimit: number
 ): Array<{ overs: number; projectedScore: number }> {
   const intervals = []
-  
+
   if (oversLimit <= 20) {
-    // T20: show 10, 15, 20
     intervals.push(10, 15, 20)
   } else if (oversLimit <= 50) {
-    // ODI: show 20, 30, 40, 50
     intervals.push(20, 30, 40, 50)
   } else {
     intervals.push(20, 30, 40, 50, oversLimit)
   }
-  
+
   return intervals
     .filter(ov => ov > currentOvers && ov <= oversLimit)
     .map(overs => {
@@ -175,4 +151,3 @@ export function calculateProjectedScores(
       }
     })
 }
-

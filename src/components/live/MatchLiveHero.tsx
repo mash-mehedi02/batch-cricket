@@ -134,20 +134,20 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         if (!showAnimation && !showBoundaryAnim) return 'bg-[#121926]';
 
         if (displayEvent === '4') {
-            return 'bg-gradient-to-r from-yellow-900/40 via-amber-800/40 to-yellow-900/40 animate-pulse border-amber-500/30'
+            return 'bg-[#034177] animate-pulse border-blue-400/30'
         } else if (displayEvent === '6') {
-            return 'bg-gradient-to-r from-orange-900/50 via-red-900/40 to-orange-900/50 animate-pulse border-orange-500/30 shadow-[0_0_30px_rgba(249,115,22,0.3)]'
+            return 'bg-[#0d3d2c] animate-pulse border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
         } else if (isWicket) {
-            return 'bg-gradient-to-r from-red-950/60 via-red-900/50 to-red-950/60 animate-pulse border-red-500/30'
+            return 'bg-[#64101e] animate-pulse border-red-500/30'
         }
         return 'bg-[#121926]';
     }, [displayEvent, isWicket, showAnimation, showBoundaryAnim, isFinishedMatch]);
 
     // Text glow effect for the main score
     const textGlowClass = useMemo(() => {
-        if (displayEvent === '4') return 'drop-shadow-[0_0_10px_rgba(250,204,21,0.6)] text-yellow-100';
-        if (displayEvent === '6') return 'drop-shadow-[0_0_10px_rgba(251,146,60,0.6)] text-orange-100';
-        if (isWicket) return 'drop-shadow-[0_0_10px_rgba(248,113,113,0.5)] text-red-50';
+        if (displayEvent === '4') return 'drop-shadow-[0_0_15px_rgba(59,130,246,0.8)] text-white';
+        if (displayEvent === '6') return 'drop-shadow-[0_0_15px_rgba(16,185,129,0.8)] text-white';
+        if (isWicket) return 'drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] text-white';
         return 'text-[#00d1ff]';
     }, [displayEvent, isWicket]);
 

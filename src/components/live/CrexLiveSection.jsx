@@ -5,7 +5,7 @@
 import React from 'react'
 import ProjectedScoreTable from './ProjectedScoreTable'
 import { ChevronRight } from 'lucide-react'
-
+import { calculateWinProbability } from '../../services/ai/winProbabilityEngine'
 
 import cricketBatIcon from '../../assets/cricket-bat.png'
 
@@ -36,6 +36,27 @@ const CrexLiveSection = ({
   onlyCommentary,
 }) => {
   const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
+
+  // Calculate Win Probability
+  const winProb = React.useMemo(() => {
+    if (isFinishedMatch) return { teamAWinProb: 50, teamBWinProb: 50 };
+
+    const [ov, b] = (currentOvers || '0.0').toString().split('.');
+    const legalBalls = (Number(ov) * 6) + Number(b || 0);
+    const battingTeamSide = currentInnings?.inningId || 'teamA';
+
+    return calculateWinProbability({
+      currentRuns: Number(currentRuns || 0),
+      wickets: Number(currentInnings?.totalWickets || 0),
+      legalBalls,
+      target: target ? Number(target) : null,
+      oversLimit: Number(oversLimit || 20),
+      battingTeamSide
+    });
+  }, [currentRuns, currentInnings?.totalWickets, currentInnings?.inningId, currentOvers, target, oversLimit, isFinishedMatch]);
+
+  const teamAProb = winProb.teamAWinProb;
+  const teamBProb = winProb.teamBWinProb;
 
   // Format partnership
   const formatPartnership = () => {
@@ -138,7 +159,7 @@ const CrexLiveSection = ({
             <div className="flex items-center justify-between px-1">
               <div className="flex flex-col">
                 <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter mb-0.5">{teamAName.substring(0, 3).toUpperCase()}</span>
-                <span className="text-xl font-medium text-slate-900 leading-none">77%</span>
+                <span className="text-xl font-medium text-slate-900 leading-none">{teamAProb}%</span>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-300 uppercase tracking-widest italic">
                 <span className="w-3 h-3 rounded-full border border-slate-200 flex items-center justify-center text-[6px]">i</span>
@@ -146,12 +167,12 @@ const CrexLiveSection = ({
               </div>
               <div className="flex flex-col items-end">
                 <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter mb-0.5">{teamBName.substring(0, 3).toUpperCase()}</span>
-                <span className="text-xl font-medium text-slate-900 leading-none">23%</span>
+                <span className="text-xl font-medium text-slate-900 leading-none">{teamBProb}%</span>
               </div>
             </div>
             <div className="h-1.5 w-full rounded-full bg-[#1e293b] flex overflow-hidden">
-              <div className="h-full bg-[#911d33]" style={{ width: '77%' }}></div>
-              <div className="h-full bg-blue-900" style={{ width: '23%' }}></div>
+              <div className="h-full bg-[#911d33] transition-all duration-1000" style={{ width: `${teamAProb}%` }}></div>
+              <div className="h-full bg-blue-900 transition-all duration-1000" style={{ width: `${teamBProb}%` }}></div>
             </div>
           </div>
         )}
