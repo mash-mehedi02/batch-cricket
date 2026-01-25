@@ -27,7 +27,7 @@ export function subscribeToCommentary(
 ): () => void {
   const commentaryRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY)
   const q = query(commentaryRef, orderBy('timestamp', 'desc'))
-  
+
   return onSnapshot(q, (snapshot) => {
     const commentary = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -47,7 +47,7 @@ export async function generateAutoCommentary(
 ): Promise<string> {
   const tone: any = (input.isFour || input.isSix || input.wicketType) ? 'excited' : 'normal'
   const result = generateCommentary(input, tone)
-  
+
   // Determine milestone
   let milestone: '4' | '6' | 'wicket' | '50' | '100' | null = null
   if (input.isSix) milestone = '6'
@@ -72,6 +72,7 @@ export async function generateAutoCommentary(
     tone: result.tone,
     isHighlight: result.isHighlight,
     milestone,
+    ballType: input.ballType || 'normal',
     aiGenerated: true,
     manual: false,
     ballDocId: input.ballDocId || null,
@@ -112,7 +113,7 @@ export async function addManualCommentary(
   bowler?: string
 ): Promise<void> {
   const commentaryRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY)
-  
+
   // Determine milestone
   let milestone: '4' | '6' | 'wicket' | '50' | '100' | null = null
   if (isWicket) milestone = 'wicket'

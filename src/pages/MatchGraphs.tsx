@@ -14,8 +14,6 @@ export default function MatchGraphs() {
   const [match, setMatch] = useState<Match | null>(null)
   const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
   const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(null)
-  const [teamABalls, setTeamABalls] = useState<Ball[]>([])
-  const [teamBBalls, setTeamBBalls] = useState<Ball[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -27,7 +25,7 @@ export default function MatchGraphs() {
 
     const unsubscribe = matchService.subscribeToMatch(matchId, (matchData) => {
       setMatch(matchData)
-      setLoading(false)
+      if (matchData) setLoading(false)
     })
 
     const unsubA = matchService.subscribeToInnings(matchId, 'teamA', (innings) => {
@@ -38,20 +36,10 @@ export default function MatchGraphs() {
       setTeamBInnings(innings)
     })
 
-    const unsubBallsA = matchService.subscribeToBalls(matchId, 'teamA', (balls) => {
-      setTeamABalls(balls || [])
-    })
-
-    const unsubBallsB = matchService.subscribeToBalls(matchId, 'teamB', (balls) => {
-      setTeamBBalls(balls || [])
-    })
-
     return () => {
       unsubscribe()
       unsubA()
       unsubB()
-      unsubBallsA()
-      unsubBallsB()
     }
   }, [matchId])
 
@@ -80,22 +68,18 @@ export default function MatchGraphs() {
   const firstInns = firstSide === 'teamA' ? teamAInnings : teamBInnings
   const secondInns = secondSide === 'teamA' ? teamAInnings : teamBInnings
 
-  const buildManhattan = (balls: Ball[]) => {
-    const byOver = new Map<number, { over: number; runs: number; wickets: number; legalBalls: number }>()
-    for (const b of balls || []) {
-      const over = Number(b.overNumber || 0)
-      if (!over) continue
-      const prev = byOver.get(over) || { over, runs: 0, wickets: 0, legalBalls: 0 }
-      prev.runs += Number(b.totalRuns || 0)
-      if (b.isLegal) prev.legalBalls += 1
-      if (b.wicket && b.wicket.dismissedPlayerId) prev.wickets += 1
-      byOver.set(over, prev)
-    }
-    return Array.from(byOver.values()).sort((a, b) => a.over - b.over)
+  // Data extraction from InningsStats
+  const extractManhattan = (inns: InningsStats | null) => {
+    if (!inns || !inns.recentOvers) return []
+    return inns.recentOvers.map(o => ({
+      over: o.overNumber,
+      runs: o.totalRuns || 0,
+      wickets: (o.balls || []).filter((b: any) => b.type === 'wicket').length
+    })).sort((a, b) => a.over - b.over)
   }
 
-  const manhattanA = useMemo(() => buildManhattan(teamABalls), [teamABalls])
-  const manhattanB = useMemo(() => buildManhattan(teamBBalls), [teamBBalls])
+  const manhattanA = useMemo(() => extractManhattan(teamAInnings), [teamAInnings])
+  const manhattanB = useMemo(() => extractManhattan(teamBInnings), [teamBInnings])
   const maxPlayedOver = useMemo(() => {
     const a = manhattanA.length ? manhattanA[manhattanA.length - 1].over : 0
     const b = manhattanB.length ? manhattanB[manhattanB.length - 1].over : 0
@@ -103,8 +87,8 @@ export default function MatchGraphs() {
   }, [manhattanA, manhattanB])
 
   const totalOversToShow = useMemo(() => {
-    if (oversLimit > 0) return oversLimit
-    return Math.max(1, maxPlayedOver)
+    const limit = oversLimit > 0 ? oversLimit : 20
+    return Math.max(limit, maxPlayedOver)
   }, [oversLimit, maxPlayedOver])
 
   const combinedByOver = useMemo(() => {
@@ -121,283 +105,212 @@ export default function MatchGraphs() {
     })
   }, [manhattanA, manhattanB, totalOversToShow])
 
-  const cumulativeA = useMemo(() => {
+  const wormDataA = useMemo(() => {
+    const data: { over: number; runs: number }[] = [{ over: 0, runs: 0 }]
     let sum = 0
-    return manhattanA.map((o) => {
+    for (const o of manhattanA) {
       sum += o.runs
-      return sum
-    })
+      data.push({ over: o.over, runs: sum })
+    }
+    return data
   }, [manhattanA])
 
-  const cumulativeB = useMemo(() => {
+  const wormDataB = useMemo(() => {
+    const data: { over: number; runs: number }[] = [{ over: 0, runs: 0 }]
     let sum = 0
-    return manhattanB.map((o) => {
+    for (const o of manhattanB) {
       sum += o.runs
-      return sum
-    })
+      data.push({ over: o.over, runs: sum })
+    }
+    return data
   }, [manhattanB])
 
   const maxOverRuns = useMemo(() => {
-    const maxVal = Math.max(
-      0,
-      ...combinedByOver.map((x) => Math.max(x.aRuns, x.bRuns))
-    )
+    const maxVal = Math.max(0, ...combinedByOver.map((x) => Math.max(x.aRuns, x.bRuns)))
     return Math.max(12, maxVal)
   }, [combinedByOver])
 
-  const maxRuns = useMemo(() => Math.max(teamAInnings?.totalRuns || 0, teamBInnings?.totalRuns || 0, 50), [teamAInnings, teamBInnings])
-  const maxOverCount = useMemo(() => Math.max(totalOversToShow, manhattanA.length, manhattanB.length, 1), [totalOversToShow, manhattanA.length, manhattanB.length])
+  const maxTotalRuns = useMemo(() => {
+    const a = wormDataA.length ? wormDataA[wormDataA.length - 1].runs : 0
+    const b = wormDataB.length ? wormDataB[wormDataB.length - 1].runs : 0
+    return Math.max(a, b, 50)
+  }, [wormDataA, wormDataB])
 
   const yMax = useMemo(() => {
-    // "Nice" y-axis: round up to next multiple of 2/4
-    const raw = Math.max(0, maxOverRuns)
-    const step = raw <= 12 ? 2 : raw <= 24 ? 4 : 6
-    return Math.max(step, Math.ceil(raw / step) * step)
+    const step = maxOverRuns <= 12 ? 2 : maxOverRuns <= 24 ? 4 : 6
+    return Math.ceil(maxOverRuns / step) * step
   }, [maxOverRuns])
 
-  const yStep = useMemo(() => {
-    if (yMax <= 12) return 2
-    if (yMax <= 24) return 4
-    return 6
-  }, [yMax])
-
-  if (loading) {
-    return <MatchLiveSkeleton />
-  }
-
-  if (!match) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
-        <p>Match not found</p>
-      </div>
-    )
-  }
+  if (loading) return <MatchLiveSkeleton />
+  if (!match) return <div className="p-20 text-center">Match not found</div>
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="min-w-0">
-                <div className="text-xl font-extrabold truncate">{firstName}</div>
-                <div className="text-sm text-slate-600">
-                  {firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0}{' '}
-                  <span className="text-slate-400">({firstInns?.overs || '0.0'})</span>
-                </div>
-              </div>
-              <div className="text-slate-300 font-black">VS</div>
-              <div className="min-w-0 text-right">
-                <div className="text-xl font-extrabold truncate">{secondName}</div>
-                <div className="text-sm text-slate-600">
-                  {secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0}{' '}
-                  <span className="text-slate-400">({secondInns?.overs || '0.0'})</span>
-                </div>
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-12 font-inter">
+      {/* Mini Scorecard Header */}
+      <div className="bg-[#0f172a] text-white p-4 sm:p-6 shadow-xl sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{firstName[0]}</div>
+              <div>
+                <div className="text-sm font-black uppercase tracking-tight">{firstName}</div>
+                <div className="text-xs text-slate-400 font-bold">{firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0} <span className="opacity-50">({firstInns?.overs || '0.0'})</span></div>
               </div>
             </div>
-            {oversLimit ? (
-              <div className="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700">
-                {oversLimit} overs
+            <div className="hidden sm:block text-slate-700 font-black text-xs">VS</div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{secondName[0]}</div>
+              <div>
+                <div className="text-sm font-black uppercase tracking-tight">{secondName}</div>
+                <div className="text-xs text-slate-400 font-bold">{secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0} <span className="opacity-50">({secondInns?.overs || '0.0'})</span></div>
               </div>
-            ) : null}
+            </div>
+          </div>
+          <div className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Match Graphs
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Manhattan Graph (Comparison) */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between gap-4 mb-5">
-            <div>
-              <div className="text-lg font-extrabold text-slate-900">Manhattan Graph</div>
-              <div className="text-sm text-slate-500">Runs per over (auto based on match overs)</div>
-            </div>
+      <div className="max-w-5xl mx-auto p-4 space-y-6 mt-4">
+        {/* Manhattan Chart */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden p-6 sm:p-8">
+          <div className="mb-8 items-baseline flex gap-2">
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">Manhattan</h3>
+            <span className="text-xs font-bold text-slate-400">Runs per over comparison</span>
           </div>
 
-          {combinedByOver.length === 0 ? (
-            <div className="h-56 flex items-center justify-center text-slate-500">No ball data yet</div>
-          ) : (
-            (() => {
-              // SVG layout tuned to resemble the provided screenshot closely.
-              const plotH = 220
-              const topPad = 18
-              const bottomPad = 34
-              const leftPad = 44
-              const rightPad = 14
-
-              const groupStep = totalOversToShow <= 6 ? 52 : totalOversToShow <= 10 ? 44 : 34
-              const barW = totalOversToShow <= 6 ? 12 : totalOversToShow <= 10 ? 10 : 9
-              const barGap = 4
-              const svgW = leftPad + rightPad + totalOversToShow * groupStep
-              const svgH = topPad + plotH + bottomPad
-              const x0 = leftPad
-              const y0 = topPad + plotH
-
-              const yToPx = (runs: number) => {
-                const r = Math.max(0, runs)
-                const pct = yMax > 0 ? r / yMax : 0
-                return pct * plotH
-              }
-
-              const ticks = Array.from({ length: Math.floor(yMax / yStep) + 1 }).map((_, i) => i * yStep)
+          <div className="overflow-x-auto no-scrollbar pb-4">
+            {(() => {
+              const height = 240
+              const leftPad = 32
+              const bottomPad = 32
+              const overWidth = totalOversToShow <= 10 ? 60 : 40
+              const barWidth = overWidth * 0.35
+              const gap = 2
+              const svgWidth = leftPad + totalOversToShow * overWidth + 20
+              const svgHeight = height + bottomPad
 
               return (
-                <div className="bg-white">
-                  <div className="overflow-x-auto">
-                    <svg width={svgW} height={svgH}>
-                      {/* Axes */}
-                      <line x1={x0} y1={topPad} x2={x0} y2={y0} stroke="#111827" strokeWidth="1" />
-                      <line x1={x0} y1={y0} x2={svgW - rightPad} y2={y0} stroke="#111827" strokeWidth="1" />
+                <svg width={svgWidth} height={svgHeight} className="overflow-visible">
+                  {/* Y-Axis lines */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((p) => (
+                    <g key={p}>
+                      <line x1={leftPad} y1={height * (1 - p)} x2={svgWidth} y2={height * (1 - p)} stroke="#f1f5f9" strokeWidth="1" />
+                      <text x={leftPad - 8} y={height * (1 - p) + 4} textAnchor="end" className="text-[10px] fill-slate-400 font-bold">{Math.round(p * yMax)}</text>
+                    </g>
+                  ))}
 
-                      {/* Y ticks + labels */}
-                      {ticks.map((t) => {
-                        const y = y0 - yToPx(t)
-                        return (
-                          <g key={t}>
-                            <line x1={x0 - 4} y1={y} x2={x0} y2={y} stroke="#111827" strokeWidth="1" />
-                            <text x={x0 - 8} y={y + 4} textAnchor="end" fontSize="11" fill="#111827">
-                              {t}
-                            </text>
-                          </g>
-                        )
-                      })}
+                  {combinedByOver.map((o, i) => {
+                    const xBase = leftPad + i * overWidth + overWidth / 2
+                    const hA = (o.aRuns / yMax) * height
+                    const hB = (o.bRuns / yMax) * height
 
-                      {/* Axis labels */}
-                      <text x={14} y={topPad + 10} fontSize="12" fill="#111827" transform={`rotate(-90 14 ${topPad + 10})`}>
-                        Runs
-                      </text>
-                      <text x={(x0 + (svgW - rightPad)) / 2} y={svgH - 8} textAnchor="middle" fontSize="12" fill="#111827">
-                        Over
-                      </text>
+                    return (
+                      <g key={o.over}>
+                        {/* Bars */}
+                        <rect
+                          x={xBase - barWidth - gap / 2}
+                          y={height - hA}
+                          width={barWidth}
+                          height={hA}
+                          fill={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'}
+                          rx="2"
+                        />
+                        <rect
+                          x={xBase + gap / 2}
+                          y={height - hB}
+                          width={barWidth}
+                          height={hB}
+                          fill={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'}
+                          rx="2"
+                        />
 
-                      {/* Bars + wicket markers */}
-                      {combinedByOver.map((o) => {
-                        const idx = o.over - 1
-                        const gx = x0 + idx * groupStep
-                        const aH = yToPx(o.aRuns)
-                        const bH = yToPx(o.bRuns)
-                        const aX = gx + (groupStep - (barW * 2 + barGap)) / 2
-                        const bX = aX + barW + barGap
-                        const aY = y0 - aH
-                        const bY = y0 - bH
+                        {/* Wickets */}
+                        {o.aWkts > 0 && (
+                          <circle cx={xBase - barWidth / 2 - gap / 2} cy={height - hA - 10} r="4" fill="white" stroke={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="2" />
+                        )}
+                        {o.bWkts > 0 && (
+                          <circle cx={xBase + barWidth / 2 + gap / 2} cy={height - hB - 10} r="4" fill="white" stroke={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="2" />
+                        )}
 
-                        const wicketStroke = '#0284c7' // hollow blue circle like screenshot
-                        const markerR = 6
-
-                        return (
-                          <g key={o.over}>
-                            {/* Team A (blue) */}
-                            <rect x={aX} y={aY} width={barW} height={aH} fill="#0ea5e9" />
-                            {/* Team B (orange) */}
-                            <rect x={bX} y={bY} width={barW} height={bH} fill="#f97316" />
-
-                            {/* Wicket markers (hollow circles) */}
-                            {o.aWkts > 0 ? (
-                              <circle cx={aX + barW / 2} cy={Math.max(topPad + markerR, aY - 8)} r={markerR} fill="#ffffff" stroke={wicketStroke} strokeWidth="2" />
-                            ) : null}
-                            {o.bWkts > 0 ? (
-                              <circle cx={bX + barW / 2} cy={Math.max(topPad + markerR, bY - 8)} r={markerR} fill="#ffffff" stroke={wicketStroke} strokeWidth="2" />
-                            ) : null}
-
-                            {/* X labels */}
-                            <text x={gx + groupStep / 2} y={y0 + 16} textAnchor="middle" fontSize="11" fill="#111827">
-                              {o.over}
-                            </text>
-                          </g>
-                        )
-                      })}
-                    </svg>
-                  </div>
-
-                  {/* Legend (like screenshot: big blocks + bold names, stacked) */}
-                  <div className="mt-6">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-14 h-10 ${firstSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
-                        <div className="text-2xl font-black tracking-wider">{firstName.toUpperCase()}</div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className={`w-14 h-10 ${secondSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
-                        <div className="text-2xl font-black tracking-wider">{secondName.toUpperCase()}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                        {/* X-Axis labels */}
+                        <text x={xBase} y={height + 20} textAnchor="middle" className="text-[10px] fill-slate-500 font-black">{o.over}</text>
+                      </g>
+                    )
+                  })}
+                </svg>
               )
-            })()
-          )}
+            })()}
+          </div>
 
+          {/* Legend */}
+          <div className="mt-10 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${firstSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">{firstName}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${secondSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">{secondName}</span>
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
+              <div className="w-3 h-3 rounded-full border-2 border-slate-300" />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Wicket</span>
+            </div>
+          </div>
         </div>
 
-        {/* Worm Graph (Cumulative Runs) */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-extrabold mb-4">Worm Graph</h3>
-          <div className="h-64 relative overflow-x-auto">
-            <svg className="w-full h-full" viewBox={`0 0 ${maxOverCount * 20 + 40} 200`}>
-              {/* Y-axis labels */}
-              {[0, 0.25, 0.5, 0.75, 1].map((p) => (
-                <text
-                  key={p}
-                  x="5"
-                  y={200 - p * 200}
-                  className="text-xs fill-slate-400"
-                  fontSize="10"
-                >
-                  {Math.round(p * maxRuns)}
-                </text>
-              ))}
-
-              {/* SA line (green) */}
-              {cumulativeA.length > 0 && (
-                <polyline
-                  points={cumulativeA.map((runs, idx) => `${idx * 20 + 30},${200 - (runs / maxRuns) * 200}`).join(' ')}
-                  fill="none"
-                  stroke="#0ea5e9"
-                  strokeWidth="2"
-                />
-              )}
-
-              {/* IND line (blue) */}
-              {cumulativeB.length > 0 && (
-                <polyline
-                  points={cumulativeB.map((runs, idx) => `${idx * 20 + 30},${200 - (runs / maxRuns) * 200}`).join(' ')}
-                  fill="none"
-                  stroke="#f97316"
-                  strokeWidth="2"
-                />
-              )}
-
-              {/* Dots for data points */}
-              {cumulativeA.map((runs, idx) => (
-                <circle
-                  key={`sa-${idx}`}
-                  cx={idx * 20 + 30}
-                  cy={200 - (runs / maxRuns) * 200}
-                  r="3"
-                  fill="#0ea5e9"
-                />
-              ))}
-              {cumulativeB.map((runs, idx) => (
-                <circle
-                  key={`ind-${idx}`}
-                  cx={idx * 20 + 30}
-                  cy={200 - (runs / maxRuns) * 200}
-                  r="3"
-                  fill="#f97316"
-                />
-              ))}
-            </svg>
+        {/* Worm Chart */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden p-6 sm:p-8">
+          <div className="mb-8 items-baseline flex gap-2">
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">Worm Graph</h3>
+            <span className="text-xs font-bold text-slate-400">Cumulative score progression</span>
           </div>
-          <div className="flex gap-6 mt-4 text-sm text-slate-600">
-            <div className="flex items-center gap-2">
-              <div className={`w-4 h-4 ${firstSide === 'teamA' ? 'bg-sky-500' : 'bg-orange-500'} rounded`} />
-              <span className="font-semibold">{firstName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-4 h-4 ${secondSide === 'teamA' ? 'bg-sky-500' : 'bg-orange-500'} rounded`} />
-              <span className="font-semibold">{secondName}</span>
-            </div>
+
+          <div className="overflow-x-auto no-scrollbar pb-4">
+            {(() => {
+              const height = 240
+              const leftPad = 32
+              const bottomPad = 32
+              const overWidth = totalOversToShow <= 10 ? 60 : 40
+              const svgWidth = leftPad + totalOversToShow * overWidth + 20
+              const svgHeight = height + bottomPad
+
+              const getX = (over: number) => leftPad + over * overWidth
+              const getY = (runs: number) => height - (runs / maxTotalRuns) * height
+
+              const pointsA = wormDataA.map(d => `${getX(d.over)},${getY(d.runs)}`).join(' ')
+              const pointsB = wormDataB.map(d => `${getX(d.over)},${getY(d.runs)}`).join(' ')
+
+              return (
+                <svg width={svgWidth} height={svgHeight} className="overflow-visible">
+                  {/* Grids */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((p) => (
+                    <g key={p}>
+                      <line x1={leftPad} y1={height * (1 - p)} x2={svgWidth} y2={height * (1 - p)} stroke="#f8fafc" strokeWidth="1" />
+                      <text x={leftPad - 8} y={height * (1 - p) + 4} textAnchor="end" className="text-[10px] fill-slate-300 font-bold">{Math.round(p * maxTotalRuns)}</text>
+                    </g>
+                  ))}
+
+                  <polyline points={pointsA} fill="none" stroke={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  <polyline points={pointsB} fill="none" stroke={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+                  {/* End Points */}
+                  {wormDataA.length > 0 && (
+                    <circle cx={getX(wormDataA[wormDataA.length - 1].over)} cy={getY(wormDataA[wormDataA.length - 1].runs)} r="4" fill={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} />
+                  )}
+                  {wormDataB.length > 0 && (
+                    <circle cx={getX(wormDataB[wormDataB.length - 1].over)} cy={getY(wormDataB[wormDataB.length - 1].runs)} r="4" fill={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} />
+                  )}
+
+                  {/* X-Axis */}
+                  {Array.from({ length: totalOversToShow + 1 }).map((_, i) => (
+                    <text key={i} x={getX(i)} y={height + 20} textAnchor="middle" className="text-[10px] fill-slate-500 font-black">{i}</text>
+                  ))}
+                </svg>
+              )
+            })()}
           </div>
         </div>
       </div>

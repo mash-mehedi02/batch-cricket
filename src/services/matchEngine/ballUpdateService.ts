@@ -13,6 +13,7 @@ const BALLS_SUBCOLLECTION = 'balls'
 export interface BallData {
   matchId: string
   inningId: 'teamA' | 'teamB'
+  innings?: 'teamA' | 'teamB' // Legacy field for backwards compatibility with queries
   sequence: number
   runsOffBat: number
   extras: {
@@ -54,14 +55,20 @@ export interface BallUpdateResult {
 export async function addBall(
   matchId: string,
   inningId: 'teamA' | 'teamB',
-  ballData: Omit<BallData, 'matchId' | 'inningId' | 'sequence' | 'timestamp'>
+  ballData: Omit<BallData, 'matchId' | 'inningId' | 'innings' | 'sequence' | 'timestamp'>
 ): Promise<BallUpdateResult> {
   try {
-    // Get sequence number
-    const ballsRef = collection(db, MATCHES_COLLECTION, matchId, BALLS_SUBCOLLECTION)
-    const existingBallsQuery = query(ballsRef, where('innings', '==', inningId))
-    const existingBallsSnapshot = await getDocs(existingBallsQuery)
+    console.log('[BallUpdateService] Adding ball for match:', matchId, 'inning:', inningId);
+
+    // FIXED: Save balls under innings subcollection to match recalculateInnings expectations
+    // Path: matches/{matchId}/innings/{inningId}/balls/
+    const ballsRef = collection(db, MATCHES_COLLECTION, matchId, 'innings', inningId, BALLS_SUBCOLLECTION)
+
+    // Get sequence number - count existing balls
+    const existingBallsSnapshot = await getDocs(ballsRef)
     const sequence = existingBallsSnapshot.size + 1
+
+    console.log('[BallUpdateService] Sequence number:', sequence);
 
     // Create complete ball document
     const completeBallData: BallData = {
@@ -76,17 +83,23 @@ export async function addBall(
 
     // Save ball in transaction
     const ballDocRef = doc(ballsRef)
-    
+
+    console.log('[BallUpdateService] Saving ball to Firestore...');
     await runTransaction(db, async (transaction) => {
       transaction.set(ballDocRef, completeBallData)
     })
 
+    console.log('[BallUpdateService] Ball saved successfully. ID:', ballDocRef.id);
+
     // Immediately recalculate innings (this gives us updated stats)
+    console.log('[BallUpdateService] Recalculating innings...');
     const inningsData = await recalculateInnings(matchId, inningId, { useTransaction: false })
 
     // Check if over is complete (6 legal balls)
-    const ballsInCurrentOver = inningsData.ballsInCurrentOver || 0
-    const overComplete = ballsInCurrentOver === 0 && inningsData.legalBalls > 0
+    // CRITICAL: Over is only complete if this ball was legal AND legalBalls % 6 === 0
+    const overComplete = completeBallData.isLegal && (inningsData.legalBalls % 6 === 0) && inningsData.legalBalls > 0
+
+    console.log('[BallUpdateService] Success! Over complete:', overComplete);
 
     return {
       success: true,
@@ -97,6 +110,11 @@ export async function addBall(
     }
   } catch (error: any) {
     console.error('[BallUpdateService] Error adding ball:', error)
+    console.error('[BallUpdateService] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return {
       success: false,
       error: error.message || 'Failed to add ball',

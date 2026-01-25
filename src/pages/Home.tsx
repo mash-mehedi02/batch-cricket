@@ -184,21 +184,27 @@ export default function Home() {
           {squads.length > 0 ? (
             <div className="relative w-full overflow-hidden">
               <div className="flex w-max animate-marquee hover:pause gap-8">
-                {[...squads, ...squads].filter(s => s.logoUrl).map((squad, index) => (
+                {[...squads, ...squads].filter(squad => squad && squad.name).map((squad, index) => (
                   <Link
                     to={`/squads/${squad.id}`}
                     key={`${squad.id}-${index}`}
                     className="flex flex-col items-center gap-2 min-w-[70px] group"
                   >
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-50 border border-slate-100 p-2 group-hover:border-teal-100 transition-all transform group-hover:scale-110 duration-300">
-                      <img
-                        src={squad.logoUrl}
-                        alt={squad.name}
-                        className="w-full h-full object-contain"
-                      />
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-50 border border-slate-100 p-2 group-hover:border-teal-100 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center">
+                      {squad.logoUrl ? (
+                        <img
+                          src={squad.logoUrl}
+                          alt={squad.name || 'Squad'}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-lg font-bold text-slate-400">
+                          {(squad.name || 'SQ').substring(0, 2).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <span className="text-[10px] font-bold text-slate-600 truncate max-w-full group-hover:text-teal-600 transition-colors">
-                      {squad.name.substring(0, 10)}
+                      {(squad.name || 'Squad').substring(0, 10)}
                     </span>
                   </Link>
                 ))}
@@ -297,10 +303,10 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <QuickLinkCard to="/schedule" icon="📅" label="Schedule" sub="Date Wise" color="blue" />
-            <QuickLinkCard to="/tournaments" icon="🏆" label="Tournaments" sub="All Series" color="amber" />
-            <QuickLinkCard to="/squads" icon="👥" label="Teams" sub="Squad Info" color="indigo" />
-            <QuickLinkCard to="/players" icon="📊" label="Stats" sub="Player Records" color="emerald" />
+            <QuickLinkCard to="/schedule" icon="📅" label="Schedule" sub="Date Wise" />
+            <QuickLinkCard to="/tournaments" icon="🏆" label="Tournaments" sub="All Series" />
+            <QuickLinkCard to="/squads" icon="👥" label="Teams" sub="Squad Info" />
+            <QuickLinkCard to="/players" icon="📊" label="Stats" sub="Player Records" />
           </div>
         </div>
       </div>
@@ -308,7 +314,7 @@ export default function Home() {
   )
 }
 
-function QuickLinkCard({ to, icon, label, sub, color }: { to: string, icon: string, label: string, sub: string, color: string }) {
+function QuickLinkCard({ to, icon, label, sub }: { to: string, icon: string, label: string, sub: string }) {
   return (
     <Link to={to} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-95 flex flex-col items-center text-center">
       <div className={`text-2xl mb-2`}>{icon}</div>

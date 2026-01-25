@@ -20,29 +20,48 @@ export interface User {
 
 // ==================== TOURNAMENT ====================
 
+export type TournamentStageStatus = 'pending' | 'active' | 'completed' | 'paused'
+
+export interface TournamentStageInfo {
+  id: string
+  name: string
+  type: 'group' | 'knockout'
+  order: number
+  status: TournamentStageStatus
+  startedAt?: Timestamp
+  completedAt?: Timestamp
+}
+
 export interface Tournament {
   id: string
   name: string
   year: number
   school: string
-  format: 'T20' | 'ODI' | 'Test'
-  status: 'upcoming' | 'ongoing' | 'completed'
+  location?: string
+  format: 'T20' | 'ODI' | 'Test' | 'Batch Cricket'
+  status: 'upcoming' | 'ongoing' | 'completed' | 'paused'
   startDate?: string
   endDate?: string
   description?: string
+  logoUrl?: string
+  bannerUrl?: string
+
+  // High-fidelity structure
+  stages: TournamentStageInfo[]
+  activeStageId?: string
+
   // Tournament structure
   tournamentType?: 'standard' | 'custom'
-  config?: any // v1 config-driven tournament engine (stored server-side)
-  participantSquadIds?: string[] // squads participating in the tournament
-  // Reliable display names for participants (prevents points table showing raw IDs)
-  participantSquadMeta?: Record<string, { name: string; batch?: string }>
-  groups?: Array<{ id: string; name: string; squadIds: string[] }>
-  qualification?: {
-    perGroup: number // top N from each group
-    wildcards?: number // additional teams by overall standings (optional)
-    method?: 'group' | 'overall' // future extensibility
-  }
-  // Winner info (used by Champions page)
+  config?: any // v1 TournamentConfig from engine
+
+  participantSquadIds?: string[]
+  participantSquadMeta?: Record<string, { name: string; batch?: string; logo?: string }>
+
+  // Admin-confirmed progression
+  confirmedQualifiers?: Record<string, string[]> // stageId -> squadIds
+  finalRankingsConfirmed?: boolean
+
+  // Winner info
   winnerSquadId?: string
   winnerSquadName?: string
   createdAt: Timestamp
@@ -184,10 +203,13 @@ export interface Match {
   tossWinner?: 'teamA' | 'teamB'
   electedTo?: 'bat' | 'bowl'
   status: MatchStatus
-  matchPhase: 'FirstInnings' | 'SecondInnings' | 'finished'
+  matchPhase: 'FirstInnings' | 'SecondInnings' | 'InningsBreak' | 'finished'
   // Lineups
   teamAPlayingXI: string[] // Player IDs
   teamBPlayingXI: string[] // Player IDs
+  teamAPlayingXIWithNames?: Array<{ id: string; name: string }>
+  teamBPlayingXIWithNames?: Array<{ id: string; name: string }>
+  playersDataSynced?: boolean
   teamACaptainId?: string
   teamAKeeperId?: string
   teamBCaptainId?: string
@@ -204,6 +226,10 @@ export interface Match {
   createdBy: string
   resultSummary?: string
   winnerId?: string
+  score?: {
+    teamA?: { runs: number; wickets: number; overs: string }
+    teamB?: { runs: number; wickets: number; overs: string }
+  }
 }
 
 // ==================== BALL ====================
@@ -243,7 +269,10 @@ export interface Ball {
   id: string
   matchId: string
   inningId: 'teamA' | 'teamB'
+  innings?: 'teamA' | 'teamB' // Legacy/Optional compatibility
   sequence: number // Chronological order
+  // ...
+
   overNumber: number // 1-based
   ballInOver: number | null // 0-5 for legal balls, null for wides/no-balls
   batsmanId: string
@@ -335,6 +364,7 @@ export interface InningsStats {
   currentRunRate: number
   requiredRunRate: number | null
   remainingBalls: number | null
+  remainingRuns: number | null
   target: number | null
   projectedTotal: number | null
   lastBallSummary: {
@@ -352,9 +382,10 @@ export interface InningsStats {
     value: string
     type: string
     runsOffBat: number
+    wicketType?: string
   }>
-  currentStrikerId: string
-  nonStrikerId: string
+  currentStrikerId?: string
+  nonStrikerId?: string
   currentBowlerId: string
   lastUpdated: Timestamp
   updatedAt: string

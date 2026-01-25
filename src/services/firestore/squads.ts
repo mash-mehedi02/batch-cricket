@@ -138,15 +138,15 @@ export const squadService = {
     if (data.playerIds && Array.isArray(data.playerIds) && data.playerIds.length > 0) {
       const allSquads = await this.getAll();
       for (const playerId of data.playerIds) {
-        const existingSquad = allSquads.find(squad => 
-          squad.playerIds && squad.playerIds.includes(playerId) && squad.id !== data.id
+        const existingSquad = allSquads.find(squad =>
+          squad.playerIds && squad.playerIds.includes(playerId)
         );
         if (existingSquad) {
           throw new Error(`Player with ID ${playerId} is already in squad '${existingSquad.name}'. A player cannot be in multiple squads.`);
         }
       }
     }
-    
+
     const now = Timestamp.now()
     const docRef = await addDoc(squadsRef, {
       ...stripUndefined(data as any),
@@ -160,26 +160,27 @@ export const squadService = {
    * Update squad
    */
   async update(id: string, data: Partial<Squad>): Promise<void> {
-    // Check if any player in the updated squad already belongs to another squad
+    console.log('[squadService] Updating squad:', id, data)
+
+    // Check for players in other squads (skip current squad)
     if (data.playerIds && Array.isArray(data.playerIds) && data.playerIds.length > 0) {
       const allSquads = await this.getAll();
       for (const playerId of data.playerIds) {
-        const existingSquad = allSquads.find(squad => 
-          squad.id !== id && 
-          squad.playerIds && 
-          squad.playerIds.includes(playerId)
+        const otherSquad = allSquads.find(s =>
+          s.id !== id && s.playerIds && s.playerIds.includes(playerId)
         );
-        if (existingSquad) {
-          throw new Error(`Player with ID ${playerId} is already in squad '${existingSquad.name}'. A player cannot be in multiple squads.`);
+        if (otherSquad) {
+          throw new Error(`Player with ID ${playerId} is already in squad '${otherSquad.name}'. Please remove them from that squad first.`);
         }
       }
     }
-    
+
     const docRef = doc(db, COLLECTIONS.SQUADS, id)
     await updateDoc(docRef, {
       ...stripUndefined(data as any),
       updatedAt: Timestamp.now(),
     })
+    console.log('[squadService] Firestore update successful')
   },
 
   /**

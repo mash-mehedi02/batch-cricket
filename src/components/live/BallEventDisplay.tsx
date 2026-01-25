@@ -74,9 +74,9 @@ const BallEventDisplay: React.FC<BallEventDisplayProps> = ({ eventLabel, isWicke
             {!animating && showResult && (
                 <div className="animate-scale-in flex items-center justify-center">
                     {eventLabel === '4' ? (
-                        <img src={fourIcon} alt="4 Runs" className="h-16 md:h-20 object-contain drop-shadow-lg animate-bounce-short" />
+                        <img src={fourIcon} alt="4 Runs" className="h-24 md:h-32 object-contain drop-shadow-lg animate-bounce-short" />
                     ) : eventLabel === '6' ? (
-                        <img src={sixIcon} alt="6 Runs" className="h-16 md:h-20 object-contain drop-shadow-lg animate-bounce-short" />
+                        <img src={sixIcon} alt="6 Runs" className="h-24 md:h-32 object-contain drop-shadow-lg animate-bounce-short" />
                     ) : isWicket ? (
                         <div className="bg-red-600/90 text-white px-6 py-2 rounded-xl text-4xl font-black uppercase tracking-wider shadow-lg border-2 border-red-400 animate-pulse-fast">
                             {eventLabel}

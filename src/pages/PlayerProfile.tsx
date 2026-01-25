@@ -12,6 +12,7 @@ import { Player } from '@/types'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
 import { playerMatchStatsService } from '@/services/firestore/playerMatchStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import cricketBatIcon from '@/assets/cricket-bat.png'
 
 
 // Helper to format role names consistently
@@ -243,7 +244,7 @@ export default function PlayerProfile() {
 
   // Get recent matches for form display
   const recentForm = filteredMatches
-    .slice(0, 5) // Show up to 5 last matches
+    .slice(0, 10) // Show up to 10 last matches
     .map((match: any) => {
       const runs = match.runs ?? match.batting?.runs ?? 0
       const balls = match.balls ?? match.batting?.balls ?? 0
@@ -377,12 +378,12 @@ export default function PlayerProfile() {
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+                <div className="flex flex-nowrap overflow-x-auto gap-3 md:gap-4 pb-4 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                   {recentForm.map((form, idx) => (
                     <Link
                       key={idx}
                       to={`/match/${form.matchId}`}
-                      className={`group p-4 md:p-5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:border-emerald-500 hover:shadow-lg transition-all animate-in slide-in-from-bottom-4 duration-500`}
+                      className={`group p-4 md:p-5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:border-emerald-500 hover:shadow-lg transition-all animate-in slide-in-from-bottom-4 duration-500 shrink-0 w-[140px] md:w-[160px]`}
                       style={{ transitionDelay: `${idx * 100}ms` }}
                     >
                       <div className="text-xl md:text-2xl font-black text-slate-900 mb-0.5 group-hover:text-emerald-600">
@@ -616,7 +617,7 @@ export default function PlayerProfile() {
             }`}
           title="Batting Stats"
         >
-          <span className="text-xl text-center">🏏</span>
+          <img src={cricketBatIcon} alt="Batting" className={`w-7 h-7 object-contain transition-all ${viewMode === 'batting' ? 'brightness-0 invert' : 'opacity-60'}`} />
         </button>
         <button
           onClick={() => setViewMode('bowling')}

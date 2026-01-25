@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import tazkirImage from '@/assets/tazkir.png';
 import ripImage from '@/assets/rip.png';
 
 const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingComplete }) => {
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Simulate loading process - in a real app, this would be replaced with actual initialization logic
     // such as checking auth status, initializing services, loading initial data, etc.
     const timer = setTimeout(() => {
       onLoadingComplete();
-    }, 5000); // Splash screen duration - 5 seconds
+    }, 2000); // Splash screen duration - 2 seconds (optimized for faster load)
 
     // Cleanup timeout if component unmounts
     return () => clearTimeout(timer);

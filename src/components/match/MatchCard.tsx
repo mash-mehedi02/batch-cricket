@@ -135,15 +135,15 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
 
     const getRunsNeeded = () => {
         if (!isLive || match.matchPhase !== 'SecondInnings') return null
-        
+
         // Determine which team batted first to identify the chasing team
         const battedFirst = match.tossWinner === 'teamA'
             ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
             : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
-        
+
         // The chasing team is the opposite of the team that batted first
         const chasingTeam = battedFirst === 'teamA' ? 'teamB' : 'teamA'
-        
+
         const battingInnings = chasingTeam === 'teamA' ? teamAInnings : teamBInnings
         const bowlingInnings = chasingTeam === 'teamA' ? teamBInnings : teamAInnings
 
@@ -211,7 +211,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
 
     return (
         <Link
-            to={`/match/${match.id}${isLive ? '' : isFinished ? '' : '/info'}`}
+            to={`/match/${match.id}`}
             className="block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all group relative"
         >
             {/* Top Right Countdown Overlay */}

@@ -45,6 +45,7 @@ export default function MatchPlayingXI() {
   const [loading, setLoading] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<'A' | 'B'>('A')
   const [squadData, setSquadData] = useState<{ allA: any[], allB: any[] }>({ allA: [], allB: [] })
+  const [prevXIs, setPrevXIs] = useState<{ a: string[], b: string[] }>({ a: [], b: [] })
   const [loadingSquads, setLoadingSquads] = useState(false)
   const didDefaultTeam = useRef(false)
 
@@ -109,6 +110,23 @@ export default function MatchPlayingXI() {
         .sort((a: any, b: any) => (a?.name || '').localeCompare(b?.name || ''))
     }
 
+    const fetchPrevXI = async (squadId: string, currentMatchId: string): Promise<string[]> => {
+      try {
+        const matches = await matchService.getBySquad(squadId)
+        // Filter out current match and sort to find the most recent one BEFORE current
+        // getBySquad is already descending by date
+        const otherMatches = matches.filter(m => m.id !== currentMatchId)
+        if (otherMatches.length === 0) return []
+
+        const lastMatch = otherMatches[0]
+        const isSideA = (lastMatch as any).teamAId === squadId || (lastMatch as any).teamASquadId === squadId || (lastMatch as any).teamA === squadId
+        return isSideA ? (lastMatch.teamAPlayingXI || []) : (lastMatch.teamBPlayingXI || [])
+      } catch (e) {
+        console.warn('Failed to fetch prev XI:', e)
+        return []
+      }
+    }
+
     const loadSquads = async () => {
       if (!match) return
 
@@ -119,7 +137,7 @@ export default function MatchPlayingXI() {
         const squadAId = await resolveSquadId((match as any).teamASquadId || (match as any).teamAId || (match as any).teamA, teamAName)
         const squadBId = await resolveSquadId((match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB, teamBName)
 
-        const [playersA, playersB] = await Promise.all([
+        const [playersA, playersB, pxiA, pxiB] = await Promise.all([
           squadAId
             ? playerService.getBySquad(squadAId).catch(async () => {
               const all = await playerService.getAll()
@@ -132,12 +150,15 @@ export default function MatchPlayingXI() {
               return all.filter((p: any) => p.squadId === squadBId)
             })
             : Promise.resolve([]),
+          squadAId ? fetchPrevXI(squadAId, match.id) : Promise.resolve([]),
+          squadBId ? fetchPrevXI(squadBId, match.id) : Promise.resolve([])
         ])
 
         setSquadData({
           allA: toUiPlayers(playersA as any[]),
           allB: toUiPlayers(playersB as any[]),
         })
+        setPrevXIs({ a: pxiA, b: pxiB })
       } catch (error) {
         console.error('Error loading squads/players:', error)
         setSquadData({ allA: [], allB: [] })
@@ -174,9 +195,10 @@ export default function MatchPlayingXI() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white to-slate-50 flex items-center justify-center">
-        <div className="text-center text-slate-900">
-          <div className="text-xl mb-4">Loading...</div>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
+          <span className="text-xs font-medium text-slate-400 uppercase tracking-widest">Loading XI...</span>
         </div>
       </div>
     )
@@ -184,15 +206,11 @@ export default function MatchPlayingXI() {
 
   if (!match) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white to-slate-50 flex items-center justify-center">
-        <div className="text-center text-slate-900">
-          <p className="text-slate-600 mb-4">Match not found</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Go Home
-          </button>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="text-center bg-white p-12 rounded-[2rem] shadow-xl border border-slate-100">
+          <div className="text-5xl mb-6">🏴</div>
+          <p className="text-slate-400 font-medium mb-8 uppercase tracking-widest">Match data unavailable</p>
+          <button onClick={() => navigate('/')} className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all">Go Home</button>
         </div>
       </div>
     )
@@ -203,140 +221,141 @@ export default function MatchPlayingXI() {
   const teamAPlayingXI = match.teamAPlayingXI || []
   const teamBPlayingXI = match.teamBPlayingXI || []
 
-  const getPlayingAndBench = (allPlayers: any[], playingXIIds: string[]) => {
-    const playing = playingXIIds.map(id => allPlayers.find(p => p.id === id)).filter(Boolean)
-    const bench = allPlayers.filter(p => !playingXIIds.includes(p.id))
+  const getPlayingAndBench = (allPlayers: any[], playingXIIds: string[], prevXIIds: string[]) => {
+    const playing = playingXIIds.map(id => {
+      const p = allPlayers.find(p => p.id === id)
+      if (!p) return null
+      const isNew = prevXIIds.length > 0 && !prevXIIds.includes(id)
+      return { ...p, status: isNew ? 'IN' : null }
+    }).filter(Boolean)
+
+    const bench = allPlayers.filter(p => !playingXIIds.includes(p.id)).map(p => {
+      const wasPlaying = prevXIIds.length > 0 && prevXIIds.includes(p.id)
+      return { ...p, status: wasPlaying ? 'OUT' : null }
+    })
+
     return { playing, bench }
   }
 
-  const teamAData = getPlayingAndBench(squadData.allA, teamAPlayingXI)
-  const teamBData = getPlayingAndBench(squadData.allB, teamBPlayingXI)
+  const teamAData = getPlayingAndBench(squadData.allA, teamAPlayingXI, prevXIs.a)
+  const teamBData = getPlayingAndBench(squadData.allB, teamBPlayingXI, prevXIs.b)
 
-  const renderPlayerCard = (player: any, isCaptain: boolean, isKeeper: boolean, badgeText?: string, badgeColor: string = 'text-green-500') => {
+  const renderPlayerCard = (player: any, isCaptain: boolean, isKeeper: boolean) => {
     const roleDisplay = formatRole(player)
     return (
-      <div key={player.id} className="bg-white rounded-lg p-2 sm:p-4 border border-slate-200 flex items-center gap-2 sm:gap-3">
-        <PlayerAvatar
-          photoUrl={player.photoUrl || (player as any).photo}
-          name={player.name}
-          size="lg"
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-            <PlayerLink playerId={player.id} playerName={player.name} className="font-bold text-slate-900 truncate text-[11px] sm:text-base" />
-            {isCaptain && <span className="text-[8px] sm:text-xs text-yellow-500 font-bold">(c)</span>}
-            {isKeeper && <span className="text-[8px] sm:text-xs text-green-500 font-bold">(wk)</span>}
-            {badgeText && <span className={`ml-auto text-[8px] sm:text-xs font-bold ${badgeColor}`}>{badgeText}</span>}
+      <div key={player.id} className="relative group">
+        <div className="bg-white rounded-[1.5rem] p-3 sm:p-4 border border-slate-100 flex items-center gap-3 sm:gap-4 hover:border-blue-100 hover:shadow-md transition-all duration-300">
+          <div className="relative shrink-0">
+            <PlayerAvatar
+              photoUrl={player.photoUrl || (player as any).photo}
+              name={player.name}
+              size="lg"
+            />
+            {player.status === 'IN' && (
+              <div className="absolute -top-1 -left-1 bg-green-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-sm border-2 border-white">↑</div>
+            )}
+            {player.status === 'OUT' && (
+              <div className="absolute -top-1 -left-1 bg-rose-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-sm border-2 border-white">↓</div>
+            )}
           </div>
-          <div className="text-[9px] sm:text-xs text-slate-600 mt-0.5 line-clamp-1">{roleDisplay}</div>
-          <div className="text-[9px] sm:text-xs text-slate-500 mt-0.5">SR: {player.strikeRate.toFixed(1)}</div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <PlayerLink playerId={player.id} playerName={player.name} className="font-medium text-slate-900 truncate text-sm sm:text-base hover:text-blue-600 transition-colors" />
+              {(isCaptain || isKeeper) && (
+                <div className="flex gap-1">
+                  {isCaptain && <span className="text-[8px] sm:text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">Captain</span>}
+                  {isKeeper && <span className="text-[8px] sm:text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">WK</span>}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <div className="text-[10px] sm:text-xs text-slate-400 font-medium truncate uppercase tracking-tight">{roleDisplay}</div>
+              {player.status && (
+                <span className={`text-[9px] font-black uppercase tracking-widest ${player.status === 'IN' ? 'text-green-600' : 'text-rose-500'}`}>
+                  {player.status}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-slate-50 text-slate-900">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate(-1)}
-                className="text-slate-700 hover:text-slate-900"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <h1 className="text-2xl font-bold">Playing XI</h1>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#f8fafc] text-indigo-950 pb-20">
+      {/* Premium Header */}
+      <div className="bg-white border-b border-slate-100 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-slate-200/20">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900">Playing XI</h1>
+          <p className="text-[10px] sm:text-xs text-slate-400 font-medium uppercase tracking-[0.2em] mt-1">Match Day Squad Details</p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-1">
+      <div className="max-w-5xl mx-auto px-3 sm:px-8 py-8 space-y-10">
+        {/* Team Tabs - Custom Design */}
+        <div className="p-1.5 bg-slate-200/40 backdrop-blur rounded-[1.5rem] flex gap-2 w-full max-w-md mx-auto">
+          {[
+            { side: firstSide, name: firstSide === 'A' ? teamAName : teamBName },
+            { side: secondSide, name: secondSide === 'A' ? teamAName : teamBName }
+          ].map((t) => (
             <button
-              onClick={() => setSelectedTeam(firstSide)}
-              className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold transition relative ${selectedTeam === firstSide
-                ? 'border-b-2 border-amber-500 text-slate-900'
-                : 'text-slate-600 hover:text-slate-900'
+              key={t.side}
+              onClick={() => setSelectedTeam(t.side)}
+              className={`flex-1 py-3 px-4 rounded-[1.2rem] text-xs font-medium uppercase tracking-widest transition-all duration-300 ${selectedTeam === t.side ? 'bg-white shadow-lg text-slate-900 ring-1 ring-slate-100' : 'text-slate-400 hover:text-slate-600'
                 }`}
             >
-              {firstSide === 'A' ? teamAName : teamBName}
+              {t.name}
             </button>
-            <button
-              onClick={() => setSelectedTeam(secondSide)}
-              className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-semibold transition relative ${selectedTeam === secondSide
-                ? 'border-b-2 border-amber-500 text-slate-900'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
-            >
-              {secondSide === 'A' ? teamAName : teamBName}
-            </button>
-          </div>
+          ))}
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-2 sm:px-8 py-6">
-        {loadingSquads && (
-          <div className="mb-6 grid grid-cols-2 gap-2 sm:gap-4">
-            <div className="bg-white rounded-lg p-4 border border-slate-200">
-              <SkeletonText lines={2} className="text-slate-300" />
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {loadingSquads ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map(n => (
+                <div key={n} className="bg-white rounded-[1.5rem] p-6 border border-slate-100 h-24 animate-pulse" />
+              ))}
             </div>
-            <div className="bg-white rounded-lg p-4 border border-slate-200">
-              <SkeletonText lines={2} className="text-slate-300" />
-            </div>
-          </div>
-        )}
-
-        {(selectedTeam === 'A' && teamAPlayingXI.length === 0) || (selectedTeam === 'B' && teamBPlayingXI.length === 0) ? (
-          <div className="mb-4 bg-white border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-            Playing XI is not set yet for <span className="font-bold text-slate-900">{selectedTeam === 'A' ? teamAName : teamBName}</span>.
-          </div>
-        ) : null}
-
-        {selectedTeam === 'A' ? (
-          <>
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-6">
-              {teamAData.playing.map((player) =>
-                renderPlayerCard(player, player.id === match.teamACaptainId, player.id === match.teamAKeeperId, 'IN ↑', 'text-green-500')
-              )}
-            </div>
-            {teamAData.bench.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 px-2">On Bench</h3>
-                <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                  {teamAData.bench.map((player) =>
-                    renderPlayerCard(player, false, false, 'OUT ↓', 'text-red-400')
-                  )}
+          ) : (
+            <>
+              {(selectedTeam === 'A' && teamAPlayingXI.length === 0) || (selectedTeam === 'B' && teamBPlayingXI.length === 0) ? (
+                <div className="bg-white border border-slate-100 rounded-[2rem] p-12 text-center shadow-sm">
+                  <div className="text-4xl mb-4 opacity-20">⏳</div>
+                  <p className="text-slate-400 font-medium uppercase tracking-widest text-xs">XI not announced for this squad</p>
                 </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-6">
-              {teamBData.playing.map((player) =>
-                renderPlayerCard(player, player.id === match.teamBCaptainId, player.id === match.teamBKeeperId, 'IN ↑', 'text-green-500')
-              )}
-            </div>
-            {teamBData.bench.length > 0 && (
-              <div className="mt-8">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 px-2">On Bench</h3>
-                <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                  {teamBData.bench.map((player) =>
-                    renderPlayerCard(player, false, false, 'OUT ↓', 'text-red-400')
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    {selectedTeam === 'A' ? (
+                      teamAData.playing.map((p) => renderPlayerCard(p, p.id === match.teamACaptainId, p.id === match.teamAKeeperId))
+                    ) : (
+                      teamBData.playing.map((p) => renderPlayerCard(p, p.id === match.teamBCaptainId, p.id === match.teamBKeeperId))
+                    )}
+                  </div>
+
+                  {/* Bench Section with subtle styling */}
+                  {(selectedTeam === 'A' ? teamAData.bench : teamBData.bench).length > 0 && (
+                    <div className="mt-16">
+                      <div className="flex items-center gap-4 mb-8">
+                        <h3 className="text-xs font-medium text-slate-400 uppercase tracking-[0.3em] whitespace-nowrap">On Bench</h3>
+                        <div className="h-px bg-slate-100 w-full" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:gap-4 opacity-80 filter grayscale-[0.3]">
+                        {selectedTeam === 'A' ? (
+                          teamAData.bench.map((p) => renderPlayerCard(p, false, false))
+                        ) : (
+                          teamBData.bench.map((p) => renderPlayerCard(p, false, false))
+                        )}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
-            )}
-          </>
-        )}
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

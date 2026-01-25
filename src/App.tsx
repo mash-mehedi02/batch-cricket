@@ -20,6 +20,7 @@ import MatchPlayingXI from './pages/MatchPlayingXI'
 import Schedule from './pages/Schedule'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminTournaments from './pages/admin/AdminTournaments'
+import TournamentControlSystem from './pages/admin/TournamentControlSystem'
 import AdminSquads from './pages/admin/AdminSquads'
 import AdminPlayers from './pages/admin/AdminPlayers'
 import AdminMatches from './pages/admin/AdminMatches'
@@ -38,11 +39,7 @@ function LayoutWrapper() {
 }
 
 function AdminLayoutWrapper() {
-  return (
-    <AdminLayout>
-      <Outlet />
-    </AdminLayout>
-  )
+  return <AdminLayout />
 }
 
 function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
@@ -62,7 +59,7 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* Login Route - No Layout */}
         <Route path="/login" element={<Login />} />
@@ -90,16 +87,16 @@ function App() {
         </Route>
 
         {/* Admin Routes - Wrapped in AdminLayout */}
-        <Route element={<AdminLayoutWrapper />}>
+        <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/tournaments" element={<AdminTournaments />} />
-          <Route path="/admin/tournaments/:id/dashboard" element={<AdminTournaments mode="dashboard" />} />
-          <Route path="/admin/tournaments/:id/groups" element={<AdminTournaments mode="groups" />} />
-          <Route path="/admin/tournaments/:id/fixtures" element={<AdminTournaments mode="fixtures" />} />
-          <Route path="/admin/tournaments/:id/knockout" element={<AdminTournaments mode="knockout" />} />
-          <Route path="/admin/tournaments/:id/standings" element={<AdminTournaments mode="standings" />} />
-          <Route path="/admin/tournaments/:id/settings" element={<AdminTournaments mode="settings" />} />
-          <Route path="/admin/tournaments/:id/edit" element={<AdminTournaments mode="edit" />} />
+          <Route path="/admin/tournaments/:id/dashboard" element={<TournamentControlSystem />} />
+          <Route path="/admin/tournaments/:id/groups" element={<TournamentControlSystem />} />
+          <Route path="/admin/tournaments/:id/fixtures" element={<TournamentControlSystem />} />
+          <Route path="/admin/tournaments/:id/knockout" element={<TournamentControlSystem />} />
+          <Route path="/admin/tournaments/:id/standings" element={<TournamentControlSystem />} />
+          <Route path="/admin/tournaments/:id/settings" element={<TournamentControlSystem />} />
+          <Route path="/admin/tournaments/:id/edit" element={<TournamentControlSystem />} />
           <Route path="/admin/tournaments/new" element={<AdminTournaments mode="create" />} />
           <Route path="/admin/squads" element={<AdminSquads />} />
           <Route path="/admin/squads/new" element={<AdminSquads mode="create" />} />

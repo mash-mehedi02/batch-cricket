@@ -4,6 +4,7 @@
  */
 import React from 'react'
 import ProjectedScoreTable from './ProjectedScoreTable'
+import { ChevronRight } from 'lucide-react'
 
 
 import cricketBatIcon from '../../assets/cricket-bat.png'
@@ -30,32 +31,24 @@ const CrexLiveSection = ({
   matchPhase,
   currentInnings,
   resultSummary,
-  firstSide,
-  secondSide,
+  teamAName,
+  teamBName,
+  onlyCommentary,
 }) => {
-  // Format partnership: "runs(balls)"
+  const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
+
+  // Format partnership
   const formatPartnership = () => {
     if (!partnership) return '0(0)'
     return `${partnership.runs || 0}(${partnership.balls || 0})`
   }
 
-  // Format last wicket: "Name runs(balls)"
+  // Format last wicket
   const formatLastWicket = () => {
     if (!lastWicket) return null
     return `${lastWicket.batsmanName || 'Batsman'} ${lastWicket.runs || 0}(${lastWicket.balls || 0})`
   }
 
-  // Get scrolling ref
-  const scrollRef = React.useRef(null)
-
-  // Auto-scroll to end when overs update
-  React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
-    }
-  }, [recentOvers])
-
-  // Commentary filters
   const filters = [
     { id: 'all', label: 'All' },
     { id: 'highlights', label: 'Highlights' },
@@ -63,156 +56,210 @@ const CrexLiveSection = ({
     { id: 'wickets', label: 'W' },
     { id: 'sixes', label: '6s' },
     { id: 'fours', label: '4s' },
-    { id: 'milestone', label: 'Milestone' },
+    { id: 'milestone', label: 'Milestones' },
   ]
 
-  // Group commentary by over for the 'Overs' view
-  const oversGroups = React.useMemo(() => {
-    if (!recentOvers || recentOvers.length === 0) return []
-    return [...recentOvers].reverse()
-  }, [recentOvers])
-
-  // Filter commentary
   const filteredCommentary = React.useMemo(() => {
     if (!commentary) return []
     if (!activeCommentaryFilter || activeCommentaryFilter === 'all') return commentary
-
     return commentary.filter(item => {
-      const text = (item.text || '').toLowerCase()
-      const isWicket = text.includes('out') || text.includes('wicket') || item.milestone === 'wicket' || item.isWicket
-      const isSix = text.includes('six') || item.runs === 6 || item.milestone === '6'
-      const isFour = text.includes('four') || item.runs === 4 || item.milestone === '4'
-
+      const isWicket = item.isWicket || item.milestone === 'wicket'
+      const isSix = item.runs === 6 || item.milestone === '6'
+      const isFour = item.runs === 4 || item.milestone === '4'
       switch (activeCommentaryFilter) {
         case 'wickets': return isWicket
         case 'sixes': return isSix
         case 'fours': return isFour
-        case 'highlights': return item.isHighlight || item.runs >= 4 || isWicket
+        case 'highlights': return item.isHighlight || isWicket || isSix || isFour
         case 'milestone': return !!item.milestone
         default: return true
       }
     })
   }, [commentary, activeCommentaryFilter])
 
-  // Over Ball Dot Helper
-  const OverBallDot = ({ val, type }) => {
-    const v = String(val || '').toUpperCase()
-    const t = String(type || '').toLowerCase()
+  const oversGrouped = React.useMemo(() => {
+    if (!commentary || activeCommentaryFilter !== 'overs') return []
 
-    let display = v
-    let bgColor = 'bg-gray-100 text-gray-700'
+    const groups = []
+    const map = {}
 
-    if (v === '6') bgColor = 'bg-[#367c2b] text-white'
-    else if (v === '4') bgColor = 'bg-[#009bd6] text-white'
-    else if (t === 'wicket' || v === 'W' || v === 'OUT') {
-      bgColor = 'bg-[#d32f2f] text-white'
-      display = 'W'
-    } else if (t === 'wide' || v.includes('WD') || v.includes('WIDE')) {
-      bgColor = 'bg-[#f59e0b] text-white'
-      display = 'wd'
-    } else if (t === 'noball' || v.includes('NB') || v.includes('NO BALL')) {
-      bgColor = 'bg-[#f59e0b] text-white'
-      display = 'nb'
-    }
+    // Commentary arrives in chronological order [oldest -> newest]
+    commentary.forEach(item => {
+      // Robust over grouping logic
+      const overStr = String(item.over || '0.0')
+      const [oversPart, ballsPart] = overStr.split('.')
+      const overInt = parseInt(oversPart || '0')
+      const ballInt = parseInt(ballsPart || '0')
 
-    return (
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${bgColor}`}>
-        {display}
-      </div>
-    )
-  }
+      // Cricket logic: 0.1 to 0.6 (1.0) is Over 1. 
+      // 1.0 belongs to Over 1. 1.1 belongs to Over 2.
+      const overGroupNum = (ballInt === 0 && overInt > 0) ? overInt : overInt + 1
 
-  const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
+      const inningId = item.inningId || 'teamA'
+      const key = `${inningId}-${overGroupNum}`
+
+      if (!map[key]) {
+        map[key] = {
+          inningId,
+          overNum: overGroupNum,
+          balls: [],
+          totalRuns: 0,
+          timestamp: item.timestamp?.toMillis ? item.timestamp.toMillis() : Date.now()
+        }
+        groups.push(map[key])
+      }
+
+      // Add ball in chronological order (left to right)
+      map[key].balls.push(item)
+      map[key].totalRuns += Number(item.runs || 0)
+    })
+
+    // Sort groups so newest over is at the top
+    const sorted = groups.sort((a, b) => b.timestamp - a.timestamp)
+
+    const finalResult = []
+    sorted.forEach((group, idx) => {
+      // Add inning break if innings change
+      if (idx > 0 && sorted[idx - 1].inningId !== group.inningId) {
+        finalResult.push({ type: 'break', label: 'Inning Break' })
+      }
+      finalResult.push(group)
+    })
+
+    return finalResult
+  }, [commentary, activeCommentaryFilter])
 
   return (
-    <div className="bg-[#f8fafc] min-h-screen font-sans">
-      <div className="max-w-4xl mx-auto px-0 sm:px-4 py-2">
+    <div className="bg-[#f8fafc] min-h-screen pb-8">
+      <div className="max-w-4xl mx-auto px-0 sm:px-4 py-3 space-y-4">
 
-        {/* Main Scorecard Card */}
-        {!isFinishedMatch && (
-          <div className="bg-white sm:rounded-xl shadow-sm border-b sm:border border-slate-200 overflow-hidden mb-4">
-            {/* Batting Header */}
-            <div className="bg-slate-50/50 px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">Batter</span>
-              <div className="flex gap-4 text-xs font-semibold text-slate-500 text-right">
-                <span className="w-12">R (B)</span>
-                <span className="w-6 text-center">4s</span>
-                <span className="w-6 text-center">6s</span>
-                <span className="w-10 text-right">SR</span>
+        {!isFinishedMatch && !onlyCommentary && (
+          <div className="bg-white p-4 border-b border-slate-100 flex flex-col gap-3">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter mb-0.5">{teamAName.substring(0, 3).toUpperCase()}</span>
+                <span className="text-xl font-medium text-slate-900 leading-none">77%</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-300 uppercase tracking-widest italic">
+                <span className="w-3 h-3 rounded-full border border-slate-200 flex items-center justify-center text-[6px]">i</span>
+                WIN %
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter mb-0.5">{teamBName.substring(0, 3).toUpperCase()}</span>
+                <span className="text-xl font-medium text-slate-900 leading-none">23%</span>
               </div>
             </div>
+            <div className="h-1.5 w-full rounded-full bg-[#1e293b] flex overflow-hidden">
+              <div className="h-full bg-[#911d33]" style={{ width: '77%' }}></div>
+              <div className="h-full bg-blue-900" style={{ width: '23%' }}></div>
+            </div>
+          </div>
+        )}
 
-            {/* Batting Body */}
-            <div className="px-4 py-2 space-y-3">
-              {[striker, nonStriker].map((player, idx) => {
-                if (!player) return null
-                const isStriker = idx === 0
-                return (
-                  <div key={idx} className="flex items-center justify-between">
+        {!onlyCommentary && (
+          <div className="bg-white border-y border-slate-100 divide-y divide-slate-100">
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between text-[11px] font-medium text-slate-400 uppercase tracking-tight">
+                <span>Batter</span>
+                <div className="flex gap-6 pr-1">
+                  <span className="w-10 text-right">R (B)</span>
+                  <span className="w-6 text-center">4s</span>
+                  <span className="w-6 text-center">6s</span>
+                  <span className="w-10 text-right">SR</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {[striker, nonStriker].map((p, i) => p && (
+                  <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold text-slate-900`}>{player.name}</span>
-                      {isStriker && <img src={cricketBatIcon} alt="Striker" className="w-3 h-3 object-contain opacity-80" />}
+                      <span className="text-sm font-medium text-slate-800">{p.name}</span>
+                      {i === 0 && <img src={cricketBatIcon} className="w-4 h-4 opacity-40 ml-1" alt="" />}
                     </div>
-                    <div className="flex gap-4 text-sm text-slate-700 text-right">
-                      <span className="w-12 font-bold text-slate-900">{player.runs || 0} <span className="text-xs font-normal text-slate-500">({player.balls || 0})</span></span>
-                      <span className="w-6 text-center text-slate-500 text-xs">{player.fours || 0}</span>
-                      <span className="w-6 text-center text-slate-500 text-xs">{player.sixes || 0}</span>
-                      <span className="w-10 text-right text-slate-500 text-xs">{player.strikeRate ? Number(player.strikeRate).toFixed(1) : '0.0'}</span>
+                    <div className="flex gap-6 pr-1 text-sm font-medium text-slate-800 items-baseline">
+                      <div className="w-10 text-right flex items-baseline justify-end gap-1">
+                        <span className="text-base">{p.runs || 0}</span>
+                        <span className="text-[10px] text-slate-400">({p.balls || 0})</span>
+                      </div>
+                      <span className="w-6 text-center text-slate-500 font-medium">{p.fours || 0}</span>
+                      <span className="w-6 text-center text-slate-500 font-medium">{p.sixes || 0}</span>
+                      <span className="w-10 text-right text-slate-400 font-medium text-xs">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-
-            <div className="px-4 py-2 text-xs flex items-center justify-between text-slate-500 border-t border-slate-50 mt-1">
-              <div>P'ship: <span className="text-slate-700 font-medium">{formatPartnership()}</span></div>
-              {lastWicket && <div>Last wkt: <span className="text-slate-700 font-medium">{formatLastWicket()}</span></div>}
-            </div>
-
-            <div className="bg-slate-50/50 px-4 py-2 border-t border-b border-slate-100 flex items-center justify-between mt-2">
-              <span className="text-xs font-semibold text-slate-500">Bowler</span>
-              <div className="flex gap-6 text-xs font-semibold text-slate-500 text-right">
-                <span className="w-10 text-center">W-R</span>
-                <span className="w-10 text-center">Overs</span>
-                <span className="w-10 text-right">Econ</span>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">P'ship:</span>
+                  <span className="text-xs font-medium text-slate-700">{formatPartnership()}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">Last wkt:</span>
+                  <span className="text-xs font-medium text-slate-700">{formatLastWicket() || '—'}</span>
+                </div>
               </div>
             </div>
-
-            <div className="px-4 py-3">
-              {currentBowler ? (
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between text-[11px] font-medium text-slate-400 uppercase tracking-tight">
+                <span>Bowler</span>
+                <div className="flex gap-6 pr-1">
+                  <span className="w-10 text-right">W-R</span>
+                  <span className="w-10 text-center">Overs</span>
+                  <span className="w-10 text-right">ECO</span>
+                </div>
+              </div>
+              {currentBowler && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-900">{currentBowler.name}</span>
-                  <div className="flex gap-6 text-sm text-slate-700 text-right">
-                    <span className="w-10 text-center font-bold text-slate-900">{currentBowler.wickets || 0}-{currentBowler.runsConceded || 0}</span>
-                    <span className="w-10 text-center text-slate-500">{currentBowler.overs || '0.0'}</span>
-                    <span className="w-10 text-right text-slate-500">{currentBowler.economy ? Number(currentBowler.economy).toFixed(2) : '0.00'}</span>
+                  <span className="text-sm font-medium text-slate-800">{currentBowler.name}</span>
+                  <div className="flex gap-6 pr-1 text-sm font-medium text-slate-800">
+                    <span className="w-10 text-right text-base">{currentBowler.wickets || 0}-{currentBowler.runsConceded || 0}</span>
+                    <span className="w-10 text-center text-slate-400 font-medium">{currentBowler.overs || '0.0'}</span>
+                    <span className="w-10 text-right text-slate-400 font-medium">{(currentBowler.economy || (currentBowler.overs > 0 ? (currentBowler.runsConceded / currentBowler.overs) : 0)).toFixed(2)}</span>
                   </div>
                 </div>
-              ) : <div className="text-xs text-slate-400 italic">No Active Bowler</div>}
+              )}
             </div>
           </div>
         )}
 
-        {/* Projected Score */}
-        {!isFinishedMatch && (
-          <div className="mt-4 bg-white sm:rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="bg-white px-4 py-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Projected Score</h3>
+        {!isFinishedMatch && !onlyCommentary && (
+          <div className="px-4 py-2 space-y-3">
+            <h3 className="text-base font-medium text-slate-800">Projected Score</h3>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 space-y-4">
+              <div className="text-[12px] font-medium text-slate-400 uppercase tracking-tight flex items-center gap-2">
+                Projected Score <span className="text-[10px] font-medium text-slate-300 normal-case">as per RR.</span>
+              </div>
+              <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] bg-slate-50/50 p-3 text-[11px] font-medium text-slate-800 tabular-nums items-center">
+                  <span className="text-slate-500">Run Rate</span>
+                  <span className="text-right text-sm">{currentRunRate?.toFixed(1)}*</span>
+                  <span className="text-right text-slate-400">12</span>
+                  <span className="text-right text-slate-400">13</span>
+                  <span className="text-right text-slate-400">15</span>
+                </div>
+                <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] p-3 text-[11px] font-medium text-slate-800 tabular-nums items-center">
+                  <span className="text-slate-500 whitespace-nowrap">{oversLimit} Overs</span>
+                  <span className="text-right text-sm">{Math.round((currentRuns || 0) + (currentRunRate || 0) * ((oversLimit || 20) - (Number(currentOvers || 0))))}</span>
+                  <span className="text-right text-slate-800">{Math.round((currentRuns || 0) + 12 * ((oversLimit || 20) - (Number(currentOvers || 0))))}</span>
+                  <span className="text-right text-slate-800">{Math.round((currentRuns || 0) + 13 * ((oversLimit || 20) - (Number(currentOvers || 0))))}</span>
+                  <span className="text-right text-slate-800">{Math.round((currentRuns || 0) + 15 * ((oversLimit || 20) - (Number(currentOvers || 0))))}</span>
+                </div>
+              </div>
+              <div className="text-[10px] font-medium text-slate-400 italic">
+                * Based on current run rate of <span className="font-medium text-slate-500">{currentRunRate?.toFixed(2)}</span> (Current: {currentRuns} runs in {currentOvers} overs)
+              </div>
             </div>
-            <ProjectedScoreTable currentRuns={currentRuns || 0} currentOvers={currentOvers || '0.0'} currentRunRate={currentRunRate || 0} oversLimit={oversLimit || 20} />
           </div>
         )}
 
-        {/* Commentary Section */}
-        <div className="mt-4 bg-white sm:rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[500px]">
-          <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center gap-3 overflow-x-auto scrollbar-hide no-scrollbar">
+        <div className="bg-white border-t border-slate-100 flex flex-col min-h-[400px]">
+          <div className="px-2 py-2 bg-slate-50 border-b border-slate-100 overflow-x-auto no-scrollbar flex items-center gap-1.5">
             {filters.map((f) => (
               <button
                 key={f.id}
                 onClick={() => onCommentaryFilterChange && onCommentaryFilterChange(f.id)}
-                className={`flex-shrink-0 px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-200 border ${activeCommentaryFilter === f.id
-                    ? 'bg-[#002f6c] text-white border-[#002f6c] shadow-sm'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                className={`flex-shrink-0 h-7 px-4 rounded-xl text-[9px] font-medium uppercase tracking-widest transition-all duration-300 ${activeCommentaryFilter === f.id
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
                   }`}
               >
                 {f.label}
@@ -220,85 +267,126 @@ const CrexLiveSection = ({
             ))}
           </div>
 
-          <div className="overflow-y-auto">
-            {activeCommentaryFilter === 'overs' ? (
-              <div className="divide-y divide-gray-100">
-                {oversGroups.map((over, idx) => (
-                  <div key={idx} className="px-4 py-4 flex items-center justify-between hover:bg-gray-50/50">
-                    <span className="text-xs font-bold text-gray-500 w-12 shrink-0">Ov {over.overNumber}</span>
-                    <div className="flex gap-2 flex-1 overflow-x-auto no-scrollbar">
-                      {(over.balls || over.deliveries || []).map((b, bIdx) => (
-                        <OverBallDot key={bIdx} val={b.value || b.label} type={b.type} />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 pl-4">
-                      <span className="text-xs font-bold text-gray-900 font-mono tracking-tighter">= {over.totalRuns || 0}</span>
-                    </div>
-                  </div>
-                ))}
-                {oversGroups.length === 0 && <div className="p-8 text-center text-gray-400 text-xs">No over data available.</div>}
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {filteredCommentary.length > 0 ? (
-                  [...filteredCommentary].reverse().map((item, idx) => {
-                    const isWicket = String(item.text || '').toLowerCase().includes('out') || item.isWicket
-                    const isFour = item.runs === 4
-                    const isSix = item.runs === 6
-                    const ballLabel = item.over || (item.ball !== undefined ? `${Math.floor(idx / 6)}.${item.ball}` : '·')
+          <div className="flex-1 overflow-y-auto">
+            <div className="divide-y divide-slate-100">
+              {activeCommentaryFilter === 'overs' ? (
+                oversGrouped.map((group, idx) => {
+                  if (group.type === 'break') {
+                    return (
+                      <div key={idx} className="py-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] bg-slate-50/50">
+                        {group.label}
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={idx} className="px-4 py-5 flex items-center justify-between hover:bg-slate-50/30 transition-all border-b border-slate-50 group">
+                      <div className="flex items-center gap-6">
+                        <span className="min-w-[40px] text-xs font-bold text-slate-500">Ov {group.overNum}</span>
+                        <div className="flex items-center gap-2">
+                          {group.balls.map((ball, bidx) => {
+                            const isW = ball.isWicket || ball.milestone === 'wicket'
+                            const r = Number(ball.runs || 0)
+                            const is4 = r === 4 || ball.milestone === '4' || String(ball.milestone) === '4'
+                            const is6 = r === 6 || ball.milestone === '6' || String(ball.milestone) === '6'
+                            const upperText = String(ball.text || '').toUpperCase()
+                            const isExtra = upperText.includes('WIDE') || upperText.includes('NO BALL')
 
-                    // Determine normalized display and color
+                            return (
+                              <div key={bidx}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${isW ? 'bg-rose-600 text-white' :
+                                  is6 ? 'bg-emerald-600 text-white' :
+                                    is4 ? 'bg-blue-600 text-white' :
+                                      isExtra ? 'bg-white text-slate-700 border border-slate-200' :
+                                        'bg-white text-slate-800 border border-slate-100'
+                                  }`}>
+                                {isW ? 'W' :
+                                  isExtra ? (upperText.includes('WIDE') ? 'wd' : 'nb') :
+                                    (r === 0 ? '0' : r)}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-slate-800">= {group.totalRuns}</span>
+                        <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                filteredCommentary.length > 0 ? (
+                  [...filteredCommentary].reverse().map((item, idx) => {
+                    const runs = Number(item.runs || 0)
+                    const isWicket = item.isWicket || item.milestone === 'wicket'
+                    const isFour = runs === 4 || item.milestone === '4' || String(item.milestone) === '4'
+                    const isSix = runs === 6 || item.milestone === '6' || String(item.milestone) === '6'
+                    const isManual = !!item.manual
+                    const ballLabel = item.over || (item.ball !== undefined ? `${Math.floor(idx / 6)}.${item.ball + 1}` : '—')
+
                     let displayVal = item.runs
                     let ballType = isWicket ? 'wicket' : 'run'
-                    const upperText = String(item.text || '').toUpperCase()
-                    if (upperText.includes('WIDE') || upperText.includes('WD')) {
-                      displayVal = 'wd'
-                      ballType = 'wide'
-                    } else if (upperText.includes('NB') || upperText.includes('NO BALL')) {
-                      displayVal = 'nb'
-                      ballType = 'noball'
+                    const isBoundary = item.isBoundary || isFour || isSix
+
+                    if (!isBoundary && !isWicket && displayVal === 0) {
+                      const upperText = String(item.text || '').toUpperCase()
+                      if (upperText.includes('WIDE') || upperText.includes(' WIDE ')) {
+                        displayVal = 'wd'
+                        ballType = 'wide'
+                      } else if (upperText.includes('NO BALL') || upperText.includes('NO-BALL')) {
+                        displayVal = 'nb'
+                        ballType = 'noball'
+                      }
                     }
 
-                    // Show over separator
-                    const isNewOver = ballLabel.endsWith('.1')
-
                     return (
-                      <React.Fragment key={idx}>
-                        <div className={`px-4 py-4 flex gap-4 transition-colors ${isWicket ? 'bg-red-50/40' : 'hover:bg-slate-50/30'}`}>
-                          <div className="flex flex-col items-center gap-2 min-w-[36px]">
-                            <span className="text-[11px] font-bold text-gray-400 font-mono tracking-tighter">{ballLabel}</span>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm ${isWicket ? 'bg-[#d32f2f] text-white' :
-                                isSix ? 'bg-[#367c2b] text-white' :
-                                  isFour ? 'bg-[#009bd6] text-white' :
-                                    (ballType === 'wide' || ballType === 'noball') ? 'bg-[#f59e0b] text-white' :
-                                      'bg-gray-100 text-gray-700 border border-gray-200'
+                      <div key={idx} className={`px-4 py-4 flex gap-4 transition-all ${isWicket ? 'bg-rose-50/40' : item.isHighlight ? 'bg-amber-50/30' : 'hover:bg-slate-50/20'}`}>
+                        <div className="flex flex-col items-center gap-2 min-w-[36px]">
+                          <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tighter">{ballLabel}</span>
+                          {isManual ? (
+                            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shadow-inner">
+                              <span className="text-lg">📢</span>
+                            </div>
+                          ) : (
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-medium shadow-md transition-transform hover:scale-110 ${isWicket ? 'bg-rose-600 text-white shadow-rose-200' :
+                              isSix ? 'bg-emerald-600 text-white shadow-emerald-200' :
+                                isFour ? 'bg-blue-600 text-white shadow-blue-200' :
+                                  (ballType === 'wide' || ballType === 'noball') ? 'bg-orange-500 text-white shadow-orange-200' :
+                                    'bg-white text-slate-900 border border-slate-200 shadow-slate-100'
                               }`}>
-                              {isWicket ? 'W' : displayVal}
+                              {isWicket ? 'W' : (displayVal === 0 ? '·' : displayVal)}
                             </div>
-                          </div>
-                          <div className="flex-1 flex flex-col gap-1 pr-2">
-                            <div className="text-sm text-gray-800 leading-relaxed font-normal">
-                              {item.text}
-                            </div>
-                            {isWicket && (
-                              <div className="mt-2 text-[10px] font-bold text-red-700 uppercase tracking-widest bg-red-100/50 py-1 px-3 rounded-md inline-block w-max">
-                                Wicket Confirmed
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
-                        {isNewOver && <div className="h-px bg-gray-100 mx-4"></div>}
-                      </React.Fragment>
+                        <div className="flex-1 space-y-1.5 pt-0.5">
+                          <p className={`text-sm leading-relaxed ${item.isHighlight || isWicket || isBoundary ? 'font-medium text-slate-900' : 'text-slate-700 font-medium'}`}>
+                            {item.text}
+                          </p>
+                          {(isWicket || isSix || isFour || isManual) && (
+                            <div className="mt-1 flex gap-2">
+                              <div className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[8px] font-medium uppercase tracking-widest shadow-sm ${isWicket ? 'bg-rose-100 text-rose-700' :
+                                isSix ? 'bg-emerald-100 text-emerald-700' :
+                                  isFour ? 'bg-blue-100 text-blue-700' :
+                                    'bg-slate-100 text-slate-600'
+                                }`}>
+                                {isWicket ? 'Wicket' : isSix ? 'Maximum' : isFour ? 'Boundary' : 'Announcement'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )
                   })
                 ) : (
-                  <div className="p-12 text-center text-slate-400 text-sm italic">No commentary entries found for this filter.</div>
-                )}
-              </div>
-            )}
+                  <div className="py-20 text-center">
+                    <div className="text-3xl mb-3 opacity-20">🎤</div>
+                    <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Waiting for commentary...</div>
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
-
       </div>
     </div>
   )

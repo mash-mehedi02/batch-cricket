@@ -8,7 +8,6 @@ import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
-import { playerService } from '@/services/firestore/players'
 import { Match, Tournament } from '@/types'
 import { coerceToDate, formatTimeLabel, formatTimeHMTo12h } from '@/utils/date'
 
@@ -22,8 +21,6 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [teamASquad, setTeamASquad] = useState<any>(null)
   const [teamBSquad, setTeamBSquad] = useState<any>(null)
-  const [teamAPlayerCount, setTeamAPlayerCount] = useState<number>(0)
-  const [teamBPlayerCount, setTeamBPlayerCount] = useState<number>(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -74,15 +71,6 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
             const squadA = await squadService.getById(squadIdA)
             if (squadA) {
               setTeamASquad(squadA)
-              // Get player count for squad A
-              try {
-                const playersA = await playerService.getBySquad(squadIdA)
-                setTeamAPlayerCount(playersA.length)
-              } catch (err) {
-                // Fallback: check if squad has players array
-                const playersArray = (squadA as any).players || (squadA as any).playerIds || []
-                setTeamAPlayerCount(Array.isArray(playersArray) ? playersArray.length : 0)
-              }
             }
           } catch (err) {
             console.warn('Error loading team A squad:', err)
@@ -94,15 +82,6 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
             const squadB = await squadService.getById(squadIdB)
             if (squadB) {
               setTeamBSquad(squadB)
-              // Get player count for squad B
-              try {
-                const playersB = await playerService.getBySquad(squadIdB)
-                setTeamBPlayerCount(playersB.length)
-              } catch (err) {
-                // Fallback: check if squad has players array
-                const playersArray = (squadB as any).players || (squadB as any).playerIds || []
-                setTeamBPlayerCount(Array.isArray(playersArray) ? playersArray.length : 0)
-              }
             }
           } catch (err) {
             console.warn('Error loading team B squad:', err)
@@ -170,23 +149,27 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
   // Handle date (Timestamp or string)
   const matchDate = coerceToDate((match as any).date)
   const rawTime = String((match as any).time || '').trim()
-  const timeText = rawTime 
+  const timeText = rawTime
     ? (rawTime.match(/^\d{1,2}:\d{2}$/) ? formatTimeHMTo12h(rawTime) : rawTime)
     : (matchDate ? formatTimeLabel(matchDate) : '')
 
-  const InfoCard = ({ title, icon, value, subValue, gradient }: { title: string, icon: string, value: string, subValue?: string, gradient: string }) => (
-    <div className={`p-5 rounded-2xl border-2 transition-all hover:shadow-lg ${gradient}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-xl">{icon}</span>
-        <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] opacity-60">{title}</h3>
+  const InfoCard = ({ title, icon, value, subValue, bg, border, iconBg }: { title: string, icon: React.ReactNode, value: string, subValue?: string, bg: string, border: string, iconBg?: string }) => (
+    <div className={`p-6 rounded-[1.5rem] border ${border} ${bg} transition-all hover:shadow-md space-y-4`}>
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg ${iconBg || 'bg-white/50'} flex items-center justify-center text-lg`}>
+          {icon}
+        </div>
+        <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-slate-400 font-bold">{title}</h3>
       </div>
-      <p className="text-base sm:text-xl font-black text-slate-900 leading-tight">{value}</p>
-      {subValue && <p className="text-[11px] sm:text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">{subValue}</p>}
+      <div className="space-y-1">
+        <p className="text-base sm:text-xl font-black text-slate-800 leading-tight">{value}</p>
+        {subValue && <p className="text-[10px] sm:text-[11px] text-slate-400 font-black uppercase tracking-wider">{subValue}</p>}
+      </div>
     </div>
   )
 
   return (
-    <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-6' : 'py-12'}`}>
+    <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-6' : 'py-12'} space-y-6`}>
       {/* Header */}
       {!compact && (
         <div className="mb-10">
@@ -199,80 +182,86 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Match Ref */}
+        <InfoCard
+          title="Match Ref"
+          icon={<span className="text-slate-500">#️⃣</span>}
+          value={(match as any).matchNo || `#${match.id.substring(0, 6).toUpperCase()}`}
+          subValue={(match as any).matchNo ? 'OFFICIAL ID' : 'SYSTEM ID'}
+          bg="bg-[#f8fafc]"
+          border="border-[#f1f5f9]"
+        />
+
         {/* Teams */}
         <InfoCard
           title="Teams"
-          icon="👥"
+          icon={<span className="text-indigo-600">👥</span>}
           value={`${firstName} vs ${secondName}`}
-          gradient="bg-blue-50/50 border-blue-100 hover:border-blue-200"
+          bg="bg-[#f4f7ff]"
+          border="border-[#e0e9ff]"
         />
 
         {/* Venue */}
         <InfoCard
           title="Venue"
-          icon="📍"
-          value={match.venue || 'Venue TBA'}
-          gradient="bg-emerald-50/50 border-emerald-100 hover:border-emerald-200"
+          icon={<span className="text-rose-500">📍</span>}
+          value={match.venue || 'SMA Home Ground'}
+          bg="bg-[#f0fff9]"
+          border="border-[#e1fdf2]"
         />
 
         {/* Tournament */}
         {tournament && (
           <InfoCard
             title="Tournament"
-            icon="🏆"
+            icon={<span className="text-amber-500">🏆</span>}
             value={tournament.name}
             subValue={`YEAR: ${tournament.year} • ${tournament.format || 'T20'}`}
-            gradient="bg-indigo-50/50 border-indigo-100 hover:border-indigo-200"
+            bg="bg-[#f4f7ff]"
+            border="border-[#e0e9ff]"
           />
         )}
 
         {/* Date & Time */}
         <InfoCard
           title="Date & Time"
-          icon="📅"
+          icon={<span className="text-blue-500">📅</span>}
           value={matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'TBA'}
           subValue={timeText ? `AT ${timeText.toUpperCase()}` : ''}
-          gradient="bg-purple-50/50 border-purple-100 hover:border-purple-200"
+          bg="bg-[#faf5ff]"
+          border="border-[#f3e8ff]"
         />
 
-        {/* Toss */}
-        {match.tossWinner && (
-          <InfoCard
-            title="Toss"
-            icon="🪙"
-            value={`${(match.tossWinner === 'teamA' || match.tossWinner === (match as any).teamAId || match.tossWinner === (match as any).teamASquadId) ? teamAName : teamBName} won the toss`}
-            subValue={`Elected to ${match.electedTo || 'bat/bowl'}`}
-            gradient="bg-amber-50/50 border-amber-100 hover:border-amber-200"
-          />
-        )}
-
         {/* Match Format */}
-        {match.oversLimit && (
-          <InfoCard
-            title="Match Format"
-            icon="⚙️"
-            value={`${match.oversLimit} Overs Match`}
-            gradient="bg-slate-50/50 border-slate-200 hover:border-slate-300"
-          />
-        )}
+        <InfoCard
+          title="Match Format"
+          icon={<span className="text-purple-400">⚙️</span>}
+          value={match.oversLimit ? `${match.oversLimit} Overs Match` : '6 Overs Match'}
+          bg="bg-[#f8fafc]"
+          border="border-[#f1f5f9]"
+        />
 
         {/* Match Status */}
         <InfoCard
           title="Status"
-          icon="📊"
+          icon={<span className="text-emerald-500">📊</span>}
           value={String(match.status || 'upcoming').toLowerCase()}
-          gradient="bg-teal-50/50 border-teal-100 hover:border-teal-200"
+          bg="bg-[#f0fff9]"
+          border="border-[#e1fdf2]"
         />
 
-        {/* Squads Info */}
-        <InfoCard
-          title="Squad Size"
-          icon="📋"
-          value={`${firstName}: ${firstSide === 'teamA' ? teamAPlayerCount : teamBPlayerCount} players`}
-          subValue={`${secondName}: ${secondSide === 'teamA' ? teamAPlayerCount : teamBPlayerCount} PLAYERS`}
-          gradient="bg-orange-50/50 border-orange-100 hover:border-orange-200"
-        />
+        {/* Toss - Only show if available */}
+        {match.tossWinner && (
+          <InfoCard
+            title="Toss"
+            icon={<span className="text-amber-600">🪙</span>}
+            value={`${(match.tossWinner === 'teamA' || match.tossWinner === (match as any).teamAId || match.tossWinner === (match as any).teamASquadId) ? teamAName : teamBName} won the toss`}
+            subValue={`Elected to ${match.electedTo || 'bat/bowl'}`}
+            bg="bg-[#fffcfa]"
+            border="border-[#fff1e7]"
+          />
+        )}
       </div>
     </div>
   )

@@ -425,8 +425,23 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const canEditPreMatch = useMemo(() => {
     const raw = String((formData as any).status || '').toLowerCase()
-    return raw === 'upcoming'
-  }, [formData.status])
+    if (raw === 'upcoming') return true
+
+    // Allow editing in LIVE if match hasn't technically started (0 balls)
+    if (raw === 'live') {
+      const m = matchView as any
+      // If we have robust ball tracking, use it. Otherwise default to allowing edits in early live state.
+      // Assuming 'currentOver' starts at "0.0" and 'currentBall' at 0.
+      const over = parseFloat(m?.currentOver || '0.0')
+      const ball = Number(m?.currentBall || 0)
+      const total = Number(m?.totalBalls || 0)
+
+      // If no balls bowled, allow update
+      if (over === 0 && ball === 0 && total === 0) return true
+    }
+
+    return false
+  }, [formData.status, matchView])
 
   const handleSaveToss = async () => {
     if (!id) return
@@ -680,11 +695,49 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
 
     try {
+      // First, get the match data to check toss results
+      const matchData = await matchService.getById(matchId)
+      if (!matchData) {
+        toast.error('Match not found')
+        return
+      }
+
+      // Determine who bats first based on toss
+      let currentBatting: 'teamA' | 'teamB' = 'teamA' // Default
+
+      const tossWinner = (matchData as any).tossWinner
+      const tossDecision = (matchData as any).tossDecision || 'bat'
+
+      // Get team IDs for comparison
+      const teamAId = (matchData as any).teamASquadId || (matchData as any).teamAId || matchData.teamA
+      const teamBId = (matchData as any).teamBSquadId || (matchData as any).teamBId || matchData.teamB
+
+      if (tossWinner) {
+        const tossWinnerStr = String(tossWinner).trim()
+        const teamAIdStr = String(teamAId).trim()
+        const teamBIdStr = String(teamBId).trim()
+
+        // Robust check for winner: key ('teamA'/'teamB') OR original ID
+        const isWinnerTeamA = tossWinnerStr === 'teamA' || tossWinnerStr === teamAIdStr;
+        const isWinnerTeamB = tossWinnerStr === 'teamB' || tossWinnerStr === teamBIdStr;
+
+        if (isWinnerTeamA || isWinnerTeamB) {
+          if (tossDecision === 'bat') {
+            currentBatting = isWinnerTeamA ? 'teamA' : 'teamB'
+          } else if (tossDecision === 'bowl') {
+            currentBatting = isWinnerTeamA ? 'teamB' : 'teamA'
+          }
+        }
+      }
+
       await matchService.update(matchId, {
         status: 'live',
+        currentBatting,
+        matchPhase: 'FirstInnings',
         updatedAt: Timestamp.now(),
       } as any)
-      toast.success('Match started!')
+
+      toast.success(`Match started! ${currentBatting === 'teamA' ? matchData.teamAName : matchData.teamBName} will bat first.`)
       loadMatches()
     } catch (error: any) {
       console.error('Error starting match:', error)

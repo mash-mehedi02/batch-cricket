@@ -45,6 +45,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
       loadPlayers()
       if (mode === 'edit' && id) {
         loadSquad(id)
+      } else {
+        setLoading(false)
       }
     }
   }, [mode, id])
@@ -115,9 +117,12 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user || user.role !== 'admin') {
-      toast.error('Только администратор может сохранять команды. Перейдите в Settings → “Make Me Admin”.')
+    console.log('[AdminSquads] Submit triggered', { mode, id, user, formData })
+    if (!user || (user as any).role !== 'admin') {
+      console.warn('[AdminSquads] User not authorized', { user })
+      toast.error('Admin role required to save squads. Check Settings → "Make Me Admin".')
       navigate('/admin/settings')
+      setSaving(false)
       return
     }
     if (!String(formData.batch || '').trim()) {
@@ -126,6 +131,19 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
     }
 
     setSaving(true)
+    console.log('[AdminSquads] Starting save process...')
+
+    // Quick validation for captain/WK consistency
+    const validatedFormData = { ...formData }
+    if (validatedFormData.captainId && !validatedFormData.playerIds.includes(validatedFormData.captainId)) {
+      console.warn('[AdminSquads] Captain not in player list, clearing...')
+      validatedFormData.captainId = ''
+    }
+    if (validatedFormData.wicketKeeperId && !validatedFormData.playerIds.includes(validatedFormData.wicketKeeperId)) {
+      console.warn('[AdminSquads] WK not in player list, clearing...')
+      validatedFormData.wicketKeeperId = ''
+    }
+
     try {
       const stripUndefined = (obj: Record<string, any>) => {
         const out: Record<string, any> = {}
@@ -140,38 +158,72 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
         ? parsedBatchYear
         : (formData.year || new Date().getFullYear())
 
+      let finalId = id || ''
+
       if (mode === 'create') {
-        await squadService.create(stripUndefined({
-          ...formData,
+        console.log('[AdminSquads] Creating new squad...')
+        const newId = await squadService.create(stripUndefined({
+          ...validatedFormData,
           year: computedYear,
           batch: String(formData.batch).trim(),
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user?.uid || '',
         }) as any)
-        toast.success('Squad created successfully!')
-        navigate('/admin/squads')
+        finalId = newId
+        console.log('[AdminSquads] Created successfully with ID:', newId)
       } else if (mode === 'edit' && id) {
+        console.log('[AdminSquads] Updating squad with ID:', id)
         await squadService.update(id, stripUndefined({
-          ...formData,
+          ...validatedFormData,
           year: computedYear,
           batch: String(formData.batch).trim(),
           updatedAt: Timestamp.now(),
         }) as any)
-        toast.success('Squad updated successfully!')
-        navigate('/admin/squads')
+        console.log('[AdminSquads] Squad doc update successful')
       }
-    } catch (error) {
-      console.error('Error saving squad:', error)
-      const eAny: any = error
-      const msg = String(eAny?.message || '')
-      const code = String(eAny?.code || '')
-      if (code === 'permission-denied' || msg.toLowerCase().includes('permission')) {
-        toast.error('Permission denied. Проверьте Settings → Admin Permissions и обновите токен.')
-        navigate('/admin/settings')
-        return
+
+      // SYNC PLAYERS: This is crucial for consistency
+      if (finalId) {
+        console.log('[AdminSquads] Syncing player documents with squadId...')
+        const batchTag = String(formData.batch).trim()
+
+        // 1. Set squadId for all selected players
+        const addPromises = validatedFormData.playerIds.map(pid =>
+          playerService.update(pid, {
+            squadId: finalId,
+            batch: batchTag
+          }).catch(e => console.error(`Failed to sync player ${pid}:`, e))
+        )
+
+        // 2. Clear squadId for players who were in this squad but are now removed
+        // (Only if we know which players they were - we check the local 'players' state)
+        const removedPlayers = players.filter(p =>
+          p.squadId === finalId && !validatedFormData.playerIds.includes(p.id)
+        )
+
+        const removePromises = removedPlayers.map(p =>
+          playerService.update(p.id, { squadId: '' })
+            .catch(e => console.error(`Failed to clear player ${p.id}:`, e))
+        )
+
+        await Promise.all([...addPromises, ...removePromises])
+        console.log('[AdminSquads] Player sync complete')
       }
-      toast.error(msg || code || 'Failed to save squad')
+
+      toast.success(mode === 'create' ? 'Squad created successfully!' : 'Squad updated successfully!')
+      setTimeout(() => navigate('/admin/squads'), 500)
+    } catch (err: any) {
+      console.error('[AdminSquads] Submit error:', err)
+      const errorMsg = err?.message || String(err)
+
+      if (errorMsg.includes('permission-denied')) {
+        toast.error('Firebase Permission Denied! Update your Admin rules.')
+      } else if (errorMsg.includes('already in squad')) {
+        toast.error(errorMsg)
+      } else {
+        toast.error('Failed: ' + errorMsg)
+      }
     } finally {
       setSaving(false)
     }

@@ -29,20 +29,15 @@ export const matchService = {
    */
   async getByTournament(tournamentId: string): Promise<Match[]> {
     try {
-      // Preferred: server-side ordering (requires composite index with where + orderBy)
+      // Fetch without server-side orderBy to avoid immediate index requirements
       const q = query(
         matchesRef,
-        where('tournamentId', '==', tournamentId),
-        orderBy('date', 'desc')
+        where('tournamentId', '==', tournamentId)
       )
       const snapshot = await getDocs(q)
-      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match))
-    } catch (error) {
-      console.warn('[MatchService] getByTournament: orderBy query failed, falling back to client-side sort.', error)
-      // Fallback: no orderBy (does not require composite index), then sort in memory
-      const q = query(matchesRef, where('tournamentId', '==', tournamentId))
-      const snapshot = await getDocs(q)
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match))
+
+      // Professional in-memory sort (Date desc, Time desc, Version desc)
       return list.sort((a: any, b: any) => {
         const dateA = String(a.date || '')
         const dateB = String(b.date || '')
@@ -54,6 +49,9 @@ export const matchService = {
         const tsB = (b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0) as number
         return tsB - tsA
       })
+    } catch (error) {
+      console.error('[MatchService] getByTournament failed:', error)
+      return []
     }
   },
 
@@ -83,6 +81,22 @@ export const matchService = {
       console.error('Error loading live matches:', error)
       return []
     }
+  },
+
+  /**
+   * Delete a specific ball
+   */
+  async deleteBall(matchId: string, inningId: 'teamA' | 'teamB', ballId: string): Promise<void> {
+    const ballRef = doc(
+      db,
+      COLLECTIONS.MATCHES,
+      matchId,
+      SUBCOLLECTIONS.INNINGS,
+      inningId,
+      SUBCOLLECTIONS.BALLS,
+      ballId
+    )
+    await deleteDoc(ballRef)
   },
 
   /**

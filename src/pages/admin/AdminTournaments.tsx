@@ -16,6 +16,7 @@ import { Timestamp } from 'firebase/firestore'
 import { generateGroupFixtures } from '@/engine/tournament/fixtures'
 import { generateKnockoutBracket, generateKnockoutFixtures } from '@/engine/tournament/knockout'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
+import { Settings, Edit2, CheckCircle } from 'lucide-react'
 
 interface AdminTournamentsProps {
   mode?: 'dashboard' | 'list' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
@@ -49,6 +50,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     pointsForLoss: 0,
     pointsForTie: 1,
     pointsForNoResult: 1,
+    logoUrl: '',
+    bannerUrl: '',
+    location: '',
     groupBySquadId: {} as Record<string, string>,
     groupMeta: {} as Record<
       string,
@@ -152,6 +156,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           pointsForLoss: (data as any).pointsForLoss ?? prev.pointsForLoss,
           pointsForTie: (data as any).pointsForTie ?? prev.pointsForTie,
           pointsForNoResult: (data as any).pointsForNoResult ?? prev.pointsForNoResult,
+          logoUrl: (data as any).logoUrl || '',
+          bannerUrl: (data as any).bannerUrl || '',
+          location: (data as any).location || '',
           groupBySquadId,
           groupMeta,
         }))
@@ -275,11 +282,18 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         pointsForLoss: formData.pointsForLoss,
         pointsForTie: formData.pointsForTie,
         pointsForNoResult: formData.pointsForNoResult,
+        logoUrl: formData.logoUrl,
+        bannerUrl: formData.bannerUrl,
+        location: formData.location,
       }
 
       if (mode === 'create') {
         await tournamentService.create({
           ...(persistPayload as any),
+          stages: [
+            { id: 'group-stage', name: 'Group Stage', type: 'group', order: 0, status: 'active' },
+            { id: 'final-stage', name: 'Final', type: 'knockout', order: 1, status: 'pending' }
+          ],
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user?.uid || '',
@@ -428,8 +442,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           <button
             onClick={() => navigate(`/admin/tournaments/${id}/dashboard`)}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'dashboard'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             Dashboard
@@ -437,8 +451,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           <button
             onClick={() => navigate(`/admin/tournaments/${id}/groups`)}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'groups'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             Groups
@@ -446,8 +460,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           <button
             onClick={() => navigate(`/admin/tournaments/${id}/fixtures`)}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'fixtures'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             Fixtures
@@ -455,8 +469,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           <button
             onClick={() => navigate(`/admin/tournaments/${id}/knockout`)}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'knockout'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             Knockout
@@ -464,8 +478,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           <button
             onClick={() => navigate(`/admin/tournaments/${id}/standings`)}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'standings'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             Standings
@@ -473,8 +487,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           <button
             onClick={() => navigate(`/admin/tournaments/${id}/settings`)}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'settings'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-teal-500 text-teal-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
           >
             Settings
@@ -922,9 +936,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                             <div className="flex items-center gap-3">
                               <div className="font-semibold text-gray-900 truncate">{teamA} vs {teamB}</div>
                               <span className={`px-2 py-1 rounded-full text-xs font-semibold ${match.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                                  match.status === 'live' ? 'bg-red-100 text-red-800' :
-                                    match.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                      'bg-gray-100 text-gray-800'
+                                match.status === 'live' ? 'bg-red-100 text-red-800' :
+                                  match.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                    'bg-gray-100 text-gray-800'
                                 }`}>
                                 {match.status}
                               </span>
@@ -1020,8 +1034,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               onClick={handleGenerateKnockout}
               disabled={generating || formData.status !== 'ongoing'}
               className={`px-4 py-2 rounded-lg font-semibold transition ${formData.status === 'ongoing'
-                  ? 'bg-purple-600 text-white hover:bg-purple-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
             >
               Generate Bracket
@@ -1527,7 +1541,76 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               </div>
             </div>
 
-            <div>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">
+                Select Participating Squads *
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-4 bg-gray-50 rounded-xl border border-gray-100">
+                {squads.map((squad) => {
+                  const isSelected = formData.participantSquadIds.includes(squad.id);
+                  return (
+                    <button
+                      key={squad.id}
+                      type="button"
+                      onClick={() => {
+                        const next = isSelected
+                          ? formData.participantSquadIds.filter(id => id !== squad.id)
+                          : [...formData.participantSquadIds, squad.id];
+                        setFormData({ ...formData, participantSquadIds: next });
+                      }}
+                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isSelected
+                        ? 'bg-teal-50 border-teal-200 text-teal-700 ring-2 ring-teal-500/20'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-teal-200 hover:bg-teal-50/30'
+                        }`}
+                    >
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-teal-600 border-teal-600' : 'bg-gray-100 border-gray-300'
+                        }`}>
+                        {isSelected && <CheckCircle size={12} className="text-white" />}
+                      </div>
+                      <span className="text-sm font-semibold truncate">{squad.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-gray-500 font-medium tracking-tight">
+                Selected: <span className="text-teal-600 font-black">{formData.participantSquadIds.length}</span> squads. Minimum 2 required.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament Logo URL</label>
+                <input
+                  type="text"
+                  value={formData.logoUrl}
+                  onChange={(e) => setFormData(p => ({ ...p, logoUrl: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament Banner URL</label>
+                <input
+                  type="text"
+                  value={formData.bannerUrl}
+                  onChange={(e) => setFormData(p => ({ ...p, bannerUrl: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  placeholder="e.g. Bangladesh"
+                />
+              </div>
+            </div>
+
+            <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Description
               </label>
@@ -1785,10 +1868,10 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${tournament.status === 'completed'
-                            ? 'bg-green-100 text-green-700'
-                            : tournament.status === 'ongoing'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-gray-100 text-gray-700'
+                          ? 'bg-green-100 text-green-700'
+                          : tournament.status === 'ongoing'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-100 text-gray-700'
                           }`}
                       >
                         {tournament.status}
@@ -1810,15 +1893,18 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                       <div className="flex flex-wrap gap-2">
                         <Link
                           to={`/admin/tournaments/${tournament.id}/dashboard`}
-                          className="text-teal-600 hover:text-teal-700 text-sm"
+                          className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-2 px-4 shadow-sm group"
+                          title="Open Control Panel"
                         >
-                          Manage
+                          <Settings size={16} className="group-hover:rotate-90 transition-transform duration-500" />
+                          <span className="text-xs font-black uppercase tracking-widest">Control Panel</span>
                         </Link>
                         <Link
                           to={`/admin/tournaments/${tournament.id}/edit`}
-                          className="text-blue-600 hover:text-blue-700 text-sm"
+                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Basic Edit"
                         >
-                          Edit
+                          <Edit2 size={18} />
                         </Link>
                         <button
                           onClick={() => handleDelete(tournament.id)}
