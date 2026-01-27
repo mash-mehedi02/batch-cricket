@@ -132,9 +132,20 @@ export interface InningsStats {
     strikeRate: number | null
   }>
   recentOvers: RecentOver[] // Recent overs array for UI display (in chronological order, left→right)
-  currentOverBalls: OverBall[] // Current incomplete over balls
-  currentStrikerId: string
-  nonStrikerId: string
+  currentOverBalls: Array<{
+    value: string
+    type: string
+    runsOffBat?: number
+    wicketType?: string | null
+  }>
+  oversProgress: Array<{
+    over: string
+    balls: number
+    runs: number
+    wickets: number
+  }>
+  currentStrikerId?: string
+  nonStrikerId?: string
   currentBowlerId: string
   lastUpdated: Timestamp
   updatedAt: string
@@ -431,6 +442,10 @@ export async function recalculateInnings(
       dismissal?: string
       notOut: boolean
     }>()
+
+    // Track cumulative score at each delivery for "At this stage" comparisons
+    const oversProgress: Array<{ over: string, runs: number, wickets: number }> = []
+
     const bowlerStatsMap = new Map<string, {
       bowlerId: string
       bowlerName: string
@@ -643,6 +658,15 @@ export async function recalculateInnings(
       if (legalBallCount >= 6) {
         over.isLocked = true
       }
+
+      // Record snapshot for "At this stage" comparisons
+      oversProgress.push({
+        over: ballsToOvers(legalBalls),
+        balls: legalBalls,
+        runs: totalRuns,
+        wickets: totalWickets
+      })
+
       // Update Free Hit state for NEXT ball
       // ICC: Next ball is Free Hit if this ball was a No Ball 
       // OR if it was already a Free Hit and this ball was NOT legitimate (wide/noball)
@@ -873,6 +897,7 @@ export async function recalculateInnings(
       bowlerStats,
       recentOvers,
       currentOverBalls,
+      oversProgress,
       currentStrikerId: '',
       nonStrikerId: '',
       currentBowlerId,

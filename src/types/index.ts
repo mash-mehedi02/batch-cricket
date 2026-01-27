@@ -384,6 +384,12 @@ export interface InningsStats {
     runsOffBat: number
     wicketType?: string
   }>
+  oversProgress: Array<{
+    over: string
+    balls: number
+    runs: number
+    wickets: number
+  }>
   currentStrikerId?: string
   nonStrikerId?: string
   currentBowlerId: string

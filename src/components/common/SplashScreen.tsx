@@ -1,50 +1,121 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
 import tazkirImage from '@/assets/tazkir.png';
 import ripImage from '@/assets/rip.png';
 
 const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingComplete }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const topTextRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLDivElement>(null);
+  const foreverRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Simulate loading process - in a real app, this would be replaced with actual initialization logic
-    // such as checking auth status, initializing services, loading initial data, etc.
-    const timer = setTimeout(() => {
-      onLoadingComplete();
-    }, 2000); // Splash screen duration - 2 seconds (optimized for faster load)
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({
+        onComplete: () => {
+          // Delay a bit before finishing to let the user see the final state
+          gsap.to(containerRef.current, {
+            opacity: 0,
+            duration: 0.8,
+            delay: 1.5,
+            ease: "power2.inOut",
+            onComplete: onLoadingComplete
+          });
+        }
+      });
 
-    // Cleanup timeout if component unmounts
-    return () => clearTimeout(timer);
+      // Initial states
+      gsap.set([topTextRef.current, foreverRef.current, footerRef.current], {
+        opacity: 0,
+        y: 20
+      });
+      gsap.set(imageRef.current, {
+        opacity: 0,
+        scale: 0.8,
+        filter: "blur(10px)"
+      });
+
+      // Animation Sequence
+      tl.to(containerRef.current, {
+        backgroundColor: "rgba(15, 23, 42, 1)", // Deep slate
+        duration: 1
+      })
+        .to(topTextRef.current, {
+          opacity: 1,
+          y: 0,
+          duration: 0.8,
+          ease: "back.out(1.7)"
+        }, "-=0.4")
+        .to(imageRef.current, {
+          opacity: 1,
+          scale: 1,
+          filter: "blur(0px)",
+          duration: 1.2,
+          ease: "power4.out"
+        }, "-=0.6")
+        .to(foreverRef.current, {
+          opacity: 1,
+          y: 0,
+          duration: 0.8,
+          ease: "back.out(1.7)"
+        }, "-=0.8")
+        .to(footerRef.current, {
+          opacity: 0.6,
+          y: 0,
+          duration: 0.8,
+          ease: "power2.out"
+        }, "-=0.4");
+
+      // Continuous pulse for the image glow
+      gsap.to(".glow-effect", {
+        opacity: 0.6,
+        scale: 1.1,
+        duration: 2,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut"
+      });
+    }, containerRef);
+
+    return () => ctx.revert();
   }, [onLoadingComplete]);
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-[#0f172a] via-[#020817] to-[#000000] flex flex-col items-center justify-center z-50 overflow-hidden">
-      {/* Subtle noise/vignette effect */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/20 to-black/40"></div>
+    <div
+      ref={containerRef}
+      className="fixed inset-0 bg-[#0f172a] flex flex-col items-center justify-center z-[9999] overflow-hidden select-none"
+    >
+      {/* Dynamic Background Elements */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500 rounded-full blur-[120px]" />
+      </div>
 
-      {/* Top Section - App Logo and Subtext */}
-      <div className="relative z-10 flex flex-col items-center mb-8">
-        {/* App Name */}
-        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight mb-2 text-center">
-          <span className="block">BatchCrick BD</span>
+      {/* Top Text Section */}
+      <div ref={topTextRef} className="relative z-10 flex flex-col items-center mb-10 text-center px-4">
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-2">
+          BatchCrick <span className="text-emerald-400">BD</span>
         </h1>
-
-        {/* Subtext */}
-        <p className="text-gray-300 text-sm sm:text-base tracking-widest uppercase">
+        <div className="h-[2px] w-12 bg-emerald-500 mb-2" />
+        <p className="text-gray-400 text-xs md:text-sm tracking-[0.3em] uppercase font-medium">
           Shalnagor Modern Academy
         </p>
       </div>
 
-      {/* Center Section - Image */}
-      <div className="relative z-10 flex flex-col items-center mb-4 sm:mb-8">
-        <div className="relative flex items-center justify-center">
-          {/* Main image with fade-in animation */}
+      {/* Main Image Content */}
+      <div ref={imageRef} className="relative z-10 group">
+        <div className="glow-effect absolute inset-0 bg-emerald-500/20 rounded-full blur-3xl -z-10" />
+
+        <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-2xl overflow-hidden border-2 border-white/10 backdrop-blur-sm bg-white/5 shadow-2xl">
           <img
             src={tazkirImage}
-            alt="BatchCrick BD"
-            className="w-80 h-80 sm:w-96 sm:h-96 md:w-[30rem] md:h-[30rem] lg:w-[36rem] lg:h-[36rem] object-contain opacity-0 animate-fade-in-scale"
+            alt="Memorial"
+            className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-700"
           />
 
-          {/* RIP image in top-right corner of main image with white circular background */}
-          <div className="absolute top-4 right-4 sm:top-0 sm:right-0 w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 bg-white rounded-full flex items-center justify-center z-20 p-2 shadow-lg hover:scale-105 transition-transform">
+          {/* RIP Badge */}
+          <div className="absolute top-4 right-4 w-16 h-16 md:w-20 md:h-20 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center p-2 shadow-xl border border-white/20">
             <img
               src={ripImage}
               alt="RIP"
@@ -52,33 +123,49 @@ const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingCo
             />
           </div>
 
-          {/* Pulse/shimmer effect on logo while loading */}
-          <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-[#16a34a]/20 to-transparent animate-shimmer"></div>
-        </div>
-
-        {/* Forever text with subtext */}
-        <div className="mt-2 sm:mt-4 text-center">
-          <p className="text-white text-lg sm:text-xl md:text-2xl font-bold mb-1">
-            FOREVER
-          </p>
-          <p className="text-gray-400 text-xs sm:text-sm md:text-base italic">
-            2002 - ∞
-          </p>
-        </div>
-
-        {/* Two-line headline */}
-        <div className="mt-4 sm:mt-6 text-center">
-          <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1">CRICKET</div>
-          <div className="text-xl sm:text-2xl md:text-3xl font-black text-[#16a34a]">NON-STOP</div>
+          {/* Overlay Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         </div>
       </div>
 
-      {/* Bottom Section - Signature */}
-      <div className="relative z-10 mt-auto">
-        <p className="text-gray-500 text-sm italic tracking-wide font-cursive">
-          Mehedi Hasan
+      {/* Forever Text Section */}
+      <div ref={foreverRef} className="relative z-10 mt-8 text-center px-4">
+        <p className="text-white text-2xl md:text-3xl font-bold tracking-[0.2em] mb-1">
+          FOREVER
+        </p>
+        <div className="flex items-center justify-center gap-3 text-emerald-400">
+          <span className="text-lg md:text-xl font-medium tracking-widest text-gray-300">2002</span>
+          <span className="w-8 h-[1px] bg-gray-600" />
+          <span className="text-2xl md:text-3xl">∞</span>
+        </div>
+
+        <div className="mt-6 space-y-1">
+          <div className="text-lg md:text-xl font-bold text-white tracking-[0.1em]">CRICKET</div>
+          <div className="text-2xl md:text-3xl font-black text-emerald-500 tracking-wider">NON-STOP</div>
+        </div>
+      </div>
+
+      {/* Signature Footer */}
+      <div ref={footerRef} className="absolute bottom-10 z-10">
+        <p className="text-gray-500 text-xs md:text-sm italic tracking-widest font-light">
+          Dedicated by <span className="text-gray-400 font-normal">Mehedi Hasan</span>
         </p>
       </div>
+
+      {/* Progress Bar */}
+      <div className="absolute bottom-0 left-0 h-1 bg-emerald-500/30 w-full overflow-hidden">
+        <div className="h-full bg-emerald-500 animate-loading-bar" style={{ width: '0%' }} id="splash-progress" />
+      </div>
+
+      <style>{`
+        @keyframes loading-bar {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+        .animate-loading-bar {
+          animation: loading-bar 2.5s linear forwards;
+        }
+      `}</style>
     </div>
   );
 };

@@ -25,7 +25,7 @@ export default function MatchTabs({ tabs, activeTab, onTabChange }: MatchTabsPro
               key={tab.id}
               onClick={() => (tab.disabled ? null : onTabChange(tab.id))}
               disabled={!!tab.disabled}
-              className={`px-4 py-2 text-[10px] sm:text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all relative group h-10 ${activeTab === tab.id
+              className={`px-4 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all relative group h-10 ${activeTab === tab.id
                 ? 'text-red-600'
                 : tab.disabled
                   ? 'text-slate-300 cursor-not-allowed'

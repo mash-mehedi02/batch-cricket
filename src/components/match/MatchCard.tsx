@@ -79,13 +79,21 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
         return () => clearInterval(timer)
     }, [match.date, match.time, isUpcoming])
 
-    const teamA = squadsMap[match.teamAId]
-    const teamB = squadsMap[match.teamBId]
+    const teamA = squadsMap[match.teamAId || (match as any).teamASquadId]
+    const teamB = squadsMap[match.teamBId || (match as any).teamBSquadId]
 
-    const teamAName = match.teamAName || teamA?.name || 'Team A'
-    const teamBName = match.teamBName || teamB?.name || 'Team B'
-    const teamALogo = teamA?.logoUrl || null
-    const teamBLogo = teamB?.logoUrl || null
+    const formatTeamName = (s: Squad | undefined, fallback: string) => {
+        if (!s?.name) return fallback
+        const parts = s.name.split(/[- ]+/).filter(Boolean)
+        const label = (parts[0] || '').substring(0, 3).toUpperCase()
+        const batch = s.batch || parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
+        return batch ? `${label}-${batch}` : label
+    }
+
+    const teamAName = formatTeamName(teamA, match.teamAName || 'Team A')
+    const teamBName = formatTeamName(teamB, match.teamBName || 'Team B')
+    const teamALogo = teamA?.logoUrl || (match as any).teamALogoUrl || null
+    const teamBLogo = teamB?.logoUrl || (match as any).teamBLogoUrl || null
 
     const getTossText = () => {
         if (!match.tossWinner || !match.electedTo) return null
@@ -196,7 +204,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
         if (isLive) {
             const isBreak = match.matchPhase === 'FirstInnings' && isFirstInningsFinished
             if (isBreak || !match.currentBatting) return 'text-black font-bold'
-            return match.currentBatting === teamId ? 'text-black font-black' : 'text-slate-400 font-bold'
+            // Unmuted: using shadow or border instead of graying out name
+            return match.currentBatting === teamId ? 'text-black font-black' : 'text-black font-bold opacity-90'
         }
         return 'text-black font-bold'
     }
@@ -212,24 +221,24 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
     return (
         <Link
             to={`/match/${match.id}`}
-            className="block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all group relative"
+            className="block bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-md transition-all group relative"
         >
             {/* Top Right Countdown Overlay */}
             {isUpcoming && timeLeft && (
                 <div className="absolute top-2 right-2 z-10">
-                    <div className="bg-amber-50 text-amber-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight shadow-sm border border-amber-100">
+                    <div className="bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight shadow-sm border border-amber-100 dark:border-amber-900/50">
                         {timeLeft}
                     </div>
                 </div>
             )}
 
             {/* Header Info */}
-            <div className="px-4 py-2 border-b border-slate-50 flex justify-between items-center bg-slate-50/20">
-                <span className="text-[10px] font-bold text-black uppercase tracking-wider truncate max-w-[80%]">
+            <div className="px-4 py-2 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/20 dark:bg-slate-800/20">
+                <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider truncate max-w-[80%]">
                     {match.venue ? `${match.venue}` : 'SMA Ground'}
                 </span>
                 <div className="flex items-center gap-1.5 opacity-40">
-                    <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-3 h-3 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                 </div>
@@ -245,14 +254,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                         return (
                             <div key={side} className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                    <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
                                         {logo ? (
                                             <img src={logo} alt={name} className="w-full h-full object-contain" />
                                         ) : (
                                             <span className="text-[9px] font-bold text-slate-400">{name.substring(0, 2).toUpperCase()}</span>
                                         )}
                                     </div>
-                                    <span className={`text-[12px] truncate max-w-[120px] transition-all ${getTeamColor(side)}`}>
+                                    <span className={`text-[12px] truncate max-w-[120px] transition-all dark:text-slate-200 ${getTeamColor(side)}`}>
                                         {name}
                                     </span>
                                 </div>
@@ -261,7 +270,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                                         <span className="text-[10px] font-medium text-slate-400 font-mono">
                                             ({inn.overs})
                                         </span>
-                                        <span className="text-xl font-black text-black tabular-nums tracking-tight">
+                                        <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
                                             {inn.totalRuns}-{inn.totalWickets}
                                         </span>
                                     </div>
@@ -272,14 +281,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                 </div>
 
                 {/* Status Divider */}
-                <div className="w-px bg-slate-100 self-stretch my-1"></div>
+                <div className="w-px bg-slate-100 dark:bg-slate-800 self-stretch my-1"></div>
 
                 <div className="w-24 flex flex-col items-center justify-center text-center px-1">
                     {isLive ? (
                         <div className="flex flex-col items-center gap-1">
                             <div className="flex items-center gap-1.5">
                                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
-                                <span className="text-[11px] font-black text-red-600 uppercase tracking-widest">Live</span>
+                                <span className="text-[11px] font-black text-red-600 dark:text-red-500 uppercase tracking-widest">Live</span>
                             </div>
                         </div>
                     ) : isFinished && parsedResult ? (
@@ -296,7 +305,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">
                                 Starting
                             </span>
-                            <div className="text-[10px] font-black leading-tight uppercase text-black">
+                            <div className="text-[10px] font-black leading-tight uppercase text-slate-900 dark:text-slate-100">
                                 {getStatusText().split(',')[1]?.trim() || getStatusText()}
                             </div>
                         </div>
@@ -305,12 +314,12 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
             </div>
 
             {/* Footer Strip - Toss & Progress & Results */}
-            <div className={`px-4 py-2.5 border-t border-slate-100 flex items-center justify-between min-h-[36px] ${isLive ? 'bg-red-50/40' : 'bg-slate-50/40'}`}>
+            <div className={`px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between min-h-[36px] ${isLive ? 'bg-red-50/40 dark:bg-red-950/20' : 'bg-slate-50/40 dark:bg-slate-800/40'}`}>
                 <div className="text-[10px] font-normal uppercase tracking-tight flex-1">
                     {runsNeededText ? (
-                        <span className="text-blue-600 font-normal">{runsNeededText}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-bold">{runsNeededText}</span>
                     ) : (isLive && isFirstInningsFinished && match.matchPhase === 'FirstInnings') ? (
-                        <span className="text-amber-500 font-normal normal-case">
+                        <span className="text-amber-500 font-bold normal-case">
                             {(() => {
                                 const battedFirst = match.tossWinner === 'teamA'
                                     ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
@@ -321,7 +330,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                             })()}
                         </span>
                     ) : (
-                        <span className="text-black font-normal">
+                        <span className="text-slate-700 dark:text-slate-300 font-medium">
                             {isUpcoming ? getStatusText().split(',')[0].toUpperCase() : tossText || 'Match in progress...'}
                         </span>
                     )}

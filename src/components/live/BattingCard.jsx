@@ -2,6 +2,8 @@
  * Batting Card Component
  * Shows current batsman stats
  */
+import { Link } from 'react-router-dom'
+
 const BattingCard = ({ player, isStriker = false }) => {
   if (!player) {
     return (
@@ -16,6 +18,7 @@ const BattingCard = ({ player, isStriker = false }) => {
   const fours = player.fours || 0
   const sixes = player.sixes || 0
   const strikeRate = balls > 0 ? ((runs / balls) * 100).toFixed(2) : '0.00'
+  const playerId = player.id || player.playerId || player.batsmanId
 
   return (
     <div className={`bg-gradient-to-br ${isStriker ? 'from-blue-50 to-blue-100 border-blue-300' : 'from-slate-50 to-slate-100 border-slate-200'} rounded-xl shadow-lg p-5 border-2`}>
@@ -25,7 +28,16 @@ const BattingCard = ({ player, isStriker = false }) => {
             {player.name?.charAt(0) || 'B'}
           </div>
           <div>
-            <div className="font-bold text-slate-900 text-base">{player.name || 'Batsman'}</div>
+            {playerId ? (
+              <Link
+                to={`/players/${playerId}`}
+                className="font-bold text-slate-900 text-base hover:text-blue-600 transition-colors"
+              >
+                {player.name || 'Batsman'}
+              </Link>
+            ) : (
+              <div className="font-bold text-slate-900 text-base">{player.name || 'Batsman'}</div>
+            )}
             {isStriker && (
               <div className="text-xs text-blue-600 font-semibold mt-0.5">On Strike</div>
             )}

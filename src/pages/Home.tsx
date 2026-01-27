@@ -154,21 +154,21 @@ export default function Home() {
         </div>
 
         {/* SINGLE CURVE SVG - Attached to Bottom */}
-        <div className="absolute bottom-0 left-0 w-full z-10 pointer-events-none translate-y-[1px]">
+        <div className="absolute bottom-0 left-0 w-full z-10 pointer-events-none translate-y-[2px]">
           <svg
             viewBox="0 0 1440 120"
-            className="w-full h-[30px] sm:h-[40px] md:h-[60px] block"
+            className="w-full h-[60px] md:h-[100px] block"
             preserveAspectRatio="none"
           >
-            <path fill="#ffffff" d="M0,64L60,58.7C120,53,240,43,360,48C480,53,600,75,720,80C840,85,960,75,1080,64C1200,53,1320,43,1380,37.3L1440,32L1440,120L0,120Z"></path>
+            <path fill="currentColor" className="text-white dark:text-slate-900" d="M0,64L60,58.7C120,53,240,43,360,48C480,53,600,75,720,80C840,85,960,75,1080,64C1200,53,1320,43,1380,37.3L1440,32L1440,120L0,120Z"></path>
           </svg>
         </div>
 
-        {/* Action Button - Overlapping Curve - Clean No Shadow/Border */}
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-[100]">
+        {/* Action Button - Perfectly Centered on Curve Centerpoint */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[20px] md:translate-y-[35px] z-20">
           <button
             onClick={() => document.getElementById('match-sections')?.scrollIntoView({ behavior: 'smooth' })}
-            className="group relative bg-white text-[#0f172a] px-8 py-2.5 rounded-full font-black uppercase tracking-widest text-[10px] sm:text-xs transition-transform active:scale-95 whitespace-nowrap"
+            className="group relative bg-[#0f172a] dark:bg-teal-500 text-white dark:text-[#0f172a] px-8 py-3 rounded-full font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all hover:scale-105 active:scale-95 shadow-xl shadow-teal-500/20 whitespace-nowrap border-4 border-white dark:border-slate-900"
           >
             Let's Explore
           </button>
@@ -184,30 +184,38 @@ export default function Home() {
           {squads.length > 0 ? (
             <div className="relative w-full overflow-hidden">
               <div className="flex w-max animate-marquee hover:pause gap-8">
-                {[...squads, ...squads].filter(squad => squad && squad.name).map((squad, index) => (
-                  <Link
-                    to={`/squads/${squad.id}`}
-                    key={`${squad.id}-${index}`}
-                    className="flex flex-col items-center gap-2 min-w-[70px] group"
-                  >
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-50 border border-slate-100 p-2 group-hover:border-teal-100 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center">
-                      {squad.logoUrl ? (
-                        <img
-                          src={squad.logoUrl}
-                          alt={squad.name || 'Squad'}
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <span className="text-lg font-bold text-slate-400">
-                          {(squad.name || 'SQ').substring(0, 2).toUpperCase()}
+                {/* Show only teams with logos for a premium brand feel */}
+                {[...squads, ...squads]
+                  .filter(s => s && s.logoUrl && s.name)
+                  .map((squad, index) => {
+                    const formatHomeName = (name: string) => {
+                      if (!name) return '???'
+                      const parts = name.split(/[- ]+/).filter(Boolean)
+                      const label = (parts[0] || '').substring(0, 3).toUpperCase()
+                      // Extract batch from squad object or name
+                      const batch = squad.batch || parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
+                      return batch ? `${label}-${batch}` : label
+                    }
+
+                    return (
+                      <Link
+                        to={`/squads/${squad.id}`}
+                        key={`${squad.id}-${index}`}
+                        className="flex flex-col items-center gap-2 min-w-[70px] group"
+                      >
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center">
+                          <img
+                            src={squad.logoUrl}
+                            alt={squad.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <span className="text-[9px] font-black text-slate-700 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
+                          {formatHomeName(squad.name)}
                         </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-600 truncate max-w-full group-hover:text-teal-600 transition-colors">
-                      {(squad.name || 'Squad').substring(0, 10)}
-                    </span>
-                  </Link>
-                ))}
+                      </Link>
+                    )
+                  })}
               </div>
             </div>
           ) : (

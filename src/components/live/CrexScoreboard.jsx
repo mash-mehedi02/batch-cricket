@@ -29,12 +29,12 @@ const CrexScoreboard = ({
 }) => {
   const battingTeam = currentInnings === 'teamA' ? teamAName : teamBName
   const battingScore = currentInnings === 'teamA' ? teamAScore : teamBScore
-  
+
   // Determine status text
   let statusText = 'Live'
   let statusColor = 'text-yellow-300'
   let statusBg = 'bg-yellow-500/20'
-  
+
   // CRITICAL: If match is finished, show resultSummary (winner side) instead of "Match Ended"
   if (matchStatus === 'Finished' || matchStatus === 'Completed') {
     if (resultSummary) {
@@ -58,7 +58,7 @@ const CrexScoreboard = ({
   }
 
   // Format match title
-  const matchTitle = tournamentName 
+  const matchTitle = tournamentName
     ? `${teamAName} VS ${teamBName}, ${matchFormat || 'ODI'}, ${tournamentName}`
     : `${teamAName} VS ${teamBName}`
 
@@ -85,9 +85,9 @@ const CrexScoreboard = ({
 
         {/* Scoreboard Grid - Responsive - Beautiful Design */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-center mb-6">
-          {/* Left: Batting Team Score - Enhanced */}
-          <div className="flex items-center gap-3 sm:gap-4 bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/20 shadow-lg">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl sm:text-3xl font-bold border-2 border-white/40 shadow-xl">
+          {/* Left: Batting Team Score - Dark Navy Style */}
+          <div className="flex items-center gap-3 sm:gap-4 bg-slate-900/80 backdrop-blur-sm rounded-2xl p-3 sm:p-4 border border-slate-700/50 shadow-xl">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-2xl sm:text-3xl font-bold border-2 border-white/30 shadow-xl">
               {battingTeam.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
@@ -96,12 +96,13 @@ const CrexScoreboard = ({
                 <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-white drop-shadow-lg">
                   {currentScore.runs}-{currentScore.wickets}
                 </span>
-                <span className="text-lg sm:text-xl text-white/90 font-medium">
-                  ({currentScore.overs})
+                <span className="text-lg sm:text-xl text-white/70 font-medium">
+                  {currentScore.overs}
                 </span>
               </div>
             </div>
           </div>
+
 
           {/* Center: Status - Enhanced */}
           <div className="text-center bg-white/10 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-white/20 shadow-lg">
@@ -131,10 +132,10 @@ const CrexScoreboard = ({
               const runsNeeded = target ? Math.max(0, target - currentScore.runs) : null
               const ballsRemaining = oversLimit ? Math.max(0, Math.floor((oversLimit || 50) * 6 - (currentScore.balls || 0))) : null
               const isMatchFinished = (runsNeeded !== null && runsNeeded <= 0) || (ballsRemaining !== null && ballsRemaining === 0)
-              
+
               // Don't show RRR if match is finished
               if (isMatchFinished) return null
-              
+
               return (
                 <div>
                   <div className="text-xs text-white/80 mb-1.5 font-medium uppercase tracking-wide">RRR</div>
@@ -147,7 +148,7 @@ const CrexScoreboard = ({
             {target && matchPhase === 'SecondInnings' && oversLimit && (() => {
               const runsNeeded = Math.max(0, target - currentScore.runs)
               const ballsRemaining = Math.max(0, Math.floor((oversLimit || 50) * 6 - (currentScore.balls || 0)))
-              
+
               if (runsNeeded === 0 || ballsRemaining === 0) {
                 return (
                   <div className={`text-xs text-white/90 mt-3 ${runsNeeded === 0 ? 'bg-green-500/30' : 'bg-red-500/30'} px-3 py-1.5 rounded-lg inline-block`}>
@@ -157,7 +158,7 @@ const CrexScoreboard = ({
                   </div>
                 )
               }
-              
+
               return (
                 <div className="text-xs text-white/90 mt-3 bg-orange-500/20 px-3 py-1.5 rounded-lg inline-block">
                   Need <span className="font-bold">{runsNeeded}</span> runs in <span className="font-bold">{ballsRemaining}</span> balls
@@ -178,11 +179,10 @@ const CrexScoreboard = ({
             <button
               key={tab.id}
               onClick={() => onTabChange && onTabChange(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? 'text-white border-b-2 border-yellow-400 -mb-[2px]'
-                  : 'text-white/70 hover:text-white border-b-2 border-transparent hover:border-white/30'
-              }`}
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${activeTab === tab.id
+                ? 'text-white border-b-2 border-yellow-400 -mb-[2px]'
+                : 'text-white/70 hover:text-white border-b-2 border-transparent hover:border-white/30'
+                }`}
             >
               {tab.label}
               {tab.id === 'live' && matchStatus === 'Live' && (

@@ -3,16 +3,18 @@
  * Screenshot-based design with dark green header, tabs, recent form, career stats
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
+import { db } from '@/config/firebase'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
-import { matchService } from '@/services/firestore/matches'
 import { Player } from '@/types'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
-import { playerMatchStatsService } from '@/services/firestore/playerMatchStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 import cricketBatIcon from '@/assets/cricket-bat.png'
+import cricketBallIcon from '@/assets/cricket-ball.png'
+
 
 
 // Helper to format role names consistently
@@ -25,150 +27,286 @@ function formatRole(player: any): string {
   return role.charAt(0).toUpperCase() + role.slice(1)
 }
 
+// Helper to format opponent name
+function formatOpponentName(rawName: string): string {
+  if (!rawName || rawName === 'Opponent' || rawName === 'Unknown') return 'OPP'
+
+  const parts = rawName.split('-')
+  const teamPart = parts[0].trim()
+  const suffix = parts.length > 1 ? ` - ${parts.slice(1).join('-').trim()}` : ''
+
+  // Clean up common prefixes/suffixes
+  const cleanName = teamPart.replace(/(Academy|Cricket Club|School|High School|XI)/gi, '').trim() || teamPart
+
+  const words = cleanName.split(/\s+/)
+  let shortName = ''
+
+  if (words.length === 1) {
+    shortName = words[0].substring(0, 3).toUpperCase()
+  } else {
+    shortName = words.slice(0, 3).map(w => w[0]).join('').toUpperCase()
+  }
+
+  return `${shortName}${suffix}`
+}
+
 export default function PlayerProfile() {
   const { playerId } = useParams<{ playerId: string }>()
   const [player, setPlayer] = useState<Player | null>(null)
   const [squadName, setSquadName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
-  const [liveEntries, setLiveEntries] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
 
+  // Real-time states
+  const [allMatches, setAllMatches] = useState<any[]>([])
+  const [dbStats, setDbStats] = useState<any[]>([])
+  const [liveData, setLiveData] = useState<Record<string, any>>({})
+
+  // 1. Listen to ALL matches (to handle deletions instantly)
+  useEffect(() => {
+    const q = collection(db, 'matches')
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      setAllMatches(matches)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  // 2. Listen to ALL playerMatchStats for this player
+  useEffect(() => {
+    if (!playerId) return
+    const q = query(collection(db, 'playerMatchStats'), where('playerId', '==', playerId))
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const stats = snapshot.docs.map(doc => doc.data())
+      setDbStats(stats)
+    })
+    return () => unsubscribe()
+  }, [playerId])
+
+  // 3. Listen to Live Matches and their Innings
   useEffect(() => {
     if (!playerId) return
 
-    const loadPlayerData = async () => {
+    // Listen for matches with status 'live' or 'Live'
+    const q = query(collection(db, 'matches'), where('status', 'in', ['live', 'Live']))
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docs.forEach((matchDoc) => {
+        // Listen to both innings for this match
+        onSnapshot(doc(db, 'matches', matchDoc.id, 'innings', 'teamA'), (docSnap) => {
+          if (docSnap.exists()) {
+            setLiveData(prev => ({ ...prev, [`${matchDoc.id}_teamA`]: docSnap.data() }))
+          }
+        })
+        onSnapshot(doc(db, 'matches', matchDoc.id, 'innings', 'teamB'), (docSnap) => {
+          if (docSnap.exists()) {
+            setLiveData(prev => ({ ...prev, [`${matchDoc.id}_teamB`]: docSnap.data() }))
+          }
+        })
+      })
+    })
+    return () => unsubscribe()
+  }, [playerId])
+
+  // 4. Load basic player and squad info
+  useEffect(() => {
+    if (!playerId) return
+    const loadBasic = async () => {
       try {
         const playerData = await playerService.getById(playerId)
         if (playerData) {
           setPlayer(playerData)
-
-          // Load squad name
           if (playerData.squadId) {
-            try {
-              const squad = await squadService.getById(playerData.squadId)
-              if (squad) setSquadName(squad.name)
-            } catch (err) { }
-          }
-
-          const cs = (playerData as any).careerStats
-          const pm = Array.isArray(playerData.pastMatches) ? playerData.pastMatches : []
-          const hasPm = pm.length > 0
-          const needsSync = !cs || (Number(cs.matches || 0) === 0 && hasPm)
-
-          if (needsSync && hasPm) {
-            try {
-              console.log('[PlayerProfile] Syncing historical matches to career collection...')
-              await playerMatchStatsService.migrateFromPastMatches(playerId, pm)
-              const refreshed = await playerService.getById(playerId)
-              if (refreshed) setPlayer(refreshed)
-            } catch (e) {
-              console.warn('[PlayerProfile] Migration failed:', e)
-            }
-          } else if (!cs) {
-            try {
-              await playerMatchStatsService.aggregateCareerStats(playerId)
-              const refreshed = await playerService.getById(playerId)
-              if (refreshed) setPlayer(refreshed)
-            } catch (e) {
-              console.warn('[PlayerProfile] aggregateCareerStats fallback failed:', e)
-            }
+            const squad = await squadService.getById(playerData.squadId)
+            if (squad) setSquadName(squad.name)
           }
         }
-      } catch (error) {
-        console.error('Error loading player:', error)
-      } finally {
-        setLoading(false)
+      } catch (err) { }
+      setLoading(false)
+    }
+    loadBasic()
+  }, [playerId])
+
+  // 5. CALCULATE EVERYTHING REACTIVELY
+  const { mergedMatches, careerStats } = useMemo(() => {
+    if (!player) return { mergedMatches: [], careerStats: null }
+
+    const validMatchMap = new Map(allMatches.map(m => [m.id, m]))
+    // Process Live Data for this player
+    const processedLiveEntries: any[] = []
+    allMatches.forEach(m => {
+      // Rule 1: Match must have started (at least one innings doc must exist or match marked as live)
+      const hasStarted = m.status?.toLowerCase() === 'live' || m.status?.toLowerCase() === 'completed' || m.ballsBowled > 0 || m.overs > 0
+      if (!hasStarted) return
+
+      const xiA: string[] = m.teamAPlayingXI || []
+      const xiB: string[] = m.teamBPlayingXI || []
+      const inA = xiA.includes(playerId || '')
+      const inB = xiB.includes(playerId || '')
+      if (!inA && !inB) return
+
+      const mySide = inA ? 'teamA' : 'teamB'
+      const oppSide = inA ? 'teamB' : 'teamA'
+      const myInnings = liveData[`${m.id}_${mySide}`]
+      const oppInnings = liveData[`${m.id}_${oppSide}`]
+
+      const batsStat = myInnings?.batsmanStats?.find((b: any) => b.batsmanId === playerId)
+      const isOut = (myInnings?.fallOfWickets || []).some((f: any) => f.batsmanId === playerId)
+      const bowlStat = oppInnings?.bowlerStats?.find((bw: any) => bw.bowlerId === playerId)
+
+      const opponentName = inA ? (m.teamBName || m.teamB || 'Opponent') : (m.teamAName || m.teamA || 'Opponent')
+
+      const b = Number(batsStat?.balls || 0)
+      const bb = Number(bowlStat?.ballsBowled || 0)
+
+      const entry = {
+        matchId: m.id,
+        opponentName,
+        date: m.date || new Date().toISOString(),
+        result: m.result || (m.status?.toLowerCase() === 'live' ? 'Live' : ''),
+        isLive: m.status?.toLowerCase() === 'live',
+        runs: Number(batsStat?.runs || 0),
+        balls: b,
+        fours: Number(batsStat?.fours || 0),
+        sixes: Number(batsStat?.sixes || 0),
+        notOut: Boolean(batsStat) && !isOut,
+        out: isOut,
+        wickets: Number(bowlStat?.wickets || 0),
+        runsConceded: Number(bowlStat?.runsConceded || 0),
+        ballsBowled: bb,
+        oversBowled: bowlStat?.overs || (bb / 6),
+        // Strict Participation Rules (Only counts as innings if they actually did something)
+        batted: b > 0 || isOut,
+        bowled: bb > 0 || (bowlStat?.overs && Number(bowlStat.overs) > 0),
+        inPlayingXI: true // Rule: they are in Playing XI and match started
+      }
+      processedLiveEntries.push(entry)
+    })
+
+    // Filter DB stats for only existing matches (handle deletions)
+    const validDbStatsFiltered = dbStats.filter(s => validMatchMap.has(s.matchId))
+
+    // To prevent double counting and ensure matches count even if no stats documented yet in playerMatchStats
+    // We combine them but use matchId as unique key
+    const uniqueMatchStats = new Map<string, any>()
+
+    // 1. Add DB stats first
+    validDbStatsFiltered.forEach(s => {
+      uniqueMatchStats.set(s.matchId, { ...s, inPlayingXI: true })
+    })
+
+    // 2. Add/Override with Live stats
+    processedLiveEntries.forEach(l => {
+      uniqueMatchStats.set(l.matchId, l)
+    })
+
+    const finalCombinedList = Array.from(uniqueMatchStats.values())
+
+    // Recalculate Career Totals
+    let batt = { innings: 0, runs: 0, balls: 0, outs: 0, fours: 0, sixes: 0, highest: 0, isHighestNotOut: false, fifties: 0, hundreds: 0, ducks: 0 }
+    let bowl = { innings: 0, balls: 0, runs: 0, wickets: 0, bestW: 0, bestR: 0, threeW: 0, fiveW: 0, maidens: 0 }
+
+    finalCombinedList.forEach(s => {
+      const r = Number(s.runs || 0)
+      const b = Number(s.balls || 0)
+      const isActuallyOut = s.out === true || (s.notOut === false && b > 0)
+      const isActuallyNotOut = s.notOut === true || (s.out === false && b > 0)
+
+      // Batting Innings Rule: Only if faced ball or dismissed
+      if (b > 0 || isActuallyOut) {
+        batt.innings++
+        batt.runs += r
+        batt.balls += b
+        batt.fours += Number(s.fours || 0)
+        batt.sixes += Number(s.sixes || 0)
+        if (isActuallyOut) batt.outs++
+
+        if (r > batt.highest) {
+          batt.highest = r
+          batt.isHighestNotOut = isActuallyNotOut
+        } else if (r === batt.highest && isActuallyNotOut) {
+          batt.isHighestNotOut = true
+        }
+
+        if (r >= 100) batt.hundreds++
+        else if (r >= 50) batt.fifties++
+
+        if (r === 0 && isActuallyOut) batt.ducks++
+      }
+
+      // Bowling Innings Rule: Only if bowled a ball
+      const bb = Number(s.ballsBowled || (Number(s.oversBowled || 0) * 6) || 0)
+      if (bb > 0) {
+        bowl.innings++
+        bowl.balls += bb
+        const rc = Number(s.runsConceded || 0)
+        const wkts = Number(s.wickets || 0)
+        bowl.runs += rc
+        bowl.wickets += wkts
+
+        // Best Bowling Figures
+        if (wkts > bowl.bestW) {
+          bowl.bestW = wkts
+          bowl.bestR = rc
+        } else if (wkts === bowl.bestW) {
+          if (bowl.bestW > 0 && rc < bowl.bestR) {
+            bowl.bestR = rc
+          } else if (bowl.bestW === 0) {
+            // If still 0 wickets, just track the one with least runs
+            if (bowl.bestR === 0 || rc < bowl.bestR) bowl.bestR = rc
+          }
+        }
+
+        if (wkts >= 5) bowl.fiveW++
+        else if (wkts >= 3) bowl.threeW++
+
+        // Maidens logic: if overs recorded and runs conceded is 0 for that over (simplified)
+        // In full engine, we'd check over-by-over, but here we can check s.maidens if provided by backend
+        bowl.maidens += Number(s.maidens || (wkts > 0 && rc === 0 ? 1 : 0))
+      }
+    })
+
+    const bowlBest = bowl.bestW > 0 || bowl.bestR > 0 ? `${bowl.bestW}-${bowl.bestR}` : '0-0'
+
+    const career = {
+      matches: finalCombinedList.length,
+      batting: {
+        ...batt,
+        average: batt.outs > 0 ? batt.runs / batt.outs : (batt.runs > 0 ? batt.runs : 0),
+        strikeRate: batt.balls > 0 ? (batt.runs / batt.balls) * 100 : 0,
+        highestScore: batt.highest,
+        isHighestNotOut: batt.isHighestNotOut
+      },
+      bowling: {
+        ...bowl,
+        overs: bowl.balls / 6,
+        economy: bowl.balls > 0 ? (bowl.runs / (bowl.balls / 6)) : 0,
+        average: bowl.wickets > 0 ? bowl.runs / bowl.wickets : 0,
+        best: bowlBest,
+        wickets: bowl.wickets,
+        runsConceded: bowl.runs
       }
     }
 
-    loadPlayerData()
-  }, [playerId])
+    // Prepare match list for display
+    const mergedForDisplay = finalCombinedList.map(s => {
+      const m = validMatchMap.get(s.matchId)
+      return {
+        ...s,
+        opponentName: s.opponentName || (m ? (m.teamAId === player.squadId ? m.teamBName : m.teamAName) : 'Opponent'),
+        date: s.date || m?.date,
+        result: s.result || m?.result || '',
+      }
+    }).sort((a, b) => {
+      if (a.isLive && !b.isLive) return -1
+      if (!a.isLive && b.isLive) return 1
+      const da = a.date ? new Date(a.date).getTime() : 0
+      const db = b.date ? new Date(b.date).getTime() : 0
+      return db - da
+    })
 
-  // Include live matches in career stats (counts as match if in Playing XI)
-  useEffect(() => {
-    const loadLiveEntries = async () => {
-      try {
-        if (!playerId) return
-        const liveMatches = await matchService.getLiveMatches()
-        const entries: any[] = []
-        for (const m of liveMatches) {
-          const xiA: string[] = (m as any).teamAPlayingXI || []
-          const xiB: string[] = (m as any).teamBPlayingXI || []
-          const inA = xiA.includes(playerId)
-          const inB = xiB.includes(playerId)
-          if (!inA && !inB) continue
-
-          const opponentName = inA ? ((m as any).teamBName || (m as any).teamB || 'Opponent') : ((m as any).teamAName || (m as any).teamA || 'Opponent')
-          const opponentId = inA ? ((m as any).teamBId || (m as any).teamBSquadId || '') : ((m as any).teamAId || (m as any).teamASquadId || '')
-          const [innA, innB] = await Promise.all([
-            matchService.getInnings(m.id, 'teamA').catch(() => null),
-            matchService.getInnings(m.id, 'teamB').catch(() => null),
-          ])
-
-          const batsmanFrom = (side: 'teamA' | 'teamB') => (side === 'teamA' ? innA : innB)
-          const bowlerFrom = (side: 'teamA' | 'teamB') => (side === 'teamA' ? innB : innA)
-          const mySide: 'teamA' | 'teamB' = inA ? 'teamA' : 'teamB'
-          const bInnings = batsmanFrom(mySide)
-          const bowlInnings = bowlerFrom(mySide)
-
-          const batsStat = bInnings?.batsmanStats?.find((b: any) => b.batsmanId === playerId)
-          const fowHit = (bInnings?.fallOfWickets || []).some((f: any) => (f.batsmanId === playerId))
-          const batted = Boolean(batsStat || fowHit)
-          const balls = Number(batsStat?.balls || 0)
-          const runs = Number(batsStat?.runs || 0)
-          const notOut = Boolean(batsStat?.notOut) && !fowHit
-
-          const bowlStat = bowlInnings?.bowlerStats?.find((bw: any) => bw.bowlerId === playerId)
-          const bowled = Boolean(bowlStat)
-          const ballsBowled = Number(bowlStat?.ballsBowled || 0)
-          const wickets = Number(bowlStat?.wickets || 0)
-          const runsConceded = Number(bowlStat?.runsConceded || 0)
-
-          entries.push({
-            matchId: m.id,
-            opponentName,
-            opponentSquadId: opponentId,
-            date: (m as any).date || new Date().toISOString(),
-            result: 'Live',
-            played: true,
-            isLive: true,
-            batted,
-            bowled,
-            // Batting
-            runs,
-            balls,
-            fours: Number(batsStat?.fours || 0),
-            sixes: Number(batsStat?.sixes || 0),
-            notOut,
-            dismissal: batsStat?.dismissal || null,
-            batting: {
-              runs,
-              balls,
-              fours: Number(batsStat?.fours || 0),
-              sixes: Number(batsStat?.sixes || 0),
-              strikeRate: balls > 0 ? (runs / balls) * 100 : 0,
-              notOut,
-              dismissal: batsStat?.dismissal || null,
-            },
-            // Bowling
-            wickets,
-            ballsBowled,
-            runsConceded,
-            overs: ballsBowled > 0 ? `${Math.floor(ballsBowled / 6)}.${ballsBowled % 6}` : undefined,
-            bowling: bowled ? {
-              wickets,
-              ballsBowled,
-              runsConceded,
-              overs: ballsBowled > 0 ? `${Math.floor(ballsBowled / 6)}.${ballsBowled % 6}` : undefined,
-            } : undefined,
-          })
-        }
-        setLiveEntries(entries)
-      } catch { }
-    }
-    loadLiveEntries()
-  }, [playerId])
+    return { mergedMatches: mergedForDisplay, careerStats: career }
+  }, [player, allMatches, dbStats, liveData, playerId])
 
   if (loading) {
     return <PlayerProfileSkeleton />
@@ -190,7 +328,6 @@ export default function PlayerProfile() {
     )
   }
 
-  // Calculate age from date of birth
   const age = player.dateOfBirth
     ? Math.floor((new Date().getTime() - new Date(player.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null
@@ -201,44 +338,17 @@ export default function PlayerProfile() {
     { id: 'player-info', label: 'Player Info' },
   ]
 
-  // Merge legacy pastMatches array and new collection entries uniquely
-  const allMatchesMap = new Map<string, any>()
-
-    // 1. Load legacy matches from player doc
-    ; (player?.pastMatches || []).forEach((m: any) => {
-      const mid = m.matchId || m.id
-      if (mid) allMatchesMap.set(String(mid), m)
-    })
-
-  // 2. Override/Supplement with collection data (primary source of truth)
-  liveEntries.forEach((m: any) => {
-    const mid = m.matchId || m.id
-    if (mid) {
-      const existing = allMatchesMap.get(String(mid))
-      allMatchesMap.set(String(mid), {
-        ...existing,
-        ...m,
-        // Keep descriptive fields from legacy if missing in collection doc
-        opponent: m.opponentName || m.opponent || existing?.opponentName || existing?.opponent || 'Opponent',
-        matchId: mid
-      })
-    }
-  })
-
-  const pastMatches = Array.from(allMatchesMap.values())
-    .sort((a, b) => (b.date || 0) < (a.date || 0) ? -1 : 1)
-
-  const career = (player as any)?.careerStats || {}
-  const batting = career.batting || {}
-  const bowling = career.bowling || {}
-
-  // Filter matches based on viewMode
-  const filteredMatches = pastMatches
+  // Filter matches based on viewMode - only show if they actually participated (min 1 ball)
+  const filteredMatches = mergedMatches
     .filter((m: any) => {
-      const mid = m.matchId || m.id
-      if (!mid) return false
-      if (viewMode === 'batting') return m.runs !== undefined || m.batting?.runs !== undefined || m.batted
-      if (viewMode === 'bowling') return m.wickets !== undefined || m.bowling?.wickets !== undefined || m.bowled || m.oversBowled > 0
+      if (viewMode === 'batting') {
+        const b = Number(m.balls || 0)
+        return b > 0 || m.out
+      }
+      if (viewMode === 'bowling') {
+        const bb = Number(m.ballsBowled || (Number(m.oversBowled || 0) * 6) || 0)
+        return bb > 0
+      }
       return true
     })
 
@@ -246,42 +356,68 @@ export default function PlayerProfile() {
   const recentForm = filteredMatches
     .slice(0, 10) // Show up to 10 last matches
     .map((match: any) => {
-      const runs = match.runs ?? match.batting?.runs ?? 0
-      const balls = match.balls ?? match.batting?.balls ?? 0
-      const isNotOut = match.notOut ?? match.batting?.notOut ?? false
-      const matchId = match.matchId || match.id
-
-      const wickets = match.wickets ?? match.bowling?.wickets ?? 0
-      const runsConceded = match.runsConceded ?? match.bowling?.runsConceded ?? 0
-
       return {
-        runs: typeof runs === 'number' ? runs : (Number(runs) || 0),
-        balls: typeof balls === 'number' ? balls : (Number(balls) || 0),
-        isNotOut,
-        wickets,
-        runsConceded,
-        opponent: match.opponentName || match.opponent || 'Opponent',
-        matchId: matchId,
+        runs: Number(match.runs || 0),
+        balls: Number(match.balls || 0),
+        isNotOut: match.notOut === true || (match.out === false && Number(match.balls || 0) > 0),
+        wickets: Number(match.wickets || 0),
+        runsConceded: Number(match.runsConceded || 0),
+        opponent: match.opponentName || 'Opponent',
+        matchId: match.matchId,
       }
     })
 
   // Prioritize calculated stats derived from history & live data
-  const matches = Number(career.matches || 0)
-  const runs = Number(batting.runs || 0)
-  const average = Number(batting.average || 0) > 0 ? Number(batting.average).toFixed(2) : runs ? (Number(runs / (Number(batting.innings || 0) - Number(batting.notOut || 0))).toFixed(2)) : '-'
-  const strikeRate = Number(batting.strikeRate || 0) > 0 ? Number(batting.strikeRate).toFixed(2) : '0.00'
-  const highestScore = (batting as any).highestScore !== undefined ? (batting as any).highestScore : '-'
-  const hundreds = Number((batting as any).hundreds || 0)
-  const fifties = Number((batting as any).fifties || 0)
-  const fours = Number(batting.fours || 0)
-  const sixes = Number(batting.sixes || 0)
-  const wickets = Number(bowling.wickets || 0)
-  const runsConceded = Number(bowling.runsConceded || 0)
-  const economy = Number(bowling.economy || 0) > 0 ? Number(bowling.economy).toFixed(2) : '0.00'
-  const bowlingAverage = wickets > 0 ? (runsConceded / wickets).toFixed(2) : '0.00'
+  const matchesCount = Number(careerStats?.matches || 0)
+  const battingStats = careerStats?.batting
+  const bowlingStats = careerStats?.bowling
+
+  // Batting Stats
+  const battingInnings = Number(battingStats?.innings || 0)
+  const runs = Number(battingStats?.runs || 0)
+  const averageValue = Number(battingStats?.average || 0)
+  const average = averageValue > 0 ? averageValue.toFixed(1) : (runs > 0 ? runs : '-')
+  const strikeRate = Number(battingStats?.strikeRate || 0).toFixed(1)
+  const highestScoreRaw = battingStats?.highestScore
+  const isHighestNotOut = battingStats?.isHighestNotOut
+
+  const highestScore = highestScoreRaw !== undefined ? (
+    <span className="relative">
+      {highestScoreRaw}
+      {isHighestNotOut && <span className="absolute -top-1 -right-2 text-[10px] text-slate-900 font-bold">*</span>}
+    </span>
+  ) : '-'
+
+  const hundreds = Number(battingStats?.hundreds || 0)
+  const fifties = Number(battingStats?.fifties || 0)
+  const fours = Number(battingStats?.fours || 0)
+  const sixes = Number(battingStats?.sixes || 0)
+
+  // Bowling Stats
+  const bowlingInnings = Number(bowlingStats?.innings || 0)
+  const wickets = Number(bowlingStats?.wickets || 0)
+  const economy = Number(bowlingStats?.economy || 0).toFixed(1)
+  const bowlingAverage = wickets > 0 ? Number(bowlingStats?.average || 0).toFixed(1) : '-'
+  const bowlingBest = bowlingStats?.best || '0-0'
+  const threeW = Number(bowlingStats?.threeW || 0)
+  const fiveW = Number(bowlingStats?.fiveW || 0)
+  const maidens = Number(bowlingStats?.maidens || 0)
+  const ducks = Number(battingStats?.ducks || 0)
+
+  // Internal component for career grid cells
+  const StatCell = ({ label, value, highlight, labelSmall }: { label: string, value: any, highlight?: boolean, labelSmall?: boolean }) => (
+    <div className="flex flex-col items-center justify-center py-7 px-1 text-center">
+      <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600' : 'text-slate-800'}`}>
+        {value}
+      </div>
+      <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 uppercase tracking-tight`}>
+        {label}
+      </div>
+    </div>
+  )
 
   return (
-    <div className="min-h-screen bg-slate-50 relative pb-24">
+    <div className="min-h-screen bg-white relative pb-24">
       {/* Premium Dark Header */}
       <div className="bg-slate-950 text-white relative overflow-hidden">
         {/* Decorative elements */}
@@ -364,138 +500,113 @@ export default function PlayerProfile() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            {/* Recent Form Cards - MOVED TO TOP */}
             {recentForm.length > 0 && (
-              <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 p-6 md:p-8 border border-slate-200 animate-in slide-in-from-bottom-4 duration-700">
-                <div className="flex items-center justify-between mb-6 md:mb-8">
-                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-sm">🔥</span>
-                    Recent Performance
+              <div className="animate-in slide-in-from-bottom-4 duration-700 mb-8">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                    Recent Form <span className="text-slate-400 font-bold text-sm ml-1">(Last 10)</span>
                   </h3>
-                  {pastMatches.length > 5 && (
-                    <button onClick={() => setActiveTab('matches')} className="text-emerald-600 text-[10px] md:text-xs font-black uppercase tracking-widest hover:underline">
-                      View All History →
-                    </button>
-                  )}
+                  <button onClick={() => setActiveTab('matches')} className="text-blue-600 text-sm font-bold hover:underline">
+                    See More
+                  </button>
                 </div>
-                <div className="flex flex-nowrap overflow-x-auto gap-3 md:gap-4 pb-4 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                <div className="flex flex-nowrap overflow-x-auto gap-3 pb-2 scrollbar-none">
                   {recentForm.map((form, idx) => (
                     <Link
                       key={idx}
                       to={`/match/${form.matchId}`}
-                      className={`group p-4 md:p-5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:border-emerald-500 hover:shadow-lg transition-all animate-in slide-in-from-bottom-4 duration-500 shrink-0 w-[140px] md:w-[160px]`}
-                      style={{ transitionDelay: `${idx * 100}ms` }}
+                      className="group flex flex-col justify-center items-center p-4 bg-white rounded-2xl shrink-0 min-w-[125px] h-[105px] text-center shadow-sm border border-slate-100 transition-all hover:shadow-md hover:border-blue-200"
                     >
-                      <div className="text-xl md:text-2xl font-black text-slate-900 mb-0.5 group-hover:text-emerald-600">
+                      <div className="flex items-baseline justify-center gap-1.5 mb-2">
                         {viewMode === 'batting' ? (
                           <>
-                            {form.runs}{form.isNotOut ? '*' : ''}
-                            <span className="text-[10px] md:text-xs text-slate-400 font-bold ml-1.5 opacity-60 group-hover:opacity-100">({form.balls})</span>
+                            <span className="text-slate-800 text-2xl font-bold relative leading-none">
+                              {form.runs}
+                              {form.isNotOut && (
+                                <span className="absolute -top-1 -right-3 text-[14px] font-bold text-slate-900">
+                                  *
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[12px] font-bold text-slate-600 leading-none">({form.balls})</span>
                           </>
                         ) : (
                           <>
-                            {form.wickets}/{form.runsConceded}
-                            <span className="text-[10px] md:text-xs text-slate-400 font-bold ml-1.5 opacity-60 group-hover:opacity-100">{form.matchId.toString().startsWith('live') ? '' : ''}</span>
+                            <span className="text-slate-800 text-2xl font-bold leading-none">
+                              {form.wickets}
+                            </span>
+                            <span className="text-slate-400 text-lg font-bold leading-none mx-0.5">-</span>
+                            <span className="text-slate-800 text-xl font-bold leading-none">
+                              {form.runsConceded}
+                            </span>
                           </>
                         )}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2 md:mb-3">
-                        {viewMode === 'batting' ? 'Runs (Balls)' : 'Wkts/Runs'}
+                      <div className="text-slate-600 text-[11px] font-bold uppercase tracking-tight truncate w-full px-1">
+                        {formatOpponentName(form.opponent)}
                       </div>
-                      <div className="text-[10px] md:text-xs text-slate-600 font-bold truncate">vs {form.opponent}</div>
                     </Link>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Career Summary Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 overflow-hidden">
-              {(viewMode === 'batting' ? [
-                { label: 'Matches', value: matches, icon: '🏟️', delay: 'delay-0' },
-                { label: 'Total Runs', value: runs, icon: '🏏', delay: 'delay-100' },
-                { label: 'Average', value: average, icon: '📈', delay: 'delay-200' },
-                { label: 'Strike Rate', value: strikeRate, icon: '⚡', delay: 'delay-300' },
-              ] : [
-                { label: 'Matches', value: matches, icon: '🏟️', delay: 'delay-0' },
-                { label: 'Wickets', value: wickets, icon: '⚽', highlight: true, delay: 'delay-100' },
-                { label: 'Economy', value: economy, icon: '📉', delay: 'delay-200' },
-                { label: 'Average', value: bowlingAverage, icon: '📊', delay: 'delay-300' },
-              ]).map((item, i) => (
-                <div key={i} className={`bg-white p-5 md:p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group animate-in zoom-in-95 duration-500 ${item.delay}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm">{item.icon}</span>
-                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{item.label}</div>
-                  </div>
-                  <div className={`text-2xl md:text-3xl font-black ${item.highlight ? 'text-emerald-600' : 'text-slate-900'}`}>{item.value}</div>
-                </div>
-              ))}
+            {/* Career Title */}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span className="capitalize">{viewMode} Career</span>
+                <img src={viewMode === 'batting' ? cricketBatIcon : cricketBallIcon} className="w-5 h-5 object-contain" alt="" />
+              </h3>
             </div>
 
-            {/* Career Stats Detail */}
-            <div className="grid grid-cols-1 gap-8">
-              {/* Batting Analytics */}
-              {viewMode === 'batting' && (
-                <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 p-8 border border-slate-200 relative overflow-hidden group animate-in fade-in duration-700">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full pointer-events-none opacity-40 group-hover:scale-150 transition-transform duration-700"></div>
-                  <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-sm">🏏</span>
-                    Batting Analytics
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {[
-                      { label: 'Runs', value: runs },
-                      { label: 'H. Score', value: highestScore },
-                      { label: 'Avg', value: average },
-                      { label: 'S. Rate', value: strikeRate },
-                      { label: '50s', value: fifties },
-                      { label: '100s', value: hundreds },
-                    ].map((s, i) => (
-                      <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{s.label}</div>
-                        <div className="text-xl font-black text-slate-900">{s.value}</div>
-                      </div>
-                    ))}
+            {/* Premium Career Grid Design */}
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden mb-8">
+              {viewMode === 'batting' ? (
+                <div className="divide-y divide-slate-200">
+                  {/* Row 1 */}
+                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                    <StatCell label="Matches" value={matchesCount} />
+                    <StatCell label="Innings" value={battingInnings} />
+                    <StatCell label="Runs" value={runs} />
+                    <StatCell label="Highest Score" value={highestScore} highlight labelSmall />
                   </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                      <div>
-                        <div className="text-emerald-600 text-[10px] font-black uppercase tracking-widest mb-1">Fours</div>
-                        <div className="text-2xl font-black text-emerald-700">{fours}</div>
-                      </div>
-                      <span className="text-xl">💥</span>
-                    </div>
-                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                      <div>
-                        <div className="text-emerald-600 text-[10px] font-black uppercase tracking-widest mb-1">Sixes</div>
-                        <div className="text-2xl font-black text-emerald-700">{sixes}</div>
-                      </div>
-                      <span className="text-xl">🚀</span>
-                    </div>
+                  {/* Row 2 */}
+                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                    <StatCell label="100s" value={hundreds} />
+                    <StatCell label="50s" value={fifties} />
+                    <StatCell label="SR" value={strikeRate} />
+                    <StatCell label="Avg" value={average} />
+                  </div>
+                  {/* Row 3 */}
+                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                    <StatCell label="Fours" value={fours} />
+                    <StatCell label="Sixes" value={sixes} />
+                    <StatCell label="Duck Out" value={ducks} />
+                    <StatCell label="Rank" value="#--" />
                   </div>
                 </div>
-              )}
-
-              {/* Bowling Analytics */}
-              {viewMode === 'bowling' && (
-                <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 p-8 border border-slate-200 relative overflow-hidden group animate-in fade-in duration-700">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full pointer-events-none opacity-40 group-hover:scale-150 transition-transform duration-700"></div>
-                  <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-sm">⚽</span>
-                    Bowling Analytics
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-                    {[
-                      { label: 'Wickets', value: wickets, highlight: true },
-                      { label: 'Economy', value: economy },
-                      { label: 'Average', value: bowlingAverage },
-                      { label: 'Runs Conc.', value: runsConceded },
-                    ].map((s, i) => (
-                      <div key={i} className={`p-4 rounded-2xl border ${s.highlight ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'}`}>
-                        <div className={`${s.highlight ? 'text-blue-600' : 'text-slate-400'} text-[10px] font-black uppercase tracking-widest mb-1`}>{s.label}</div>
-                        <div className={`text-xl font-black ${s.highlight ? 'text-blue-700' : 'text-slate-900'}`}>{s.value}</div>
-                      </div>
-                    ))}
+              ) : (
+                <div className="divide-y divide-slate-200">
+                  {/* Row 1 */}
+                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                    <StatCell label="Matches" value={matchesCount} />
+                    <StatCell label="Innings" value={bowlingInnings} />
+                    <StatCell label="Wickets" value={wickets} />
+                    <StatCell label="Best" value={bowlingBest} />
+                  </div>
+                  {/* Row 2 */}
+                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                    <StatCell label="Econ" value={economy} />
+                    <StatCell label="3 Wkt" value={threeW} />
+                    <StatCell label="5 Wkt" value={fiveW} />
+                    <StatCell label="Avg" value={bowlingAverage} />
+                  </div>
+                  {/* Row 3 */}
+                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                    <StatCell label="SR" value={bowlingAverage !== '-' ? (Number(bowlingInnings * 6) / (wickets || 1)).toFixed(1) : '-'} />
+                    <StatCell label="Maiden" value={maidens > 0 ? maidens : '--'} />
+                    <StatCell label="Rank" value="#--" />
+                    <StatCell label="" value="" />
                   </div>
                 </div>
               )}
@@ -522,7 +633,7 @@ export default function PlayerProfile() {
                 {filteredMatches.slice().map((match: any, idx: number) => {
                   const matchId = match.matchId || match.id
                   if (!matchId) return null
-                  const isNotOut = match.notOut ?? match.batting?.notOut ?? false
+                  const isNotOut = match.notOut === true || (match.out === false && Number(match.balls || 0) > 0)
 
                   return (
                     <Link
@@ -544,8 +655,11 @@ export default function PlayerProfile() {
                               <div className="text-sm text-slate-500 font-bold">
                                 {viewMode === 'batting' ? (
                                   <>
-                                    <span className="text-slate-900 font-black">{match.runs ?? match.batting?.runs ?? 0}{isNotOut ? '*' : ''}</span>
-                                    <span className="ml-1 opacity-60">({match.balls ?? match.batting?.balls ?? 0} balls)</span>
+                                    <span className="text-slate-900 font-extrabold relative">
+                                      {match.runs ?? match.batting?.runs ?? 0}
+                                      {isNotOut && <span className="absolute -top-1 -right-2 text-[10px] text-emerald-600">*</span>}
+                                    </span>
+                                    <span className="ml-2 text-xs opacity-60 font-medium">({match.balls ?? match.batting?.balls ?? 0} balls)</span>
                                   </>
                                 ) : (
                                   <>
@@ -612,22 +726,22 @@ export default function PlayerProfile() {
         <button
           onClick={() => setViewMode('batting')}
           className={`w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
-            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'
+            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-110'
+            : 'hover:bg-white/5 opacity-50'
             }`}
           title="Batting Stats"
         >
-          <img src={cricketBatIcon} alt="Batting" className={`w-7 h-7 object-contain transition-all ${viewMode === 'batting' ? 'brightness-0 invert' : 'opacity-60'}`} />
+          <img src={cricketBatIcon} alt="Batting" className="w-7 h-7 object-contain" />
         </button>
         <button
           onClick={() => setViewMode('bowling')}
           className={`w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'bowling'
-            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'
+            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-110'
+            : 'hover:bg-white/5 opacity-50'
             }`}
           title="Bowling Stats"
         >
-          <span className="text-xl text-center">⚽</span>
+          <img src={cricketBallIcon} alt="Bowling" className="w-7 h-7 object-contain" />
         </button>
       </div>
     </div>

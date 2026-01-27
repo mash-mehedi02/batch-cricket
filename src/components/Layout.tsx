@@ -4,9 +4,11 @@
  */
 
 import React, { ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import schoolConfig from '@/config/school'
+import { useThemeStore } from '@/store/themeStore'
+import { Search, Command, Home, Calendar, Trophy, Users, User as UserIcon, Zap, Moon, Sun, X } from 'lucide-react'
 
 interface LayoutProps {
   children: ReactNode
@@ -14,8 +16,22 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, logout } = useAuthStore()
+  const { isDarkMode, toggleDarkMode } = useThemeStore()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
+
+  // Handle keyboard shortcut for search
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        navigate('/search')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [navigate])
 
   const isActive = (path: string) => location.pathname === path
 
@@ -26,9 +42,9 @@ export default function Layout({ children }: LayoutProps) {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4 md:gap-10 min-w-0 flex-1">
-              <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group min-w-0 flex-shrink">
-                <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 object-contain flex-shrink-0" />
-                <span className="text-sm sm:text-lg md:text-xl font-extrabold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent truncate">
+              <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
+                <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0" />
+                <span className="text-xs sm:text-lg md:text-xl font-extrabold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent truncate">
                   {schoolConfig.appName}
                 </span>
               </Link>
@@ -89,9 +105,33 @@ export default function Layout({ children }: LayoutProps) {
                   Champions
                 </Link>
               </div>
+
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 flex-1 justify-end">
+              {/* Global Search Trigger - Navigates to dedicated Search Page */}
+              <div className="relative flex items-center justify-end mx-2 md:mx-4 flex-1 max-w-[40px] md:max-w-md">
+                <div
+                  onClick={() => navigate('/search')}
+                  className="relative w-full group cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+                >
+                  <div className={`hidden md:flex items-center w-full pl-12 pr-4 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-400 backdrop-blur-xl transition-all group-hover:bg-slate-800 group-hover:border-teal-500/30`}>
+                    Search Teams, Players...
+                  </div>
+                  <div className="absolute inset-y-0 left-0 flex items-center justify-center w-10 md:pl-4 text-slate-300 group-hover:text-teal-400 transition-colors">
+                    <Search className="h-4 w-4 md:h-5 md:w-5" strokeWidth={3} />
+                  </div>
+
+                  {/* Shortcut Hint - Desktop Only */}
+                  <div className="absolute inset-y-0 right-0 pr-3 hidden lg:flex items-center">
+                    <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-700/50 rounded text-[10px] font-black text-slate-400 border border-slate-600/50">
+                      <Command className="w-2.5 h-2.5" />
+                      <span>K</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {user ? (
                 <>
                   <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-slate-700/50 rounded-lg">
@@ -142,122 +182,113 @@ export default function Layout({ children }: LayoutProps) {
       >
         {/* Backdrop */}
         <div
-          className="absolute inset-0 bg-black/60 backdrop-blur-[4px]"
+          className="absolute inset-0 bg-black/60 backdrop-blur-[4px] transition-opacity duration-500"
           onClick={() => setIsMobileMenuOpen(false)}
         ></div>
 
         {/* Side Drawer */}
         <div
-          className={`absolute inset-y-0 left-0 w-[300px] bg-white transform transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col rounded-r-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.3)] ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          className={`absolute inset-y-0 left-0 w-[300px] shadow-2xl transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col rounded-r-[2rem] overflow-hidden ${isDarkMode ? 'bg-slate-900 border-r border-slate-800' : 'bg-white'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
-          {/* Close Button (Floating) */}
-          <button
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="absolute top-8 right-8 p-2 text-slate-400 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-all z-20"
-            aria-label="Close menu"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {/* Header Controls (Moon/Sun & Close) */}
+          <div className="absolute top-7 right-6 flex items-center gap-3 z-30">
+            <button
+              onClick={toggleDarkMode}
+              className={`p-2 rounded-xl transition-all ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`p-2 rounded-xl transition-all ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
+            >
+              <X size={24} />
+            </button>
+          </div>
 
-          {/* 1. BRANDING HEADER (Mockup Accurate) */}
-          <div className="p-10 pb-8 flex flex-col items-start gap-4">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-slate-200 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
-              <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl bg-slate-50 p-1.5 ring-1 ring-slate-100">
-                <img
-                  src={schoolConfig.logo}
-                  alt="Logo"
-                  className="w-full h-full object-contain"
-                />
+          {/* 1. BRANDING (Top Section) */}
+          <div className="pt-12 px-10 pb-8 flex flex-col items-center text-center sm:items-start sm:text-left h-fit shrink-0">
+            <div className="relative mb-4">
+              <div className={`w-24 h-24 rounded-full p-1.5 shadow-xl flex items-center justify-center ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-2 border-slate-50'}`}>
+                <img src={schoolConfig.logo} alt="Logo" className="w-full h-full object-contain" />
               </div>
             </div>
-
-            <div className="flex flex-col mt-2">
-              <h3 className="text-2xl font-black text-slate-900 leading-none tracking-tight">BatchCrick BD</h3>
-              <p className="text-sm font-semibold text-slate-500 mt-1 tracking-tight">{schoolConfig.name}</p>
+            <div className="space-y-1">
+              <h3 className={`text-2xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                {schoolConfig.appName}
+              </h3>
+              <p className={`text-sm font-bold opacity-60 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                {schoolConfig.name}
+              </p>
             </div>
           </div>
 
-          {/* Minimalist Divider */}
-          <div className="px-10">
-            <div className="h-px w-full bg-slate-100"></div>
-          </div>
+          {/* 2. NAVIGATION (Scrollable Body) */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 no-scrollbar">
+            <p className={`px-4 text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-40 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              Main Menu
+            </p>
 
-          {/* 2. NAVIGATION LINKS (Refined Spacing) */}
-          <div className="flex-1 overflow-y-auto px-6 py-10 space-y-2">
-            {[
-              { p: '/', n: 'Home', i: <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /> },
-              { p: '/schedule', n: 'Schedule', i: <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /> },
-              { p: '/tournaments', i: <path d="M8 21h8M12 17v4M7 4h10M7 4c0 0-1 0-1 1v3c0 1.105.895 2 2 2h8c1.105 0 2-.895 2-2V5c0-1-1-1-1-1H7zm0 0H6a3 3 0 00-3 3v1a3 3 0 003 3h1m10-7h1a3 3 0 013 3v1a3 3 0 01-3 3h-1" />, n: 'Tournaments' },
-              { p: '/squads', i: <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" />, n: 'Squads' },
-              { p: '/players', i: <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />, n: 'Players' },
-              { p: '/champions', i: <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />, n: 'Champions' }
-            ].map((link) => (
-              <Link
-                key={link.p}
-                to={link.p}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`group flex items-center gap-5 px-6 py-4 rounded-[1.5rem] transition-all duration-300 ${isActive(link.p)
-                  ? 'bg-slate-100 text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-              >
-                <div className={`transition-colors ${isActive(link.p) ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-900'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isActive(link.p) ? 2 : 1.5}>
-                    {link.i}
-                  </svg>
-                </div>
-                <span className={`text-lg transition-all ${isActive(link.p) ? 'font-extrabold' : 'font-semibold'}`}>{link.n}</span>
-              </Link>
-            ))}
-          </div>
-
-          {/* 3. FOOTER SECTION: Mehedi Hasan & Info */}
-          <div className="p-8 border-t border-slate-50 mt-auto rounded-r-[2.5rem]">
-            {user && (
-              <div className="flex items-center gap-4 mb-6 px-2">
-                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600">
-                  {user.email?.[0].toUpperCase()}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{user.email?.split('@')[0]}</p>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{user.role}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3">
-              {user?.role === 'admin' && (
+            <div className="space-y-1">
+              {[
+                { p: '/', n: 'Home', i: <Home size={20} /> },
+                { p: '/schedule', n: 'Schedule', i: <Calendar size={20} /> },
+                { p: '/tournaments', n: 'Tournaments', i: <Trophy size={20} /> },
+                { p: '/squads', n: 'Squads', i: <Users size={20} /> },
+                { p: '/players', n: 'Players', i: <UserIcon size={20} /> },
+                { p: '/champions', n: 'Champions', i: <Zap size={20} /> }
+              ].map((link) => (
                 <Link
-                  to="/admin"
+                  key={link.p}
+                  to={link.p}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-purple-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-600/20 hover:scale-[1.02] transition-all"
+                  className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold transition-all duration-300 group ${isActive(link.p)
+                    ? (isDarkMode ? 'bg-white text-slate-900' : 'bg-slate-900 text-white shadow-xl shadow-slate-200/50')
+                    : (isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
+                    }`}
                 >
-                  Admin Panel
+                  <span className={`${isActive(link.p) ? '' : 'opacity-50 group-hover:opacity-100 transition-opacity'}`}>
+                    {link.i}
+                  </span>
+                  <span className="text-base tracking-tight">{link.n}</span>
                 </Link>
-              )}
-              {user && (
+              ))}
+            </div>
+
+            {/* Auth/Admin Section */}
+            {user && (
+              <div className="mt-8 pt-8 border-t border-slate-100/10 space-y-2">
+                <p className={`px-4 text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-40 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Account
+                </p>
+                {user.role === 'admin' && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold transition-all ${isDarkMode ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'}`}
+                  >
+                    Admin Panel
+                  </Link>
+                )}
                 <button
                   onClick={() => { logout(); setIsMobileMenuOpen(false); }}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-red-50 text-red-600 text-xs font-black uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-all"
+                  className={`w-full flex items-center justify-center px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-red-900/20 text-red-400 border border-red-900/30' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
                 >
                   Logout
                 </button>
-              )}
-
-              {/* Developer/Branding Link in Footer */}
-              <div className="pt-2 text-center">
-                <a
-                  href="https://www.facebook.com/mehedihasan110571"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex flex-col items-center gap-1 group"
-                >
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] group-hover:text-teal-600 transition-colors">Developed By</span>
-                  <span className="text-xs font-bold text-slate-400 group-hover:text-teal-600 transition-colors">Mehedi Hasan</span>
-                </a>
               </div>
+            )}
+          </div>
+
+          {/* 3. FOOTER (Bottom Section) */}
+          <div className="p-10 pt-6 mt-auto shrink-0 flex flex-col items-center">
+            <div className="flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-opacity group">
+              <span className={`text-[9px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'text-slate-500' : 'text-slate-300'}`}>
+                Developed By
+              </span>
+              <p className={`text-xs font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                Mehedi Hasan
+              </p>
             </div>
           </div>
         </div>
@@ -266,48 +297,57 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <main className="min-h-[calc(100vh-8rem)]">{children}</main>
 
-      {/* Footer - Professional */}
-      <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-            <div>
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 object-contain" /> {schoolConfig.appName}
-              </h3>
-              <p className="text-slate-400 text-sm mb-2">
-                {schoolConfig.footer.description}
-              </p>
-              <p className="text-slate-500 text-xs italic">
-                {schoolConfig.footer.dedication}
-              </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Quick Links</h4>
-              <div className="space-y-2">
-                <Link to="/" className="block text-slate-400 hover:text-teal-400 text-sm transition">Home</Link>
-                <Link to="/tournaments" className="block text-slate-400 hover:text-teal-400 text-sm transition">Tournaments</Link>
-                <Link to="/players" className="block text-slate-400 hover:text-teal-400 text-sm transition">Players</Link>
+      {/* Footer - Professional - Only on Homepage */}
+      {isActive('/') && (
+        <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
+              <div className="col-span-2 md:col-span-1">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 object-contain" /> {schoolConfig.appName}
+                </h3>
+                <p className="text-slate-400 text-sm mb-2">
+                  {schoolConfig.footer.description}
+                </p>
+                <p className="text-slate-500 text-xs italic">
+                  {schoolConfig.footer.dedication}
+                </p>
+              </div>
+              <div className="col-span-1">
+                <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Quick Links</h4>
+                <div className="space-y-2">
+                  <Link to="/" className="block text-slate-400 hover:text-teal-400 text-sm transition">Home</Link>
+                  <Link to="/tournaments" className="block text-slate-400 hover:text-teal-400 text-sm transition">Tournaments</Link>
+                  <Link to="/players" className="block text-slate-400 hover:text-teal-400 text-sm transition">Players</Link>
+                </div>
+              </div>
+              <div className="col-span-1">
+                <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Platform</h4>
+                <div className="space-y-2">
+                  <Link to="/champions" className="block text-slate-400 hover:text-teal-400 text-sm transition">Champions</Link>
+                  <Link to="/squads" className="block text-slate-400 hover:text-teal-400 text-sm transition">Squads</Link>
+                  <Link to="/admin" className="block text-slate-400 hover:text-teal-400 text-sm transition">Admin</Link>
+                </div>
               </div>
             </div>
-            <div>
-              <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Platform</h4>
-              <div className="space-y-2">
-                <Link to="/champions" className="block text-slate-400 hover:text-teal-400 text-sm transition">Champions</Link>
-                <Link to="/squads" className="block text-slate-400 hover:text-teal-400 text-sm transition">Squads</Link>
-                <Link to="/admin" className="block text-slate-400 hover:text-teal-400 text-sm transition">Admin</Link>
+            <div className="border-t border-slate-700 pt-6 text-center">
+              <p className="text-slate-400 text-sm mb-1">
+                © {new Date().getFullYear()} {schoolConfig.appFullName}. All rights reserved.
+              </p>
+              <div className="mt-2">
+                <a
+                  href="https://www.facebook.com/mehedihasan110571"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-500 text-xs hover:text-teal-500 transition-colors inline-flex items-center gap-1"
+                >
+                  Developed by <span className="font-bold text-slate-400">Mehedi Hasan</span>
+                </a>
               </div>
             </div>
           </div>
-          <div className="border-t border-slate-700 pt-6 text-center">
-            <p className="text-slate-400 text-sm mb-1">
-              © {new Date().getFullYear()} {schoolConfig.appFullName}. All rights reserved.
-            </p>
-            <p className="text-slate-500 text-xs">
-              {schoolConfig.footer.tagline}
-            </p>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   )
 }

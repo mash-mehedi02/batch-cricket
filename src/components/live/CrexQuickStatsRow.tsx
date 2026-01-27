@@ -3,6 +3,7 @@
  * Shows Striker, Non-striker, Current Bowler, Partnership, Recommended Bowler
  */
 
+import { Link } from 'react-router-dom'
 import PlayerAvatar from '../common/PlayerAvatar'
 
 interface CrexQuickStatsRowProps {
@@ -40,12 +41,14 @@ export default function CrexQuickStatsRow({
   const StatCard = ({
     title,
     playerName,
+    playerId,
     player,
     stats,
     isBowler = false,
   }: {
     title: string
     playerName: string | null
+    playerId?: string
     player?: any
     stats?: any
     isBowler?: boolean
@@ -55,12 +58,43 @@ export default function CrexQuickStatsRow({
       {playerName ? (
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <PlayerAvatar
-              photoUrl={player?.photoUrl || (player as any)?.photo}
-              name={playerName}
-              size="sm"
-            />
-            <div className="font-semibold text-crex-gray-900 truncate">{playerName}</div>
+            {(() => {
+              const pid = playerId;
+              const isValid = pid && typeof pid === 'string' && pid !== 'undefined' && pid !== 'null' && pid.trim() !== '';
+              if (isValid) {
+                return (
+                  <Link to={`/players/${pid}`} className="shrink-0 hover:opacity-80 transition-opacity">
+                    <PlayerAvatar
+                      photoUrl={player?.photoUrl || (player as any)?.photo}
+                      name={playerName}
+                      size="sm"
+                    />
+                  </Link>
+                );
+              }
+              return (
+                <PlayerAvatar
+                  photoUrl={player?.photoUrl || (player as any)?.photo}
+                  name={playerName}
+                  size="sm"
+                />
+              );
+            })()}
+            {(() => {
+              const pid = playerId;
+              const isValid = pid && typeof pid === 'string' && pid !== 'undefined' && pid !== 'null' && pid.trim() !== '';
+              if (isValid) {
+                return (
+                  <Link
+                    to={`/players/${pid}`}
+                    className="font-semibold text-crex-gray-900 truncate hover:text-blue-600 transition-colors"
+                  >
+                    {playerName}
+                  </Link>
+                );
+              }
+              return <div className="font-semibold text-crex-gray-900 truncate">{playerName}</div>;
+            })()}
           </div>
           {stats && (
             <div className="text-sm text-crex-gray-600 mt-2">
@@ -89,18 +123,21 @@ export default function CrexQuickStatsRow({
       <StatCard
         title="Striker"
         playerName={striker?.name || strikerStats?.batsmanName}
+        playerId={strikerId}
         player={striker}
         stats={strikerStats}
       />
       <StatCard
         title="Non-Striker"
         playerName={nonStriker?.name || nonStrikerStats?.batsmanName}
+        playerId={nonStrikerId}
         player={nonStriker}
         stats={nonStrikerStats}
       />
       <StatCard
         title="Bowler"
         playerName={bowler?.name || bowlerStats?.bowlerName}
+        playerId={bowlerId}
         player={bowler}
         stats={bowlerStats}
         isBowler={true}

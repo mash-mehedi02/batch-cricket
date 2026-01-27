@@ -3,16 +3,18 @@
  * Tabs, mobile-optimized cards, match history with dark theme
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { squadService } from '@/services/firestore/squads'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { playerService } from '@/services/firestore/players'
 import { matchService } from '@/services/firestore/matches'
-import { Player, Squad, Tournament, Match } from '@/types'
+import { Player, Squad, Tournament, Match, InningsStats } from '@/types'
 import toast from 'react-hot-toast'
 import { Timestamp } from 'firebase/firestore'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import { getMatchResultString } from '@/utils/matchWinner'
+import { schoolConfig } from '@/config/school'
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
@@ -24,7 +26,10 @@ export default function SquadDetails() {
   const [players, setPlayers] = useState<Player[]>([])
   const [matches, setMatches] = useState<Match[]>([])
   const [loadingMatches, setLoadingMatches] = useState(false)
+  const [squadsMap, setSquadsMap] = useState<Record<string, Squad>>({})
   const [activeTab, setActiveTab] = useState<Tab>('squad')
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
+  const liveMatchRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const run = async () => {
@@ -67,12 +72,28 @@ export default function SquadDetails() {
         // Matches
         setLoadingMatches(true)
         try {
-          const squadMatches = await matchService.getBySquad(squadId)
+          const allMatches = await matchService.getAll()
+          const squadMatches = allMatches.filter(m =>
+            m.teamAId === squadId ||
+            m.teamBId === squadId ||
+            (m as any).teamA === squadId ||
+            (m as any).teamB === squadId
+          )
           setMatches(squadMatches)
         } catch (err) {
           console.error('Error loading matches:', err)
         } finally {
           setLoadingMatches(false)
+        }
+
+        // All Squads for logos
+        try {
+          const allSq = await squadService.getAll()
+          const sMap: Record<string, Squad> = {}
+          allSq.forEach(s => sMap[s.id] = s)
+          setSquadsMap(sMap)
+        } catch (err) {
+          console.error('Error loading squads map:', err)
         }
 
       } catch (e) {
@@ -87,6 +108,14 @@ export default function SquadDetails() {
     run()
   }, [squadId])
 
+  useEffect(() => {
+    if (activeTab === 'matches' && !loadingMatches && matches.length > 0) {
+      setTimeout(() => {
+        liveMatchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
+    }
+  }, [activeTab, loadingMatches, matches.length])
+
   const captain = useMemo(() => {
     if (!squad?.captainId) return null
     return players.find((p) => p.id === squad.captainId) || null
@@ -97,7 +126,6 @@ export default function SquadDetails() {
     return players.find((p) => p.id === squad.wicketKeeperId) || null
   }, [players, squad?.wicketKeeperId])
 
-  // Helper to safely render values
   const safeRender = (val: any) => {
     if (val instanceof Timestamp) {
       return val.toDate().getFullYear().toString()
@@ -108,17 +136,184 @@ export default function SquadDetails() {
     return val
   }
 
+  const formatShortName = (name: string) => {
+    if (!name) return '???'
+    const parts = name.split(/[- ]+/).filter(Boolean)
+    const label = parts[0]?.substring(0, 3).toUpperCase() || '???'
+    const batch = parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
+    return batch ? `${label}-${batch}` : label
+  }
+
+  const handleImgError = (url: string) => {
+    setBrokenImages(prev => ({ ...prev, [url]: true }))
+  }
+
+  const SquadMatchCard = ({ match: initialMatch }: { match: Match }) => {
+    const [match, setMatch] = useState<Match>(initialMatch)
+    const [scoreA, setScoreA] = useState<InningsStats | null>(null)
+    const [scoreB, setScoreB] = useState<InningsStats | null>(null)
+
+    const status = String(match.status || '').toLowerCase()
+    const isLive = status === 'live'
+    const isFin = status === 'finished' || status === 'completed'
+    const dStr = match.date instanceof Timestamp
+      ? match.date.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : 'TBD'
+
+    useEffect(() => {
+      if (!isLive && !isFin) return
+
+      // Subscribe to match document for latest resultSummary and status
+      const unsubMatch = matchService.subscribeToMatch(initialMatch.id, (updatedMatch) => {
+        if (updatedMatch) setMatch(updatedMatch)
+      })
+
+      // Always subscribe to innings for the most accurate data (source of truth)
+      const unsubA = matchService.subscribeToInnings(initialMatch.id, 'teamA', (data) => {
+        if (data) setScoreA(data)
+      })
+      const unsubB = matchService.subscribeToInnings(initialMatch.id, 'teamB', (data) => {
+        if (data) setScoreB(data)
+      })
+
+      return () => {
+        unsubMatch()
+        unsubA()
+        unsubB()
+      }
+    }, [initialMatch.id, isLive, isFin])
+
+    const getS = (id: 'teamA' | 'teamB') => {
+      const liveScore = id === 'teamA' ? scoreA : scoreB
+      if (liveScore) {
+        return {
+          r: Number(liveScore.totalRuns || 0),
+          w: Number(liveScore.totalWickets || 0),
+          o: String(liveScore.overs || '0.0')
+        }
+      }
+
+      const p = id === 'teamA' ? 'teamA' : 'teamB'
+      const fromDoc = match.score?.[id]
+      const r = Number(fromDoc?.runs ?? (match as any)[`${p}Runs`] ?? 0)
+      const w = Number(fromDoc?.wickets ?? (match as any)[`${p}Wickets`] ?? 0)
+      const o = String(fromDoc?.overs ?? (match as any)[`${p}Overs`] ?? '0.0')
+      return { r, w, o }
+    }
+
+    const sA = getS('teamA'), sB = getS('teamB')
+
+    // UI Helpers for Logos
+    const teamAData = squadsMap[match.teamAId || (match as any).teamA]
+    const teamBData = squadsMap[match.teamBId || (match as any).teamB]
+    const tALogo = (match as any).teamALogoUrl || teamAData?.logoUrl
+    const tBLogo = (match as any).teamBLogoUrl || teamBData?.logoUrl
+
+    return (
+      <Link
+        to={`/match/${match.id}`}
+        className={`block group bg-white border rounded-[1.2rem] overflow-hidden transition-all duration-300 active:scale-[0.98] ${isLive ? 'border-red-500/30 shadow-md shadow-red-500/5' : 'border-slate-100 shadow-sm'
+          } mb-3`}
+      >
+        <div className={`px-4 py-2 flex items-center justify-between border-b ${isLive ? 'bg-red-50/50 border-red-100/50' : 'bg-slate-50 border-slate-100'}`}>
+          <div className="flex items-center gap-2">
+            {isLive ? (
+              <span className="flex items-center gap-1.5 text-[9px] font-black text-red-500 tracking-widest uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Live Now
+              </span>
+            ) : (
+              <span className="text-[9px] font-black text-slate-500 tracking-widest uppercase">
+                {isFin ? 'Match Completed' : 'Upcoming'}
+              </span>
+            )}
+          </div>
+          <span className="text-[9px] font-bold text-slate-500 tabular-nums">{dStr}</span>
+        </div>
+
+        <div className="p-4">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-[10px] font-black text-emerald-600 shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
+                    {tALogo && !brokenImages[tALogo] ? (
+                      <img src={tALogo} onError={() => handleImgError(tALogo)} className="w-full h-full object-contain p-1" alt="" />
+                    ) : (
+                      <span className="uppercase text-lg">{(match.teamAName || 'T')[0]}</span>
+                    )}
+                  </div>
+                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortName(match.teamAName)}</span>
+                </div>
+                {(isLive || isFin) && (
+                  <div className="flex flex-col items-end tabular-nums">
+                    <span className="text-[17px] font-black text-slate-900 leading-none">{sA.r}/{sA.w}</span>
+                    <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sA.o} Ov</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
+                    {tBLogo && !brokenImages[tBLogo] ? (
+                      <img src={tBLogo} onError={() => handleImgError(tBLogo)} className="w-full h-full object-contain p-1" alt="" />
+                    ) : (
+                      <span className="uppercase text-lg">{(match.teamBName || 'T')[0]}</span>
+                    )}
+                  </div>
+                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortName(match.teamBName)}</span>
+                </div>
+                {(isLive || isFin) ? (
+                  <div className="flex flex-col items-end tabular-nums">
+                    <span className="text-[17px] font-black text-slate-900 leading-none">{sB.r}/{sB.w}</span>
+                    <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sB.o} Ov</span>
+                  </div>
+                ) : (
+                  <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100 uppercase tracking-tighter">Scheduled</span>
+                )}
+              </div>
+            </div>
+
+            {isLive && (
+              <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex flex-col items-center justify-center shadow-lg shadow-red-500/20 active:scale-95 transition-all">
+                <span className="text-[9px] font-black uppercase">Live</span>
+              </div>
+            )}
+          </div>
+
+          {(isLive || isFin) && (
+            <div className={`mt-4 pt-4 border-t flex flex-col gap-2 ${isLive ? 'border-red-50' : 'border-slate-50'}`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span className={`text-[11px] font-black uppercase tracking-wider ${isLive ? 'text-slate-700' : 'text-amber-500'}`}>
+                  {isLive ? 'Match in progress' : (() => {
+                    // 1. Prefer explicit result summary if available
+                    if (match.resultSummary) return match.resultSummary.toUpperCase();
+
+                    // 2. Exact match winner utility (Mirroring MatchLive)
+                    const result = getMatchResultString(
+                      match.teamAName,
+                      match.teamBName,
+                      scoreA,
+                      scoreB,
+                      match
+                    );
+
+                    return result ? result.toUpperCase() : 'MATCH COMPLETED';
+                  })()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Link>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white p-4 pt-20">
-        <div className="max-w-7xl mx-auto space-y-8 animate-pulse">
-          <div className="h-64 bg-slate-800/50 rounded-xl"></div>
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-24 bg-slate-800/50 rounded-xl"></div>
-            ))}
-          </div>
-        </div>
+      <div className="min-h-screen bg-slate-950 text-white p-4 pt-20 text-center font-bold">
+        Loading Squad...
       </div>
     )
   }
@@ -129,7 +324,7 @@ export default function SquadDetails() {
         <div className="text-center text-white">
           <div className="text-4xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold">Squad Not Found</h2>
-          <Link to="/squads" className="inline-block mt-6 px-6 py-3 bg-emerald-600 rounded-xl hover:bg-emerald-700 transition">
+          <Link to="/squads" className="inline-block mt-6 px-6 py-3 bg-emerald-600 rounded-xl">
             Back to Squads
           </Link>
         </div>
@@ -139,259 +334,163 @@ export default function SquadDetails() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 pb-20">
-      {/* Hero Banner */}
-      <div className="relative h-[25vh] md:h-[35vh] overflow-hidden group">
-        {squad.bannerUrl ? (
-          <img
-            src={squad.bannerUrl}
-            alt={squad.name}
-            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-          />
+      <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-100">
+        {squad.bannerUrl && !brokenImages[squad.bannerUrl] ? (
+          <img src={squad.bannerUrl} onError={() => handleImgError(squad.bannerUrl || '')} alt={squad.name} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-slate-100 via-emerald-50 to-white" />
+          <div className="w-full h-full bg-gradient-to-br from-slate-200 via-emerald-50 to-slate-100" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/40 to-white" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent" />
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 md:-mt-32 relative z-10">
-        {/* Squad Identity */}
-        <div className="flex flex-row items-end gap-4 md:gap-8 mb-8 md:mb-12">
-          {/* Logo */}
-          <div className="relative animate-in zoom-in-95 duration-700 flex-shrink-0">
-            <div className="absolute inset-0 bg-emerald-500/5 rounded-2xl md:rounded-[2rem] blur-xl md:blur-2xl animate-pulse" />
-            <div className="relative w-24 h-24 md:w-40 md:h-40 bg-white rounded-2xl md:rounded-[2.5rem] border-4 border-white overflow-hidden shadow-2xl flex items-center justify-center p-2 md:p-4 hover:scale-105 transition-transform duration-500">
-              {squad.logoUrl ? (
-                <img src={squad.logoUrl} alt={squad.name} className="w-full h-full object-contain filter drop-shadow-md" />
-              ) : (
-                <span className="text-3xl md:text-6xl font-black text-emerald-600">{squad.name[0]}</span>
-              )}
-            </div>
+      <div className="max-w-4xl mx-auto px-4 -mt-16 relative z-10">
+        <div className="flex items-end gap-5 mb-8">
+          <div className="w-28 h-28 md:w-36 md:h-36 bg-white rounded-3xl border-4 border-white shadow-xl overflow-hidden flex items-center justify-center p-2">
+            {squad.logoUrl && !brokenImages[squad.logoUrl] ? (
+              <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-4xl md:text-6xl font-black text-emerald-600 uppercase">{squad.name[0]}</span>
+            )}
           </div>
-
-          {/* Info */}
-          <div className="flex-1 pb-1 md:pb-4 animate-in slide-in-from-left-8 duration-700 delay-100 min-w-0">
-            <h1 className="text-2xl md:text-6xl font-black text-slate-900 tracking-tighter mb-1 md:mb-3 drop-shadow-sm truncate">
+          <div className="pb-2">
+            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none mb-2">
               {squad.name}
             </h1>
-            <div className="flex flex-wrap items-center gap-3 text-slate-600 text-xs md:text-base font-bold">
-              <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                {safeRender(squad.batch || squad.year)}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-black uppercase shrink-0">
+                Batch {safeRender(squad.batch || squad.year)}
               </span>
-              {tournament?.school && (
-                <div className="flex items-center gap-1.5 text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 truncate max-w-[150px] md:max-w-xs">
-                  {tournament.school}
-                </div>
-              )}
+              <span className="text-slate-400 font-bold text-[11px] sm:text-sm truncate max-w-[180px] md:max-w-none">
+                {schoolConfig.name}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-2 mb-8 bg-slate-50 p-1 rounded-xl border border-slate-200 w-fit overflow-x-auto max-w-full shadow-sm">
+        <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl mb-6 w-fit">
           {(['squad', 'matches', 'achievement'] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 md:px-6 py-2 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-                : 'text-slate-500 hover:text-slate-900 hover:bg-white'
-                }`}
+              className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab}
             </button>
           ))}
         </div>
 
-        {/* Tab Content */}
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-          {/* SQUAD TAB */}
-          {activeTab === 'squad' && (
-            <div className="space-y-8">
-              {/* Summary Cards - Grid 3 Mobile */}
-              <div className="grid grid-cols-3 gap-2 md:gap-6">
-                {/* Total Players */}
-                <div className="bg-white p-3 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200 shadow-sm flex flex-col items-center md:items-start text-center md:text-left">
-                  <div className="text-lg md:text-3xl mb-1 md:mb-3">👥</div>
-                  <div className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-wider mb-0.5 md:mb-2 leading-tight">Players</div>
-                  <div className="text-sm md:text-3xl font-black text-slate-900">{players.length}</div>
-                </div>
-
-                {/* Captain */}
-                <div className="bg-white p-3 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200 shadow-sm flex flex-col items-center md:items-start text-center md:text-left relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-8 h-8 md:w-16 md:h-16 bg-yellow-500/5 rounded-bl-full md:rounded-bl-[2rem]" />
-                  <div className="text-lg md:text-3xl mb-1 md:mb-3 text-yellow-600">👑</div>
-                  <div className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-wider mb-0.5 md:mb-2 leading-tight">Captain</div>
-                  <div className="text-xs md:text-2xl font-black text-slate-900 truncate w-full">{captain?.name?.split(' ')[0] || 'N/A'}</div>
-                </div>
-
-                {/* Wicket Keeper */}
-                <div className="bg-white p-3 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-200 shadow-sm flex flex-col items-center md:items-start text-center md:text-left relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-8 h-8 md:w-16 md:h-16 bg-blue-500/5 rounded-bl-full md:rounded-bl-[2rem]" />
-                  <div className="text-lg md:text-3xl mb-1 md:mb-3 text-blue-600">🧤</div>
-                  <div className="text-[8px] md:text-xs font-black text-slate-400 uppercase tracking-wider mb-0.5 md:mb-2 leading-tight">Keeper</div>
-                  <div className="text-xs md:text-2xl font-black text-slate-900 truncate w-full">{wicketKeeper?.name?.split(' ')[0] || 'N/A'}</div>
-                </div>
+        {activeTab === 'squad' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Players</div>
+                <div className="text-2xl font-black text-slate-800">{players.length}</div>
               </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Captain</div>
+                <div className="text-sm font-black text-slate-800 truncate">{captain?.name?.split(' ')[0] || 'N/A'}</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Keeper</div>
+                <div className="text-sm font-black text-slate-800 truncate">{wicketKeeper?.name?.split(' ')[0] || 'N/A'}</div>
+              </div>
+            </div>
 
-              {/* Player Roster */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 px-1">
-                  <div className="h-4 w-1 bg-emerald-500 rounded-full" />
-                  <h2 className="text-lg md:text-2xl font-black text-slate-900">Full Squad</h2>
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3">
+              {players.map(p => (
+                <Link key={p.id} to={`/players/${p.id}`} className="flex items-center gap-2 sm:gap-4 bg-slate-50/50 p-2 sm:p-3 rounded-2xl border border-slate-100 hover:bg-white hover:border-emerald-200 transition-all hover:shadow-md group relative">
+                  <PlayerAvatar photoUrl={p.photoUrl || (p as any).photo} name={p.name} size="sm" className="shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-slate-900 group-hover:text-emerald-600 truncate text-[10px] sm:text-base">{p.name}</div>
+                    <div className="text-[7px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{p.role}</div>
+                  </div>
+                  {squad.captainId === p.id && (
+                    <span className="absolute top-1 right-1 sm:static bg-yellow-100 text-yellow-700 text-[6px] sm:text-[8px] font-black px-1 py-0.5 rounded shadow-sm uppercase">
+                      Capt
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                  {players.map((p) => (
-                    <Link
-                      key={p.id}
-                      to={`/players/${p.id}`}
-                      className="group relative bg-white rounded-2xl md:rounded-[2rem] p-3 md:p-5 border border-slate-200 hover:border-emerald-500/30 hover:bg-slate-50 transition-all duration-300 shadow-sm"
-                    >
-                      <div className="flex items-center gap-3 md:gap-4">
-                        {/* Player Photo */}
-                        <div className="relative w-12 h-12 md:w-16 md:h-16 flex-shrink-0">
-                          <div className="absolute inset-0 bg-emerald-500/5 rounded-xl md:rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="relative w-full h-full rounded-xl md:rounded-2xl border-2 border-slate-100 group-hover:border-emerald-500/50 transition-all flex items-center justify-center overflow-hidden">
-                            <PlayerAvatar
-                              photoUrl={p.photoUrl || (p as any).photo}
-                              name={p.name}
-                              size="lg"
-                              className="w-full h-full border-none"
-                            />
-                          </div>
-                          {/* Badges */}
-                          {(squad.captainId === p.id || squad.wicketKeeperId === p.id) && (
-                            <div className="absolute -top-1 -right-1 flex gap-1">
-                              {squad.captainId === p.id && <span className="bg-yellow-500 text-white text-[8px] font-black px-1 rounded shadow-sm">C</span>}
-                              {squad.wicketKeeperId === p.id && <span className="bg-blue-500 text-white text-[8px] font-black px-1 rounded shadow-sm">WK</span>}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors truncate text-sm md:text-lg">
-                            {p.name}
-                          </h3>
-                          <div className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
-                            {p.role}
-                          </div>
-                        </div>
+        {activeTab === 'matches' && (
+          <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+            {loadingMatches ? (
+              <div className="text-center py-10 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading Matches...</div>
+            ) : matches.length === 0 ? (
+              <div className="text-center py-10 text-slate-400">No matches found.</div>
+            ) : (
+              <div className="flex flex-col">
+                {(() => {
+                  const fin = matches.filter(m => {
+                    const s = String(m.status || '').toLowerCase()
+                    return s === 'finished' || s === 'completed'
+                  }).sort((a, b) => {
+                    const tA = a.date instanceof Timestamp ? a.date.toDate().getTime() : 0
+                    const tB = b.date instanceof Timestamp ? b.date.toDate().getTime() : 0
+                    return tA - tB
+                  })
+                  if (fin.length === 0) return null
+                  return (
+                    <div className="space-y-3 mb-8">
+                      <div className="px-1 flex items-center gap-2 mb-2">
+                        <div className="h-3 w-0.5 bg-slate-300 rounded-full" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Finished Matches</span>
                       </div>
-                    </Link>
-                  ))}
-                </div>
+                      {fin.map(m => <SquadMatchCard key={m.id} match={m} />)}
+                    </div>
+                  )
+                })()}
+
+                {(() => {
+                  const live = matches.filter(m => String(m.status || '').toLowerCase() === 'live')
+                  if (live.length === 0) return null
+                  return (
+                    <div ref={liveMatchRef} className="space-y-3 mb-8 scroll-mt-20">
+                      <div className="px-1 flex items-center gap-2 mb-2">
+                        <div className="h-3 w-0.5 bg-red-500 rounded-full" />
+                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest flex items-center gap-1.5">
+                          Live Now <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                        </span>
+                      </div>
+                      {live.map(m => <SquadMatchCard key={m.id} match={m} />)}
+                    </div>
+                  )
+                })()}
+
+                {(() => {
+                  const up = matches.filter(m => {
+                    const s = String(m.status || '').toLowerCase()
+                    return s === 'upcoming' || s === 'scheduled' || !s
+                  }).sort((a, b) => {
+                    const tA = a.date instanceof Timestamp ? a.date.toDate().getTime() : 0
+                    const tB = b.date instanceof Timestamp ? b.date.toDate().getTime() : 0
+                    return tA - tB
+                  })
+                  if (up.length === 0) return null
+                  return (
+                    <div className="space-y-3">
+                      <div className="px-1 flex items-center gap-2 mb-2">
+                        <div className="h-3 w-0.5 bg-blue-500 rounded-full" />
+                        <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Upcoming Matches</span>
+                      </div>
+                      {up.map(m => <SquadMatchCard key={m.id} match={m} />)}
+                    </div>
+                  )
+                })()}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {/* MATCHES TAB */}
-          {activeTab === 'matches' && (
-            <div className="space-y-6">
-              {loadingMatches ? (
-                <div className="text-center py-10 text-slate-400">Loading matches...</div>
-              ) : matches.length === 0 ? (
-                <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <div className="text-4xl mb-2">🏏</div>
-                  <div className="text-slate-400 font-bold">No matches found</div>
-                </div>
-              ) : (
-                <>
-                  {/* Recent Matches */}
-                  <div className="space-y-3">
-                    <div className="px-1 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Recent</h3>
-                    </div>
-                    {matches
-                      .filter(m => m.status === 'finished' || m.status === 'live')
-                      .sort((a, b) => {
-                        if (a.status === 'live' && b.status !== 'live') return -1
-                        if (a.status !== 'live' && b.status === 'live') return 1
-                        return (b.date || '').localeCompare(a.date || '')
-                      })
-                      .map(match => {
-                        const isTeamA = match.teamAId === squad.id
-                        const opponentName = isTeamA ? match.teamBName : match.teamAName
-                        return (
-                          <Link key={match.id} to={`/match/${match.id}`} className="block bg-white hover:bg-slate-50 border border-slate-200 shadow-sm rounded-2xl p-4 transition-all group">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${match.status === 'live' ? 'bg-red-500/10 text-red-600 animate-pulse' : 'bg-emerald-500/10 text-emerald-600'
-                                }`}>
-                                {match.status}
-                              </div>
-                              <div className="text-xs text-slate-400 font-bold">{match.date}</div>
-                            </div>
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex flex-col gap-1 w-1/2">
-                                <span className="text-xs text-slate-500 uppercase font-bold group-hover:text-emerald-600 transition-colors">vs {opponentName}</span>
-                                <span className="text-sm font-black text-slate-900 truncate">{(match as any).result || 'Match in progress'}</span>
-                              </div>
-                              <div className="text-right">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-emerald-600 group-hover:text-white transition-all">→</div>
-                              </div>
-                            </div>
-                          </Link>
-                        )
-                      })}
-                    {matches.filter(m => m.status === 'finished' || m.status === 'live').length === 0 && (
-                      <div className="text-slate-400 text-xs italic px-2">No recent matches.</div>
-                    )}
-                  </div>
-
-                  {/* Upcoming Matches */}
-                  <div className="space-y-3">
-                    <div className="px-1 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                      <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Upcoming</h3>
-                    </div>
-                    {matches
-                      .filter(m => (m.status as any) === 'upcoming' || (m.status as any) === 'scheduled')
-                      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-                      .map(match => {
-                        const isTeamA = match.teamAId === squad.id
-                        const opponentName = isTeamA ? match.teamBName : match.teamAName
-                        return (
-                          <Link key={match.id} to={`/match/${match.id}`} className="block bg-white hover:bg-slate-50 border border-slate-200 shadow-sm rounded-2xl p-4 transition-all group">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded">
-                                {match.status}
-                              </div>
-                              <div className="text-xs text-slate-400 font-bold">{match.date}</div>
-                            </div>
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-xs text-slate-500 uppercase font-bold">vs</span>
-                                <span className="text-lg font-black text-slate-900 truncate">{opponentName || 'TBD'}</span>
-                              </div>
-                              <div className="text-right text-xs text-slate-400 italic">
-                                {match.venue ? `at ${match.venue}` : 'Venue TBD'}
-                              </div>
-                            </div>
-                          </Link>
-                        )
-                      })}
-                    {matches.filter(m => (m.status as any) === 'upcoming' || (m.status as any) === 'scheduled').length === 0 && (
-                      <div className="text-slate-400 text-xs italic px-2">No upcoming matches.</div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ACHIEVEMENT TAB */}
-          {activeTab === 'achievement' && (
-            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
-              <div className="text-5xl mb-4">🏆</div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Team Achievements</h3>
-              <p className="text-slate-500 text-sm">
-                Trophy cabinet and history coming soon.
-              </p>
-            </div>
-          )}
-
-        </div>
+        {activeTab === 'achievement' && (
+          <div className="bg-slate-50 rounded-2xl p-8 text-center border border-slate-100 animate-in fade-in duration-500">
+            <div className="text-5xl mb-4">🏆</div>
+            <div className="font-bold text-slate-400 uppercase tracking-widest text-xs">Achievement History Coming Soon</div>
+          </div>
+        )}
       </div>
     </div>
   )

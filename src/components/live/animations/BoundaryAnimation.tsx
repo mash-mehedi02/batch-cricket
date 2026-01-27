@@ -1,46 +1,35 @@
 import fourIcon from '@/assets/four.png';
-import sixIcon from '@/assets/six.png';
 
 export const BoundaryAnimation: React.FC = () => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden pointer-events-none">
-            {/* Background Overlay - Golden/Yellow Gradient Pulse */}
-            <div className="absolute inset-0 bg-gradient-to-br from-yellow-900/90 via-amber-600/80 to-yellow-900/90 animate-pulse-slow backdrop-blur-sm" />
+            {/* Subtle Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-950/95 via-slate-900/95 to-slate-950/95 backdrop-blur-sm" />
 
-            {/* Radial Burst Effect */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-yellow-400/30 via-transparent to-transparent animate-spin-slow opacity-50" />
+            {/* Subtle Glow Effect */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-yellow-500/10 via-transparent to-transparent" />
 
             {/* Content Container */}
-            <div className="relative z-10 flex flex-col items-center justify-center animate-scale-in">
-                {/* Four Icon with Glow */}
-                <div className="relative mb-4 sm:mb-8">
-                    <div className="absolute inset-0 bg-yellow-400 blur-2xl opacity-40 rounded-full animate-pulse-fast" />
+            <div className="relative z-10 flex flex-col items-center justify-center gap-8 animate-in fade-in zoom-in-95 duration-500">
+                {/* Four Icon - Clean & Centered */}
+                <div className="relative">
+                    <div className="absolute inset-0 bg-yellow-400/20 blur-3xl rounded-full" />
                     <img
                         src={fourIcon}
                         alt="FOUR"
-                        className="w-48 h-48 sm:w-64 sm:h-64 object-contain drop-shadow-2xl transform hover:scale-105 transition-transform duration-300"
+                        className="w-32 h-32 sm:w-40 sm:h-40 object-contain drop-shadow-[0_0_30px_rgba(234,179,8,0.4)]"
                     />
                 </div>
 
-                {/* Text Effect */}
-                <h1 className="text-6xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-amber-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] tracking-tighter uppercase animate-bounce-short">
-                    Boundary!
-                </h1>
-
-                {/* Particles/Sparkles (CSS only) */}
-                <div className="absolute inset-0 -z-10 overflow-hidden">
-                    {[...Array(6)].map((_, i) => (
-                        <div
-                            key={i}
-                            className="absolute w-2 h-2 bg-yellow-300 rounded-full animate-particle opacity-0"
-                            style={{
-                                top: '50%',
-                                left: '50%',
-                                animationDelay: `${i * 0.2}s`,
-                                transform: `rotate(${i * 60}deg) translateY(-100px)`
-                            }}
-                        />
-                    ))}
+                {/* Clean Typography */}
+                <div className="flex flex-col items-center gap-3">
+                    <h1 className="text-7xl sm:text-8xl font-black text-white drop-shadow-lg tracking-tight">
+                        FOUR
+                    </h1>
+                    <div className="h-1 w-24 bg-gradient-to-r from-transparent via-yellow-400 to-transparent rounded-full" />
+                    <p className="text-lg sm:text-xl text-slate-300 font-medium tracking-wide uppercase">
+                        Boundary
+                    </p>
                 </div>
             </div>
         </div>

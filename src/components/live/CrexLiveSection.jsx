@@ -3,6 +3,7 @@
  * User-friendly, responsive design with better UX
  */
 import React from 'react'
+import { Link } from 'react-router-dom'
 import ProjectedScoreTable from './ProjectedScoreTable'
 import { ChevronRight } from 'lucide-react'
 import { calculateWinProbability } from '../../services/ai/winProbabilityEngine'
@@ -30,6 +31,10 @@ const CrexLiveSection = ({
   matchStatus,
   matchPhase,
   currentInnings,
+  teamAInnings,
+  teamBInnings,
+  teamASquad,
+  teamBSquad,
   resultSummary,
   teamAName,
   teamBName,
@@ -150,29 +155,102 @@ const CrexLiveSection = ({
     return finalResult
   }, [commentary, activeCommentaryFilter])
 
-  return (
-    <div className="bg-[#f8fafc] min-h-screen pb-8">
-      <div className="max-w-4xl mx-auto px-0 sm:px-4 py-3 space-y-4">
+  const scrollRef = React.useRef(null)
 
-        {!isFinishedMatch && !onlyCommentary && (
-          <div className="bg-white p-4 border-b border-slate-100 flex flex-col gap-3">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter mb-0.5">{teamAName.substring(0, 3).toUpperCase()}</span>
-                <span className="text-xl font-medium text-slate-900 leading-none">{teamAProb}%</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-300 uppercase tracking-widest italic">
-                <span className="w-3 h-3 rounded-full border border-slate-200 flex items-center justify-center text-[6px]">i</span>
-                WIN %
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter mb-0.5">{teamBName.substring(0, 3).toUpperCase()}</span>
-                <span className="text-xl font-medium text-slate-900 leading-none">{teamBProb}%</span>
-              </div>
+  // Auto-scroll timeline
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
+    }
+  }, [recentOvers, striker, nonStriker])
+
+  return (
+    <div className="bg-[#f8fafc] dark:bg-slate-950 min-h-screen pb-8">
+      <div className="max-w-4xl mx-auto px-0 sm:px-4 py-3 space-y-0.5">
+
+        {/* 1. Timeline Strip - Reduced spacing */}
+        {!onlyCommentary && recentOvers && (
+          <div className="px-4 py-1.5 overflow-hidden">
+            <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto scrollbar-hide py-1" ref={scrollRef}>
+              {[...recentOvers].map((over, idx) => {
+                const overTotal = over.totalRuns ?? over.total ?? 0
+                const isCurrentOver = idx === recentOvers.length - 1 && !over.isLocked;
+                const ballsToShow = isCurrentOver ? (over.balls || []) : over.balls || [];
+
+                return (
+                  <React.Fragment key={idx}>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        OVER {over.overNumber}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {ballsToShow.map((b, bIdx) => {
+                          let val = String(b?.value || b?.label || b?.runsOffBat || b?.runs || '').trim() || '0'
+                          if (val === '·') val = '0'
+                          const isBoundary = val === '4' || val === '6';
+                          const isWicket = b?.type === 'wicket' || val === 'W' || val.toUpperCase().includes('OUT');
+
+                          const baseDot = `w-9 h-9 rounded-full flex items-center justify-center font-semibold shrink-0 border transition-all text-sm`
+                          let dotStyle = "bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800 shadow-sm"
+
+                          if (isBoundary) dotStyle = val === '4'
+                            ? "bg-gradient-to-br from-amber-400 to-yellow-500 text-white border-yellow-400 shadow-md"
+                            : "bg-gradient-to-br from-orange-500 to-amber-500 text-white border-orange-400 shadow-md";
+
+                          if (isWicket) dotStyle = "bg-rose-600 text-white border-rose-500 shadow-md";
+
+                          return (
+                            <div key={bIdx} className={`${baseDot} ${dotStyle}`}>
+                              {val.toUpperCase().includes('WIDE') ? 'wd' : val.toUpperCase().includes('NO BALL') ? 'nb' : val}
+                            </div>
+                          )
+                        })}
+                        {/* Empty Circles for Remaining Balls */}
+                        {isCurrentOver && (() => {
+                          const legalBallsCount = ballsToShow.filter(b => {
+                            const val = String(b?.value || b?.label || b?.runs || '').toUpperCase();
+                            return !val.includes('WD') && !val.includes('NB') && !val.includes('WIDE') && !val.includes('NO BALL');
+                          }).length;
+                          const remaining = Math.max(0, 6 - legalBallsCount);
+                          return Array.from({ length: remaining }).map((_, i) => (
+                            <div key={`empty-${i}`} className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-800 bg-transparent shrink-0" />
+                          ));
+                        })()}
+                      </div>
+                      <div className="flex items-center gap-1 ml-0.5 cursor-default">
+                        <span className="text-[10px] font-bold text-slate-400">=</span>
+                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{overTotal}</span>
+                      </div>
+                    </div>
+                    {idx < recentOvers.length - 1 && <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />}
+                  </React.Fragment>
+                )
+              })}
             </div>
-            <div className="h-1.5 w-full rounded-full bg-[#1e293b] flex overflow-hidden">
-              <div className="h-full bg-[#911d33] transition-all duration-1000" style={{ width: `${teamAProb}%` }}></div>
-              <div className="h-full bg-blue-900 transition-all duration-1000" style={{ width: `${teamBProb}%` }}></div>
+          </div>
+        )}
+
+        {/* 2. Win Probability - Reference Mockup Accurate */}
+        {!isFinishedMatch && !onlyCommentary && (
+          <div className="bg-white dark:bg-slate-900 px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 space-y-1.5">
+            {/* Top Row: Names & Centered Label */}
+            <div className="flex items-center justify-between text-[11px] font-normal text-slate-500 dark:text-slate-400 tracking-wide">
+              <span className="shrink-0">{teamAName.substring(0, 3).toUpperCase()}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded-full border border-slate-200 dark:border-slate-800 flex items-center justify-center text-[7px] leading-none">i</span>
+                <span className="uppercase text-[9px] font-bold text-slate-400">Realtime Win %</span>
+              </div>
+              <span className="shrink-0">{teamBName.substring(0, 3).toUpperCase()}</span>
+            </div>
+
+            {/* Bottom Row: Proportions & Bar */}
+            <div className="flex items-center gap-4">
+              <span className="text-base font-black text-slate-900 dark:text-white tabular-nums w-10">{teamAProb}%</span>
+              <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full flex overflow-hidden">
+                <div className="h-full bg-rose-600 transition-all duration-1000 shadow-[0_0_8px_rgba(225,29,72,0.3)]" style={{ width: `${teamAProb}%` }}></div>
+                <div className="h-full bg-blue-600 transition-all duration-1000 shadow-[0_0_8px_rgba(37,99,235,0.3)]" style={{ width: `${teamBProb}%` }}></div>
+              </div>
+              <span className="text-base font-black text-slate-900 dark:text-white tabular-nums w-10 text-right">{teamBProb}%</span>
             </div>
           </div>
         )}
@@ -180,7 +258,7 @@ const CrexLiveSection = ({
         {!onlyCommentary && (
           <div className="bg-white border-y border-slate-100 divide-y divide-slate-100">
             <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between text-[11px] font-medium text-slate-400 uppercase tracking-tight">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 uppercase tracking-tight">
                 <span>Batter</span>
                 <div className="flex gap-6 pr-1">
                   <span className="w-10 text-right">R (B)</span>
@@ -190,37 +268,51 @@ const CrexLiveSection = ({
                 </div>
               </div>
               <div className="space-y-3">
-                {[striker, nonStriker].map((p, i) => p && (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-800">{p.name}</span>
-                      {i === 0 && <img src={cricketBatIcon} className="w-4 h-4 opacity-40 ml-1" alt="" />}
-                    </div>
-                    <div className="flex gap-6 pr-1 text-sm font-medium text-slate-800 items-baseline">
-                      <div className="w-10 text-right flex items-baseline justify-end gap-1">
-                        <span className="text-base">{p.runs || 0}</span>
-                        <span className="text-[10px] text-slate-400">({p.balls || 0})</span>
+                {(() => {
+                  const battersList = [striker, nonStriker].filter(Boolean);
+                  // Sort by ID to keep positions stable during strike rotation
+                  const stableBatters = [...battersList].sort((a, b) =>
+                    String(a.id || a.playerId || a.batsmanId || '').localeCompare(String(b.id || b.playerId || b.batsmanId || ''))
+                  );
+
+                  return stableBatters.map((p, i) => (
+                    <div key={p.id || i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {(p.id || p.playerId || p.batsmanId) && String(p.id || p.playerId || p.batsmanId) !== 'undefined' ? (
+                          <Link to={`/players/${p.id || p.playerId || p.batsmanId}`} className="text-sm font-medium text-slate-800 hover:text-blue-600 transition-colors">
+                            {p.name}
+                          </Link>
+                        ) : (
+                          <span className="text-sm font-medium text-slate-800">{p.name}</span>
+                        )}
+                        {p.id === striker?.id && <img src={cricketBatIcon} className="w-4 h-4 opacity-40 ml-1" alt="" />}
                       </div>
-                      <span className="w-6 text-center text-slate-500 font-medium">{p.fours || 0}</span>
-                      <span className="w-6 text-center text-slate-500 font-medium">{p.sixes || 0}</span>
-                      <span className="w-10 text-right text-slate-400 font-medium text-xs">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
+                      <div className="flex gap-6 pr-1 text-sm font-medium text-slate-800 items-baseline">
+                        <div className="w-10 text-right flex items-baseline justify-end gap-1">
+                          <span className="text-base">{p.runs || 0}</span>
+                          <span className="text-[10px] text-slate-400">({p.balls || 0})</span>
+                        </div>
+                        <span className="w-6 text-center text-slate-700 font-medium">{p.fours || 0}</span>
+                        <span className="w-6 text-center text-slate-700 font-medium">{p.sixes || 0}</span>
+                        <span className="w-10 text-right text-slate-800 font-semibold text-xs">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
               <div className="flex items-center justify-between pt-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">P'ship:</span>
-                  <span className="text-xs font-medium text-slate-700">{formatPartnership()}</span>
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">P'ship:</span>
+                  <span className="text-xs font-bold text-slate-800">{formatPartnership()}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">Last wkt:</span>
-                  <span className="text-xs font-medium text-slate-700">{formatLastWicket() || '—'}</span>
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Last wkt:</span>
+                  <span className="text-xs font-bold text-slate-800">{formatLastWicket() || '—'}</span>
                 </div>
               </div>
             </div>
             <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between text-[11px] font-medium text-slate-400 uppercase tracking-tight">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 uppercase tracking-tight">
                 <span>Bowler</span>
                 <div className="flex gap-6 pr-1">
                   <span className="w-10 text-right">W-R</span>
@@ -230,11 +322,17 @@ const CrexLiveSection = ({
               </div>
               {currentBowler && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-800">{currentBowler.name}</span>
+                  {(currentBowler.id || currentBowler.playerId || currentBowler.bowlerId) && String(currentBowler.id || currentBowler.playerId || currentBowler.bowlerId) !== 'undefined' ? (
+                    <Link to={`/players/${currentBowler.id || currentBowler.playerId || currentBowler.bowlerId}`} className="text-sm font-medium text-slate-800 hover:text-blue-600 transition-colors">
+                      {currentBowler.name}
+                    </Link>
+                  ) : (
+                    <span className="text-sm font-medium text-slate-800">{currentBowler.name}</span>
+                  )}
                   <div className="flex gap-6 pr-1 text-sm font-medium text-slate-800">
                     <span className="w-10 text-right text-base">{currentBowler.wickets || 0}-{currentBowler.runsConceded || 0}</span>
-                    <span className="w-10 text-center text-slate-400 font-medium">{currentBowler.overs || '0.0'}</span>
-                    <span className="w-10 text-right text-slate-400 font-medium">{(currentBowler.economy || (currentBowler.overs > 0 ? (currentBowler.runsConceded / currentBowler.overs) : 0)).toFixed(2)}</span>
+                    <span className="w-10 text-center text-slate-700 font-medium">{currentBowler.overs || '0.0'}</span>
+                    <span className="w-10 text-right text-slate-700 font-medium">{(currentBowler.economy || (currentBowler.overs > 0 ? (currentBowler.runsConceded / currentBowler.overs) : 0)).toFixed(2)}</span>
                   </div>
                 </div>
               )}
@@ -242,7 +340,8 @@ const CrexLiveSection = ({
           </div>
         )}
 
-        {!isFinishedMatch && !onlyCommentary && (
+        {/* First Innings: Projected Score */}
+        {!isFinishedMatch && !onlyCommentary && (matchPhase === 'FirstInnings' || !target) && (
           <div className="px-4 py-2 space-y-3">
             <h3 className="text-base font-medium text-slate-800">Projected Score</h3>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 space-y-4">
@@ -268,6 +367,131 @@ const CrexLiveSection = ({
               <div className="text-[10px] font-medium text-slate-400 italic">
                 * Based on current run rate of <span className="font-medium text-slate-500">{currentRunRate?.toFixed(2)}</span> (Current: {currentRuns} runs in {currentOvers} overs)
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Second Innings: "At this stage" comparison */}
+        {!isFinishedMatch && !onlyCommentary && matchPhase === 'SecondInnings' && (
+          <div className="px-4 py-2 space-y-3">
+            <h3 className="text-base font-medium text-slate-800">At this stage</h3>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 relative">
+              <div className="absolute inset-0 bg-gradient-to-b from-slate-50/10 to-transparent" />
+
+              <div className="flex items-center justify-between relative z-10">
+                {/* Chasing Team (Left) */}
+                {(() => {
+                  const isTeamA = currentInnings?.inningId === 'teamA';
+                  const squad = isTeamA ? teamASquad : teamBSquad;
+                  const name = isTeamA ? teamAName : teamBName;
+                  const logo = squad?.logoUrl;
+
+                  return (
+                    <div className="flex flex-col items-center gap-2 flex-1">
+                      {squad?.id ? (
+                        <Link to={`/squads/${squad.id}`}>
+                          <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm overflow-hidden hover:scale-105 transition-transform">
+                            {logo ? (
+                              <img src={logo} className="w-full h-full object-contain" alt="" />
+                            ) : (
+                              <span className="text-lg font-black text-slate-300">{name[0]}</span>
+                            )}
+                          </div>
+                        </Link>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm overflow-hidden">
+                          {logo ? (
+                            <img src={logo} className="w-full h-full object-contain" alt="" />
+                          ) : (
+                            <span className="text-lg font-black text-slate-300">{name[0]}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="text-center">
+                        <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">
+                          {name.substring(0, 3).toUpperCase()}*
+                        </div>
+                        <div className="text-xl font-bold text-slate-900 tabular-nums">
+                          {currentRuns}-{currentInnings?.totalWickets || 0}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Over Mark (Center) */}
+                <div className="flex flex-col items-center px-4">
+                  <div className="px-3 py-1 bg-slate-900 rounded-full text-[8px] font-bold text-white uppercase tracking-widest mb-1.5 shadow-sm">
+                    {currentOvers} Overs
+                  </div>
+                  <div className="flex items-center gap-1.5 opacity-20">
+                    <div className="h-px w-6 bg-slate-900"></div>
+                    <span className="text-[10px] font-black text-slate-900">VS</span>
+                    <div className="h-px w-6 bg-slate-900"></div>
+                  </div>
+                </div>
+
+                {/* Defending Team (Right) */}
+                {(() => {
+                  const isTeamA = currentInnings?.inningId === 'teamA';
+                  const defendingInning = isTeamA ? teamBInnings : teamAInnings;
+                  const defendingSquad = isTeamA ? teamBSquad : teamASquad;
+                  const defendingName = isTeamA ? teamBName : teamAName;
+                  const defendingLogo = defendingSquad?.logoUrl;
+
+                  // Helper to parse "2.4" -> 16 balls
+                  const parseOversToBalls = (ovStr) => {
+                    const [ov, b] = (ovStr || '0.0').toString().split('.');
+                    return (Number(ov) * 6) + Number(b || 0);
+                  };
+
+                  const currentLegalBalls = parseOversToBalls(currentOvers);
+
+                  // Find score at exact same over stage in 1st innings
+                  const defenderProgress = defendingInning?.oversProgress || [];
+
+                  // Robust lookup: Find by 'balls' number first, fallback to string match
+                  let stageSnapshot = defenderProgress.find(p => p.balls === currentLegalBalls);
+
+                  if (!stageSnapshot) {
+                    // Fallback to closest earlier snapshot if exact ball count not found
+                    stageSnapshot = defenderProgress.slice().reverse().find(p => (p.balls || parseOversToBalls(p.over)) <= currentLegalBalls);
+                  }
+
+                  return (
+                    <div className="flex flex-col items-center gap-2 flex-1">
+                      {defendingSquad?.id ? (
+                        <Link to={`/squads/${defendingSquad.id}`}>
+                          <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm overflow-hidden hover:scale-105 transition-transform">
+                            {defendingLogo ? (
+                              <img src={defendingLogo} className="w-full h-full object-contain" alt="" />
+                            ) : (
+                              <span className="text-lg font-black text-slate-300">{defendingName[0]}</span>
+                            )}
+                          </div>
+                        </Link>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm overflow-hidden">
+                          {defendingLogo ? (
+                            <img src={defendingLogo} className="w-full h-full object-contain" alt="" />
+                          ) : (
+                            <span className="text-lg font-black text-slate-300">{defendingName[0]}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="text-center">
+                        <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">
+                          {defendingName.substring(0, 3).toUpperCase()}
+                        </div>
+                        <div className="text-xl font-bold text-slate-900 tabular-nums">
+                          {stageSnapshot ? `${stageSnapshot.runs}-${stageSnapshot.wickets}` : (defenderProgress.length > 0 ? '—' : 'Sync...')}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
             </div>
           </div>
         )}

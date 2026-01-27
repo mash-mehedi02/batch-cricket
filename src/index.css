@@ -8,8 +8,9 @@
   }
 
   body {
-    @apply bg-gradient-to-br from-slate-50 via-white to-slate-50 text-slate-900 font-sans;
+    @apply bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-sans;
     font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   h1,
@@ -57,8 +58,10 @@
 
   /* Hide scrollbar for IE, Edge and Firefox */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
 
   /* Custom entrance animations */
@@ -223,6 +226,7 @@
       opacity: 0;
       transform: scale(0.8);
     }
+
     100% {
       opacity: 1;
       transform: scale(1);
@@ -233,6 +237,7 @@
     0% {
       transform: translateX(-100%);
     }
+
     100% {
       transform: translateX(100%);
     }
@@ -304,6 +309,7 @@
       transform: scale(0.5);
       opacity: 0;
     }
+
     to {
       transform: scale(1);
       opacity: 1;
@@ -311,9 +317,12 @@
   }
 
   @keyframes bounceShort {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateY(0);
     }
+
     50% {
       transform: translateY(-10px);
     }
@@ -330,36 +339,89 @@
   .animate-pulse-fast {
     animation: pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-  
+
   .animate-pulse-scale {
     animation: pulseScale 2s ease-in-out;
   }
-  
+
   @keyframes pulseScale {
     0% {
       transform: scale(0.8);
       opacity: 0;
     }
+
     50% {
       transform: scale(1.1);
       opacity: 1;
     }
+
     100% {
       transform: scale(1);
       opacity: 1;
     }
   }
-  
+
   .animate-bg-glow {
     animation: bgGlow 2s ease-in-out;
   }
-  
+
   @keyframes bgGlow {
-    0%, 100% {
+
+    0%,
+    100% {
       background-position: 0% 50%;
     }
+
     50% {
       background-position: 100% 50%;
     }
+  }
+
+  /* Global Dark Mode Support Utilities */
+  .dark body {
+    @apply bg-slate-950 text-slate-100 !important;
+  }
+
+  .dark .bg-white {
+    @apply bg-slate-900 !important;
+  }
+
+  .dark .bg-slate-50 {
+    @apply bg-slate-800/40 !important;
+  }
+
+  .dark .bg-\[\#f8fafc\],
+  .dark .bg-\[\#f1f5f9\] {
+    @apply bg-slate-950 !important;
+  }
+
+  /* Universal Text Color Overrides for Dark Mode */
+  .dark .text-slate-900,
+  .dark .text-black,
+  .dark .text-slate-800,
+  .dark .text-slate-700 {
+    color: #f1f5f9 !important;
+  }
+
+  .dark .text-slate-600,
+  .dark .text-slate-500 {
+    color: #94a3b8 !important;
+  }
+
+  .dark .text-slate-400 {
+    color: #cbd5e1 !important;
+  }
+
+  /* Border & Divider Overrides */
+  .dark .border-slate-100,
+  .dark .border-slate-200,
+  .dark .border-slate-50,
+  .dark .border-slate-300 {
+    @apply border-slate-800 !important;
+  }
+
+  .dark .divide-slate-100>*,
+  .dark .divide-slate-200>* {
+    @apply border-slate-800 !important;
   }
 }

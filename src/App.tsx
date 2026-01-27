@@ -19,6 +19,7 @@ import MatchGraphs from './pages/MatchGraphs'
 import MatchPlayingXI from './pages/MatchPlayingXI'
 import Schedule from './pages/Schedule'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import Search from './pages/Search'
 import AdminTournaments from './pages/admin/AdminTournaments'
 import TournamentControlSystem from './pages/admin/TournamentControlSystem'
 import AdminSquads from './pages/admin/AdminSquads'
@@ -29,6 +30,7 @@ import AdminLiveScoring from './pages/admin/AdminLiveScoring'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
 import AdminSettings from './pages/admin/AdminSettings'
 import SplashScreen from './components/common/SplashScreen'
+import ScrollToTop from './components/common/ScrollToTop'
 
 function LayoutWrapper() {
   return (
@@ -38,9 +40,7 @@ function LayoutWrapper() {
   )
 }
 
-function AdminLayoutWrapper() {
-  return <AdminLayout />
-}
+
 
 function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
   const tournamentId = window.location.pathname.split('/')[2]
@@ -60,9 +60,11 @@ function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ScrollToTop />
       <Routes>
         {/* Login Route - No Layout */}
         <Route path="/login" element={<Login />} />
+        <Route path="/search" element={<Search />} />
 
         {/* Public Routes - Wrapped in Layout */}
         <Route element={<LayoutWrapper />}>

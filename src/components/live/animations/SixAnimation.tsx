@@ -3,46 +3,38 @@ import sixIcon from '@/assets/six.png';
 export const SixAnimation: React.FC = () => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden pointer-events-none">
-            <style>
-                {`
-          @keyframes shake {
-            0%, 100% { transform: translateX(0) scale(1); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px) scale(1.05); }
-            20%, 40%, 60%, 80% { transform: translateX(5px) scale(1.05); }
-          }
-          .animate-shake-hard {
-            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-          }
-        `}
-            </style>
+            {/* Elegant Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/95 via-orange-950/90 to-slate-950/95 backdrop-blur-sm" />
 
-            {/* Background Overlay - Orange -> Gold Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-900/90 via-red-600/80 to-amber-600/90 animate-pulse-slow backdrop-blur-md" />
-
-            {/* Explosive Burst */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-500/40 via-transparent to-transparent animate-pulse-fast opacity-70" />
+            {/* Radial Accent Glow */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-500/15 via-transparent to-transparent" />
 
             {/* Content Container */}
-            <div className="relative z-10 flex flex-col items-center justify-center">
-                {/* Six Icon with Power Glow */}
-                <div className="relative mb-4 sm:mb-8 animate-shake-hard">
-                    <div className="absolute inset-0 bg-orange-500 blur-3xl opacity-50 rounded-full animate-pulse" />
+            <div className="relative z-10 flex flex-col items-center justify-center gap-8 animate-in fade-in zoom-in-95 duration-500">
+                {/* Six Icon - Premium Display */}
+                <div className="relative">
+                    <div className="absolute inset-0 bg-orange-500/25 blur-3xl rounded-full animate-pulse" />
                     <img
                         src={sixIcon}
                         alt="SIX"
-                        className="w-56 h-56 sm:w-72 sm:h-72 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]"
+                        className="w-40 h-40 sm:w-48 sm:h-48 object-contain drop-shadow-[0_0_40px_rgba(249,115,22,0.5)]"
                     />
                 </div>
 
-                {/* Text Effect */}
-                <h1 className="text-7xl sm:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-orange-400 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] tracking-tighter uppercase animate-in slide-in-from-bottom-4 duration-500">
-                    MAXIMUM!
-                </h1>
+                {/* Refined Typography */}
+                <div className="flex flex-col items-center gap-3">
+                    <h1 className="text-8xl sm:text-9xl font-black text-white drop-shadow-lg tracking-tight">
+                        SIX
+                    </h1>
+                    <div className="h-1 w-32 bg-gradient-to-r from-transparent via-orange-500 to-transparent rounded-full animate-pulse" />
+                    <p className="text-xl sm:text-2xl text-slate-300 font-medium tracking-wide uppercase">
+                        Maximum
+                    </p>
+                </div>
 
-                {/* Shockwaves */}
-                <div className="absolute inset-0 -z-10 flex items-center justify-center">
-                    <div className="w-full h-full max-w-sm max-h-sm border-4 border-orange-400/30 rounded-full animate-ping" />
-                    <div className="absolute w-2/3 h-2/3 border-4 border-yellow-400/20 rounded-full animate-ping delay-100" />
+                {/* Subtle Ring Effect */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-96 h-96 border border-orange-500/20 rounded-full animate-ping" />
                 </div>
             </div>
         </div>

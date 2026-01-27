@@ -1007,9 +1007,9 @@ export default function MatchLive() {
   // Match tabs (MUST be before early returns) - All tabs in one page
   const matchTabs = useMemo(() => {
     const baseTabs = [
-      { id: 'live', label: 'Live' },
-      { id: 'commentary', label: 'Commentary' },
       { id: isFinishedMatch ? 'summary' : 'info', label: isFinishedMatch ? 'Summary' : 'Info' },
+      { id: 'commentary', label: 'Commentary' },
+      { id: 'live', label: 'Live' },
       { id: 'scorecard', label: 'Scorecard' },
       { id: 'playing-xi', label: 'Playing XI' },
     ]
@@ -1478,12 +1478,14 @@ export default function MatchLive() {
               ballsRemaining={(currentInnings as any)?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number((currentInnings as any)?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}
-              currentInnings={(match.currentBatting || 'teamA') as any}
+              currentInnings={currentInnings}
               currentWickets={(currentInnings as any)?.totalWickets || 0}
               teamAName={teamAName}
               teamBName={teamBName}
               teamAInnings={teamAInnings}
               teamBInnings={teamBInnings}
+              teamASquad={teamASquad}
+              teamBSquad={teamBSquad}
               firstSide={firstSide}
               secondSide={secondSide}
               resultSummary={isFinishedMatch ? (resultSummary || null) : null}

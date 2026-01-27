@@ -2,6 +2,8 @@
  * Bowling Card Component
  * Shows current bowler stats
  */
+import { Link } from 'react-router-dom'
+
 const BowlingCard = ({ player }) => {
   if (!player) {
     return (
@@ -16,6 +18,7 @@ const BowlingCard = ({ player }) => {
   const balls = player.ballsBowled || 0
   const overs = balls > 0 ? `${Math.floor(balls / 6)}.${balls % 6}` : '0.0'
   const economy = balls > 0 ? (runs / (balls / 6)).toFixed(2) : '0.00'
+  const playerId = player.id || player.playerId || player.bowlerId
 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-lg p-5 border-2 border-purple-300">
@@ -25,7 +28,16 @@ const BowlingCard = ({ player }) => {
             {player.name?.charAt(0) || 'B'}
           </div>
           <div>
-            <div className="font-bold text-slate-900 text-base">{player.name || 'Bowler'}</div>
+            {playerId ? (
+              <Link
+                to={`/players/${playerId}`}
+                className="font-bold text-slate-900 text-base hover:text-purple-600 transition-colors"
+              >
+                {player.name || 'Bowler'}
+              </Link>
+            ) : (
+              <div className="font-bold text-slate-900 text-base">{player.name || 'Bowler'}</div>
+            )}
             <div className="text-xs text-purple-600 font-semibold mt-0.5">Bowling</div>
           </div>
         </div>

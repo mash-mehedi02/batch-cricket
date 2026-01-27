@@ -849,6 +849,28 @@ const AdminLiveScoring = () => {
                         Start 2nd Innings
                     </button>
                     <button
+                        onClick={async () => {
+                            if (!matchId) return;
+                            setProcessing(true);
+                            try {
+                                await Promise.all([
+                                    recalculateInnings(matchId, 'teamA'),
+                                    recalculateInnings(matchId, 'teamB')
+                                ]);
+                                toast.success("Historical data synced!");
+                            } catch (e) {
+                                console.error(e);
+                                toast.error("Failed to sync history");
+                            } finally {
+                                setProcessing(false);
+                            }
+                        }}
+                        disabled={processing}
+                        className="px-6 py-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 font-bold rounded-xl text-sm transition-colors flex items-center gap-2"
+                    >
+                        <RotateCcw size={16} /> Sync History
+                    </button>
+                    <button
                         onClick={handleUndo}
                         className="px-6 py-3 bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 font-bold rounded-xl text-sm transition-colors flex items-center gap-2"
                     >
