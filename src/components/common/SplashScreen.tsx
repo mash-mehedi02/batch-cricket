@@ -148,7 +148,7 @@ const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingCo
       {/* Signature Footer */}
       <div ref={footerRef} className="absolute bottom-10 z-10">
         <p className="text-gray-500 text-xs md:text-sm italic tracking-widest font-light">
-          Dedicated by <span className="text-gray-400 font-normal">Mehedi Hasan</span>
+          Developed by <span className="text-gray-400 font-normal">Mehedi Hasan</span>
         </p>
       </div>
 
