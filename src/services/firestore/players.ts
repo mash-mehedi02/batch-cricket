@@ -3,7 +3,7 @@
  * Firestore operations for players
  */
 
-import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
 import { db } from '@/config/firebase'
 import { Player } from '@/types'
 import { COLLECTIONS } from './collections'
@@ -157,5 +157,66 @@ export const playerService = {
     const docRef = doc(db, COLLECTIONS.PLAYERS, id)
     await deleteDoc(docRef)
   },
+
+  /**
+   * Upsert a match performance and recompute career stats
+   * Handles both the legacy pastMatches array and the new playerMatchStats collection
+   */
+  async upsertPastMatchAndRecompute(playerId: string, performance: any): Promise<void> {
+    try {
+      const playerRef = doc(db, COLLECTIONS.PLAYERS, playerId)
+      const playerSnap = await getDoc(playerRef)
+      if (!playerSnap.exists()) return
+
+      const playerData = playerSnap.data() as Player
+      const pastMatches = playerData.pastMatches || []
+      const matchId = performance.matchId
+
+      // 1. Update legacy pastMatches array (for backwards compatibility/UI)
+      const existingIndex = pastMatches.findIndex((m: any) => m.matchId === matchId || m.id === matchId)
+      let newPastMatches = [...pastMatches]
+      if (existingIndex >= 0) {
+        newPastMatches[existingIndex] = { ...newPastMatches[existingIndex], ...performance }
+      } else {
+        newPastMatches.push(performance)
+      }
+
+      // 2. Add/Update records in playerMatchStats collection (the new source of truth)
+      const statsId = `${matchId}_${playerId}`
+      const statsRef = doc(collection(db, 'playerMatchStats'), statsId)
+
+      const statsPayload = {
+        matchId,
+        playerId,
+        opponent: performance.opponentName || performance.opponent || 'Opponent',
+        runs: Number(performance.runs || 0),
+        balls: Number(performance.balls || 0),
+        fours: Number(performance.fours || 0),
+        sixes: Number(performance.sixes || 0),
+        out: Boolean(performance.notOut === false),
+        dismissalType: performance.dismissal || null,
+        oversBowled: Number(performance.ballsBowled || 0) / 6,
+        runsConceded: Number(performance.runsConceded || 0),
+        wickets: Number(performance.wickets || 0),
+        lastUpdated: Timestamp.now(),
+      }
+
+      await setDoc(statsRef, statsPayload, { merge: true })
+
+      // 3. Save player document updates
+      await updateDoc(playerRef, {
+        pastMatches: newPastMatches,
+        updatedAt: Timestamp.now()
+      })
+
+      // 4. Trigger full aggregation for accurate career totals
+      const { playerMatchStatsService } = await import('./playerMatchStats')
+      await playerMatchStatsService.aggregateCareerStats(playerId)
+
+    } catch (error) {
+      console.error(`[playerService] upsertPastMatchAndRecompute failed for ${playerId}:`, error)
+      throw error
+    }
+  }
 }
 

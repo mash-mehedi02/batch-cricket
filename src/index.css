@@ -11,6 +11,10 @@
     @apply bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-sans;
     font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
     transition: background-color 0.3s ease, color 0.3s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
   }
 
   h1,

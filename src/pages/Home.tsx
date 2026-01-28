@@ -225,7 +225,7 @@ export default function Home() {
       </div>
 
       {/* MATCH SECTIONS - Clean Tabs */}
-      <div id="match-sections" className="sticky top-16 bg-white/95 backdrop-blur-md z-40 border-b border-slate-100 shadow-sm">
+      <div id="match-sections" className="bg-white border-b border-slate-100">
         <div className="max-w-7xl mx-auto flex overflow-x-auto scrollbar-hide px-2">
           {[
             { id: 'live', label: 'Live' },

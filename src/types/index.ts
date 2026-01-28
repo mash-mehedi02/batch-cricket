@@ -180,7 +180,7 @@ export interface PlayerSeasonStats {
 
 // ==================== MATCH ====================
 
-export type MatchStatus = 'upcoming' | 'live' | 'finished' | 'abandoned'
+export type MatchStatus = 'upcoming' | 'live' | 'finished' | 'abandoned' | 'InningsBreak'
 export type BallType = 'red' | 'white' | 'pink'
 
 export interface Match {
@@ -204,6 +204,10 @@ export interface Match {
   electedTo?: 'bat' | 'bowl'
   status: MatchStatus
   matchPhase: 'FirstInnings' | 'SecondInnings' | 'InningsBreak' | 'finished'
+  target?: number
+  innings1Score?: number
+  innings1Wickets?: number
+  innings1Overs?: string
   // Lineups
   teamAPlayingXI: string[] // Player IDs
   teamBPlayingXI: string[] // Player IDs

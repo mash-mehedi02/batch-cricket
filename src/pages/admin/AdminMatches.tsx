@@ -445,8 +445,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleSaveToss = async () => {
     if (!id) return
-    if (!user || user.role !== 'admin') {
-      toast.error('Only admins can update toss.')
+    if (!user) {
+      toast.error('Please login to update toss.')
       return
     }
     setPreMatchSaving(true)
@@ -504,8 +504,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleSavePlayingXI = async () => {
     if (!id) return
-    if (!user || user.role !== 'admin') {
-      toast.error('Only admins can set Playing XI.')
+    if (!user) {
+      toast.error('Please login to set Playing XI.')
       return
     }
     setPreMatchSaving(true)
@@ -544,8 +544,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleAddManualCommentary = async () => {
     if (!id) return
-    if (!user || user.role !== 'admin') {
-      toast.error('Only admins can add manual commentary.')
+    if (!user) {
+      toast.error('Please login to add manual commentary.')
       return
     }
     if (!manualText.trim()) {
@@ -567,13 +567,31 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('🚀 [AdminMatches] handleSubmit triggered. Mode:', mode)
 
-    // Hard guard: avoid permission-denied loops (send user to Settings bootstrap)
-    if (!user || user.role !== 'admin') {
-      toast.error('Match create করতে Admin permission লাগবে। Settings → “Make Me Admin” দিয়ে ঠিক করুন।')
-      navigate('/admin/settings')
+    if (loading) {
+      console.log('⏳ [AdminMatches] Auth store is still loading...')
       return
     }
+
+    if (!user) {
+      console.warn('⚠️ [AdminMatches] No user found in auth store.')
+      toast.error('Match create করতে login লাগবে।')
+      return
+    }
+
+    // Client-side hard validation
+    if (!formData.tournamentId) {
+      toast.error('Please select a tournament.')
+      return
+    }
+
+    if (!formData.teamA || !formData.teamB) {
+      toast.error('Please select both Team A and Team B.')
+      return
+    }
+
+    console.log('📝 [AdminMatches] Form Data:', formData)
 
     if (formData.tournamentId && tournamentGroups.length > 0 && !formData.groupId) {
       toast.error('Please select a group for this tournament.')
@@ -611,12 +629,32 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       }
 
       // Combine date + time into a single timestamp for Firestore
-      const effectiveTime = formData.time || '16:00' // Default: 04:00 PM
-      const dateTime = new Date(`${formData.date}T${effectiveTime}`)
+      const effectiveTime = formData.time || '16:00'
+
+      // Safer date parsing to avoid cross-browser "Invalid Date"
+      console.log('📅 [AdminMatches] Parsing date/time:', formData.date, effectiveTime)
+      const [year, month, day] = formData.date.split('-').map(Number)
+      const [hour, min] = effectiveTime.split(':').map(Number)
+      const dateTime = new Date(year, month - 1, day, hour, min)
+
+      if (isNaN(dateTime.getTime())) {
+        console.error('❌ [AdminMatches] Invalid Date calculation:', { year, month, day, hour, min })
+        toast.error('Invalid Date or Time format.')
+        setSaving(false)
+        return
+      }
+
+      if (!formData.teamA || !formData.teamB) {
+        toast.error('Please select both Team A and Team B.')
+        setSaving(false)
+        return
+      }
 
       const selectedGroup = tournamentGroups.find((g) => g.id === formData.groupId)
-      const resolvedTeamAName = formData.teamAName || squads.find((s) => s.id === formData.teamA)?.name || 'Team A'
-      const resolvedTeamBName = formData.teamBName || squads.find((s) => s.id === formData.teamB)?.name || 'Team B'
+      const squadA = squads.find((s) => s.id === formData.teamA)
+      const squadB = squads.find((s) => s.id === formData.teamB)
+      const resolvedTeamAName = formData.teamAName || squadA?.name || 'Team A'
+      const resolvedTeamBName = formData.teamBName || squadB?.name || 'Team B'
 
       const matchData = stripUndefined({
         tournamentId: formData.tournamentId,
@@ -639,8 +677,11 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         tossDecision: (formData.tossDecision as any) || 'bat',
         electedTo: (formData.tossDecision as any) || 'bat',
         status: (formData.status as any) || 'upcoming',
+        matchPhase: mode === 'create' ? 'FirstInnings' : undefined,
         createdBy: mode === 'create' ? user?.uid || '' : undefined,
       })
+
+      console.log('🚀 [AdminMatches] Sending to matchService...', matchData)
 
       if (mode === 'create') {
         await matchService.create(matchData as any)
@@ -665,23 +706,23 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
           toast.error(
             <div>
-              <p className="font-semibold">⚠️ Permission Denied</p>
-              <p className="text-sm mt-1">Match create করতে admin permission লাগবে।</p>
-              <ul className="text-xs mt-1 ml-4 list-disc space-y-0.5">
-                <li><strong>admin/{debugInfo.userId || 'YOUR_UID'}</strong> ডকুমেন্ট আছে কিনা দেখুন</li>
-                <li><strong>Auth Store Role</strong> = admin কিনা দেখুন</li>
-                <li>Logout → Login করে token refresh করুন</li>
+              <p className="font-semibold text-red-600">⚠️ Permission Denied (Admin Request)</p>
+              <p className="text-sm mt-1">Match create করার অনুমতি নেই।</p>
+              <ul className="text-xs mt-2 ml-4 list-decimal space-y-1 text-slate-600">
+                <li>Firestore Rule-এ আপনার UID ({debugInfo.userId}) অনুমোদিত কিনা চেক করুন।</li>
+                <li>Admin collection-এ আপনার জন্যে ডকুমেন্ট আছে কিনা নিশ্চিত করুন।</li>
+                <li>নিশ্চিত হয়ে Logout করে আবার Login করুন।</li>
               </ul>
-              <p className="text-xs mt-2">Details: browser console (F12) → Admin Permission Debug</p>
+              <p className="text-[10px] mt-2 text-slate-400">Error: {msg || code}</p>
             </div>,
-            { duration: 10000 }
+            { duration: 8000 }
           )
           return
         } catch (debugError) {
           console.error('Debug check failed:', debugError)
         }
       }
-      toast.error(msg || code || 'Failed to save match')
+      toast.error(`Error: ${msg || code || 'Submission failed'}`)
     } finally {
       setSaving(false)
     }
@@ -689,8 +730,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleStartMatch = async (matchId: string) => {
     // Check if user is admin
-    if (!user || user.role !== 'admin') {
-      toast.error('Only admins can start matches')
+    if (!user) {
+      toast.error('Please login to start matches')
       return
     }
 
@@ -803,24 +844,16 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         console.error('Debug check failed:', debugError)
       }
 
-      // Check if it's a permission error
-      if (error.code === 'permission-denied' || error.message?.includes('permission') || error.message?.includes('Permission')) {
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
         toast.error(
           <div>
-            <p className="font-semibold">⚠️ Permission Denied</p>
-            <p className="text-sm mt-1">Проверьте Debug (F12) — там будут значения:</p>
-            <ul className="text-xs mt-1 ml-4 list-disc space-y-0.5">
-              <li><strong>projectId</strong> (должен быть sma-cricket-league)</li>
-              <li><strong>userId</strong> (UID должен совпадать с ID документа в admin)</li>
-              <li><strong>hasAdminDoc</strong> (должно быть true)</li>
-              <li><strong>isUsingEmulators</strong> (должно быть false, если вы не запускаете emulators)</li>
+            <p className="font-semibold text-red-600">⚠️ Permission Denied</p>
+            <p className="text-sm mt-1">Check the following debug values (F12):</p>
+            <ul className="text-xs mt-1 ml-4 list-disc space-y-0.5 text-slate-500">
+              <li><strong>userId</strong>: {user.uid}</li>
+              <li><strong>hasAdminDoc</strong>: {debugInfo?.hasAdminDoc ? '✅ YES' : '❌ NO'}</li>
             </ul>
-            <ol className="text-xs mt-1 ml-4 list-decimal space-y-0.5">
-              <li>Firestore rules not deployed (Console → Firestore → Rules → Publish)</li>
-              <li>Auth token not refreshed (Logout & Login)</li>
-              <li>Admin document missing (Check console F12 for debug info)</li>
-            </ol>
-            <p className="text-xs mt-2 font-semibold">Check browser console (F12) for detailed debug info</p>
+            <p className="text-xs mt-2 p-2 bg-slate-50 rounded italic text-center text-slate-400">"admin/{user.uid}" document must exist in Firestore.</p>
           </div>,
           { duration: 10000 }
         )
@@ -895,6 +928,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament</label>
               <select
+                required
                 value={formData.tournamentId}
                 onChange={(e) => {
                   const nextTournamentId = e.target.value

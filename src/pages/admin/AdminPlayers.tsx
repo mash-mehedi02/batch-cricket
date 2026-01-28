@@ -14,6 +14,7 @@ import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import { Search } from 'lucide-react'
 
 interface AdminPlayersProps {
   mode?: 'list' | 'create' | 'edit'
@@ -28,6 +29,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const [loading, setLoading] = useState(true)
   const [filterRole, setFilterRole] = useState<string>('')
   const [filterSquad, setFilterSquad] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     role: 'batsman' as 'batsman' | 'bowler' | 'all-rounder' | 'wicket-keeper',
@@ -121,26 +123,26 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Player name is required'
     }
-    
+
     if (!formData.squadId) {
       newErrors.squadId = 'Please select a squad'
     }
-    
+
     if (formData.name.trim().length < 2) {
       newErrors.name = 'Player name must be at least 2 characters'
     }
-    
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       toast.error('Please fix the validation errors')
       return
@@ -196,7 +198,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                 playerIds: oldSquad.playerIds.filter(pid => pid !== id)
               })
             }
-            
+
             // Add to new squad
             if (formData.squadId) {
               const newSquad = await squadService.getById(formData.squadId)
@@ -213,20 +215,20 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
             console.error('Error syncing squad changes:', syncError)
           }
         } else if (formData.squadId) {
-            // Ensure player is in current squad list (idempotent)
-            try {
-              const squad = await squadService.getById(formData.squadId)
-              if (squad) {
-                  const currentIds = squad.playerIds || []
-                  if (!currentIds.includes(id)) {
-                      await squadService.update(formData.squadId, {
-                          playerIds: [...currentIds, id]
-                      })
-                  }
+          // Ensure player is in current squad list (idempotent)
+          try {
+            const squad = await squadService.getById(formData.squadId)
+            if (squad) {
+              const currentIds = squad.playerIds || []
+              if (!currentIds.includes(id)) {
+                await squadService.update(formData.squadId, {
+                  playerIds: [...currentIds, id]
+                })
               }
-            } catch (err) {
-                console.error('Error verifying squad sync:', err)
             }
+          } catch (err) {
+            console.error('Error verifying squad sync:', err)
+          }
         }
 
         toast.success('Player updated successfully!')
@@ -243,6 +245,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const filteredPlayers = players.filter((player) => {
     if (filterRole && player.role !== filterRole) return false
     if (filterSquad && player.squadId !== filterSquad) return false
+    if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
     return true
   })
 
@@ -260,7 +263,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
             {mode === 'create' ? 'Create New Player' : 'Edit Player'}
           </h1>
           <p className="text-gray-600 mt-1">
-            {mode === 'create' ? 'Add a new player to your squad' : 'Update player information' }
+            {mode === 'create' ? 'Add a new player to your squad' : 'Update player information'}
           </p>
         </div>
 
@@ -278,9 +281,8 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   setFormData({ ...formData, name: e.target.value });
                   if (errors.name) setErrors(prev => ({ ...prev, name: '' }));
                 }}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${
-                  errors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 placeholder="Enter player full name"
               />
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
@@ -314,9 +316,8 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   setFormData({ ...formData, squadId: e.target.value });
                   if (errors.squadId) setErrors(prev => ({ ...prev, squadId: '' }));
                 }}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${
-                  errors.squadId ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.squadId ? 'border-red-500' : 'border-gray-300'
+                  }`}
               >
                 <option value="">Select Squad</option>
                 {squads.map((squad) => (
@@ -415,10 +416,10 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               </div>
               {formData.photoUrl && (
                 <div className="mt-4 flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                  <img 
-                    src={formData.photoUrl} 
-                    alt="Preview" 
-                    className="w-16 h-16 rounded-full object-cover border-2 border-teal-500" 
+                  <img
+                    src={formData.photoUrl}
+                    alt="Preview"
+                    className="w-16 h-16 rounded-full object-cover border-2 border-teal-500"
                     onError={(e) => {
                       e.currentTarget.src = 'https://placehold.co/100x100?text=No+Image';
                     }}
@@ -479,7 +480,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           </div>
           <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
         </div>
-        
+
         {/* Filters Skeleton */}
         <div className="bg-white rounded-xl shadow-md p-4 border border-gray-200 animate-pulse">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -487,7 +488,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
             <div className="h-10 bg-gray-200 rounded"></div>
           </div>
         </div>
-        
+
         {/* Cards Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -552,6 +553,19 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           </svg>
           Filter Players
         </h3>
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search players by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 transition-all outline-none"
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">By Role</label>
@@ -653,7 +667,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2 text-sm text-gray-600">
                   {player.battingStyle && (
                     <div className="flex items-center gap-2">
@@ -681,7 +695,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   )}
                 </div>
               </div>
-              
+
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
                 <Link
                   to={`/admin/players/${player.id}/edit`}

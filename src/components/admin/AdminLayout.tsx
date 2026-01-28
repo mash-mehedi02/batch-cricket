@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard,
@@ -12,13 +12,23 @@ import {
     LogOut,
     Radio,
     BarChart3,
-    ShieldAlert
+    ShieldAlert,
+    Loader2
 } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
 
 const AdminLayout = () => {
+    const { user, loading, logout } = useAuthStore();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
+
+    // Protection: Redirect to login if not authenticated
+    useEffect(() => {
+        if (!loading && !user) {
+            navigate('/login');
+        }
+    }, [user, loading, navigate]);
 
     const navigation = [
         { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -33,12 +43,28 @@ const AdminLayout = () => {
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    const handleLogout = () => {
-        // Implement logout logic here
+    const handleLogout = async () => {
         if (confirm('Are you sure you want to logout?')) {
-            // clear auth token etc
-            navigate('/');
+            try {
+                await logout();
+                navigate('/login');
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
         }
+    }
+
+    if (loading) {
+        return (
+            <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white">
+                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+                <p className="text-slate-400 font-medium animate-pulse">Initializing Admin Session...</p>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return null; // Will redirect via useEffect
     }
 
     return (

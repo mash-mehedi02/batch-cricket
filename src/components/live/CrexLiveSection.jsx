@@ -41,6 +41,7 @@ const CrexLiveSection = ({
   onlyCommentary,
 }) => {
   const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
+  const isInningsBreak = matchStatus === 'InningsBreak';
 
   // Calculate Win Probability
   const winProb = React.useMemo(() => {
@@ -50,15 +51,22 @@ const CrexLiveSection = ({
     const legalBalls = (Number(ov) * 6) + Number(b || 0);
     const battingTeamSide = currentInnings?.inningId || 'teamA';
 
+    // Extract last ball event for micro-adjustments
+    const lastOver = recentOvers?.[recentOvers.length - 1];
+    const lastBall = lastOver?.balls?.[lastOver.balls.length - 1];
+    const lastBallEvent = lastBall?.value || lastBall?.runsOffBat || lastBall?.runs;
+
     return calculateWinProbability({
       currentRuns: Number(currentRuns || 0),
       wickets: Number(currentInnings?.totalWickets || 0),
       legalBalls,
       target: target ? Number(target) : null,
       oversLimit: Number(oversLimit || 20),
-      battingTeamSide
+      battingTeamSide,
+      lastBallEvent,
+      isFinishedMatch
     });
-  }, [currentRuns, currentInnings?.totalWickets, currentInnings?.inningId, currentOvers, target, oversLimit, isFinishedMatch]);
+  }, [currentRuns, currentInnings?.totalWickets, currentInnings?.inningId, currentOvers, target, oversLimit, isFinishedMatch, recentOvers]);
 
   const teamAProb = winProb.teamAWinProb;
   const teamBProb = winProb.teamBWinProb;
@@ -111,15 +119,15 @@ const CrexLiveSection = ({
 
     // Commentary arrives in chronological order [oldest -> newest]
     commentary.forEach(item => {
-      // Robust over grouping logic
-      const overStr = String(item.over || '0.0')
-      const [oversPart, ballsPart] = overStr.split('.')
-      const overInt = parseInt(oversPart || '0')
-      const ballInt = parseInt(ballsPart || '0')
-
-      // Cricket logic: 0.1 to 0.6 (1.0) is Over 1. 
-      // 1.0 belongs to Over 1. 1.1 belongs to Over 2.
-      const overGroupNum = (ballInt === 0 && overInt > 0) ? overInt : overInt + 1
+      // Use explicit overNumber if available, otherwise fallback to parsing over string
+      let overGroupNum = item.overNumber
+      if (!overGroupNum) {
+        const overStr = String(item.over || '0.0')
+        const [oversPart, ballsPart] = overStr.split('.')
+        const overInt = parseInt(oversPart || '0')
+        const ballInt = parseInt(ballsPart || '0')
+        overGroupNum = (ballInt === 0 && overInt > 0) ? overInt : overInt + 1
+      }
 
       const inningId = item.inningId || 'teamA'
       const key = `${inningId}-${overGroupNum}`
@@ -130,7 +138,7 @@ const CrexLiveSection = ({
           overNum: overGroupNum,
           balls: [],
           totalRuns: 0,
-          timestamp: item.timestamp?.toMillis ? item.timestamp.toMillis() : Date.now()
+          timestamp: item.timestamp?.toMillis ? item.timestamp.toMillis() : (item.timestamp?.seconds ? item.timestamp.seconds * 1000 : Date.now())
         }
         groups.push(map[key])
       }
@@ -171,7 +179,7 @@ const CrexLiveSection = ({
         {/* 1. Timeline Strip - Reduced spacing */}
         {!onlyCommentary && recentOvers && (
           <div className="px-4 py-1.5 overflow-hidden">
-            <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto scrollbar-hide py-1" ref={scrollRef}>
+            <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto scrollbar-hide py-1" ref={scrollRef}>
               {[...recentOvers].map((over, idx) => {
                 const overTotal = over.totalRuns ?? over.total ?? 0
                 const isCurrentOver = idx === recentOvers.length - 1 && !over.isLocked;
@@ -179,25 +187,25 @@ const CrexLiveSection = ({
 
                 return (
                   <React.Fragment key={idx}>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
                         OVER {over.overNumber}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {ballsToShow.map((b, bIdx) => {
                           let val = String(b?.value || b?.label || b?.runsOffBat || b?.runs || '').trim() || '0'
                           if (val === '·') val = '0'
                           const isBoundary = val === '4' || val === '6';
                           const isWicket = b?.type === 'wicket' || val === 'W' || val.toUpperCase().includes('OUT');
 
-                          const baseDot = `w-9 h-9 rounded-full flex items-center justify-center font-semibold shrink-0 border transition-all text-sm`
+                          const baseDot = `w-7 h-7 rounded-full flex items-center justify-center font-semibold shrink-0 border transition-all text-[10px]`
                           let dotStyle = "bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800 shadow-sm"
 
                           if (isBoundary) dotStyle = val === '4'
-                            ? "bg-gradient-to-br from-amber-400 to-yellow-500 text-white border-yellow-400 shadow-md"
-                            : "bg-gradient-to-br from-orange-500 to-amber-500 text-white border-orange-400 shadow-md";
+                            ? "bg-gradient-to-br from-amber-400 to-yellow-500 text-white border-yellow-400 shadow-sm"
+                            : "bg-gradient-to-br from-orange-500 to-amber-500 text-white border-orange-400 shadow-sm";
 
-                          if (isWicket) dotStyle = "bg-rose-600 text-white border-rose-500 shadow-md";
+                          if (isWicket) dotStyle = "bg-rose-600 text-white border-rose-500 shadow-sm";
 
                           return (
                             <div key={bIdx} className={`${baseDot} ${dotStyle}`}>
@@ -213,13 +221,13 @@ const CrexLiveSection = ({
                           }).length;
                           const remaining = Math.max(0, 6 - legalBallsCount);
                           return Array.from({ length: remaining }).map((_, i) => (
-                            <div key={`empty-${i}`} className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-800 bg-transparent shrink-0" />
+                            <div key={`empty-${i}`} className="w-7 h-7 rounded-full border border-slate-200 dark:border-slate-800 bg-transparent shrink-0" />
                           ));
                         })()}
                       </div>
                       <div className="flex items-center gap-1 ml-0.5 cursor-default">
-                        <span className="text-[10px] font-bold text-slate-400">=</span>
-                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{overTotal}</span>
+                        <span className="text-[9px] font-bold text-slate-400">=</span>
+                        <span className="text-[9px] font-black text-slate-700 dark:text-slate-300">{overTotal}</span>
                       </div>
                     </div>
                     {idx < recentOvers.length - 1 && <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />}
@@ -340,8 +348,8 @@ const CrexLiveSection = ({
           </div>
         )}
 
-        {/* First Innings: Projected Score */}
-        {!isFinishedMatch && !onlyCommentary && (matchPhase === 'FirstInnings' || !target) && (
+        {/* First Innings: Projected Score - Shown only when NO target is set */}
+        {!isFinishedMatch && !onlyCommentary && !isInningsBreak && (!target || Number(target) === 0) && (
           <div className="px-4 py-2 space-y-3">
             <h3 className="text-base font-medium text-slate-800">Projected Score</h3>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 space-y-4">
@@ -371,8 +379,8 @@ const CrexLiveSection = ({
           </div>
         )}
 
-        {/* Second Innings: "At this stage" comparison */}
-        {!isFinishedMatch && !onlyCommentary && matchPhase === 'SecondInnings' && (
+        {/* Second Innings: "At this stage" comparison - Shown only when target > 0 */}
+        {!isFinishedMatch && !onlyCommentary && !isInningsBreak && (target && Number(target) > 0) && (
           <div className="px-4 py-2 space-y-3">
             <h3 className="text-base font-medium text-slate-800">At this stage</h3>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-4 relative">
@@ -545,7 +553,11 @@ const CrexLiveSection = ({
                                         'bg-white text-slate-800 border border-slate-100'
                                   }`}>
                                 {isW ? 'W' :
-                                  isExtra ? (upperText.includes('WIDE') ? 'wd' : 'nb') :
+                                  isExtra ? (
+                                    upperText.includes('WIDE')
+                                      ? (r > 1 ? `wd+${r - 1}` : 'wd')
+                                      : (r > 1 ? `nb+${r - 1}` : 'nb')
+                                  ) :
                                     (r === 0 ? '0' : r)}
                               </div>
                             )
@@ -569,17 +581,20 @@ const CrexLiveSection = ({
                     const isManual = !!item.manual
                     const ballLabel = item.over || (item.ball !== undefined ? `${Math.floor(idx / 6)}.${item.ball + 1}` : '—')
 
-                    let displayVal = item.runs
+                    let displayVal = runs
                     let ballType = isWicket ? 'wicket' : 'run'
                     const isBoundary = item.isBoundary || isFour || isSix
 
-                    if (!isBoundary && !isWicket && displayVal === 0) {
+                    if (!isBoundary && !isWicket) {
                       const upperText = String(item.text || '').toUpperCase()
-                      if (upperText.includes('WIDE') || upperText.includes(' WIDE ')) {
-                        displayVal = 'wd'
+                      const isWide = upperText.includes('WIDE') || upperText.includes(' WIDE ')
+                      const isNoBall = upperText.includes('NO BALL') || upperText.includes('NO-BALL')
+
+                      if (isWide) {
+                        displayVal = runs > 1 ? `wd+${runs - 1}` : 'wd'
                         ballType = 'wide'
-                      } else if (upperText.includes('NO BALL') || upperText.includes('NO-BALL')) {
-                        displayVal = 'nb'
+                      } else if (isNoBall) {
+                        displayVal = runs > 1 ? `nb+${runs - 1}` : 'nb'
                         ballType = 'noball'
                       }
                     }

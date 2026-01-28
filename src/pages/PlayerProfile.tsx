@@ -63,7 +63,24 @@ export default function PlayerProfile() {
   const [dbStats, setDbStats] = useState<any[]>([])
   const [liveData, setLiveData] = useState<Record<string, any>>({})
 
-  // 1. Listen to ALL matches (to handle deletions instantly)
+  // 1. Listen to the Player document in real-time
+  useEffect(() => {
+    if (!playerId) return
+    const docRef = doc(db, 'players', playerId)
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const playerData = { id: docSnap.id, ...docSnap.data() } as Player
+        setPlayer(playerData)
+        if (playerData.squadId) {
+          squadService.getById(playerData.squadId).then(s => s && setSquadName(s.name))
+        }
+      }
+      setLoading(false)
+    })
+    return () => unsubscribe()
+  }, [playerId])
+
+  // 2. Listen to ALL matches (to handle deletions instantly)
   useEffect(() => {
     const q = collection(db, 'matches')
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,7 +90,7 @@ export default function PlayerProfile() {
     return () => unsubscribe()
   }, [])
 
-  // 2. Listen to ALL playerMatchStats for this player
+  // 3. Listen to playerMatchStats for this player
   useEffect(() => {
     if (!playerId) return
     const q = query(collection(db, 'playerMatchStats'), where('playerId', '==', playerId))
@@ -84,48 +101,30 @@ export default function PlayerProfile() {
     return () => unsubscribe()
   }, [playerId])
 
-  // 3. Listen to Live Matches and their Innings
+  // 4. Managed Innings Listeners for Participating Matches
   useEffect(() => {
-    if (!playerId) return
+    if (!playerId || allMatches.length === 0) return
 
-    // Listen for matches with status 'live' or 'Live'
-    const q = query(collection(db, 'matches'), where('status', 'in', ['live', 'Live']))
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docs.forEach((matchDoc) => {
-        // Listen to both innings for this match
-        onSnapshot(doc(db, 'matches', matchDoc.id, 'innings', 'teamA'), (docSnap) => {
-          if (docSnap.exists()) {
-            setLiveData(prev => ({ ...prev, [`${matchDoc.id}_teamA`]: docSnap.data() }))
-          }
-        })
-        onSnapshot(doc(db, 'matches', matchDoc.id, 'innings', 'teamB'), (docSnap) => {
-          if (docSnap.exists()) {
-            setLiveData(prev => ({ ...prev, [`${matchDoc.id}_teamB`]: docSnap.data() }))
-          }
-        })
-      })
+    const participatingMatches = allMatches.filter(m => {
+      const inXI = (m.teamAPlayingXI || []).includes(playerId) || (m.teamBPlayingXI || []).includes(playerId)
+      return inXI
     })
-    return () => unsubscribe()
-  }, [playerId])
 
-  // 4. Load basic player and squad info
-  useEffect(() => {
-    if (!playerId) return
-    const loadBasic = async () => {
-      try {
-        const playerData = await playerService.getById(playerId)
-        if (playerData) {
-          setPlayer(playerData)
-          if (playerData.squadId) {
-            const squad = await squadService.getById(playerData.squadId)
-            if (squad) setSquadName(squad.name)
-          }
-        }
-      } catch (err) { }
-      setLoading(false)
-    }
-    loadBasic()
-  }, [playerId])
+    const unsubscribes: (() => void)[] = []
+
+    participatingMatches.forEach(m => {
+      // Team A
+      unsubscribes.push(onSnapshot(doc(db, 'matches', m.id, 'innings', 'teamA'), (ds) => {
+        if (ds.exists()) setLiveData(prev => ({ ...prev, [`${m.id}_teamA`]: ds.data() }))
+      }))
+      // Team B
+      unsubscribes.push(onSnapshot(doc(db, 'matches', m.id, 'innings', 'teamB'), (ds) => {
+        if (ds.exists()) setLiveData(prev => ({ ...prev, [`${m.id}_teamB`]: ds.data() }))
+      }))
+    })
+
+    return () => unsubscribes.forEach(unsub => unsub())
+  }, [playerId, allMatches])
 
   // 5. CALCULATE EVERYTHING REACTIVELY
   const { mergedMatches, careerStats } = useMemo(() => {
@@ -136,7 +135,8 @@ export default function PlayerProfile() {
     const processedLiveEntries: any[] = []
     allMatches.forEach(m => {
       // Rule 1: Match must have started (at least one innings doc must exist or match marked as live)
-      const hasStarted = m.status?.toLowerCase() === 'live' || m.status?.toLowerCase() === 'completed' || m.ballsBowled > 0 || m.overs > 0
+      const status = m.status?.toLowerCase()
+      const hasStarted = status === 'live' || status === 'completed' || status === 'finished' || status === 'innings break' || m.ballsBowled > 0 || m.overs > 0
       if (!hasStarted) return
 
       const xiA: string[] = m.teamAPlayingXI || []
@@ -209,8 +209,8 @@ export default function PlayerProfile() {
     finalCombinedList.forEach(s => {
       const r = Number(s.runs || 0)
       const b = Number(s.balls || 0)
-      const isActuallyOut = s.out === true || (s.notOut === false && b > 0)
-      const isActuallyNotOut = s.notOut === true || (s.out === false && b > 0)
+      const isActuallyOut = s.out === true
+      const isActuallyNotOut = !isActuallyOut && (s.notOut === true || b > 0)
 
       // Batting Innings Rule: Only if faced ball or dismissed
       if (b > 0 || isActuallyOut) {

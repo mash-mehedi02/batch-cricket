@@ -3,7 +3,7 @@
  * Handles ball additions with instant updates and over completion detection
  */
 
-import { collection, doc, setDoc, getDocs, query, where, Timestamp, runTransaction } from 'firebase/firestore'
+import { collection, doc, getDocs, getDoc, Timestamp, runTransaction } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import { recalculateInnings } from './recalculateInnings'
 
@@ -96,8 +96,53 @@ export async function addBall(
     const inningsData = await recalculateInnings(matchId, inningId, { useTransaction: false })
 
     // Check if over is complete (6 legal balls)
-    // CRITICAL: Over is only complete if this ball was legal AND legalBalls % 6 === 0
     const overComplete = completeBallData.isLegal && (inningsData.legalBalls % 6 === 0) && inningsData.legalBalls > 0
+
+    // NEW: Sync to player profiles if match finished or innings completed
+    // This handles the "instant update" for career stats after a match
+    const { syncMatchToPlayerProfiles } = await import('../syncPlayerStats')
+
+    // We check if the match status is now 'finished' or if we should sync anyway
+    const matchSnap = await getDoc(doc(db, MATCHES_COLLECTION, matchId))
+    const matchData = matchSnap.data()
+    const matchStatus = matchData?.status?.toLowerCase()
+
+    if (matchStatus === 'finished' || matchStatus === 'completed') {
+      console.log('[BallUpdateService] Match finished, triggering player stats sync...');
+      await syncMatchToPlayerProfiles(matchId).catch(err => console.error('Sync error:', err))
+    }
+
+    // Automatic Innings End Detection
+    const oversLimit = matchData?.oversLimit || 20
+    const matchPhase = (matchData?.matchPhase || '').toLowerCase()
+    const isFirstInnings = matchPhase === 'firstinnings' || (!matchData?.target || matchData?.target === 0)
+    const isAllOut = inningsData.totalWickets >= 10
+    const isOversFinished = inningsData.legalBalls >= (oversLimit * 6)
+
+    if (isFirstInnings) {
+      if (isAllOut || isOversFinished) {
+        console.log('[BallUpdateService] 1st Innings Ended. Setting status to InningsBreak');
+        const { updateDoc } = await import('firebase/firestore');
+        await updateDoc(doc(db, MATCHES_COLLECTION, matchId), {
+          status: 'InningsBreak',
+          matchPhase: 'InningsBreak',
+          innings1Score: inningsData.totalRuns,
+          innings1Wickets: inningsData.totalWickets,
+          innings1Overs: inningsData.overs
+        });
+      }
+    } else {
+      const targetScore = matchData?.target || 0
+      const isTargetReached = inningsData.totalRuns >= targetScore
+      if (isTargetReached || isAllOut || isOversFinished) {
+        console.log('[BallUpdateService] Match Finished.');
+        const { updateDoc } = await import('firebase/firestore');
+        await updateDoc(doc(db, MATCHES_COLLECTION, matchId), {
+          status: 'finished',
+          matchPhase: 'finished'
+        });
+      }
+    }
 
     console.log('[BallUpdateService] Success! Over complete:', overComplete);
 

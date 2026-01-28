@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import { Squad, Player } from '@/types'
@@ -25,6 +26,7 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   const [squads, setSquads] = useState<Squad[]>([])
   const [players, setPlayers] = useState<Player[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     batch: '',
@@ -438,13 +440,35 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
         </Link>
       </div>
 
+      <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-200">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search squads by name or batch..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 transition-all outline-none"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {squads.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500">
-            No squads found. Create your first squad!
-          </div>
-        ) : (
-          squads.map((squad) => (
+        {(() => {
+          const filteredSquads = squads.filter(s =>
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            String((s as any).batch || s.year || '').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+
+          if (filteredSquads.length === 0) {
+            return (
+              <div className="col-span-full text-center py-12 text-gray-500">
+                {searchTerm ? 'No matches found for your search.' : 'No squads found. Create your first squad!'}
+              </div>
+            );
+          }
+
+          return filteredSquads.map((squad) => (
             <div
               key={squad.id}
               className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition"
@@ -469,8 +493,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
                 {squad.wicketKeeperId && <div>WK: Assigned</div>}
               </div>
             </div>
-          ))
-        )}
+          ));
+        })()}
       </div>
     </div>
   )

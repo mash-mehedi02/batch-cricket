@@ -283,6 +283,14 @@ export const matchService = {
       ...data,
       updatedAt: Timestamp.now(),
     })
+
+    // If status updated to finished, trigger sync
+    const status = (data.status as string)?.toLowerCase()
+    if (status === 'finished' || status === 'completed') {
+      console.log(`[MatchService] Match ${id} finished, triggering player stats sync...`)
+      const { syncMatchToPlayerProfiles } = await import('../syncPlayerStats')
+      await syncMatchToPlayerProfiles(id).catch(err => console.error('Sync failed:', err))
+    }
   },
 
   /**
@@ -318,6 +326,18 @@ export const matchService = {
     // Delete match document
     const matchRef = doc(db, COLLECTIONS.MATCHES, id)
     await deleteDoc(matchRef)
+
+    // Cleanup playerMatchStats collection
+    try {
+      const statsRef = collection(db, 'playerMatchStats')
+      const qStats = query(statsRef, where('matchId', '==', id))
+      const statsSnap = await getDocs(qStats)
+      const deletePromises = statsSnap.docs.map(d => deleteDoc(d.ref))
+      await Promise.all(deletePromises)
+      console.log(`[MatchService] Cleaned up ${deletePromises.length} playerMatchStats for match ${id}`)
+    } catch (err) {
+      console.error('[MatchService] playerMatchStats cleanup failed:', err)
+    }
   },
 
   /**

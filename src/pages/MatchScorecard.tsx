@@ -444,7 +444,7 @@ export default function MatchScorecard() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-20">
       {/* Match Summary Header - High Fidelity */}
-      <div className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl shadow-sm">
+      <div className="border-b border-slate-200 bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-5">
           {/* Teams Grid */}
           <div className="flex items-center justify-between gap-4">
@@ -560,8 +560,11 @@ export default function MatchScorecard() {
                     const fours = Number(batsman.fours || 0)
                     const sixes = Number(batsman.sixes || 0)
                     const sr = balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0'
-                    const isNotOut = batsman.notOut !== false && !batsman.dismissalText && !batsman.dismissal
-                    const dismissal = batsman.dismissalText || batsman.dismissal || (isNotOut ? '' : 'Out')
+
+                    // Improved Not Out logic
+                    const isDismissed = Boolean(batsman.dismissal)
+                    const isNotOut = !isDismissed && (batsman.notOut === true || balls > 0)
+                    const dismissal = batsman.dismissal || (isNotOut ? 'not out' : 'yet to bat')
 
                     return (
                       <div key={idx} className={`px-6 py-5 group transition-colors ${isNotOut ? 'bg-blue-50/20' : 'hover:bg-slate-50/30'}`}>
@@ -577,8 +580,8 @@ export default function MatchScorecard() {
                             >
                               {isMobile ? getFirstName(batsmanName) : batsmanName}
                             </PlayerLink>
-                            <span className={`text-[10px] sm:text-xs font-medium leading-relaxed block mt-1 ${isNotOut ? 'text-blue-500 italic' : 'text-slate-400'}`}>
-                              {isNotOut ? 'Not Out' : dismissal}
+                            <span className={`text-[10px] sm:text-xs font-medium leading-relaxed block mt-1 ${isNotOut ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                              {dismissal}
                             </span>
                           </div>
                           <div className="text-right tabular-nums font-medium text-slate-900">{runs}</div>
@@ -591,6 +594,45 @@ export default function MatchScorecard() {
                     )
                   })
                 )}
+
+                {/* Yet to Bat section */}
+                {(() => {
+                  const battedIds = new Set((currentInningsData.batsmanStats || []).map((b: any) => b.batsmanId))
+                  const playingXI = currentTab?.inningId === 'teamA' ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || [])
+                  const yetToBat = playingXI.filter((id: any) => {
+                    const pid = typeof id === 'string' ? id : id.playerId
+                    return !battedIds.has(pid)
+                  })
+
+                  if (yetToBat.length > 0) {
+                    return (
+                      <div className="px-6 py-5 bg-slate-50/30 border-t border-slate-100/50">
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] shrink-0">Did not bat</span>
+                          <div className="flex flex-wrap gap-x-2 gap-y-1">
+                            {yetToBat.map((id: any, idx: number) => {
+                              const pid = typeof id === 'string' ? id : id.playerId
+                              const p = playersMap.get(pid)
+                              return (
+                                <div key={pid} className="inline-flex items-center">
+                                  <PlayerLink
+                                    playerId={pid}
+                                    playerName={p?.name || 'Player'}
+                                    className="text-xs font-semibold text-slate-600 hover:text-blue-600 transition-all border-b border-transparent hover:border-blue-200"
+                                  >
+                                    {p ? (isMobile ? getFirstName(p.name) : p.name) : 'Loading...'}
+                                  </PlayerLink>
+                                  {idx < yetToBat.length - 1 && <span className="text-slate-300 ml-1.5 opacity-50">•</span>}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
               </div>
 
               {/* Extras Strip */}

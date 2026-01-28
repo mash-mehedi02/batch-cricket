@@ -157,7 +157,7 @@ export const playerMatchStatsService = {
     console.log(`[PlayerMatchStats] ✅ Result: ${careerStats.matches} matches, ${careerStats.batting.runs} runs.`)
 
     const playerRef = doc(collection(db, COLLECTIONS.PLAYERS), playerId)
-    await updateDoc(playerRef, { careerStats, updatedAt: Timestamp.now() } as any)
+    await updateDoc(playerRef, { stats: careerStats, updatedAt: Timestamp.now() } as any)
   },
 
   /**

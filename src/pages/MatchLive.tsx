@@ -4,7 +4,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
@@ -29,6 +30,7 @@ import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD }
 
 export default function MatchLive() {
   const { matchId } = useParams<{ matchId: string }>()
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const [match, setMatch] = useState<Match | null>(null)
   const [currentInnings, setCurrentInnings] = useState<InningsStats | null>(null)
@@ -311,6 +313,7 @@ export default function MatchLive() {
     const ballsBowled = Number((bowlerStats as any).ballsBowled || (bowlerStats as any).balls || 0)
     const overs = `${Math.floor(ballsBowled / 6)}.${ballsBowled % 6}`
     return {
+      id: bowlerStats.bowlerId,
       name: bowlerStats.bowlerName,
       photo: playersMap.get(bowlerStats.bowlerId)?.photoUrl || null,
       wickets: bowlerStats.wickets || 0,
@@ -1429,40 +1432,12 @@ export default function MatchLive() {
         if (isUpcomingMatch && !isPastStart) return renderUpcoming()
         return (
           <div className="bg-gray-50 min-h-screen">
-            {/* CREX/BBL style dark header + Timeline */}
-            <MatchLiveHero
-              match={match}
-              teamAName={teamAName}
-              teamBName={teamBName}
-              teamASquad={teamASquad}
-              teamBSquad={teamBSquad}
-              currentInnings={currentInnings}
-              teamAInnings={teamAInnings}
-              teamBInnings={teamBInnings}
-              isFinishedMatch={isFinishedMatch}
-              resultSummary={resultSummary}
-              centerEventText={centerEventText || '—'}
-              showBoundaryAnim={showBoundaryAnim}
-              ballAnimating={ballAnimating}
-              ballEventType={ballEventType}
-              lastBall={lastBallDoc}
-              recentOvers={(currentInnings as any)?.recentOvers || []}
-              currentOverBalls={(currentInnings as any)?.currentOverBalls || []}
-              animationEvent={animationEvent}
-              showAnimation={showAnimation}
-              onAnimationClose={() => setShowAnimation(false)}
-              setBallAnimating={setBallAnimating}
-              setBallEventType={setBallEventType}
-            />
-
-            {/* Main live body (BBL-style) */}
             <CrexLiveSection
               match={match as any}
               striker={striker as any}
               nonStriker={nonStriker as any}
               currentBowler={bowler as any}
-              partnership={(currentInnings as any)?.partnership
-              }
+              partnership={(currentInnings as any)?.partnership}
               lastWicket={lastWicket}
               recentOvers={(currentInnings as any)?.recentOvers || []}
               commentary={commentary as any}
@@ -1495,12 +1470,104 @@ export default function MatchLive() {
     }
   }
 
+  // --- Swipe Navigation Logic ---
+  const currentTabIndex = matchTabs.findIndex(t => t.id === activeTab)
+  const handleSwipe = (direction: 'left' | 'right') => {
+    if (direction === 'left' && currentTabIndex < matchTabs.length - 1) {
+      const nextTab = matchTabs[currentTabIndex + 1]
+      if (!nextTab.disabled) setActiveTab(nextTab.id)
+    } else if (direction === 'right' && currentTabIndex > 0) {
+      const prevTab = matchTabs[currentTabIndex - 1]
+      if (!prevTab.disabled) setActiveTab(prevTab.id)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Match Tabs */}
-      <MatchTabs tabs={matchTabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* 1. Match Title Bar (Back + Info) - Scrollable */}
+      {!isUpcomingMatch && (
+        <div className="bg-[#0f172a] text-white py-3 px-4 flex items-center justify-between border-b border-white/5 shadow-md">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1 hover:bg-white/10 rounded-full transition"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex flex-col">
+              <h1 className="text-sm font-semibold uppercase tracking-tight">
+                {teamAName} vs {teamBName}
+              </h1>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
+                {match.matchNo || 'T20 Match'} • {tournament?.name || 'Senior School League'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {renderTabContent()}
+      {/* 2. Sticky Match Tabs (Sticks to Top of Screen) */}
+      <MatchTabs
+        tabs={matchTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        stickyTop="0px"
+      />
+
+      {/* 3. Sticky Scoreboard (Below Tabs) */}
+      {activeTab === 'live' && (!isUpcomingMatch || (match as any).tossWinner) && (
+        <div className="sticky z-40 transition-all duration-300" style={{ top: '48px' }}>
+          <MatchLiveHero
+            match={match}
+            teamAName={teamAName}
+            teamBName={teamBName}
+            teamASquad={teamASquad}
+            teamBSquad={teamBSquad}
+            currentInnings={currentInnings}
+            teamAInnings={teamAInnings}
+            teamBInnings={teamBInnings}
+            isFinishedMatch={isFinishedMatch}
+            resultSummary={resultSummary}
+            centerEventText={centerEventText || '—'}
+            showBoundaryAnim={showBoundaryAnim}
+            ballAnimating={ballAnimating}
+            ballEventType={ballEventType}
+            lastBall={null}
+            recentOvers={(currentInnings as any)?.recentOvers || []}
+            animationEvent={animationEvent}
+            showAnimation={showAnimation}
+            onAnimationClose={() => setShowAnimation(false)}
+            setBallAnimating={setBallAnimating}
+            setBallEventType={setBallEventType}
+          />
+        </div>
+      )}
+
+      {/* 4. Tab Content with Swipe Animations */}
+      <div className="relative overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              const swipeThreshold = 50
+              if (info.offset.x < -swipeThreshold) handleSwipe('left')
+              if (info.offset.x > swipeThreshold) handleSwipe('right')
+            }}
+            className="w-full touch-pan-y"
+          >
+            {renderTabContent()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   )
 }

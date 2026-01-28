@@ -411,11 +411,13 @@ export async function recalculateInnings(
 
       if (type === 'bowled') return `b ${bowlerName}`
       if (type === 'caught') return `c ${fielderName} b ${bowlerName}`
-      if (type === 'caught & bowled' || type === 'c&b') return `c&b ${bowlerName}`
-      if (type === 'runout' || type === 'run out') return `runout(${fielderName || 'fielder'})`
+      if (type === 'caught & bowled' || type === 'c&b' || type === 'caughtandbowled') return `c&b ${bowlerName}`
+      if (type === 'runout' || type === 'run out' || type === 'run-out') return `runout(${fielderName || 'fielder'})`
       if (type === 'lbw') return `lbw b ${bowlerName}`
       if (type === 'stumped') return `st ${fielderName} b ${bowlerName}`
-      if (type === 'hitwicket' || type === 'hit wicket') return `hit wicket b ${bowlerName}`
+      if (type === 'hitwicket' || type === 'hit wicket' || type === 'hit-wicket' || type === 'hitWicket') return `hit wicket b ${bowlerName}`
+      if (type === 'retired' || type === 'retired hurt' || type === 'retired-hurt') return `retired hurt`
+      if (type === 'retired out' || type === 'retired-out') return `retired out`
 
       // Fallback for custom texts
       return wicket.type || 'Out'
@@ -444,7 +446,7 @@ export async function recalculateInnings(
     }>()
 
     // Track cumulative score at each delivery for "At this stage" comparisons
-    const oversProgress: Array<{ over: string, runs: number, wickets: number }> = []
+    const oversProgress: Array<{ over: string, balls: number, runs: number, wickets: number }> = []
 
     const bowlerStatsMap = new Map<string, {
       bowlerId: string
@@ -556,6 +558,9 @@ export async function recalculateInnings(
         }
       }
 
+      // ICC Rule: Count wickets
+      const isActuallyWicket = isBallWicket && !['retired-hurt', 'retired hurt', 'retired'].includes(ballWicketType.toLowerCase())
+
       // Update bowler stats
       if (ball.bowlerId) {
         const bowlerId = ball.bowlerId
@@ -596,13 +601,13 @@ export async function recalculateInnings(
         bowler.currentOverRuns += bowlerRuns
 
         // ICC Rule: Wickets credited to bowler only if creditedToBowler === true
-        if (isBallWicket && ballCreditBowler) {
+        if (isActuallyWicket && ballCreditBowler) {
           bowler.wickets += 1
         }
       }
 
-      // ICC Rule: Count wickets
-      if (isBallWicket) {
+      // ICC Rule: Count innings wickets
+      if (isActuallyWicket) {
         totalWickets += 1
 
         // Record fall of wicket
@@ -687,19 +692,21 @@ export async function recalculateInnings(
     const finalNonStrikerId = options?.matchData?.currentNonStrikerId !== undefined ? options.matchData.currentNonStrikerId : matchData.currentNonStrikerId;
 
     batsmanStatsMap.forEach((stats, pId) => {
-      // If explicit dismissal, they are OUT (notOut = false).
+      // 1. If explicit dismissal exists, they are OUT.
       if (stats.dismissal) {
         stats.notOut = false;
         return;
       }
 
-      // If they are currently at the crease, they are NOT OUT.
-      if (pId === finalStrikerId || pId === finalNonStrikerId) {
+      // 2. If they are CURRENTLY at the crease (even if 0 balls), they are Not Out.
+      const isAtCrease = pId === finalStrikerId || pId === finalNonStrikerId;
+
+      // 3. If they finished the innings without getting out (faced balls OR were at crease)
+      if (stats.balls > 0 || isAtCrease) {
         stats.notOut = true;
       } else {
-        // They batted, have no dismissal, but are not at crease => Retired / Inactive
-        stats.notOut = false;
-        // Optional: stats.dismissal = 'Retired Not Out' or leave empty based on preference
+        // Fallback: mostly for players added to map but didn't face a ball
+        stats.notOut = true;
       }
     });
 

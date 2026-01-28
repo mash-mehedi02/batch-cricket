@@ -34,147 +34,150 @@ export default function Layout({ children }: LayoutProps) {
   }, [navigate])
 
   const isActive = (path: string) => location.pathname === path
+  const isMatchPage = location.pathname.startsWith('/match/')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      {/* Navigation - Professional Header */}
-      <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white sticky top-0 z-50 backdrop-blur-lg bg-opacity-95">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4 md:gap-10 min-w-0 flex-1">
-              <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
-                <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0" />
-                <span className="text-xs sm:text-lg md:text-xl font-extrabold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent truncate">
-                  {schoolConfig.appName}
-                </span>
-              </Link>
+      {/* Navigation - Professional Header - Hidden on Match Pages */}
+      {!isMatchPage && (
+        <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white z-50 backdrop-blur-lg bg-opacity-95">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center gap-4 md:gap-10 min-w-0 flex-1">
+                <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
+                  <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0" />
+                  <span className="text-xs sm:text-lg md:text-xl font-extrabold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent truncate">
+                    {schoolConfig.appName}
+                  </span>
+                </Link>
 
-              <div className="hidden md:flex gap-1">
-                <Link
-                  to="/"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/')
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                    }`}
-                >
-                  Home
-                </Link>
-                <Link
-                  to="/schedule"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/schedule')
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                    }`}
-                >
-                  Schedule
-                </Link>
-                <Link
-                  to="/tournaments"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/tournaments')
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                    }`}
-                >
-                  Tournaments
-                </Link>
-                <Link
-                  to="/squads"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/squads')
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                    }`}
-                >
-                  Squads
-                </Link>
-                <Link
-                  to="/players"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/players')
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                    }`}
-                >
-                  Players
-                </Link>
-                <Link
-                  to="/champions"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/champions')
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                    }`}
-                >
-                  Champions
-                </Link>
+                <div className="hidden md:flex gap-1">
+                  <Link
+                    to="/"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      }`}
+                  >
+                    Home
+                  </Link>
+                  <Link
+                    to="/schedule"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/schedule')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      }`}
+                  >
+                    Schedule
+                  </Link>
+                  <Link
+                    to="/tournaments"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/tournaments')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      }`}
+                  >
+                    Tournaments
+                  </Link>
+                  <Link
+                    to="/squads"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/squads')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      }`}
+                  >
+                    Squads
+                  </Link>
+                  <Link
+                    to="/players"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/players')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      }`}
+                  >
+                    Players
+                  </Link>
+                  <Link
+                    to="/champions"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/champions')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      }`}
+                  >
+                    Champions
+                  </Link>
+                </div>
+
               </div>
 
-            </div>
+              <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 justify-end ml-auto">
+                {/* Global Search Trigger - Navigates to dedicated Search Page */}
+                <div className="relative flex items-center justify-end mx-2 md:mx-4 md:flex-shrink-0 w-10 md:w-auto md:min-w-[200px] lg:min-w-[300px]">
+                  <div
+                    onClick={() => navigate('/search')}
+                    className="relative w-full group cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+                  >
+                    <div className={`hidden md:flex items-center w-full pl-12 pr-4 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-400 backdrop-blur-xl transition-all group-hover:bg-slate-800 group-hover:border-teal-500/30`}>
+                      Search Teams, Players...
+                    </div>
+                    <div className="absolute inset-y-0 left-0 flex items-center justify-center w-10 md:pl-4 text-slate-300 group-hover:text-teal-400 transition-colors">
+                      <Search className="h-4 w-4 md:h-5 md:w-5" strokeWidth={3} />
+                    </div>
 
-            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 flex-1 justify-end">
-              {/* Global Search Trigger - Navigates to dedicated Search Page */}
-              <div className="relative flex items-center justify-end mx-2 md:mx-4 flex-1 max-w-[40px] md:max-w-md">
-                <div
-                  onClick={() => navigate('/search')}
-                  className="relative w-full group cursor-pointer transition-all duration-300 hover:scale-[1.02]"
-                >
-                  <div className={`hidden md:flex items-center w-full pl-12 pr-4 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-400 backdrop-blur-xl transition-all group-hover:bg-slate-800 group-hover:border-teal-500/30`}>
-                    Search Teams, Players...
-                  </div>
-                  <div className="absolute inset-y-0 left-0 flex items-center justify-center w-10 md:pl-4 text-slate-300 group-hover:text-teal-400 transition-colors">
-                    <Search className="h-4 w-4 md:h-5 md:w-5" strokeWidth={3} />
-                  </div>
-
-                  {/* Shortcut Hint - Desktop Only */}
-                  <div className="absolute inset-y-0 right-0 pr-3 hidden lg:flex items-center">
-                    <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-700/50 rounded text-[10px] font-black text-slate-400 border border-slate-600/50">
-                      <Command className="w-2.5 h-2.5" />
-                      <span>K</span>
+                    {/* Shortcut Hint - Desktop Only */}
+                    <div className="absolute inset-y-0 right-0 pr-3 hidden lg:flex items-center">
+                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-700/50 rounded text-[10px] font-black text-slate-400 border border-slate-600/50">
+                        <Command className="w-2.5 h-2.5" />
+                        <span>K</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {user ? (
-                <>
-                  <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-slate-700/50 rounded-lg">
-                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    <span className="text-xs sm:text-sm text-slate-200 font-medium truncate max-w-[80px] sm:max-w-none">{user.email?.split('@')[0]}</span>
-                  </div>
-                  {user.role === 'admin' && (
-                    <Link
-                      to="/admin"
-                      className="hidden md:block px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg text-sm font-semibold hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg shadow-purple-500/30"
+                {user ? (
+                  <>
+                    <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-slate-700/50 rounded-lg">
+                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                      <span className="text-xs sm:text-sm text-slate-200 font-medium truncate max-w-[80px] sm:max-w-none">{user.email?.split('@')[0]}</span>
+                    </div>
+                    {user.role === 'admin' && (
+                      <Link
+                        to="/admin"
+                        className="hidden md:block px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg text-sm font-semibold hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg shadow-purple-500/30"
+                      >
+                        Admin
+                      </Link>
+                    )}
+                    <button
+                      onClick={logout}
+                      className="hidden md:block px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition-all shadow-lg shadow-red-500/30"
                     >
-                      Admin
-                    </Link>
-                  )}
-                  <button
-                    onClick={logout}
-                    className="hidden md:block px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition-all shadow-lg shadow-red-500/30"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : null}
+                      Logout
+                    </button>
+                  </>
+                ) : null}
 
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
-              >
-                {isMobileMenuOpen ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
-              </button>
+                {/* Mobile Menu Button */}
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+                >
+                  {isMobileMenuOpen ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-      </nav>
+        </nav>
+      )}
 
       {/* Clean Modern Mobile Side-Drawer (Moved Outside Nav for Stacking Safety) */}
       <div

@@ -1,9 +1,7 @@
-
-import React, { useEffect, useRef, useState, useMemo } from 'react'
+import React, { useEffect, useRef, useMemo } from 'react'
 import { Match, InningsStats } from '@/types'
 import fourIcon from '../../assets/four.png'
 import sixIcon from '../../assets/six.png'
-import BallEventAnimations from './BallEventAnimations'
 import { Link } from 'react-router-dom'
 
 interface MatchLiveHeroProps {
@@ -22,17 +20,8 @@ interface MatchLiveHeroProps {
     ballEventType: '4' | '6' | 'wicket' | 'normal'
     lastBall: any
     recentOvers: any[]
-    currentOverBalls?: Array<{
-        value: string
-        type: string
-        runsOffBat?: number
-    }>
     showBoundaryAnim?: boolean
-    animationEvent?: string
     showAnimation?: boolean
-    onAnimationClose?: () => void
-    setBallAnimating: (v: boolean) => void
-    setBallEventType: (v: '4' | '6' | 'wicket' | 'normal') => void
 }
 
 const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
@@ -48,11 +37,8 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     resultSummary,
     centerEventText,
     recentOvers,
-    currentOverBalls = [],
     showBoundaryAnim,
-    animationEvent = '',
     showAnimation = false,
-    onAnimationClose = () => { },
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -68,55 +54,106 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const wkts = Number(inn?.totalWickets || 0)
     const overs = String(inn?.overs || '0.0')
     const crr = typeof inn?.currentRunRate === 'number' ? inn.currentRunRate : Number(inn?.currentRunRate || 0)
-    const rrr = typeof inn?.requiredRunRate === 'number' ? inn.requiredRunRate : Number(inn?.requiredRunRate || 0)
 
     const currentTeamName = match.currentBatting === 'teamB' ? teamBName : teamAName
     const currentSquad = match.currentBatting === 'teamB' ? teamBSquad : teamASquad
     const logoUrl = currentSquad?.logoUrl || (match as any)[match.currentBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
 
-    // --- Format Team Name Logic ---
-    const formatTeamName = (name: string) => {
-        const parts = name.split('-')
-        const mainName = parts[0].trim()
-        const shortMain = mainName.substring(0, 3).toUpperCase()
-        if (parts.length > 1) {
-            const suffix = parts.slice(1).join('-').trim()
-            return `${shortMain} - ${suffix}`
+    // --- Improved Team Abbreviation Helper ---
+    // Rule: "first 3 latter ba each word er first latter - integer"
+    const getAbbreviation = (name: string) => {
+        if (!name) return '';
+        const nameStr = name.trim();
+
+        // Pattern: [Team Name] [Optional Divider] [Integer]
+        // Example: "RANGERS - 19", "NIGHT OWLS-22", "SMA 2024"
+        const bits = nameStr.split(/\s+-\s+|-\s+|\s+-|\s+/).filter(Boolean);
+        if (bits.length === 0) return '';
+
+        const lastBit = bits[bits.length - 1];
+        const hasInteger = /^\d+$/.test(lastBit);
+
+        let teamPartWords = hasInteger ? bits.slice(0, bits.length - 1) : bits;
+        if (teamPartWords.length === 0 && hasInteger) teamPartWords = [lastBit];
+
+        let abbr = '';
+        if (teamPartWords.length > 1) {
+            abbr = teamPartWords.map(w => w[0]).join('').toUpperCase();
+        } else if (teamPartWords.length === 1) {
+            const word = teamPartWords[0];
+            abbr = word.length > 3 ? word.substring(0, 3).toUpperCase() : word.toUpperCase();
         }
-        return shortMain
+
+        return hasInteger ? `${abbr}-${lastBit}` : abbr;
     }
 
-    const currentTeamDisplay = formatTeamName(currentTeamName)
-    const teamAShort = formatTeamName(teamAName)
-    const teamBShort = formatTeamName(teamBName)
+    const currentTeamAbbr = getAbbreviation(currentTeamName);
+    const opponentTeamAbbr = getAbbreviation(match.currentBatting === 'teamA' ? teamBName : teamAName);
 
-    // --- Toss Text ---
-    const tossWinner = String((match as any)?.tossWinner || '').trim()
-    const getWinnerShort = (winnerName: string) => {
-        const parts = winnerName.split(' ')
-        return parts.map(p => p[0]).join('').toUpperCase().slice(0, 3)
+    // --- Toss Logic ---
+    const m = match as any;
+    const tossWinnerId = m?.tossWinner;
+    const electedTo = m?.electedTo || m?.tossDecision;
+
+    // Robust Team Detection - Multi-field Matcher
+    const aId = String(m.teamAId || m.teamASquadId || m.teamA || '').trim().toLowerCase();
+    const bId = String(m.teamBId || m.teamBSquadId || m.teamB || '').trim().toLowerCase();
+    const aName = teamAName.trim().toLowerCase();
+    const bName = teamBName.trim().toLowerCase();
+    const twid = String(tossWinnerId || '').trim().toLowerCase();
+
+    let tossWinnerName = '';
+    if (twid) {
+        if (twid === 'teama' || (aId && twid === aId) || aName === twid || (aName.includes(twid) && twid.length > 3)) {
+            tossWinnerName = teamAName;
+        } else if (twid === 'teamb' || (bId && twid === bId) || bName === twid || (bName.includes(twid) && twid.length > 3)) {
+            tossWinnerName = teamBName;
+        }
     }
-    // Logic to try and match toss winner to teamA/B for short code
-    let tossWinnerShort = ''
-    if (tossWinner === 'teamA' || tossWinner === (match as any).teamAId) tossWinnerShort = teamAShort.split(' -')[0]
-    else if (tossWinner === 'teamB' || tossWinner === (match as any).teamBId) tossWinnerShort = teamBShort.split(' -')[0]
-    else tossWinnerShort = getWinnerShort(tossWinner)
 
-    const tossText = tossWinner ? `Toss: ${tossWinnerShort}` : ''
+    const tossAbbr = getAbbreviation(tossWinnerName);
+    const tossText = tossAbbr ? tossAbbr : '';
+
+    const isInningsBreak = match.status === 'InningsBreak';
+
+    // --- Advanced Scoring Logic (Target / RRR) ---
+    const totalLegals = (() => {
+        if (typeof inn?.legalBalls === 'number') return inn.legalBalls;
+        const [o, b] = (inn?.overs || '0.0').toString().split('.').map(Number);
+        return (o * 6) + (b || 0);
+    })();
+
+    let targetScore = Number(match?.target || inn?.target || 0);
+    if (!targetScore) {
+        const i1Score = Number((match as any).innings1Score || 0);
+        if (i1Score > 0) {
+            targetScore = i1Score + 1;
+        } else if (match.currentBatting === 'teamB' && teamAInnings && Number(teamAInnings.totalRuns || 0) > 0) {
+            targetScore = Number(teamAInnings.totalRuns) + 1;
+        } else if (match.currentBatting === 'teamA' && teamBInnings && Number(teamBInnings.totalRuns || 0) > 0) {
+            targetScore = Number(teamBInnings.totalRuns) + 1;
+        }
+    }
 
     // --- Event Label Logic ---
-    const displayEvent = isFinishedMatch ? (resultSummary || 'MATCH COMPLETED') : (centerEventText || '—')
-    const isWicket = !isFinishedMatch && (displayEvent.toLowerCase().includes('out') || displayEvent.toLowerCase().includes('wick') || displayEvent === 'W' || displayEvent === 'WICKET')
+    let displayEvent = isFinishedMatch ? (resultSummary || 'MATCH COMPLETED') : (isInningsBreak ? 'INNINGS BREAK' : (centerEventText || '—'))
+
+    // Special Case: 2nd Innings Start (Player Entering)
+    if (!isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0) {
+        displayEvent = 'PLAYER ENTERING';
+    }
+
+    const isWicket = !isFinishedMatch && !isInningsBreak && (displayEvent.toLowerCase().includes('out') || displayEvent.toLowerCase().includes('wick') || displayEvent === 'W' || displayEvent === 'WICKET')
 
     // Determine if the event is a boundary, wicket, or other type for styling
-    const isRun = !isFinishedMatch && ['0', '1', '2', '3', '4', '5', '6'].includes(displayEvent);
-    const isWideOrNoBall = !isFinishedMatch && (displayEvent.toLowerCase().includes('wide') || displayEvent.toLowerCase().includes('no ball') || displayEvent.toLowerCase().includes('free hit'));
-    const isBye = !isFinishedMatch && displayEvent.toLowerCase().includes('bye');
-    const isBoundary = !isFinishedMatch && (displayEvent === '4' || displayEvent === '6');
+    const isRun = !isFinishedMatch && !isInningsBreak && ['0', '1', '2', '3', '4', '5', '6'].includes(displayEvent);
+    const isWideOrNoBall = !isFinishedMatch && !isInningsBreak && (displayEvent.toLowerCase().includes('wide') || displayEvent.toLowerCase().includes('no ball') || displayEvent.toLowerCase().includes('free hit'));
+    const isBye = !isFinishedMatch && !isInningsBreak && displayEvent.toLowerCase().includes('bye');
+    const isBoundary = !isFinishedMatch && !isInningsBreak && (displayEvent === '4' || displayEvent === '6');
 
     // Determine the color class based on event type
     let eventColorClass = 'text-slate-200'; // Default color
-    if (isFinishedMatch) {
+    if (isFinishedMatch || isInningsBreak || displayEvent === 'PLAYER ENTERING') {
         eventColorClass = 'text-amber-400 text-center px-4 leading-tight';
     } else if (isRun || isWideOrNoBall || isBye) {
         eventColorClass = 'text-amber-400';
@@ -125,12 +162,12 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     } else if (isBoundary) {
         eventColorClass = displayEvent === '4' ? 'text-amber-400' : 'text-orange-400';
     }
-    const isFour = displayEvent === '4'
-    const isSix = displayEvent === '6'
+    const isFour = !isInningsBreak && displayEvent === '4'
+    const isSix = !isInningsBreak && displayEvent === '6'
 
     // Determine animation class for scorecard based on event type
     const scorecardAnimationClass = useMemo(() => {
-        if (isFinishedMatch) return 'bg-[#121926]';
+        if (isFinishedMatch || isInningsBreak) return 'bg-[#121926]';
         // Only apply special background if animation is active
         if (!showAnimation && !showBoundaryAnim) return 'bg-[#121926]';
 
@@ -142,43 +179,40 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
             return 'bg-[#64101e] animate-pulse border-red-500/30'
         }
         return 'bg-[#121926]';
-    }, [displayEvent, isWicket, showAnimation, showBoundaryAnim, isFinishedMatch]);
+    }, [displayEvent, isWicket, showAnimation, showBoundaryAnim, isFinishedMatch, isInningsBreak]);
 
     // Text glow effect for the main score - Exact Color Calibration
     const textGlowClass = useMemo(() => {
-        if (displayEvent === '4') return 'drop-shadow-[0_0_15px_rgba(59,130,246,0.8)] text-white';
-        if (displayEvent === '6') return 'drop-shadow-[0_0_15px_rgba(16,185,129,0.8)] text-white';
-        if (isWicket) return 'drop-shadow-[0_0_15px_rgba(239,68,68,0.8)] text-white';
-        return 'text-[#94e1d4]'; // Precise teal from screenshot
-    }, [displayEvent, isWicket]);
+        const baseColor = 'text-[#94e1d4]'; // Precise teal from screenshot
+        if (isInningsBreak) return 'text-amber-400';
+        if (displayEvent === '4') return `drop-shadow-[0_0_15px_rgba(59,130,246,0.6)] ${baseColor}`;
+        if (displayEvent === '6') return `drop-shadow-[0_0_15px_rgba(16,185,129,0.6)] ${baseColor}`;
+        if (isWicket) return `drop-shadow-[0_0_15px_rgba(239,68,68,0.6)] ${baseColor}`;
+        return baseColor;
+    }, [displayEvent, isWicket, isInningsBreak]);
 
-    // --- Advanced Scoring Logic (Target / RRR) ---
-    const totalLegals = (() => {
-        if (typeof inn?.legalBalls === 'number') return inn.legalBalls;
-        const [o, b] = (inn?.overs || '0.0').toString().split('.').map(Number);
-        return (o * 6) + (b || 0);
-    })();
 
-    let targetScore = Number(inn?.target || 0);
-    if (!targetScore) {
-        if (match.currentBatting === 'teamB' && teamAInnings && Number(teamAInnings.totalRuns || 0) > 0) {
-            targetScore = Number(teamAInnings.totalRuns) + 1;
-        } else if (match.currentBatting === 'teamA' && teamBInnings && Number(teamBInnings.totalRuns || 0) > 0) {
-            targetScore = Number(teamBInnings.totalRuns) + 1;
-        }
-    }
 
     const isChasing = targetScore > 0;
-    const runsNeeded = isChasing ? Math.max(0, targetScore - runs) : 0;
+    const isInningsBreakChasing = isChasing || (isInningsBreak && targetScore > 0);
+    const runsNeeded = isChasing ? Math.max(0, targetScore - runs) : (targetScore > 0 ? targetScore : 0);
     const matchOvers = match.oversLimit || 20;
     const remainingBalls = Math.max(0, (matchOvers * 6) - totalLegals);
 
-    const reqRunRate = (isChasing && remainingBalls > 0)
-        ? (runsNeeded / (remainingBalls / 6))
+    const reqRunRate = (targetScore > 0)
+        ? (runsNeeded / (matchOvers)) // Simple RRR for start of innings
         : 0;
 
+    const liveReqRunRate = (remainingBalls > 0 && targetScore > 0)
+        ? (runsNeeded / remainingBalls) * 6
+        : 0;
+
+    const displayRRR = isInningsBreak ? (targetScore / matchOvers) : liveReqRunRate;
+
+
+
     return (
-        <div className="sticky top-0 z-50">
+        <div className="relative">
             <div className={`text-white overflow-hidden shadow-sm transition-all duration-300 ${scorecardAnimationClass}`}>
                 {/* 1. Main Score Header - 60/40 Split - Enlarged for better visibility */}
                 <div className="flex items-stretch min-h-[105px] md:min-h-[120px] border-b border-white/5">
@@ -196,7 +230,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                             {logoUrl ? (
                                                 <img src={logoUrl} className="w-full min-w-full min-h-full object-cover" alt="" />
                                             ) : (
-                                                <span className="text-xl font-black uppercase">{currentTeamDisplay[0]}</span>
+                                                <span className="text-xl font-black uppercase">{currentTeamAbbr[0]}</span>
                                             )}
                                         </div>
                                     </Link>
@@ -208,16 +242,15 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     {logoUrl ? (
                                         <img src={logoUrl} className="w-full min-w-full min-h-full object-cover" alt="" />
                                     ) : (
-                                        <span className="text-xl font-black uppercase">{currentTeamDisplay[0]}</span>
+                                        <span className="text-xl font-black uppercase">{currentTeamAbbr[0]}</span>
                                     )}
                                 </div>
                             );
                         })()}
 
-                        {/* Team Name & Score */}
                         <div className="min-w-0 flex flex-col justify-center">
                             <div className="text-[13px] sm:text-[14px] font-semibold text-slate-200 uppercase tracking-wide truncate mb-1">
-                                {currentTeamDisplay}
+                                {currentTeamName}
                             </div>
                             <div className="flex items-baseline gap-2">
                                 <span className={`text-5xl sm:text-6xl font-medium tabular-nums tracking-tighter leading-none transition-colors duration-300 ${textGlowClass}`}>
@@ -254,50 +287,57 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
                 {/* 2. Stats Row - CRR / RRR / Target */}
                 {!isFinishedMatch && (
-                    <div className="px-5 py-2 bg-[#1a2332] border-t border-white/5 flex items-center justify-between text-[11px] sm:text-xs">
+                    <div className="px-5 py-2 bg-black/20 border-t border-white/5 flex items-center justify-between text-[11px] sm:text-xs">
                         {/* LEFT SIDE Stats */}
                         <div className="flex items-center gap-5">
                             <div className="flex items-center gap-2">
-                                <span className="font-semibold text-slate-400 uppercase tracking-widest">CRR:</span>
-                                <span className="font-bold text-slate-100 text-sm">{crr.toFixed(2)}</span>
+                                <span className="font-medium text-slate-400 uppercase tracking-widest text-xs">CRR:</span>
+                                <span className="font-medium text-slate-100 text-xs">{crr.toFixed(2)}</span>
                             </div>
-                            {isChasing && (
+                            {targetScore > 0 && (
                                 <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-slate-400 uppercase tracking-widest">RRR:</span>
-                                    <span className="font-bold text-slate-100 text-sm">{reqRunRate.toFixed(2)}</span>
+                                    <span className="font-medium text-slate-400 uppercase tracking-widest text-xs">RRR:</span>
+                                    <span className="font-medium text-slate-100 text-xs">{displayRRR.toFixed(2)}</span>
                                 </div>
                             )}
                         </div>
 
                         {/* RIGHT SIDE Info */}
-                        <div className="flex items-center gap-2">
-                            {targetScore > 0 ? (
+                        <div className="flex items-center gap-4">
+                            {targetScore > 0 && (
                                 <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-slate-400 tracking-wider">Target :</span>
-                                    <span className="font-bold text-slate-100 text-sm">{targetScore}</span>
+                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">Target:</span>
+                                    <span className="text-xs font-medium text-slate-100 leading-none">{targetScore}</span>
                                 </div>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest leading-none">Toss:</span>
-                                    <span className="text-xs font-bold text-slate-200 uppercase leading-none">{tossWinnerShort || '-'}</span>
+                            )}
+
+                            {(!targetScore || targetScore === 0) && !isInningsBreak && (
+                                <div className={`flex items-center gap-2 ${targetScore > 0 ? 'pl-4 border-l border-white/10' : ''}`}>
+                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">Toss:</span>
+                                    <span className="text-xs font-medium text-slate-200 uppercase leading-none">
+                                        {tossText || (twid ? (twid === 'teama' ? 'T-A' : (twid === 'teamb' ? 'T-B' : twid.toUpperCase().substring(0, 6))) : '-')}
+                                    </span>
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
-
-                {/* 3. Chase Detail Sub-header */}
-                {isChasing && !isFinishedMatch && (
-                    <div className="bg-amber-50/10 py-1.5 border-t border-white/5 text-center">
-                        <span className="text-[11px] sm:text-xs font-bold text-amber-500/90 tracking-wide">
-                            {currentTeamDisplay.split(' -')[0]} need {runsNeeded} runs in {remainingBalls} balls
-                        </span>
-                    </div>
-                )}
-
             </div>
+
+            {/* 3. Chase Detail Sub-header - Visible in Innings Break too */}
+            {targetScore > 0 && !isFinishedMatch && (
+                <div className="bg-[#0f172a] py-2 border-t border-white/5 text-center shadow-lg relative z-0">
+                    <span className="text-[11px] sm:text-xs font-bold text-amber-500 tracking-wider">
+                        {isInningsBreak ? (
+                            `${opponentTeamAbbr} need ${targetScore} runs in ${matchOvers * 6} balls`
+                        ) : (
+                            `${currentTeamAbbr} need ${runsNeeded} runs in ${remainingBalls} balls`
+                        )}
+                    </span>
+                </div>
+            )}
         </div>
-    )
+    );
 }
 
 export default MatchLiveHero

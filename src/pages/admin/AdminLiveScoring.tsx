@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -7,7 +7,20 @@ import { playerService } from '@/services/firestore/players';
 import { addBall, BallUpdateResult } from '@/services/matchEngine/ballUpdateService';
 import { recalculateInnings } from '@/services/matchEngine/recalculateInnings';
 import { Match, InningsStats, Player } from '@/types';
-import { Loader2, CheckCircle, RotateCcw, ArrowRightLeft, UserPlus, ShieldAlert, Trophy, Target, Activity, Award, Megaphone, Send, SwitchCamera } from 'lucide-react';
+import {
+    Loader2,
+    CheckCircle,
+    RotateCcw,
+    ArrowRightLeft,
+    UserPlus,
+    ShieldAlert,
+    Trophy,
+    Target,
+    Activity,
+    Megaphone,
+    Send,
+    SwitchCamera
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { getMatchResultString } from '@/utils/matchWinner';
 import * as commentaryService from '@/services/commentary/commentaryService';
@@ -249,7 +262,7 @@ const AdminLiveScoring = () => {
             let rotationRuns = ballToUndo.runsOffBat || 0;
             const bExtras = ballToUndo.extras || {};
 
-            if (ballToUndo.isWide || ballToUndo.extraType === 'wide') {
+            if ((ballToUndo.extras?.wides || 0) > 0) {
                 // For Wide+1, total wides is 2. Rotation runs = 2 - 1 = 1.
                 rotationRuns = (bExtras.wides || 0) - 1;
             } else if (bExtras.byes || bExtras.legByes) {
@@ -273,7 +286,10 @@ const AdminLiveScoring = () => {
             // 1. Delete actual ball
             await matchService.deleteBall(matchId, inningKv, ballToUndo.id);
 
-            // 2. Recalculate stats (SINGLE SOURCE OF TRUTH)
+            // 2. Delete linked commentary
+            await commentaryService.deleteCommentaryForBall(matchId, ballToUndo.id);
+
+            // 3. Recalculate stats (SINGLE SOURCE OF TRUTH)
             await recalculateInnings(matchId, inningKv, { useTransaction: false });
 
             // 3. Revert match state IDs
@@ -283,10 +299,19 @@ const AdminLiveScoring = () => {
                 currentBowlerId: nextBowler
             };
 
-            // IF match was finished, bring it back to LIVE
-            if (match.status === 'finished') {
+            // IF match was finished or in break, bring it back to LIVE
+            const statusLower = String(match.status || '').toLowerCase();
+            if (statusLower === 'finished' || statusLower === 'inningsbreak') {
                 updates.status = 'live';
                 updates.matchPhase = match.currentBatting === 'teamA' ? 'FirstInnings' : 'SecondInnings';
+
+                // If it was InningsBreak, we also need to clear those summary fields
+                if (statusLower === 'inningsbreak') {
+                    updates.innings1Score = 0;
+                    updates.innings1Wickets = 0;
+                    updates.innings1Overs = '0.0';
+                    updates.target = 0;
+                }
             }
 
             // Clear lastOverBowlerId if we are returning to the same over
@@ -380,8 +405,16 @@ const AdminLiveScoring = () => {
                 const strikerObj = battingTeamPlayersAll.find(p => p.id === selectedStriker);
                 const bowlerObj = bowlingTeamPlayersAll.find(p => p.id === selectedBowler);
 
+                const ballInnings = result.inningsData;
+                const totalBallRuns = batRuns + wideVal + nbVal + byeVal + lbVal + penaltyVal;
+                const isLegalBall = !extras.wide && !extras.noBall;
+                const currentOverNumber = isLegalBall
+                    ? Math.floor(((ballInnings?.legalBalls || 1) - 1) / 6) + 1
+                    : Math.floor((ballInnings?.legalBalls || 0) / 6) + 1;
+
                 await commentaryService.generateAutoCommentary(matchId, inningKv, {
                     runs: batRuns,
+                    totalRuns: totalBallRuns,
                     ballType: extras.wide ? 'wide' : extras.noBall ? 'no-ball' : extras.bye ? 'bye' : extras.legBye ? 'leg-bye' : 'normal',
                     wicketType: wicketData?.type || null,
                     batsman: strikerObj?.name || 'Batter',
@@ -389,12 +422,13 @@ const AdminLiveScoring = () => {
                     isBoundary: batRuns === 4 || batRuns === 6,
                     isFour: batRuns === 4,
                     isSix: batRuns === 6,
-                    over: result.inningsData?.overs || '0.0',
-                    ball: result.inningsData?.ballsInCurrentOver || 0,
+                    over: ballInnings?.overs || '0.0',
+                    overNumber: currentOverNumber,
+                    ball: ballInnings?.ballsInCurrentOver || 0,
                     ballDocId: result.ballId,
                     matchContext: {
-                        currentScore: result.inningsData?.totalRuns,
-                        wickets: result.inningsData?.totalWickets,
+                        currentScore: ballInnings?.totalRuns,
+                        wickets: ballInnings?.totalWickets,
                     }
                 });
             } catch (commErr) {
@@ -534,24 +568,26 @@ const AdminLiveScoring = () => {
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <div className="flex items-center gap-2 text-blue-300 font-bold text-xs uppercase tracking-widest mb-1">
-                            {(match as any).matchType || 'T20 Match'} • <span className="text-emerald-400">{match.status.toUpperCase()}</span>
+                            {(match as any).matchType || 'T20 Match'} • <span className={match.status === 'live' ? "text-emerald-500 animate-pulse text-[10px] font-black uppercase tracking-[0.2em]" : "text-amber-500 text-[10px] font-black uppercase tracking-[0.2em]"}>{match.status === 'InningsBreak' ? 'Innings Break' : match.status}</span>
                         </div>
                         <h1 className="text-2xl md:text-3xl font-black leading-tight tracking-tight flex items-center flex-wrap gap-2">
                             <span className={match.currentBatting === 'teamA' ? 'text-white' : 'text-slate-500'}>{match.teamAName}</span>
                             <span className="text-slate-500 text-lg mx-2">vs</span>
                             <span className={match.currentBatting === 'teamB' ? 'text-white' : 'text-slate-500'}>{match.teamBName}</span>
 
-                            <span className="ml-3 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-md border border-emerald-500/30">
-                                {match.currentBatting === 'teamB' ? match.teamBName : match.teamAName} BATTING
-                            </span>
+                            {(match.status !== 'InningsBreak' && match.status !== 'finished') && (
+                                <span className="ml-3 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-md border border-emerald-500/30">
+                                    {match.currentBatting === 'teamB' ? match.teamBName : match.teamAName} BATTING
+                                </span>
+                            )}
 
                             {/* Manual Swap Button - Visible only before ball 1 */}
                             {(!currentInnings || (currentInnings.legalBalls || 0) === 0) && (
                                 <button
-                                    onClick={async () => {
+                                    onClick={() => {
                                         if (window.confirm(`Switch batting team to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) {
                                             const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
-                                            await matchService.update(matchId as string, {
+                                            matchService.update(matchId as string, {
                                                 currentBatting: newBatting,
                                                 currentStrikerId: "",
                                                 currentNonStrikerId: "",
@@ -642,7 +678,7 @@ const AdminLiveScoring = () => {
                                         value={selectedNonStriker}
                                         onChange={(e) => handlePlayerAssign('currentNonStrikerId', e.target.value)}
                                     >
-                                        <option value="">Select Non-Striker...</option>
+                                        <option key="empty" value="">Select Non-Striker...</option>
                                         {battingPlayingXI.filter(p => p.id !== selectedStriker).map(p => (
                                             <option key={p.id} value={p.id}>{p.name}</option>
                                         ))}
@@ -679,7 +715,63 @@ const AdminLiveScoring = () => {
 
                 {/* --- CENTER COL: SCORING PAD --- */}
                 <div className="lg:col-span-8">
-                    {match.status === 'finished' ? (
+                    {(match.matchPhase?.toLowerCase() === 'inningsbreak' || match.status?.toLowerCase() === 'inningsbreak') ? (
+                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden text-center p-12">
+                            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Megaphone size={48} />
+                            </div>
+                            <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">Innings Break</h2>
+                            <p className="text-xl font-bold text-slate-600 mb-8">
+                                {match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished their innings.
+                            </p>
+
+                            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Current Score</h3>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center gap-8">
+                                        <span className="font-bold text-slate-700">{match.teamAName}</span>
+                                        <span className="font-black text-slate-900">{inningsA?.totalRuns || 0}-{inningsA?.totalWickets || 0} <span className="text-slate-400 text-sm">({inningsA?.overs || '0.0'} ov)</span></span>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-8">
+                                        <span className="font-bold text-slate-700">{match.teamBName}</span>
+                                        <span className="font-black text-slate-900">{inningsB?.totalRuns || 0}-{inningsB?.totalWickets || 0} <span className="text-slate-400 text-sm">({inningsB?.overs || '0.0'} ov)</span></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-12 flex items-center justify-center gap-4">
+                                <button
+                                    onClick={() => {
+                                        if (confirm("Start 2nd Innings?")) {
+                                            const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
+                                            const currentScore = (match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0;
+                                            matchService.update(matchId!, {
+                                                status: 'live',
+                                                matchPhase: 'SecondInnings',
+                                                currentBatting: newBatting,
+                                                target: Number(currentScore) + 1,
+                                                currentStrikerId: '',
+                                                currentNonStrikerId: '',
+                                                currentBowlerId: ''
+                                            });
+                                            toast.success("Second Innings Started!");
+                                        }
+                                    }}
+                                    className="px-8 py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg"
+                                >
+                                    Start 2nd Innings
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (confirm("Finalize Match?")) matchService.update(matchId!, { status: 'finished', matchPhase: 'finished' });
+                                    }}
+                                    className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
+                                >
+                                    Finalize Match
+                                </button>
+                            </div>
+                        </div>
+                    ) : (match.status?.toLowerCase() === 'finished') ? (
                         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden text-center p-12">
                             <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <Trophy size={48} />
@@ -826,7 +918,7 @@ const AdminLiveScoring = () => {
                 <div className="flex flex-wrap gap-4">
                     <button
                         onClick={() => {
-                            if (confirm("End Innings?")) matchService.update(matchId!, { status: 'INNINGS BREAK', matchPhase: 'InningsBreak' });
+                            if (confirm("End Innings?")) matchService.update(matchId!, { status: 'InningsBreak', matchPhase: 'InningsBreak' });
                         }}
                         className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm transition-colors"
                     >
@@ -837,7 +929,7 @@ const AdminLiveScoring = () => {
                             if (confirm("Start 2nd Innings?")) {
                                 const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
                                 matchService.update(matchId!, {
-                                    status: 'LIVE',
+                                    status: 'live',
                                     matchPhase: 'SecondInnings',
                                     currentBatting: newBatting,
                                     currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: ''

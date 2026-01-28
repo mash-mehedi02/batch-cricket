@@ -16,6 +16,7 @@ export interface CommentaryEntry extends Commentary {
   // Link commentary to a specific ball so Undo can remove it
   ballDocId?: string
   sequence?: number
+  overNumber?: number // The chronological over number (1, 2, 3...)
 }
 
 /**
@@ -43,18 +44,20 @@ export function subscribeToCommentary(
 export async function generateAutoCommentary(
   matchId: string,
   inningId: 'teamA' | 'teamB',
-  input: CommentaryInput & { ballDocId?: string; sequence?: number; style?: 'tv' | 'simple' }
+  input: CommentaryInput & { ballDocId?: string; sequence?: number; style?: 'tv' | 'simple'; overNumber?: number; totalRuns?: number }
 ): Promise<string> {
   const tone: any = (input.isFour || input.isSix || input.wicketType) ? 'excited' : 'normal'
   const result = generateCommentary(input, tone)
+
+  const usedTotalRuns = typeof input.totalRuns === 'number' ? input.totalRuns : input.runs
 
   // Determine milestone
   let milestone: '4' | '6' | 'wicket' | '50' | '100' | null = null
   if (input.isSix) milestone = '6'
   else if (input.isFour) milestone = '4'
   else if (input.wicketType) milestone = 'wicket'
-  else if (input.runs === 50) milestone = '50'
-  else if (input.runs === 100) milestone = '100'
+  else if (usedTotalRuns === 50) milestone = '50'
+  else if (usedTotalRuns === 100) milestone = '100'
 
   // Save to Firebase
   const commentaryRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY)
@@ -64,7 +67,7 @@ export async function generateAutoCommentary(
     text: result.text,
     over: input.over || '0.0',
     ball: input.ball || 0,
-    runs: input.runs || 0,
+    runs: usedTotalRuns || 0,
     isWicket: Boolean(input.wicketType),
     isBoundary: input.isBoundary || false,
     batsman: input.batsman || '',
@@ -77,6 +80,7 @@ export async function generateAutoCommentary(
     manual: false,
     ballDocId: input.ballDocId || null,
     sequence: typeof input.sequence === 'number' ? input.sequence : null,
+    overNumber: input.overNumber || null,
     timestamp: Timestamp.now(),
     createdAt: new Date().toISOString(),
   })

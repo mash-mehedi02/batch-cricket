@@ -34,11 +34,28 @@ export default function Login() {
       const from = (location.state as any)?.from?.pathname || '/admin'
       navigate(from, { replace: true })
     } catch (error: any) {
-      console.error('Login error:', error)
       if (error?.code === 'auth/network-request-failed') {
         toast.error(
-          'Firebase Auth недоступен (network-request-failed). Проверьте интернет/DNS/Proxy: откройте F12 → Network и убедитесь, что доступны googleapis.com. На Windows часто помогает смена DNS на 8.8.8.8 или 1.1.1.1 и команда ipconfig /flushdns.'
+          'Network Error! দয়া করে ইন্টারনেট কানেকশন চেক করুন। Proxy বা VPN থাকলে বন্ধ করে চেষ্টা করুন।'
         )
+      } else if (error?.code === 'auth/invalid-credential') {
+        toast.error(
+          <div>
+            <p className="font-semibold text-red-600">❌ Incorrect Login Info</p>
+            <p className="text-sm mt-1">আপনার Email অথবা Password সঠিক নয়। দয়া করে আবার চেক করুন।</p>
+          </div>
+        )
+      } else if (error?.code === 'auth/too-many-requests') {
+        toast.error(
+          <div>
+            <p className="font-semibold text-amber-600">⏳ Account Temporarily Locked</p>
+            <p className="text-sm mt-1">অনেকবার ভুল চেষ্টা করার জন্য একাউন্ট ব্লক করা হয়েছে। দয়া করে ৫-১০ মিনিট পর চেষ্টা করুন।</p>
+          </div>
+        )
+      } else if (error?.code === 'auth/user-not-found') {
+        toast.error('User found না। দয়া করে সঠিক ইমেইল দিন।')
+      } else if (error?.code === 'auth/wrong-password') {
+        toast.error('Password ভুল। দয়া করে সঠিক পাসওয়ার্ড দিন।')
       } else {
         toast.error(error.message || 'Login failed. Please check your credentials.')
       }
