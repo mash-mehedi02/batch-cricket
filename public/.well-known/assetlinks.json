@@ -1,0 +1,14 @@
+[
+    {
+        "relation": [
+            "delegate_permission/common.handle_all_urls"
+        ],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.batchcrickbd",
+            "sha256_cert_fingerprints": [
+                "13:76:30:A2:BC:4D:A8:E1:02:77:D5:02:CF:C2:1C:88:5E:F6:8F:90:AD:3A:59:4E:E0:45:F4:39:67:64:64:AF"
+            ]
+        }
+    }
+]
