@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
         if (!isAdmin) {
           try {
-            const permitRef = doc(db, 'permitted_admins', userCredential.user.email || 'unknown')
+            const permitRef = doc(db, 'permitted_admins', (userCredential.user.email || 'unknown').toLowerCase())
             const permitDoc = await getDoc(permitRef)
 
             if (permitDoc.exists()) {
@@ -142,7 +142,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
           if (!isAdmin) {
             try {
-              const permitRef = doc(db, 'permitted_admins', firebaseUser.email || 'unknown')
+              const permitRef = doc(db, 'permitted_admins', (firebaseUser.email || 'unknown').toLowerCase())
               const permitDoc = await getDoc(permitRef)
 
               if (permitDoc.exists()) {

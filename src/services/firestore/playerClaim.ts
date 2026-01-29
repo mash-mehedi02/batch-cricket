@@ -127,10 +127,22 @@ export async function claimPlayerWithGoogle(playerId: string) {
 
         // 2. Verify Google Email against secret record
         const secretRef = doc(db, 'player_secrets', playerId)
-        const secretSnap = await getDoc(secretRef)
-        if (!secretSnap.exists()) throw new Error('Security record missing. Contact admin.')
+        let registeredEmail: string | undefined;
 
-        const registeredEmail = secretSnap.data().email?.toLowerCase()
+        try {
+            const secretSnap = await getDoc(secretRef)
+            if (!secretSnap.exists()) {
+                throw new Error('Security record missing. Please contact admin to set your registration email.')
+            }
+            registeredEmail = secretSnap.data().email?.toLowerCase()
+        } catch (error: any) {
+            // If Firestore denies read, it's because the emails don't match (see firestore.rules)
+            if (error.code === 'permission-denied') {
+                throw new Error(`Access Denied: Your Google account (${googleEmail}) does not match the email registered for this player profile.`)
+            }
+            throw error
+        }
+
         if (googleEmail !== registeredEmail) {
             throw new Error(`This Google account (${googleEmail}) does not match the registered player email.`)
         }

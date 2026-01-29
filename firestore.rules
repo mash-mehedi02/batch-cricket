@@ -47,6 +47,15 @@ service cloud.firestore {
       );
       allow write: if isAdmin();
     }
+
+    // Permitted Admins Collection - admins can read/write, users can read their own email doc
+    match /permitted_admins/{email} {
+      allow read: if request.auth != null && (
+        isAdmin() ||
+        request.auth.token.email.lower() == email.lower()
+      );
+      allow write: if isAdmin();
+    }
     
     // Players collection - readable by all, special update rules for claimed profiles
     match /players/{playerId} {
