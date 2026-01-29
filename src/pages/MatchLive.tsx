@@ -1529,7 +1529,7 @@ export default function MatchLive() {
       />
 
       {/* 3. Sticky Scoreboard (Below Tabs) - Global for all tabs */}
-      {(!isUpcomingMatch || (match as any).tossWinner) && (
+      {(!isUpcomingMatch || (match as any).tossWinner) && !(isFinishedMatch && activeTab === 'summary') && (
         <div className="sticky z-40 transition-all duration-300" style={{ top: '48px' }}>
           <MatchLiveHero
             match={match}

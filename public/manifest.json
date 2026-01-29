@@ -1,6 +1,6 @@
 {
-  "name": "School Cricket Live Scoring",
-  "short_name": "Cricket Live",
+  "name": "BatchCrick BD",
+  "short_name": "BatchCrick",
   "description": "Live cricket scoring website for school matches",
   "start_url": "/",
   "display": "standalone",
@@ -22,4 +22,3 @@
     }
   ]
 }
-
