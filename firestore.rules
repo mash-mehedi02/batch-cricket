@@ -72,7 +72,7 @@ service cloud.firestore {
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'ownerUid', 'lastVerifiedAt', 'updatedAt'])) ||
         // 2. THE OWNER STEP: Update personal fields (Session must be < 1 hour old)
         (resource.data.ownerUid == request.auth.uid && 
-         request.time < resource.data.lastVerifiedAt + duration(1, 'h') &&
+         request.time < resource.data.lastVerifiedAt + duration.value(1, 'h') &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
            ['username', 'bio', 'photoUrl', 'dateOfBirth', 'socialLinks', 'role', 'battingStyle', 'bowlingStyle', 'updatedAt']
          ))
