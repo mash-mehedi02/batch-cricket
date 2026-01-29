@@ -10,22 +10,23 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { Match, Tournament } from '@/types'
 import { coerceToDate, formatTimeLabel, formatTimeHMTo12h } from '@/utils/date'
+import { Calendar, MapPin, ChevronRight, ChevronDown, Info } from 'lucide-react'
 
 interface MatchInfoProps {
     compact?: boolean
+    onSwitchTab?: (tab: string) => void
 }
 
-export default function MatchInfo({ compact = false }: MatchInfoProps) {
+export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoProps) {
     const { matchId } = useParams<{ matchId: string }>()
     const [match, setMatch] = useState<Match | null>(null)
     const [tournament, setTournament] = useState<Tournament | null>(null)
     const [teamASquad, setTeamASquad] = useState<any>(null)
     const [teamBSquad, setTeamBSquad] = useState<any>(null)
     const [loading, setLoading] = useState(true)
-    const [headToHead, setHeadToHead] = useState<{ total: number, teamA: number, teamB: number, tie: number }>({ total: 0, teamA: 0, teamB: 0, tie: 0 })
+    const [headToHead, setHeadToHead] = useState<{ total: number, teamA: number, teamB: number, tie: number, recentMatches: any[] }>({ total: 0, teamA: 0, teamB: 0, tie: 0, recentMatches: [] })
     const [teamAForm, setTeamAForm] = useState<any[]>([])
     const [teamBForm, setTeamBForm] = useState<any[]>([])
-    const [venueStats, setVenueStats] = useState<{ total: number, avgScore: number }>({ total: 0, avgScore: 0 })
 
     useEffect(() => {
         if (!matchId) return
@@ -88,11 +89,11 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
 
                     // 1. Head to Head
                     const commonMatches = matchesA.filter(m =>
-                        (m.teamAId === squadIdB || m.teamBId === squadIdB) &&
+                        (m.teamAId === squadIdB || m.teamBId === squadIdB || (m as any).teamA === squadIdB || (m as any).teamB === squadIdB) &&
                         (m.status === 'finished')
-                    )
+                    ).sort((a, b) => (coerceToDate((b as any).date)?.getTime() || 0) - (coerceToDate((a as any).date)?.getTime() || 0))
 
-                    const h2h = { total: commonMatches.length, teamA: 0, teamB: 0, tie: 0 }
+                    const h2h = { total: commonMatches.length, teamA: 0, teamB: 0, tie: 0, recentMatches: commonMatches.slice(0, 5) }
                     commonMatches.forEach(m => {
                         const winnerId = (m as any).winnerId
                         if (winnerId === squadIdA) h2h.teamA++
@@ -115,15 +116,6 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
                     setTeamAForm(getForm(matchesA, squadIdA))
                     setTeamBForm(getForm(matchesB, squadIdB))
 
-                    // 3. Venue Stats (Simple)
-                    if (match.venue) {
-                        const allMatches = await matchService.getAll()
-                        const venueMatches = allMatches.filter(m => m.venue === match.venue && (m.status === 'finished'))
-                        setVenueStats({
-                            total: venueMatches.length,
-                            avgScore: 0
-                        })
-                    }
                 }
             } catch (error) {
                 console.error('Error loading related data:', error)
@@ -136,7 +128,7 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
     if (loading) {
         return (
             <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} animate-pulse`}>
-                <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-gray-200 space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100 space-y-6">
                     {[1, 2, 3, 4, 5].map((i) => (
                         <div key={i} className="bg-gray-50 rounded-xl p-6">
                             <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
@@ -168,213 +160,212 @@ export default function MatchInfo({ compact = false }: MatchInfoProps) {
         ? (rawTime.match(/^\d{1,2}:\d{2}$/) ? formatTimeHMTo12h(rawTime) : rawTime)
         : (matchDate ? formatTimeLabel(matchDate) : '')
 
-    const InfoCard = ({ title, icon, value, subValue, bg, border, iconBg }: { title: string, icon: React.ReactNode, value: string, subValue?: string, bg: string, border: string, iconBg?: string }) => (
-        <div className={`p-6 rounded-[1.5rem] border ${border} ${bg} transition-all hover:shadow-md space-y-4`}>
-            <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg ${iconBg || 'bg-white/50'} flex items-center justify-center text-lg`}>
-                    {icon}
-                </div>
-                <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-slate-400">{title}</h3>
-            </div>
-            <div className="space-y-1">
-                <p className="text-base sm:text-xl font-black text-slate-800 leading-tight">{value}</p>
-                {subValue && <p className="text-[10px] sm:text-[11px] text-slate-400 font-bold uppercase tracking-wider">{subValue}</p>}
-            </div>
-        </div>
-    )
+    const hasAnyXI = (match.teamAPlayingXI?.length || 0) > 0 || (match.teamBPlayingXI?.length || 0) > 0
+    const xiTitle = hasAnyXI ? 'Playing XI' : 'Squad'
 
     const FormCircle = ({ result }: { result: 'W' | 'L' | 'T' }) => (
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xs font-black text-white shadow-sm transition-transform hover:scale-110
-      ${result === 'W' ? 'bg-emerald-500' : result === 'L' ? 'bg-rose-500' : 'bg-slate-400'}`}>
+        <div className={`w-8 h-8 rounded-md flex items-center justify-center text-[10px] font-black text-white shadow-sm
+      ${result === 'W' ? 'bg-[#51b163]' : result === 'L' ? 'bg-[#f76a6a]' : 'bg-slate-300'}`}>
             {result}
         </div>
     )
 
+    const tossMessage = (match.tossWinner || (match as any).tossWinner) ? (() => {
+        const m2 = match as any;
+        const tw = m2.tossWinner;
+        const tAId = String(m2.teamAId || m2.teamASquadId || m2.teamA || '').trim().toLowerCase();
+        const tBId = String(m2.teamBId || m2.teamBSquadId || m2.teamB || '').trim().toLowerCase();
+        const twid = String(tw || '').trim().toLowerCase();
+
+        const winnerName = (twid === 'teama' || (tAId && twid === tAId)) ? teamAName : (twid === 'teamb' || (tBId && twid === tBId)) ? teamBName : (tw || 'Team');
+        const decision = (match.electedTo || (match as any).tossDecision || 'bat').toLowerCase();
+        return `${winnerName} won the toss and chose to ${decision}`;
+    })() : null;
+
     return (
-        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-8 pb-20`}>
-            {/* 1. Head to Head & Form Guide */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Head to Head Card */}
-                <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm space-y-8 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl -mr-16 -mt-16"></div>
-                    <div className="flex items-center justify-between relative z-10">
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Head to Head</h3>
-                        <span className="text-[10px] font-black bg-blue-50 px-3 py-1 rounded-full text-blue-600">LAST {headToHead.total} MATCHES</span>
-                    </div>
+        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-4 pb-20 bg-gray-50/50`}>
 
-                    <div className="flex items-center gap-6 relative z-10">
-                        <div className="flex-1 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-black text-slate-700 truncate max-w-[120px]">{teamAName}</span>
-                                <span className="text-4xl font-black text-slate-900">{headToHead.teamA}</span>
-                            </div>
-                            <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-                                <div
-                                    className="bg-gradient-to-r from-blue-600 to-blue-400 h-full transition-all duration-1000"
-                                    style={{ width: `${headToHead.total > 0 ? (headToHead.teamA / headToHead.total) * 100 : 50}%` }}
-                                ></div>
-                                <div
-                                    className="bg-gradient-to-l from-rose-500 to-rose-400 h-full transition-all duration-1000"
-                                    style={{ width: `${headToHead.total > 0 ? (headToHead.teamB / headToHead.total) * 100 : 50}%` }}
-                                ></div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-4xl font-black text-slate-900">{headToHead.teamB}</span>
-                                <span className="text-sm font-black text-slate-700 truncate max-w-[120px] text-right">{teamBName}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center justify-center gap-6 text-[10px] font-black uppercase text-slate-400 relative z-10">
-                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>{teamAName}</div>
-                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>{teamBName}</div>
+            {/* 1. Toss Message (Orange text in image) */}
+            {tossMessage && (
+                <div className="text-[#a66a00] text-sm font-medium px-1">
+                    {tossMessage}
+                </div>
+            )}
+
+            {/* 2. Brand/Series Card */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{(match as any).matchNo || 'T20 Match'}</div>
+                    <div className="text-sm font-black text-slate-800 flex items-center gap-1.5 hover:text-blue-600 cursor-pointer">
+                        {tournament?.name || 'Local Tournament'}
+                        <ChevronRight className="w-4 h-4 text-slate-300" />
                     </div>
                 </div>
+                <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-2">
+                    {tournament?.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-contain" /> : <Info className="w-6 h-6 text-slate-200" />}
+                </div>
+            </div>
 
-                {/* Form Guide Card */}
-                <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm space-y-8 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl -mr-16 -mt-16"></div>
-                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 relative z-10">Form Guide</h3>
-
-                    <div className="space-y-10 relative z-10">
-                        <div className="flex flex-col gap-8">
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm font-black text-slate-700 uppercase tracking-wider">{teamAName}</span>
-                                    <span className="text-[10px] font-bold text-slate-400">LAST 5</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    {teamAForm.length > 0 ? teamAForm.map((r, i) => <FormCircle key={i} result={r} />) : <span className="text-[10px] text-slate-400 font-bold italic uppercase px-4 py-2 bg-slate-50 rounded-xl">No historical data</span>}
-                                </div>
-                            </div>
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm font-black text-slate-700 uppercase tracking-wider">{teamBName}</span>
-                                    <span className="text-[10px] font-bold text-slate-400">LAST 5</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    {teamBForm.length > 0 ? teamBForm.map((r, i) => <FormCircle key={i} result={r} />) : <span className="text-[10px] text-slate-400 font-bold italic uppercase px-4 py-2 bg-slate-50 rounded-xl">No historical data</span>}
-                                </div>
-                            </div>
+            {/* 3. Match Metadata (Date/Time/Venue) */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+                <div className="flex items-center gap-3 text-sm text-slate-600 font-medium">
+                    <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                        <Calendar className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <span>{matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' }) : 'TBA'}, {timeText}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm text-slate-600 font-medium group cursor-pointer">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                            <MapPin className="w-4 h-4 text-slate-400" />
                         </div>
+                        <span className="text-blue-600 hover:underline">{match.venue || 'SMA Home Ground'}</span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
+                </div>
+            </div>
+
+            {/* 4. Squad / Playing XI Section */}
+            <div className="space-y-3 pt-2">
+                <h3 className="text-sm font-black text-slate-800 px-1">{xiTitle}</h3>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50">
+                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-6 h-6 object-contain" /> : <span className="text-[10px] font-black text-slate-300">{teamAName[0]}</span>}
+                            </div>
+                            <span className="text-sm font-bold text-slate-700">{teamAName}</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-6 h-6 object-contain" /> : <span className="text-[10px] font-black text-slate-300">{teamBName[0]}</span>}
+                            </div>
+                            <span className="text-sm font-bold text-slate-700">{teamBName}</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
                     </div>
                 </div>
             </div>
 
-            {/* 2. Venue & Tournament Highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Venue Highlights */}
-                <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] rounded-[2.5rem] p-8 text-white overflow-hidden relative group shadow-xl">
-                    <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/20 blur-[80px] -mr-20 -mt-20 group-hover:bg-rose-500/30 transition-all duration-500"></div>
-                    <div className="relative z-10 space-y-10">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-2xl shadow-lg">📍</div>
-                            <div>
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Venue Intelligence</h4>
-                                <p className="text-xl font-black tracking-tight">{match.venue || 'SMA Home Ground'}</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white/5 backdrop-blur-md rounded-3xl p-5 border border-white/5 transition-transform hover:scale-[1.02]">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Track Record</p>
-                                <p className="text-3xl font-black">{venueStats.total} <span className="text-sm font-medium text-slate-500">Matches</span></p>
-                            </div>
-                            <div className="bg-emerald-500/10 backdrop-blur-md rounded-3xl p-5 border border-emerald-500/10 transition-transform hover:scale-[1.02]">
-                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">Surface Type</p>
-                                <p className="text-xl font-black">Balanced <span className="block text-[10px] font-medium text-slate-400 mt-1">PACE & SPIN</span></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Tournament Card */}
-                {tournament && (
-                    <div className="bg-gradient-to-br from-indigo-700 to-blue-800 rounded-[2.5rem] p-8 text-white overflow-hidden relative group shadow-xl border border-indigo-500/20">
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 blur-[80px] -mr-20 -mt-20 group-hover:bg-white/20 transition-all duration-500"></div>
-                        <div className="relative z-10 space-y-10">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-2xl shadow-lg">🏆</div>
-                                <div>
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-300 mb-1">Competition</h4>
-                                    <p className="text-xl font-black truncate pr-4 tracking-tight">{tournament.name}</p>
-                                </div>
+            {/* 6. Team Form */}
+            <div className="space-y-3 pt-2">
+                <h3 className="text-sm font-black text-slate-800 px-1">Team form <span className="text-[10px] font-bold text-slate-400 lowercase">(Last 5 matches)</span></h3>
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-4 h-4 object-contain" /> : <span className="text-[8px] font-black text-slate-300">{teamAName[0]}</span>}
                             </div>
-                            <div className="flex items-center gap-8">
-                                <div className="flex-1 bg-white/5 rounded-3xl p-5 border border-white/5">
-                                    <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-2">Season</p>
-                                    <p className="text-3xl font-black">{tournament.year}</p>
-                                </div>
-                                <div className="flex-1 bg-white/5 rounded-3xl p-5 border border-white/5">
-                                    <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-2">Format</p>
-                                    <p className="text-3xl font-black uppercase">{tournament.format || 'T20'}</p>
-                                </div>
-                            </div>
+                            <span className="text-xs font-black text-slate-700 uppercase">{(match as any).teamAShort || teamAName.substring(0, 3)}</span>
+                        </div>
+                        <div className="flex gap-1.5 items-center">
+                            <div className="w-8 h-8 rounded-md bg-slate-50 border border-slate-200/50 flex items-center justify-center text-[8px] font-black text-slate-300">*</div>
+                            {teamAForm.map((r, i) => <FormCircle key={i} result={r} />)}
+                            <ChevronDown className="w-4 h-4 text-slate-300 ml-1" />
                         </div>
                     </div>
-                )}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-4 h-4 object-contain" /> : <span className="text-[8px] font-black text-slate-300">{teamBName[0]}</span>}
+                            </div>
+                            <span className="text-xs font-black text-slate-700 uppercase">{(match as any).teamBShort || teamBName.substring(0, 3)}</span>
+                        </div>
+                        <div className="flex gap-1.5 items-center">
+                            <div className="w-8 h-8 rounded-md bg-slate-50 border border-slate-200/50 flex items-center justify-center text-[8px] font-black text-slate-300">*</div>
+                            {teamBForm.map((r, i) => <FormCircle key={i} result={r} />)}
+                            <ChevronDown className="w-4 h-4 text-slate-300 ml-1" />
+                        </div>
+                    </div>
+                    <div className="text-[9px] font-bold text-slate-400 italic pt-1">* Upcoming Matches</div>
+                </div>
             </div>
 
-            {/* 3. Basic Match Info Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Match Ref */}
-                <InfoCard
-                    title="Match Identifier"
-                    icon={<span className="text-slate-500">#️⃣</span>}
-                    value={(match as any).matchNo || `#${match.id.substring(0, 6).toUpperCase()}`}
-                    subValue={(match as any).matchNo ? 'OFFICIAL REF' : 'INTERNAL ID'}
-                    bg="bg-[#f8fafc]"
-                    border="border-[#f1f5f9]"
-                />
+            {/* 7. Head to Head */}
+            <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between px-1">
+                    <h3 className="text-sm font-black text-slate-800">Head to Head <span className="text-[10px] font-bold text-slate-400 lowercase">(Last 10 matches)</span></h3>
+                    <button className="text-[11px] font-black text-blue-600 hover:underline">All Matches</button>
+                </div>
+                <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-8">
+                    {/* Summary Row */}
+                    <div className="flex items-center justify-around gap-4">
+                        <div className="text-center space-y-3">
+                            <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center p-2 mx-auto">
+                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-xl font-black text-slate-100">{teamAName[0]}</span>}
+                            </div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{(match as any).teamAShort || teamAName.substring(0, 3)}</div>
+                        </div>
 
-                {/* Date & Time */}
-                <InfoCard
-                    title="Schedule"
-                    icon={<span className="text-blue-500">📅</span>}
-                    value={matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'TBA'}
-                    subValue={timeText ? `KICK OFF AT ${timeText.toUpperCase()}` : ''}
-                    bg="bg-[#faf5ff]"
-                    border="border-[#f3e8ff]"
-                />
+                        <div className="text-3xl font-black flex items-center gap-4 tabular-nums">
+                            <span className="text-slate-800">{headToHead.teamA}</span>
+                            <span className="text-slate-200 text-xl font-normal">—</span>
+                            <span className="text-slate-800">{headToHead.teamB}</span>
+                        </div>
 
-                {/* Match Format */}
-                <InfoCard
-                    title="Duration"
-                    icon={<span className="text-purple-400">⚙️</span>}
-                    value={match.oversLimit ? `${match.oversLimit} Overs` : 'Limited Oversight'}
-                    bg="bg-[#f8fafc]"
-                    border="border-[#f1f5f9]"
-                />
+                        <div className="text-center space-y-3">
+                            <div className="w-12 h-12 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center p-2 mx-auto">
+                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-xl font-black text-slate-100">{teamBName[0]}</span>}
+                            </div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{(match as any).teamBShort || teamBName.substring(0, 3)}</div>
+                        </div>
+                    </div>
 
-                {/* Toss Details */}
-                {(match.tossWinner || (match as any).tossWinner) ? (
-                    <InfoCard
-                        title="Toss Information"
-                        icon={<span className="text-amber-600 font-bold">🪙</span>}
-                        value={`${(() => {
-                            const m2 = match as any;
-                            const tw = m2.tossWinner;
-                            const tAId = String(m2.teamAId || m2.teamASquadId || m2.teamA || '').trim().toLowerCase();
-                            const tBId = String(m2.teamBId || m2.teamBSquadId || m2.teamB || '').trim().toLowerCase();
-                            const twid = String(tw || '').trim().toLowerCase();
+                    {/* Recent H2H Matches List */}
+                    <div className="space-y-3">
+                        {headToHead.recentMatches.map((m: any) => {
+                            const mWinnerId = (m as any).winnerId;
+                            const mWinnerName = mWinnerId === (m.teamAId || (m as any).teamA) ? m.teamAName : m.teamBName;
+                            const mDate = coerceToDate(m.date);
+                            const resSummary = (m as any).resultSummary || `${mWinnerName} won`;
 
-                            if (twid === 'teama' || (tAId && twid === tAId)) return teamAName;
-                            if (twid === 'teamb' || (tBId && twid === tBId)) return teamBName;
-                            return tw || 'Unspecified Team';
-                        })()} won the toss`}
-                        subValue={`ELECTED TO ${(match.electedTo || (match as any).tossDecision || 'bat').toUpperCase()} FIRST`}
-                        bg="bg-[#fff9f2]"
-                        border="border-[#ffe4cc]"
-                        iconBg="bg-amber-100"
-                    />
-                ) : (
-                    <InfoCard
-                        title="Toss Status"
-                        icon={<span className="text-slate-400">🪙</span>}
-                        value="Toss Pending"
-                        subValue="NOT YET PERFORMED"
-                        bg="bg-[#f8fafc]"
-                        border="border-[#f1f5f9]"
-                    />
-                )}
+                            return (
+                                <div key={m.id} className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 space-y-3 group cursor-pointer hover:bg-white hover:border-blue-100 transition-all">
+                                    <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase">
+                                        <span>{tournament?.name || 'Previous Series'}</span>
+                                        <span>{mDate ? mDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : ''}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-2 flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-white border border-slate-100 flex items-center justify-center overflow-hidden">
+                                                        <span className="text-[8px] font-black text-slate-200">{m.teamAName?.[0]}</span>
+                                                    </div>
+                                                    <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{m.teamAName}</span>
+                                                </div>
+                                                <div className="text-xs font-black text-slate-800">
+                                                    {(m as any).teamAOverallScore || `${(m as any).teamAScore || 0}/${(m as any).teamAWickets || 0}`}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-5 h-5 rounded-full bg-white border border-slate-100 flex items-center justify-center overflow-hidden">
+                                                        <span className="text-[8px] font-black text-slate-200">{m.teamBName?.[0]}</span>
+                                                    </div>
+                                                    <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{m.teamBName}</span>
+                                                </div>
+                                                <div className="text-xs font-black text-slate-800">
+                                                    {(m as any).teamBOverallScore || `${(m as any).teamBScore || 0}/${(m as any).teamBWickets || 0}`}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="w-px h-10 bg-slate-200"></div>
+                                        <div className="min-w-[80px] text-right">
+                                            <div className={`text-[10px] font-black leading-tight ${mWinnerId ? 'text-blue-600' : 'text-slate-400'}`}>
+                                                {resSummary.includes('won') ? resSummary.replace('won', 'Won') : resSummary}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         </div>
     )

@@ -5,15 +5,16 @@
 
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { createAdminDocument, checkIfAdmin } from '@/utils/createAdmin'
+import { checkIfAdmin } from '@/utils/createAdmin'
 import { debugAdminPermissions, forceRefreshAuthToken, printAdminDebugInfo } from '@/utils/debugAdmin'
 import toast from 'react-hot-toast'
+import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database } from 'lucide-react'
 
 export default function AdminSettings() {
   const { user } = useAuthStore()
-  const [isCreating, setIsCreating] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [showDebug, setShowDebug] = useState(false)
   const [debugJson, setDebugJson] = useState<string>('')
 
   // Check if user is admin on load
@@ -39,230 +40,171 @@ export default function AdminSettings() {
     }
   }, [user])
 
-  const handleCreateAdmin = async () => {
-    if (!user) {
-      toast.error('Please login first')
-      return
-    }
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied to clipboard`)
+  }
 
-    setIsCreating(true)
-    try {
-      await createAdminDocument()
-      toast.success('Admin document created successfully! You now have admin permissions.')
-      setIsAdmin(true)
-      
-      // Wait a moment then check again
-      setTimeout(async () => {
-        const adminCheck = await checkIfAdmin()
-        setIsAdmin(adminCheck)
-        if (adminCheck) {
-          toast.success('Admin permissions verified! You can now delete matches.')
-          // Refresh auth store to update role
-          window.location.reload()
-        }
-      }, 500)
-    } catch (error: any) {
-      console.error('Error creating admin document:', error)
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack,
-      })
-      
-      if (error.code === 'permission-denied') {
-        toast.error(
-          <div>
-            <p className="font-semibold">Permission denied!</p>
-            <p className="text-sm mt-1">Please create admin document manually in Firebase Console.</p>
-            <p className="text-xs mt-1">Collection: admin | Document ID: {user.uid}</p>
-          </div>,
-          { duration: 5000 }
-        )
-      } else {
-        toast.error(error.message || 'Failed to create admin document. Check console for details.')
-      }
-    } finally {
-      setIsCreating(false)
-    }
+  const handleRunDiagnostics = async () => {
+    printAdminDebugInfo()
+    const result = await debugAdminPermissions()
+    setDebugJson(JSON.stringify(result, null, 2))
+    toast.success('Diagnostics completed')
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+        <p>Please log in to view settings.</p>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Platform configuration and preferences</p>
+        <p className="text-gray-600 mt-1">Manage admin preferences and system status</p>
       </div>
 
-      {/* Admin Setup */}
-      {user && (
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Admin Permissions</h3>
+      {/* Admin Profile Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+          <div className="h-10 w-10 bg-teal-100 rounded-full flex items-center justify-center">
+            <Shield className="h-5 w-5 text-teal-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Admin Profile</h2>
+            <p className="text-xs text-gray-500">Current Session Information</p>
+          </div>
+        </div>
+
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-700 mb-2">
-                <strong>Current User:</strong> {user.email}
-              </p>
-              <p className="text-sm text-gray-700 mb-2">
-                <strong>Current Role:</strong> <span className="font-semibold">{user.role || 'viewer'}</span>
-              </p>
-              {checking ? (
-                <p className="text-sm text-gray-600">Checking admin status...</p>
-              ) : isAdmin ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <p className="text-sm text-green-700 font-semibold">✓ Admin document exists</p>
-                  </div>
-                  <div className="mt-4 p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                    <p className="text-sm font-bold text-yellow-800 mb-3">⚠️ Still seeing “Permission denied”?</p>
-                    <p className="text-xs text-yellow-800 mb-3">
-                      This usually means one of the following: <strong>wrong Firebase project</strong>, <strong>wrong UID</strong>,
-                      <strong>auth token not refreshed</strong>, or <strong>emulators enabled</strong>. Click Debug to see the exact values.
-                    </p>
-                    <div className="bg-white p-3 rounded border border-red-200 mb-3">
-                      <p className="text-xs font-semibold text-gray-800 mb-2">📋 Quick steps:</p>
-                      <ol className="text-xs text-gray-700 space-y-1.5 ml-4 list-decimal">
-                        <li>Click <strong>Force refresh token</strong></li>
-                        <li>Do <strong>Logout → Login</strong></li>
-                        <li>Click <strong>Debug</strong> and compare <code className="bg-gray-100 px-1 rounded">projectId</code> and <code className="bg-gray-100 px-1 rounded">userId</code> with Firebase Console</li>
-                      </ol>
-                    </div>
-                    <div className="flex gap-2">
-                      <a
-                        href="https://console.firebase.google.com/project/sma-cricket-league/firestore/rules"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-slate-700 text-white text-xs rounded hover:bg-slate-800 transition font-semibold"
-                      >
-                        🔗 Firestore Rules
-                      </a>
-                      <button
-                        onClick={async () => {
-                          const ok = await forceRefreshAuthToken()
-                          if (ok) toast.success('Token refreshed. Please try delete again.')
-                          else toast.error('Token refresh failed (not logged in?)')
-                        }}
-                        className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition"
-                      >
-                        🔄 Force refresh token
-                      </button>
-                      <button
-                        onClick={async () => {
-                          printAdminDebugInfo()
-                          const result = await debugAdminPermissions()
-                          const json = JSON.stringify(result, null, 2)
-                          setDebugJson(json)
-                          console.log('Full Debug Result:', result)
-                          toast.success('Debug info generated (you can copy it below)')
-                        }}
-                        className="px-3 py-1.5 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition"
-                      >
-                        🔍 Debug
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(debugJson || '')
-                            toast.success('Copied debug JSON')
-                          } catch {
-                            toast.error('Copy failed (browser permissions)')
-                          }
-                        }}
-                        disabled={!debugJson}
-                        className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700 transition disabled:opacity-50"
-                      >
-                        📋 Copy
-                      </button>
-                    </div>
-                    {debugJson ? (
-                      <pre className="mt-3 text-[11px] leading-4 bg-black text-green-200 p-3 rounded overflow-x-auto border border-black/20">
-                        {debugJson}
-                      </pre>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <p className="text-sm text-gray-700 mb-4">
-                    You don't have admin permissions yet. Click the button below to create your admin document.
-                  </p>
-                  <button
-                    onClick={handleCreateAdmin}
-                    disabled={isCreating}
-                    className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition disabled:opacity-50"
-                  >
-                    {isCreating ? 'Creating...' : 'Make Me Admin'}
-                  </button>
-                  <p className="text-xs text-gray-500 mt-2">
-                    This will create an admin document in Firebase. After creation, refresh the page.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manual Instructions - Always show for reference */}
-      {user && (
-        <div className="bg-blue-50 rounded-xl shadow-md p-6 border border-blue-200">
-          <h3 className="text-lg font-semibold text-blue-900 mb-4">📝 How to Create Admin Document</h3>
-          <div className="space-y-4 text-sm text-blue-800">
             <div>
-              <p className="font-semibold mb-2">Method 1: Firebase Console (Recommended)</p>
-              <ol className="list-decimal list-inside space-y-2 ml-2">
-                <li>Open <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Firebase Console</a></li>
-                <li>Select your project: <strong>sma-cricket-league</strong></li>
-                <li>Go to <strong>Firestore Database</strong></li>
-                <li>Click <strong>"Start collection"</strong> or select existing <code className="bg-blue-100 px-2 py-1 rounded text-xs">admin</code> collection</li>
-                <li>Create a document:
-                  <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                    <li>Document ID: <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono">{user?.uid}</code></li>
-                    <li>Add field (optional): <code className="bg-blue-100 px-2 py-1 rounded text-xs">email</code> = <code className="bg-blue-100 px-2 py-1 rounded text-xs">{user?.email}</code></li>
-                  </ul>
-                </li>
-                <li>Click <strong>Save</strong></li>
-                <li>Refresh this page</li>
-              </ol>
-            </div>
-            
-            <div className="mt-4 p-3 bg-blue-100 rounded-lg">
-              <p className="font-semibold mb-2">Your User ID (copy this):</p>
-              <code className="text-xs font-mono break-all bg-white px-2 py-1 rounded block">{user?.uid}</code>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</label>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-gray-900 font-medium">{user.email}</span>
+                {isAdmin && <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-bold">Verified Admin</span>}
+              </div>
             </div>
 
-            <div className="mt-4">
-              <p className="font-semibold mb-2">Method 2: Browser Console</p>
-              <p className="text-xs bg-blue-100 p-3 rounded font-mono break-all mb-2">
-                {`// Open browser console (F12) and run:
-const { createAdminDocument } = await import('/src/utils/createAdmin.ts')
-await createAdminDocument()`}
-              </p>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">User ID (UID)</label>
+              <div className="flex items-center gap-2 mt-1 group">
+                <code className="bg-gray-100 px-2 py-1 rounded text-sm text-gray-700 font-mono">{user.uid}</code>
+                <button
+                  onClick={() => copyToClipboard(user.uid || '', 'UID')}
+                  className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Copy UID"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <Database className="h-4 w-4" /> System Status
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Firestore Connection</span>
+                <span className="flex items-center gap-1 text-green-600 font-medium">
+                  <CheckCircle className="h-4 w-4" /> Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">Admin Privileges</span>
+                {checking ? (
+                  <span className="text-gray-400">Checking...</span>
+                ) : isAdmin ? (
+                  <span className="text-green-600 font-medium">Granted</span>
+                ) : (
+                  <span className="text-amber-600 font-medium flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Restricted
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">General Settings</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Platform Name</label>
-            <input
-              type="text"
-              defaultValue="BatchCrick BD"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-            />
+      {/* Advanced / Troubleshooting Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div
+          className="px-6 py-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setShowDebug(!showDebug)}
+        >
+          <div className="flex items-center gap-3">
+            <Terminal className="h-5 w-5 text-gray-400" />
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Troubleshooting</h3>
+              <p className="text-sm text-gray-500">Advanced diagnostic tools</p>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Default Overs Limit</label>
-            <input
-              type="number"
-              defaultValue="20"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-            />
-          </div>
+          <button className="text-sm text-teal-600 font-medium hover:underline">
+            {showDebug ? 'Hide Tools' : 'Show Tools'}
+          </button>
         </div>
+
+        {showDebug && (
+          <div className="p-6 border-t border-gray-200 bg-gray-50/50 space-y-4 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={async () => {
+                  const ok = await forceRefreshAuthToken()
+                  if (ok) toast.success('Token refreshed successfully. Try your action again.')
+                  else toast.error('Token refresh failed (not logged in?)')
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition shadow-sm"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Force Refresh Session
+              </button>
+
+              <button
+                onClick={handleRunDiagnostics}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition shadow-sm"
+              >
+                <Terminal className="h-4 w-4" />
+                Run Diagnostics
+              </button>
+            </div>
+
+            {debugJson && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Diagnostic Output</label>
+                  <button
+                    onClick={() => copyToClipboard(debugJson, 'Diagnostics')}
+                    className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+                  >
+                    Copy JSON
+                  </button>
+                </div>
+                <pre className="bg-slate-900 text-green-400 p-4 rounded-lg text-xs font-mono overflow-x-auto max-h-64 shadow-inner">
+                  {debugJson}
+                </pre>
+              </div>
+            )}
+
+            <div className="mt-4 p-4 bg-blue-50 text-blue-800 text-sm rounded-lg border border-blue-100 flex gap-3">
+              <div className="shrink-0 mt-0.5">
+                <AlertTriangle className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="font-semibold mb-1">Permission Issues?</p>
+                <p className="opacity-90">
+                  If you see "Permission Denied" errors, click <strong>"Force Refresh Session"</strong> above.
+                  This often fixes issues where your admin status hasn't updated in your browser session yet.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

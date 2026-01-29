@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore'
 import schoolConfig from '@/config/school'
 import { useThemeStore } from '@/store/themeStore'
 import { Search, Command, Home, Calendar, Trophy, Users, User as UserIcon, Zap, Moon, Sun, X } from 'lucide-react'
+import { Toaster } from 'react-hot-toast'
 
 interface LayoutProps {
   children: ReactNode
@@ -38,6 +39,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
       {/* Navigation - Professional Header - Hidden on Match Pages */}
       {!isMatchPage && (
         <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white z-50 backdrop-blur-lg bg-opacity-95">
@@ -354,4 +356,3 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   )
 }
-

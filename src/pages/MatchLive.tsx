@@ -19,6 +19,7 @@ import { subscribeToCommentary, type CommentaryEntry } from '@/services/commenta
 import CrexLiveSection from '@/components/live/CrexLiveSection'
 import BallEventDisplay from '@/components/live/BallEventDisplay'
 import MatchLiveHero from '@/components/live/MatchLiveHero'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 // Import all match page components to render inline
 import MatchScorecard from '@/pages/MatchScorecard'
 import MatchPlayingXI from '@/pages/MatchPlayingXI'
@@ -1398,13 +1399,13 @@ export default function MatchLive() {
           </div>
         )
       case 'scorecard':
-        return <MatchScorecard />
+        return <MatchScorecard compact={true} />
       case 'graphs':
-        return <MatchGraphs />
+        return <MatchGraphs compact={true} />
       case 'playing-xi':
-        return <MatchPlayingXI />
+        return <MatchPlayingXI compact={true} />
       case 'info':
-        return <MatchInfo compact={true} />
+        return <MatchInfo compact={true} onSwitchTab={setActiveTab} />
       case 'summary':
         // Upcoming matches show the upcoming design on summary tab
         if (isUpcomingMatch) return renderUpcoming()
@@ -1505,6 +1506,17 @@ export default function MatchLive() {
               </p>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            {/* Notification Bell */}
+            {matchId && (
+              <NotificationBell
+                matchId={matchId}
+                matchTitle={`${teamAName} vs ${teamBName}`}
+                color="text-slate-300 hover:text-white hover:bg-white/10"
+              />
+            )}
+          </div>
         </div>
       )}
 
@@ -1516,8 +1528,8 @@ export default function MatchLive() {
         stickyTop="0px"
       />
 
-      {/* 3. Sticky Scoreboard (Below Tabs) */}
-      {activeTab === 'live' && (!isUpcomingMatch || (match as any).tossWinner) && (
+      {/* 3. Sticky Scoreboard (Below Tabs) - Global for all tabs */}
+      {(!isUpcomingMatch || (match as any).tossWinner) && (
         <div className="sticky z-40 transition-all duration-300" style={{ top: '48px' }}>
           <MatchLiveHero
             match={match}

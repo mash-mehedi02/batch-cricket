@@ -137,6 +137,24 @@ export interface Player {
   createdAt: Timestamp
   updatedAt: Timestamp
   createdBy: string
+
+  // Player Claim System
+  email?: string // Admin set, read-only for player (publicly masked, privately stored)
+  maskedEmail?: string // e.g. "me*********57@gmail.com"
+  securityCodeHash?: string // Store hashed version of the claim code
+  claimed: boolean
+  ownerUid?: string | null // UID of the player who claimed this profile
+  username?: string // Customizable display name
+  bio?: string
+  school?: string // Fixed school name
+  socialLinks?: SocialLink[]
+  address?: string
+}
+
+export interface SocialLink {
+  platform: 'instagram' | 'facebook' | 'x' | 'linkedin'
+  url: string
+  username: string
 }
 
 // Player career stats (aggregated across all matches)

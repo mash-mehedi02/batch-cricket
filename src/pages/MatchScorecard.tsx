@@ -28,7 +28,7 @@ const formatOversDisplay = (legalBalls: number): string => {
   return `${overs}.${balls}`
 }
 
-export default function MatchScorecard() {
+export default function MatchScorecard({ compact = false }: { compact?: boolean }) {
   const { matchId } = useParams<{ matchId: string }>()
   const navigate = useNavigate()
   const [matchData, setMatchData] = useState<Match | null>(null)
@@ -444,47 +444,49 @@ export default function MatchScorecard() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-20">
       {/* Match Summary Header - High Fidelity */}
-      <div className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-5">
-          {/* Teams Grid */}
-          <div className="flex items-center justify-between gap-4">
-            {/* Team A Info */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm sm:text-xl font-medium text-slate-900 uppercase tracking-tighter truncate">{firstName}</h1>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-lg sm:text-2xl font-medium text-blue-600">{firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0}</span>
-                <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-widest">({formatOversDisplay(firstInns?.legalBalls || 0)})</span>
+      {!compact && (
+        <div className="bg-white border-b border-slate-100 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-slate-200/20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-5">
+            {/* Teams Grid */}
+            <div className="flex items-center justify-between gap-4">
+              {/* Team A Info */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-sm sm:text-xl font-medium text-slate-900 uppercase tracking-tighter truncate">{firstName}</h1>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-lg sm:text-2xl font-medium text-blue-600">{firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0}</span>
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-widest">({formatOversDisplay(firstInns?.legalBalls || 0)})</span>
+                </div>
+              </div>
+
+              {/* Separator / VS */}
+              <div className="flex flex-col items-center shrink-0 px-2 sm:px-6">
+                <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-[10px] sm:text-xs font-medium shadow-xl border-2 border-white rotate-3">
+                  VS
+                </div>
+              </div>
+
+              {/* Team B Info */}
+              <div className="flex-1 min-w-0 text-right">
+                <h1 className="text-sm sm:text-xl font-medium text-slate-900 uppercase tracking-tighter truncate">{secondName}</h1>
+                <div className="flex items-baseline justify-end gap-1.5 mt-1">
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-widest">({formatOversDisplay(secondInns?.legalBalls || 0)})</span>
+                  <span className="text-lg sm:text-2xl font-medium text-emerald-600">{secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0}</span>
+                </div>
               </div>
             </div>
 
-            {/* Separator / VS */}
-            <div className="flex flex-col items-center shrink-0 px-2 sm:px-6">
-              <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-[10px] sm:text-xs font-medium shadow-xl border-2 border-white rotate-3">
-                VS
+            {/* Status Badge */}
+            {matchResult && (
+              <div className="mt-4 flex justify-center">
+                <div className="inline-flex items-center gap-2 px-5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-[10px] font-medium text-amber-600 uppercase tracking-[0.2em] shadow-inner">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  {matchResult}
+                </div>
               </div>
-            </div>
-
-            {/* Team B Info */}
-            <div className="flex-1 min-w-0 text-right">
-              <h1 className="text-sm sm:text-xl font-medium text-slate-900 uppercase tracking-tighter truncate">{secondName}</h1>
-              <div className="flex items-baseline justify-end gap-1.5 mt-1">
-                <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-widest">({formatOversDisplay(secondInns?.legalBalls || 0)})</span>
-                <span className="text-lg sm:text-2xl font-medium text-emerald-600">{secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0}</span>
-              </div>
-            </div>
+            )}
           </div>
-
-          {/* Status Badge */}
-          {matchResult && (
-            <div className="mt-4 flex justify-center">
-              <div className="inline-flex items-center gap-2 px-5 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-[10px] font-medium text-amber-600 uppercase tracking-[0.2em] shadow-inner">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                {matchResult}
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
         {/* Innings Selector - Professional Switch */}
@@ -595,44 +597,6 @@ export default function MatchScorecard() {
                   })
                 )}
 
-                {/* Yet to Bat section */}
-                {(() => {
-                  const battedIds = new Set((currentInningsData.batsmanStats || []).map((b: any) => b.batsmanId))
-                  const playingXI = currentTab?.inningId === 'teamA' ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || [])
-                  const yetToBat = playingXI.filter((id: any) => {
-                    const pid = typeof id === 'string' ? id : id.playerId
-                    return !battedIds.has(pid)
-                  })
-
-                  if (yetToBat.length > 0) {
-                    return (
-                      <div className="px-6 py-5 bg-slate-50/30 border-t border-slate-100/50">
-                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] shrink-0">Did not bat</span>
-                          <div className="flex flex-wrap gap-x-2 gap-y-1">
-                            {yetToBat.map((id: any, idx: number) => {
-                              const pid = typeof id === 'string' ? id : id.playerId
-                              const p = playersMap.get(pid)
-                              return (
-                                <div key={pid} className="inline-flex items-center">
-                                  <PlayerLink
-                                    playerId={pid}
-                                    playerName={p?.name || 'Player'}
-                                    className="text-xs font-semibold text-slate-600 hover:text-blue-600 transition-all border-b border-transparent hover:border-blue-200"
-                                  >
-                                    {p ? (isMobile ? getFirstName(p.name) : p.name) : 'Loading...'}
-                                  </PlayerLink>
-                                  {idx < yetToBat.length - 1 && <span className="text-slate-300 ml-1.5 opacity-50">•</span>}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  }
-                  return null
-                })()}
               </div>
 
               {/* Extras Strip */}

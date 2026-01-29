@@ -7,14 +7,15 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
+import { createPlayerWithClaim, getPlayerSecretEmail, updatePlayerClaimEmail } from '@/services/firestore/playerClaim'
 import { Player, Squad } from '@/types'
-import { useAuthStore } from '@/store/authStore'
-import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { Search } from 'lucide-react'
+import { Trash2, Search } from 'lucide-react'
+
+import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 
 interface AdminPlayersProps {
   mode?: 'list' | 'create' | 'edit'
@@ -23,7 +24,7 @@ interface AdminPlayersProps {
 export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const { id } = useParams<{ id?: string }>()
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  // const { user } = useAuthStore() // Unused
   const [players, setPlayers] = useState<Player[]>([])
   const [squads, setSquads] = useState<Squad[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,10 +39,20 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     dateOfBirth: '',
     photoUrl: '',
     squadId: '',
+    email: '',
+    school: 'BatchCrick High',
+    address: '',
+    claimed: false,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // Deletion state
+  const [itemToDelete, setItemToDelete] = useState<Player | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
 
   useEffect(() => {
     if (mode === 'list') {
@@ -82,6 +93,9 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     try {
       const data = await playerService.getById(playerId)
       if (data) {
+        // Fetch email from secrets if admin
+        const secretEmail = await getPlayerSecretEmail(playerId)
+
         setFormData({
           name: data.name,
           role: data.role,
@@ -90,6 +104,10 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           dateOfBirth: data.dateOfBirth || '',
           photoUrl: data.photoUrl || '',
           squadId: data.squadId,
+          email: secretEmail || '',
+          school: data.school || 'BatchCrick High',
+          address: data.address || '',
+          claimed: data.claimed || false,
         })
       }
       setLoading(false)
@@ -132,6 +150,17 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
       newErrors.squadId = 'Please select a squad'
     }
 
+    // Email required for create mode or edit mode
+    if (!formData.email) {
+      newErrors.email = 'Email is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Invalid email format'
+    }
+
+    if (!formData.school) {
+      newErrors.school = 'School name is required';
+    }
+
     if (formData.name.trim().length < 2) {
       newErrors.name = 'Player name must be at least 2 characters'
     }
@@ -151,55 +180,53 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     setSaving(true)
     try {
       if (mode === 'create') {
-        const newPlayerId = await playerService.create({
-          ...formData,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-          createdBy: user?.uid || '',
-        } as any)
-
-        // Sync with squad: Add player ID to the selected squad
-        if (formData.squadId) {
-          try {
-            const squad = await squadService.getById(formData.squadId)
-            if (squad) {
-              const currentPlayerIds = squad.playerIds || []
-              if (!currentPlayerIds.includes(newPlayerId)) {
-                await squadService.update(formData.squadId, {
-                  playerIds: [...currentPlayerIds, newPlayerId]
-                })
-              }
-            }
-          } catch (squadError) {
-            console.error('Error syncing player to squad:', squadError)
-            toast.error('Player created but failed to sync with squad')
-          }
+        const squad = squads.find(s => s.id === formData.squadId)
+        if (!squad) {
+          toast.error('Squad not found')
+          return
         }
 
-        toast.success('Player created successfully!')
+        await createPlayerWithClaim({
+          ...formData,
+          squadName: squad.name,
+          email: formData.email,
+          school: formData.school,
+        })
+
+        toast.success(`Player created! They can now claim using Google (${formData.email})`)
         navigate('/admin/players')
       } else if (mode === 'edit' && id) {
-        // If squad changed, remove from old squad and add to new squad
         const oldPlayer = players.find(p => p.id === id)
         const oldSquadId = oldPlayer?.squadId
 
         await playerService.update(id, {
-          ...formData,
-          updatedAt: Timestamp.now(),
-        } as any)
+          name: formData.name,
+          role: formData.role,
+          squadId: formData.squadId,
+          school: formData.school,
+          address: formData.address,
+          battingStyle: formData.battingStyle,
+          bowlingStyle: formData.bowlingStyle,
+          dateOfBirth: formData.dateOfBirth,
+          photoUrl: formData.photoUrl,
+        })
 
-        // Handle squad sync on edit
+        const oldSecretEmail = await getPlayerSecretEmail(id)
+        if (formData.email && formData.email.trim().toLowerCase() !== oldSecretEmail?.toLowerCase()) {
+          await updatePlayerClaimEmail(id, formData.email)
+          toast.success('Email updated. Profile claim has been reset.')
+        } else {
+          toast.success('Player updated successfully!')
+        }
+
         if (oldSquadId && oldSquadId !== formData.squadId) {
           try {
-            // Remove from old squad
             const oldSquad = await squadService.getById(oldSquadId)
             if (oldSquad && oldSquad.playerIds) {
               await squadService.update(oldSquadId, {
                 playerIds: oldSquad.playerIds.filter(pid => pid !== id)
               })
             }
-
-            // Add to new squad
             if (formData.squadId) {
               const newSquad = await squadService.getById(formData.squadId)
               if (newSquad) {
@@ -212,31 +239,14 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               }
             }
           } catch (syncError) {
-            console.error('Error syncing squad changes:', syncError)
-          }
-        } else if (formData.squadId) {
-          // Ensure player is in current squad list (idempotent)
-          try {
-            const squad = await squadService.getById(formData.squadId)
-            if (squad) {
-              const currentIds = squad.playerIds || []
-              if (!currentIds.includes(id)) {
-                await squadService.update(formData.squadId, {
-                  playerIds: [...currentIds, id]
-                })
-              }
-            }
-          } catch (err) {
-            console.error('Error verifying squad sync:', err)
+            console.error('Error syncing squad:', syncError)
           }
         }
-
-        toast.success('Player updated successfully!')
         navigate('/admin/players')
       }
     } catch (error: any) {
-      console.error('Error saving player:', error)
-      toast.error(error.message || 'Failed to save player')
+      console.error('Error saving:', error)
+      toast.error(error.message || 'Failed to save')
     } finally {
       setSaving(false)
     }
@@ -247,7 +257,47 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     if (filterSquad && player.squadId !== filterSquad) return false
     if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
     return true
+    return true
   })
+
+  // Delete Handlers
+  const handleDeleteClick = (player: Player) => {
+    setItemToDelete(player)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return
+
+    setIsDeleting(true)
+    try {
+      await playerService.delete(itemToDelete.id)
+
+      // Also remove from squad if needed
+      if (itemToDelete.squadId) {
+        try {
+          const squad = squads.find(s => s.id === itemToDelete.squadId)
+          if (squad && squad.playerIds) {
+            await squadService.update(squad.id, {
+              playerIds: squad.playerIds.filter(pid => pid !== itemToDelete.id)
+            })
+          }
+        } catch (err) {
+          console.error("Error removing player from squad:", err)
+        }
+      }
+
+      setPlayers(prev => prev.filter(p => p.id !== itemToDelete.id))
+      toast.success('Player deleted successfully')
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
+    } catch (error) {
+      console.error('Error deleting player:', error)
+      toast.error('Failed to delete player')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   if (mode === 'create' || mode === 'edit') {
     return (
@@ -288,12 +338,54 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
             </div>
 
+            {/* Email Field - Admin Only, Mandatory on Create */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Player Email (Private) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value });
+                  if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder="Enter player's personal email"
+              />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+              {mode === 'edit' && formData.claimed && (
+                <p className="text-xs text-amber-600 mt-1 font-bold">
+                  ⚠️ Profile claimed. Changing this email will reset the claim and the player will need to re-claim.
+                </p>
+              )}
+              {mode === 'edit' && !formData.claimed && (
+                <p className="text-xs text-blue-600 mt-1">
+                  ℹ️ Profile not yet claimed. This email will be used for verification.
+                </p>
+              )}
+            </div>
+
+            {/* School Field */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                School
+              </label>
+              <input
+                type="text"
+                value={formData.school}
+                onChange={(e) => setFormData({ ...formData, school: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition"
+                placeholder="e.g. Shakib Al Hasan"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Role <span className="text-red-500">*</span>
+                Role
               </label>
               <select
-                required
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition"
@@ -369,6 +461,17 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                 value={formData.dateOfBirth}
                 onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition"
+                placeholder="Residential Address"
               />
             </div>
 
@@ -464,6 +567,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
             </Link>
           </div>
         </form>
+
       </div>
     )
   }
@@ -706,11 +810,30 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   </svg>
                   Edit
                 </Link>
+                <button
+                  onClick={() => handleDeleteClick(player)}
+                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors ml-2"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Delete
+                </button>
               </div>
             </div>
           ))
         )}
       </div>
+
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Player"
+        message="This action cannot be undone. This will permanently delete the player and remove them from their squad."
+        verificationText={itemToDelete?.name || ''}
+        itemType="Player"
+        isDeleting={isDeleting}
+      />
+
     </div>
   )
 }

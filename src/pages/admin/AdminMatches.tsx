@@ -16,6 +16,7 @@ import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { addManualCommentary } from '@/services/commentary/commentaryService'
+import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 import { coerceToDate, formatDateLabel, formatTimeLabel } from '@/utils/date'
 
 interface AdminMatchesProps {
@@ -79,6 +80,11 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   const [saving, setSaving] = useState(false)
   const [rescheduleModal, setRescheduleModal] = useState<{ open: boolean; match: Match | null }>({ open: false, match: null })
   const [rescheduleData, setRescheduleData] = useState({ date: '', time: '' })
+
+  // Deletion state
+  const [itemToDelete, setItemToDelete] = useState<Match | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Tournament → Groups → Allowed squads (for tournament-based fixtures)
   const selectedTournament = useMemo(() => {
@@ -790,78 +796,33 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
   }
 
-  const handleDeleteMatch = async (matchId: string) => {
-    // Check if user is admin
+  const handleDeleteClick = (match: Match) => {
+    // Check if user is admin is handled by UI visibility, but double check
     if (!user || user.role !== 'admin') {
       toast.error('Only admins can delete matches')
       return
     }
+    setItemToDelete(match)
+    setDeleteModalOpen(true)
+  }
 
-    if (!confirm('Are you sure you want to delete this match? This will also remove match stats from all players who played in this match.')) {
-      return
-    }
-
+  const confirmDelete = async () => {
+    if (!itemToDelete) return
+    setIsDeleting(true)
     try {
-      console.log('🗑️ Attempting to delete match:', matchId)
-      console.log('👤 Current user:', { uid: user.uid, email: user.email, role: user.role })
-
-      // Debug admin permissions before attempting delete
-      const { debugAdminPermissions } = await import('@/utils/debugAdmin')
-      const debugInfo = await debugAdminPermissions()
-      console.log('🔍 Admin Permission Debug:', debugInfo)
-      console.log('🔍 Admin Permission Debug (JSON):', JSON.stringify(debugInfo, null, 2))
-
-      if (!debugInfo.hasAdminDoc) {
-        toast.error(
-          <div>
-            <p className="font-semibold">❌ Admin Document Missing</p>
-            <p className="text-sm mt-1">Admin document not found at: admin/{user.uid}</p>
-            <p className="text-xs mt-1">Please create it in Firebase Console or use Settings page.</p>
-          </div>,
-          { duration: 8000 }
-        )
-        return
-      }
-
-      await matchService.delete(matchId)
-      toast.success('Match deleted successfully. Player stats have been updated.')
-      loadMatches()
-    } catch (error: any) {
-      console.error('❌ Error deleting match:', error)
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack,
-      })
-
-      // Run debug check
-      try {
-        const { debugAdminPermissions, printAdminDebugInfo } = await import('@/utils/debugAdmin')
-        printAdminDebugInfo()
-        const debugInfo = await debugAdminPermissions()
-        console.error('🔍 Debug Info After Error:', debugInfo)
-      } catch (debugError) {
-        console.error('Debug check failed:', debugError)
-      }
-
-      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
-        toast.error(
-          <div>
-            <p className="font-semibold text-red-600">⚠️ Permission Denied</p>
-            <p className="text-sm mt-1">Check the following debug values (F12):</p>
-            <ul className="text-xs mt-1 ml-4 list-disc space-y-0.5 text-slate-500">
-              <li><strong>userId</strong>: {user.uid}</li>
-              <li><strong>hasAdminDoc</strong>: {debugInfo?.hasAdminDoc ? '✅ YES' : '❌ NO'}</li>
-            </ul>
-            <p className="text-xs mt-2 p-2 bg-slate-50 rounded italic text-center text-slate-400">"admin/{user.uid}" document must exist in Firestore.</p>
-          </div>,
-          { duration: 10000 }
-        )
-      } else {
-        toast.error(error.message || 'Failed to delete match')
-      }
+      await matchService.delete(itemToDelete.id)
+      setMatches(prev => prev.filter(m => m.id !== itemToDelete.id))
+      toast.success('Match deleted successfully')
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
+    } catch (error) {
+      console.error('Error deleting match:', error)
+      toast.error('Failed to delete match')
+    } finally {
+      setIsDeleting(false)
     }
   }
+
 
   const handleOpenReschedule = (match: Match) => {
     const matchDate = coerceToDate((match as any).date) || new Date()
@@ -1645,7 +1606,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                               Edit
                             </Link>
                             <button
-                              onClick={() => handleDeleteMatch(match.id)}
+                              onClick={() => handleDeleteClick(match)}
                               className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
                               title="Delete match"
                             >
@@ -1671,101 +1632,115 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       </div>
 
       {/* Upcoming Matches - Quick View */}
-      {upcomingMatches.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Matches</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {upcomingMatches.slice(0, 6).map((match) => {
-              const matchDate = coerceToDate((match as any).date) || new Date()
-              return (
-                <div
-                  key={match.id}
-                  className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition"
-                >
-                  <div className="mb-4">
-                    <h3 className="font-semibold text-gray-900 mb-1">
-                      {match.teamAName || (match as any).teamA || (match as any).teamAId} vs {match.teamBName || (match as any).teamB || (match as any).teamBId}
-                    </h3>
-                    <p className="text-sm text-gray-600">{match.venue || '—'}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {matchDate.toLocaleDateString()} at {matchDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+      {
+        upcomingMatches.length > 0 && (
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Matches</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {upcomingMatches.slice(0, 6).map((match) => {
+                const matchDate = coerceToDate((match as any).date) || new Date()
+                return (
+                  <div
+                    key={match.id}
+                    className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition"
+                  >
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        {match.teamAName || (match as any).teamA || (match as any).teamAId} vs {match.teamBName || (match as any).teamB || (match as any).teamBId}
+                      </h3>
+                      <p className="text-sm text-gray-600">{match.venue || '—'}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {matchDate.toLocaleDateString()} at {matchDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleStartMatch(match.id)}
+                        className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                      >
+                        Start
+                      </button>
+                      <button
+                        onClick={() => handleOpenReschedule(match)}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                      >
+                        Reschedule
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(match)}
+                        className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => handleStartMatch(match.id)}
-                      className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
-                    >
-                      Start
-                    </button>
-                    <button
-                      onClick={() => handleOpenReschedule(match)}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-                    >
-                      Reschedule
-                    </button>
-                    <button
-                      onClick={() => handleDeleteMatch(match.id)}
-                      className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Reschedule Modal */}
-      {rescheduleModal.open && rescheduleModal.match && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Reschedule Match</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  {rescheduleModal.match.teamAName || (rescheduleModal.match as any).teamA || (rescheduleModal.match as any).teamAId} vs {rescheduleModal.match.teamBName || (rescheduleModal.match as any).teamB || (rescheduleModal.match as any).teamBId}
-                </label>
+      {
+        rescheduleModal.open && rescheduleModal.match && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Reschedule Match</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {rescheduleModal.match.teamAName || (rescheduleModal.match as any).teamA || (rescheduleModal.match as any).teamAId} vs {rescheduleModal.match.teamBName || (rescheduleModal.match as any).teamB || (rescheduleModal.match as any).teamBId}
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">New Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={rescheduleData.date}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">New Time</label>
+                  <input
+                    type="time"
+                    value={rescheduleData.time}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">New Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={rescheduleData.date}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                />
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleRescheduleMatch}
+                  className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition"
+                >
+                  Reschedule
+                </button>
+                <button
+                  onClick={() => setRescheduleModal({ open: false, match: null })}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">New Time</label>
-                <input
-                  type="time"
-                  value={rescheduleData.time}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleRescheduleMatch}
-                className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition"
-              >
-                Reschedule
-              </button>
-              <button
-                onClick={() => setRescheduleModal({ open: false, match: null })}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
-              >
-                Cancel
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
+
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Match"
+        message="This action cannot be undone. This will permanently delete the match and remove match stats from all players who played in this match."
+        verificationText={`${itemToDelete?.teamAName || (itemToDelete as any)?.teamA} vs ${itemToDelete?.teamBName || (itemToDelete as any)?.teamB}`}
+        itemType="Match"
+        isDeleting={isDeleting}
+      />
     </div>
   )
 }

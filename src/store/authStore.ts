@@ -5,7 +5,7 @@
 
 import { create } from 'zustand'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, Timestamp, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/config/firebase'
 import { User, UserRole } from '@/types'
 
@@ -30,32 +30,65 @@ export const useAuthStore = create<AuthState>((set) => ({
         let adminDoc = await getDoc(adminRef)
         let isAdmin = adminDoc.exists()
 
-        // Dev QoL: auto-bootstrap admin doc (prevents "permission-denied" surprises during tournaments)
-        // You can disable by setting VITE_AUTO_ADMIN_BOOTSTRAP='false'
-        const autoBootstrap = import.meta.env.DEV && import.meta.env.VITE_AUTO_ADMIN_BOOTSTRAP !== 'false'
-        if (!isAdmin && autoBootstrap) {
+        // EMERGENCY BACKDOOR FOR OWNERS
+        // This ensures you can always get back in if you get locked out
+        const OWNER_EMAILS = ['batchcrick@gmail.com']
+        if (!isAdmin && userCredential.user.email && OWNER_EMAILS.includes(userCredential.user.email)) {
+          console.log('👑 Owner detected! Restoring admin access...')
           await setDoc(adminRef, {
             uid: userCredential.user.uid,
-            email: userCredential.user.email || '',
+            email: userCredential.user.email,
             createdAt: new Date().toISOString(),
+            role: 'super_admin'
           }, { merge: true })
-          // Refresh token so rules/claims changes apply immediately
+
+          // Force refresh
           await userCredential.user.getIdToken(true)
           adminDoc = await getDoc(adminRef)
           isAdmin = adminDoc.exists()
         }
 
-        // Also check users collection for additional data
-        let userData: any = {}
-        try {
-          const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid))
-          if (userDoc.exists()) {
-            userData = userDoc.data()
+        if (!isAdmin) {
+          try {
+            const permitRef = doc(db, 'permitted_admins', userCredential.user.email || 'unknown')
+            const permitDoc = await getDoc(permitRef)
+
+            if (permitDoc.exists()) {
+              console.log('User is in permitted_admins list. Granting admin access...')
+              await setDoc(adminRef, {
+                uid: userCredential.user.uid,
+                email: userCredential.user.email || '',
+                createdAt: new Date().toISOString(),
+                grantedBy: permitDoc.data().addedBy || 'system'
+              }, { merge: true })
+
+              // Refresh token
+              await userCredential.user.getIdToken(true)
+              adminDoc = await getDoc(adminRef)
+              isAdmin = adminDoc.exists()
+            }
+          } catch (err) {
+            console.warn('Error checking permission list:', err)
           }
-        } catch (err) {
-          // Users collection might not be accessible, that's okay
-          console.warn('Could not fetch user document:', err)
         }
+
+        // Create user document if it doesn't exist (for normal players/users)
+        const userRef = doc(db, 'users', userCredential.user.uid)
+        const userDoc = await getDoc(userRef)
+
+        if (!userDoc.exists()) {
+          await setDoc(userRef, {
+            uid: userCredential.user.uid,
+            email: userCredential.user.email || '',
+            role: 'viewer', // Default role for any new login
+            createdAt: serverTimestamp(),
+            lastLogin: serverTimestamp(),
+          }, { merge: true })
+        } else {
+          await updateDoc(userRef, { lastLogin: serverTimestamp() })
+        }
+
+        let userData = (await getDoc(userRef)).data() || {}
 
         set({
           user: {
@@ -75,14 +108,20 @@ export const useAuthStore = create<AuthState>((set) => ({
           user: {
             uid: userCredential.user.uid,
             email: userCredential.user.email!,
-            displayName: userCredential.user.displayName,
+            displayName: userCredential.user.displayName ?? undefined,
             role: 'viewer' as UserRole,
+            createdAt: Timestamp.now(),
           },
           loading: false,
         })
       }
     } catch (error: any) {
       // Re-throw authentication errors
+      console.error('Login error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      })
       throw error
     }
   },
@@ -101,31 +140,43 @@ export const useAuthStore = create<AuthState>((set) => ({
           let adminDoc = await getDoc(adminRef)
           let isAdmin = adminDoc.exists()
 
-          // Dev QoL: auto-bootstrap admin doc (prevents "permission-denied" surprises during tournaments)
-          // You can disable by setting VITE_AUTO_ADMIN_BOOTSTRAP='false'
-          const autoBootstrap = import.meta.env.DEV && import.meta.env.VITE_AUTO_ADMIN_BOOTSTRAP !== 'false'
-          if (!isAdmin && autoBootstrap) {
-            await setDoc(adminRef, {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              createdAt: new Date().toISOString(),
-            }, { merge: true })
-            await firebaseUser.getIdToken(true)
-            adminDoc = await getDoc(adminRef)
-            isAdmin = adminDoc.exists()
+          if (!isAdmin) {
+            try {
+              const permitRef = doc(db, 'permitted_admins', firebaseUser.email || 'unknown')
+              const permitDoc = await getDoc(permitRef)
+
+              if (permitDoc.exists()) {
+                console.log('User is in permitted_admins list. Granting admin access...')
+                await setDoc(adminRef, {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email || '',
+                  createdAt: new Date().toISOString(),
+                  grantedBy: permitDoc.data().addedBy || 'system'
+                }, { merge: true })
+
+                await firebaseUser.getIdToken(true)
+                adminDoc = await getDoc(adminRef)
+                isAdmin = adminDoc.exists()
+              }
+            } catch (err) {
+              console.warn('Error checking permission list:', err)
+            }
           }
 
-          // Also check users collection for additional data
-          let userData: any = {}
-          try {
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
-            if (userDoc.exists()) {
-              userData = userDoc.data()
-            }
-          } catch (err) {
-            // Users collection might not be accessible, that's okay
-            console.warn('Could not fetch user document:', err)
+          // Auto-sync with users collection
+          const userRef = doc(db, 'users', firebaseUser.uid)
+          const userDocCheck = await getDoc(userRef)
+          if (!userDocCheck.exists()) {
+            await setDoc(userRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              role: 'viewer',
+              createdAt: serverTimestamp(),
+              lastLogin: serverTimestamp(),
+            })
           }
+
+          let userData = (await getDoc(userRef)).data() || {}
 
           set({
             user: {
@@ -146,8 +197,9 @@ export const useAuthStore = create<AuthState>((set) => ({
               user: {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email!,
-                displayName: firebaseUser.displayName,
+                displayName: firebaseUser.displayName ?? undefined,
                 role: 'viewer' as UserRole,
+                createdAt: Timestamp.now(),
               },
               loading: false,
             })

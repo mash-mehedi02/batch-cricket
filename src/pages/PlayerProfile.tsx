@@ -7,13 +7,38 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { db } from '@/config/firebase'
-import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
-import { Player } from '@/types'
+import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle } from '@/types'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 import cricketBatIcon from '@/assets/cricket-bat.png'
 import cricketBallIcon from '@/assets/cricket-ball.png'
+import { useAuthStore } from '@/store/authStore'
+import { claimPlayerWithGoogle, updatePlayerPersonalInfo, verifyPlayerAccess } from '@/services/firestore/playerClaim'
+import toast from 'react-hot-toast'
+import { ShieldCheck, Edit, X, Facebook, Instagram, Twitter, Linkedin, Globe, Trophy, Camera, LogOut } from 'lucide-react'
+import { uploadImage } from '@/services/cloudinary/uploader'
+import { auth } from '@/config/firebase'
+import { signOut } from 'firebase/auth'
+
+const detectPlatform = (url: string): 'instagram' | 'facebook' | 'x' | 'linkedin' | null => {
+  const lower = url.toLowerCase()
+  if (lower.includes('instagram.com')) return 'instagram'
+  if (lower.includes('facebook.com')) return 'facebook'
+  if (lower.includes('twitter.com') || lower.includes('x.com')) return 'x'
+  if (lower.includes('linkedin.com')) return 'linkedin'
+  return null
+}
+
+const extractUsername = (url: string) => {
+  try {
+    const urlObj = new URL(url)
+    const parts = urlObj.pathname.split('/').filter(p => p && p !== 'in' && p !== 'profile')
+    return parts[parts.length - 1] || 'Link'
+  } catch {
+    return 'Link'
+  }
+}
 
 
 
@@ -50,18 +75,164 @@ function formatOpponentName(rawName: string): string {
   return `${shortName}${suffix}`
 }
 
+const INITIAL_EDIT_FORM_STATE = {
+  username: '',
+  bio: '',
+  photoUrl: '',
+  dateOfBirth: '',
+  socialLinks: [],
+  address: '',
+  role: 'batsman' as PlayerRole,
+  battingStyle: 'right-handed' as BattingStyle,
+  bowlingStyle: 'right-arm-medium' as BowlingStyle
+}
+
 export default function PlayerProfile() {
   const { playerId } = useParams<{ playerId: string }>()
   const [player, setPlayer] = useState<Player | null>(null)
   const [squadName, setSquadName] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  // Claim & Edit Handlers
+  const handleClaim = async () => {
+    const toastId = toast.loading('Initiating Google Sign-In...');
+    setClaiming(true);
+    try {
+      await claimPlayerWithGoogle(playerId!);
+      toast.success('Identity Verified! Welcome.', { id: toastId });
+      setShowClaimModal(false);
+
+      // Open edit modal directly instead of reload
+      if (player) {
+        setEditForm({
+          username: player.username || player.name || '',
+          bio: player.bio || '',
+          photoUrl: player.photoUrl || '',
+          dateOfBirth: player.dateOfBirth || '',
+          socialLinks: player.socialLinks || [],
+          address: player.address || '',
+          role: player.role || 'batsman',
+          battingStyle: player.battingStyle || 'right-handed',
+          bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+        });
+        setShowEditModal(true);
+      }
+    } catch (error: any) {
+      console.error('Claim failed:', error);
+      toast.error(error.message || 'Verification failed.', { id: toastId });
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  const handleAddLink = () => {
+    if (!newLinkUrl) return
+    if (editForm.socialLinks.length >= 3) {
+      toast.error('Maximum 3 social links allowed')
+      return
+    }
+    const platform = detectPlatform(newLinkUrl)
+    if (!platform) {
+      toast.error('Only Instagram, Facebook, X (Twitter), and LinkedIn are supported')
+      return
+    }
+    const username = extractUsername(newLinkUrl)
+    setEditForm(prev => ({
+      ...prev,
+      socialLinks: [...prev.socialLinks, { platform, url: newLinkUrl, username }]
+    }))
+    setNewLinkUrl('')
+  }
+
+  const handleRemoveLink = (index: number) => {
+    setEditForm(prev => ({
+      ...prev,
+      socialLinks: prev.socialLinks.filter((_, i) => i !== index)
+    }))
+  }
+
+  const handleEditSave = async () => {
+    if (!playerId) return
+    setSaving(true)
+    try {
+      await updatePlayerPersonalInfo(playerId, {
+        username: editForm.username,
+        bio: editForm.bio,
+        photoUrl: editForm.photoUrl,
+        dateOfBirth: editForm.dateOfBirth,
+        socialLinks: editForm.socialLinks,
+        address: editForm.address,
+        role: editForm.role,
+        battingStyle: editForm.battingStyle,
+        bowlingStyle: editForm.bowlingStyle
+      })
+      toast.success('Profile updated! Session cleared for security.')
+      setShowEditModal(false)
+      // Logout after save as requested
+      await signOut(auth)
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e.message || 'Update failed. Ensure you are the owner.')
+    } finally {
+      setSaving(false)
+    }
+  }
   const [activeTab, setActiveTab] = useState('overview')
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
+
+  // Claim & Edit States
+  const { user } = useAuthStore()
+  const [showClaimModal, setShowClaimModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [claiming, setClaiming] = useState(false)
+
+  // Edit Form State
+  const [editForm, setEditForm] = useState<{
+    username: string
+    bio: string
+    photoUrl: string
+    dateOfBirth: string
+    socialLinks: SocialLink[]
+    address: string
+    role: PlayerRole
+    battingStyle: BattingStyle
+    bowlingStyle: BowlingStyle
+  }>(INITIAL_EDIT_FORM_STATE)
+  const [newLinkUrl, setNewLinkUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [hasActiveSession, setHasActiveSession] = useState(false)
+
+  // Session Checker
+  useEffect(() => {
+    const checkSession = async () => {
+      if (!user || !player) {
+        setHasActiveSession(false)
+        return
+      }
+      const { hasAccess } = await verifyPlayerAccess(player)
+      setHasActiveSession(hasAccess)
+    }
+    checkSession()
+  }, [user, player])
 
   // Real-time states
   const [allMatches, setAllMatches] = useState<any[]>([])
   const [dbStats, setDbStats] = useState<any[]>([])
   const [liveData, setLiveData] = useState<Record<string, any>>({})
+  const [tournaments, setTournaments] = useState<Record<string, any>>({})
+
+  // 0. Listen to Tournaments (to resolve IDs to names)
+  useEffect(() => {
+    const q = collection(db, 'tournaments')
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const tourneys: Record<string, any> = {}
+      snapshot.docs.forEach(doc => {
+        tourneys[doc.id] = { id: doc.id, ...doc.data() }
+      })
+      setTournaments(tourneys)
+    })
+    return () => unsubscribe()
+  }, [])
 
   // 1. Listen to the Player document in real-time
   useEffect(() => {
@@ -291,22 +462,33 @@ export default function PlayerProfile() {
     // Prepare match list for display
     const mergedForDisplay = finalCombinedList.map(s => {
       const m = validMatchMap.get(s.matchId)
+      const t = m?.tournamentId ? tournaments[m.tournamentId] : null
       return {
         ...s,
-        opponentName: s.opponentName || (m ? (m.teamAId === player.squadId ? m.teamBName : m.teamAName) : 'Opponent'),
+        opponentName: s.opponentName || (m ? (m.teamAId === player.squadId ? (m.teamBName || m.teamB) : (m.teamAName || m.teamA)) : 'Opponent'),
         date: s.date || m?.date,
         result: s.result || m?.result || '',
+        tournamentName: t?.name || m?.tournamentName || m?.series || 'BatchCrick League',
+        isLive: s.isLive || m?.status?.toLowerCase() === 'live'
       }
-    }).sort((a, b) => {
-      if (a.isLive && !b.isLive) return -1
-      if (!a.isLive && b.isLive) return 1
-      const da = a.date ? new Date(a.date).getTime() : 0
-      const db = b.date ? new Date(b.date).getTime() : 0
-      return db - da
     })
+      .sort((a, b) => {
+        if (a.isLive && !b.isLive) return -1
+        if (!a.isLive && b.isLive) return 1
+
+        const getMillis = (d: any) => {
+          if (!d) return 0
+          if (d && typeof d.toDate === 'function') return d.toDate().getTime() // Handle Firestore Timestamp
+          if (d instanceof Date) return d.getTime()
+          const p = new Date(d).getTime()
+          return isNaN(p) ? 0 : p
+        }
+
+        return getMillis(b.date) - getMillis(a.date)
+      })
 
     return { mergedMatches: mergedForDisplay, careerStats: career }
-  }, [player, allMatches, dbStats, liveData, playerId])
+  }, [player, allMatches, dbStats, liveData, playerId, tournaments])
 
   if (loading) {
     return <PlayerProfileSkeleton />
@@ -418,80 +600,120 @@ export default function PlayerProfile() {
 
   return (
     <div className="min-h-screen bg-white relative pb-24">
-      {/* Premium Dark Header */}
-      <div className="bg-slate-950 text-white relative overflow-hidden">
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-emerald-500/10 to-transparent pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+      {/* Sticky Top Section (Header + Tabs) */}
+      <div className="sticky top-0 z-[60] shadow-2xl">
+        <div className="bg-slate-950 text-white relative overflow-hidden">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-emerald-500/10 to-transparent pointer-events-none"></div>
+          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 relative z-10 animate-in fade-in duration-700">
-          <div className="flex flex-row items-center gap-4 md:gap-8">
-            <div className="relative group shrink-0">
-              <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
-              <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-52 md:h-52 rounded-full bg-slate-900 flex items-center justify-center overflow-hidden border-2 md:border-4 border-slate-950 relative z-10 shadow-[0_0_25px_rgba(16,185,129,0.25)] md:shadow-[0_0_50px_rgba(16,185,129,0.3)] group-hover:shadow-[0_0_70px_rgba(16,185,129,0.5)] transition-all duration-700">
-                <PlayerAvatar
-                  photoUrl={player.photoUrl || (player as any).photo}
-                  name={player.name}
-                  size="xl"
-                  className="w-full h-full border-none shadow-none bg-transparent"
-                />
-              </div>
-              {/* Outer Pulse */}
-              <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping opacity-20 pointer-events-none"></div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 relative z-10">
+            {/* Action Button - Top Right */}
+            <div className="absolute top-4 right-4 sm:top-8 sm:right-8 z-[100]">
+              {!hasActiveSession ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowClaimModal(true);
+                    if (player.claimed) {
+                      toast('Login to edit this profile', { icon: '🔐' });
+                    }
+                  }}
+                  className="cursor-pointer bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg font-black text-[9px] md:text-[10px] flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-500/20 border border-emerald-400/50 uppercase tracking-wider"
+                >
+                  <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  Is it You?
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditForm({
+                      username: player.username || player.name || '',
+                      bio: player.bio || '',
+                      photoUrl: player.photoUrl || '',
+                      dateOfBirth: player.dateOfBirth || '',
+                      socialLinks: player.socialLinks || [],
+                      role: player.role || 'batsman',
+                      battingStyle: player.battingStyle || 'right-handed',
+                      bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+                    })
+                    setShowEditModal(true)
+                  }}
+                  className="cursor-pointer bg-white/10 hover:bg-white/20 active:scale-95 backdrop-blur-md border border-white/20 text-white px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg font-black text-[9px] md:text-[10px] flex items-center gap-1.5 transition-all uppercase tracking-wider"
+                >
+                  <Edit className="w-3 h-3 md:w-3.5 md:h-3.5 text-sky-400" />
+                  Edit Profile
+                </button>
+              )}
             </div>
 
-            <div className="flex-1 text-left min-w-0">
-              <div className="inline-flex items-center gap-1.5 md:gap-2 px-2.5 py-0.5 md:px-3 md:py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] md:text-xs font-bold uppercase tracking-wider mb-2 md:mb-4">
-                <span className="w-1 md:w-1.5 h-1 md:h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="truncate">Primary: {formatRole(player)}</span>
+            <div className="flex flex-row items-center gap-4 md:gap-8">
+              <div className="relative group shrink-0">
+                <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
+                <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-52 md:h-52 rounded-full bg-slate-900 flex items-center justify-center overflow-hidden border-2 md:border-4 border-slate-950 relative z-10 shadow-[0_0_25px_rgba(16,185,129,0.25)] md:shadow-[0_0_50px_rgba(16,185,129,0.3)] group-hover:shadow-[0_0_70px_rgba(16,185,129,0.5)] transition-all duration-700">
+                  <PlayerAvatar
+                    photoUrl={player.photoUrl || (player as any).photo}
+                    name={player.name}
+                    size="xl"
+                    className="w-full h-full border-none shadow-none bg-transparent"
+                  />
+                </div>
+                {/* Outer Pulse */}
+                <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping opacity-20 pointer-events-none"></div>
               </div>
-              <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white tracking-tighter mb-2 md:mb-4 leading-none truncate">
-                {player.name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2 md:gap-6 text-slate-400 font-medium">
-                {player.batch && (
-                  <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-100">
-                    <span className="text-emerald-500 text-xs md:text-base">📚</span>
-                    <span className="text-[10px] md:text-sm whitespace-nowrap">Batch {player.batch}</span>
-                  </span>
-                )}
-                {squadName && (
-                  <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-200">
-                    <span className="text-emerald-500 text-xs md:text-base">👥</span>
-                    <span className="text-[10px] md:text-sm whitespace-nowrap">{squadName}</span>
-                  </span>
-                )}
-                {age && (
-                  <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-300">
-                    <span className="text-emerald-500 text-xs md:text-base">🎂</span>
-                    <span className="text-[10px] md:text-sm whitespace-nowrap">{age} Yrs</span>
-                  </span>
-                )}
+
+              <div className="flex-1 text-left min-w-0">
+                <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white tracking-tighter mb-2 md:mb-4 leading-none truncate">
+                  {player.name}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 md:gap-6 text-slate-400 font-medium">
+                  {player.batch && (
+                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-100">
+                      <span className="text-emerald-500 text-xs md:text-base">📚</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap">Batch {player.batch}</span>
+                    </span>
+                  )}
+                  {squadName && (
+                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-200">
+                      <span className="text-emerald-500 text-xs md:text-base">👥</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap">{squadName}</span>
+                    </span>
+                  )}
+                  {age && (
+                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-300">
+                      <span className="text-emerald-500 text-xs md:text-base">🎂</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap">{age} Yrs</span>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Refined Tabs */}
-      <div className="bg-white border-b border-slate-200 sticky top-16 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-4">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-5 text-sm font-bold relative transition-all ${activeTab === tab.id
-                  ? 'text-emerald-600'
-                  : 'text-slate-500 hover:text-slate-900'
-                  }`}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
-                )}
-              </button>
-            ))}
+        {/* Refined Tabs (Inside Sticky Container) */}
+        <div className="bg-white border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex gap-4">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-4 text-sm font-bold relative transition-all ${activeTab === tab.id
+                    ? 'text-emerald-600'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                >
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -615,69 +837,126 @@ export default function PlayerProfile() {
         )}
 
         {activeTab === 'matches' && (
-          <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 p-8 border border-slate-200">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-sm">📅</span>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
                 Performance History
               </h3>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                {viewMode === 'batting' ? 'Batting Records' : 'Bowling Records'}
+              </div>
             </div>
 
             {filteredMatches.length === 0 ? (
-              <div className="text-center py-16 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                <div className="text-4xl mb-4">📭</div>
-                <div className="text-slate-500 font-bold uppercase tracking-widest text-xs">No match history found</div>
+              <div className="text-center py-20 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl text-slate-300">📊</span>
+                </div>
+                <h4 className="text-slate-900 font-bold mb-1">No matches found</h4>
+                <p className="text-slate-400 text-sm">This player hasn't appeared in any recorded matches yet.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredMatches.slice().map((match: any, idx: number) => {
+              <div className="grid grid-cols-1 gap-4">
+                {filteredMatches.map((match: any, idx: number) => {
                   const matchId = match.matchId || match.id
                   if (!matchId) return null
                   const isNotOut = match.notOut === true || (match.out === false && Number(match.balls || 0) > 0)
+                  const runs = match.runs ?? match.batting?.runs ?? 0
+                  const balls = match.balls ?? match.batting?.balls ?? 0
+                  const wickets = match.bowlingWickets ?? match.bowling?.wickets ?? 0
+                  const runsConceded = match.bowlingRuns ?? match.bowling?.runsConceded ?? 0
+                  const overs = match.overs ?? match.bowling?.overs ?? '0.0'
+
+                  // Match date logic
+                  const matchDate = match.date
+                  const dateObj = matchDate?.toDate ? matchDate.toDate() : new Date(matchDate)
+                  const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                  }) : 'Unknown Date'
 
                   return (
                     <Link
                       key={idx}
                       to={`/match/${matchId}`}
-                      className="group block p-6 bg-white border border-slate-100 rounded-2xl hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/10 transition-all"
+                      className="group bg-white rounded-3xl border border-slate-100 p-5 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-xl group-hover:bg-emerald-500 group-hover:text-white transition-all transform group-hover:rotate-6">🏟️</div>
-                          <div>
-                            <div className="font-black text-slate-900 text-lg group-hover:text-emerald-600 transition-colors">
-                              vs {match.opponentName || match.opponent || 'Opponent'}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1">
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">
-                                {viewMode === 'batting' ? 'Batting' : 'Bowling'}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0">
+                          {/* Date Block */}
+                          <div className="hidden sm:flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 shrink-0 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-colors">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                              {!isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, { month: 'short' }) : '---'}
+                            </span>
+                            <span className="text-lg font-black text-slate-700 leading-none">
+                              {!isNaN(dateObj.getTime()) ? dateObj.getDate() : '--'}
+                            </span>
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                vs {match.opponentName || 'Opponent'}
                               </span>
-                              <div className="text-sm text-slate-500 font-bold">
-                                {viewMode === 'batting' ? (
-                                  <>
-                                    <span className="text-slate-900 font-extrabold relative">
-                                      {match.runs ?? match.batting?.runs ?? 0}
-                                      {isNotOut && <span className="absolute -top-1 -right-2 text-[10px] text-emerald-600">*</span>}
-                                    </span>
-                                    <span className="ml-2 text-xs opacity-60 font-medium">({match.balls ?? match.batting?.balls ?? 0} balls)</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="text-slate-900 font-black">{match.bowlingWickets ?? match.bowling?.wickets ?? 0}/{match.bowlingRuns ?? match.bowling?.runsConceded ?? 0}</span>
-                                    <span className="ml-1 opacity-60">({match.overs ?? match.bowling?.overs ?? '0.0'} ov)</span>
-                                  </>
-                                )}
-                              </div>
+                              <span className="text-[10px] text-slate-400 font-medium">{formattedDate}</span>
                             </div>
+                            <h4 className="text-base sm:text-lg font-bold text-slate-800 truncate">
+                              {match.tournamentName}
+                            </h4>
                           </div>
                         </div>
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-4 border-t sm:border-0 pt-4 sm:pt-0 border-slate-50">
-                          <div className="text-sm font-black whitespace-nowrap">
-                            {match.result === 'Won' || match.result === 'won' ? <span className="text-emerald-500 bg-emerald-50 px-3 py-1 rounded-lg">🏆 WIN</span> : ''}
-                            {match.result === 'Lost' || match.result === 'lost' ? <span className="text-rose-500 bg-rose-50 px-3 py-1 rounded-lg">❌ LOSS</span> : ''}
-                            {match.result === 'Tied' || match.result === 'tie' ? <span className="text-amber-500 bg-amber-50 px-3 py-1 rounded-lg">🤝 TIE</span> : ''}
+
+                        <div className="flex items-center gap-6 shrink-0">
+                          {/* Main Stats */}
+                          <div className="text-right">
+                            {viewMode === 'batting' ? (
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                                    {runs}
+                                  </span>
+                                  {isNotOut && <span className="text-lg font-black text-emerald-600 leading-none">*</span>}
+                                  <span className="text-[11px] font-bold text-slate-400 ml-1">({balls})</span>
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Runs Scored</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                                    {wickets}
+                                  </span>
+                                  <span className="text-lg font-bold text-slate-300 mx-0.5">/</span>
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                                    {runsConceded}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-400 ml-1">({overs})</span>
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Bowling Figure</span>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest group-hover:text-emerald-500 transition-colors">View Scorecard →</div>
+
+                          {/* Result Indicator */}
+                          <div className="hidden sm:block">
+                            {match.result?.toLowerCase() === 'won' && (
+                              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                                <span className="text-[10px] font-black italic">W</span>
+                              </div>
+                            )}
+                            {match.result?.toLowerCase() === 'lost' && (
+                              <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
+                                <span className="text-[10px] font-black italic">L</span>
+                              </div>
+                            )}
+                            {(!match.result || match.result?.toLowerCase() === 'tied' || match.result?.toLowerCase() === 'n/r') && (
+                              <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center text-white">
+                                <span className="text-[10px] font-black italic">-</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Link>
@@ -687,36 +966,92 @@ export default function PlayerProfile() {
             )}
           </div>
         )}
-
         {activeTab === 'player-info' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 p-8 border border-slate-200">
-              <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-sm">📋</span>
-                Bio Data
-              </h3>
-              <div className="space-y-6">
-                {[
-                  { label: 'Date of Birth', value: player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A' },
-                  { label: 'Batting Style', value: player.battingStyle || 'N/A' },
-                  { label: 'Bowling Style', value: player.bowlingStyle || 'N/A' },
-                  { label: 'Primary Role', value: player.role ? (player.role.charAt(0).toUpperCase() + player.role.slice(1)) : 'Player' },
-                ].map((info, i) => (
-                  <div key={i} className="flex flex-col">
-                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{info.label}</span>
-                    <span className="text-lg font-bold text-slate-900">{info.value}</span>
-                  </div>
-                ))}
+          <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            {/* Playing Info Card */}
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+              <div className="px-8 py-2">
+                <div className="flex py-5 border-b border-slate-50 items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Role:</span>
+                  <span className="text-sm font-bold text-slate-800 capitalize">{player.role || 'Batter'}</span>
+                </div>
+                <div className="flex py-5 border-b border-slate-50 items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Bats:</span>
+                  <span className="text-sm font-bold text-slate-800 capitalize">{player.battingStyle || 'Right Handed'}</span>
+                </div>
+                <div className="flex py-5 items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Bowl:</span>
+                  <span className="text-sm font-bold text-slate-800 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 p-8 border border-slate-200 flex flex-col items-center justify-center text-center">
-              <div className="w-24 h-24 rounded-full bg-emerald-50 flex items-center justify-center text-4xl mb-6">🎓</div>
-              <h4 className="text-2xl font-black text-slate-900 mb-2">Academic Info</h4>
-              <p className="text-slate-500 font-medium mb-6 px-10">Currently playing for {squadName || 'N/A'} - Batch {player.batch || 'N/A'}</p>
-              <div className="w-full h-px bg-slate-100 mb-6"></div>
-              <div className="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Verified Academic Player</div>
+            {/* About Player Card */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-900 px-2 flex items-center gap-2">
+                About {player.name.split(' ')[0]}
+              </h3>
+              <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+                <div className="px-8 py-2">
+                  <div className="flex py-5 border-b border-slate-50 items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Name:</span>
+                    <span className="text-sm font-bold text-slate-800">{player.name}</span>
+                  </div>
+                  <div className="flex py-5 border-b border-slate-50 items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Birth:</span>
+                    <span className="text-sm font-bold text-slate-800">
+                      {player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex py-5 border-b border-slate-50 items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Squad:</span>
+                    <span className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter">{squadName || 'N/A'}</span>
+                  </div>
+                  <div className="flex py-5 items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Address:</span>
+                    <span className="text-sm font-bold text-slate-800">{player.address || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Bio Section */}
+            {player.bio && (
+              <div className="bg-white/50 backdrop-blur-md rounded-3xl p-8 border border-white/50 shadow-sm">
+                <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
+                  "{player.bio}"
+                </p>
+              </div>
+            )}
+
+            {/* Social Connect (Floating Style) */}
+            {player.socialLinks && player.socialLinks.length > 0 && (
+              <div className="flex items-center justify-center gap-6 py-4">
+                {player.socialLinks.map((link: SocialLink, idx: number) => {
+                  const Icon = link.platform === 'facebook' ? Facebook :
+                    link.platform === 'instagram' ? Instagram :
+                      link.platform === 'x' ? Twitter :
+                        link.platform === 'linkedin' ? Linkedin : Globe;
+
+                  return (
+                    <a
+                      key={idx}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-center gap-2 text-slate-400 hover:text-emerald-500 transition-all"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-white shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">
+                        {link.platform}
+                      </span>
+                    </a>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -744,6 +1079,310 @@ export default function PlayerProfile() {
           <img src={cricketBallIcon} alt="Bowling" className="w-7 h-7 object-contain" />
         </button>
       </div>
+
+      {/* CLAIM PROFILE MODAL */}
+      {showClaimModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowClaimModal(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-8 text-white text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
+              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-md shadow-inner border border-white/20">
+                <ShieldCheck className="w-8 h-8 text-white drop-shadow-md" />
+              </div>
+              <h3 className="text-2xl font-black tracking-tight">Is this You?</h3>
+              <p className="opacity-90 text-sm mt-1 font-medium">Verify your identity to customize your profile</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center space-y-4">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Registered To</p>
+                  <p className="font-mono text-base font-bold text-slate-700 bg-white py-2 px-4 rounded-xl border border-slate-200 inline-block">{player.maskedEmail || 'Unset Email'}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Verification requires signing in with the <b className="text-slate-700">exact Google account</b> listed above.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={handleClaim}
+                  disabled={claiming}
+                  className="w-full py-4 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-md active:scale-95"
+                >
+                  {claiming ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
+                      Verifying Google Identity...
+                    </>
+                  ) : (
+                    <>
+                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                      Confirm with Google
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-center text-slate-400 font-medium">
+                  Profile ownership is securely verified via Firebase Auth.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowClaimModal(false)}
+                className="w-full py-3 text-slate-400 hover:text-slate-600 font-bold text-xs uppercase tracking-widest transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PROFILE MODAL */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={async () => {
+            setShowEditModal(false)
+            await signOut(auth)
+            // Clear temporary states on logout
+            setEditForm(INITIAL_EDIT_FORM_STATE)
+            setNewLinkUrl('')
+            setUploadingPhoto(false)
+          }}></div>
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh] border border-white/20">
+            {/* Modal Header */}
+            <div className="bg-white border-b border-slate-100 p-6 flex items-center justify-between sticky top-0 z-10">
+              <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center text-white shadow-lg">
+                  <Edit className="w-5 h-5" />
+                </div>
+                Customize Profile
+              </h3>
+              <button onClick={async () => {
+                setShowEditModal(false)
+                await signOut(auth)
+                // Clear temporary states on logout
+                setEditForm(INITIAL_EDIT_FORM_STATE)
+                setNewLinkUrl('')
+                setUploadingPhoto(false)
+              }} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-600 active:scale-95">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-8 overflow-y-auto space-y-8 custom-scrollbar">
+              {/* Photo Upload Section */}
+              <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 shadow-inner text-center">
+                <div className="relative inline-block group">
+                  <div className="w-32 h-32 rounded-[2.5rem] bg-white border-4 border-white shadow-xl overflow-hidden ring-8 ring-slate-100/50">
+                    {uploadingPhoto ? (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-100">
+                        <span className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
+                      </div>
+                    ) : (
+                      <img src={editForm.photoUrl || "https://placehold.co/200"} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/200"} />
+                    )}
+                  </div>
+                  <label className="absolute -bottom-2 -right-2 w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-100 flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-all hover:scale-110 active:scale-95">
+                    <Camera className="w-6 h-6 text-teal-600" />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setUploadingPhoto(true)
+                          try {
+                            const url = await uploadImage(file, (p) => console.log(`Uploading: ${p}%`))
+                            setEditForm(prev => ({ ...prev, photoUrl: url }))
+                          } catch (error) {
+                            toast.error("Photo upload failed")
+                          } finally {
+                            setUploadingPhoto(false)
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="mt-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Profile Picture</p>
+                  <p className="text-[9px] text-slate-500 font-medium italic mt-1">Click the camera icon to upload</p>
+                </div>
+              </div>
+
+              {/* Identity Form */}
+              <div className="space-y-4">
+                <div className="relative">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Username / Display Name</label>
+                  <input
+                    type="text"
+                    value={editForm.username}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-sm font-bold text-slate-700 shadow-inner"
+                    placeholder="Choose a catchy username"
+                  />
+                </div>
+                <div className="relative">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Address</label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-sm font-bold text-slate-700 shadow-inner"
+                    placeholder="Enter your current address"
+                  />
+                </div>
+              </div>
+
+              {/* Playing Info Grid Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-white rounded-3xl border border-slate-100 p-2">
+                <div className="space-y-2 p-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Role</label>
+                  <select
+                    value={editForm.role}
+                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value as PlayerRole })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
+                  >
+                    <option value="batsman">Batsman</option>
+                    <option value="bowler">Bowler</option>
+                    <option value="all-rounder">All Rounder</option>
+                    <option value="wicket-keeper">Wicket Keeper</option>
+                  </select>
+                </div>
+                <div className="space-y-2 p-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={editForm.dateOfBirth}
+                    onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
+                  />
+                </div>
+                <div className="space-y-2 p-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Batting Style</label>
+                  <select
+                    value={editForm.battingStyle}
+                    onChange={(e) => setEditForm({ ...editForm, battingStyle: e.target.value as BattingStyle })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
+                  >
+                    <option value="right-handed">Right Handed</option>
+                    <option value="left-handed">Left Handed</option>
+                  </select>
+                </div>
+                <div className="space-y-2 p-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bowling Style</label>
+                  <select
+                    value={editForm.bowlingStyle}
+                    onChange={(e) => setEditForm({ ...editForm, bowlingStyle: e.target.value as BowlingStyle })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
+                  >
+                    <option value="right-arm-fast">Right Arm Fast</option>
+                    <option value="right-arm-medium">Right Arm Medium</option>
+                    <option value="right-arm-spin">Right Arm Spin</option>
+                    <option value="left-arm-fast">Left Arm Fast</option>
+                    <option value="left-arm-medium">Left Arm Medium</option>
+                    <option value="left-arm-spin">Left Arm Spin</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bio Section */}
+              <div className="space-y-3">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">About Me / Bio</label>
+                <textarea
+                  value={editForm.bio}
+                  onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-[2rem] focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all h-28 resize-none text-sm text-slate-600 font-medium leading-relaxed custom-scrollbar shadow-inner"
+                  placeholder="Tell your fans something about yourself..."
+                />
+              </div>
+
+              {/* Social Section */}
+              <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
+                <div className="flex items-center justify-between mb-4 ml-1">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Connect Hub</label>
+                  <span className="text-[9px] font-black text-white bg-slate-900 px-3 py-1 rounded-full">{editForm.socialLinks.length}/3 Socials</span>
+                </div>
+                <div className="space-y-3">
+                  {editForm.socialLinks.map((link, idx) => {
+                    const Icon = link.platform === 'facebook' ? Facebook :
+                      link.platform === 'instagram' ? Instagram :
+                        link.platform === 'x' ? Twitter :
+                          link.platform === 'linkedin' ? Linkedin : Globe
+                    return (
+                      <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200 group hover:border-sky-300 transition-all shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-600 border border-slate-100">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-black text-slate-800 truncate">@{link.username}</div>
+                          <div className="text-[9px] font-bold text-slate-400 truncate tracking-tight">{link.url}</div>
+                        </div>
+                        <button onClick={() => handleRemoveLink(idx)} className="w-8 h-8 flex items-center justify-center hover:bg-rose-50 rounded-lg text-rose-500 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )
+                  })}
+
+                  {editForm.socialLinks.length < 3 && (
+                    <div className="flex gap-2 bg-white p-1 rounded-2xl border border-slate-200 border-dashed">
+                      <input
+                        type="text"
+                        value={newLinkUrl}
+                        onChange={(e) => setNewLinkUrl(e.target.value)}
+                        placeholder="Paste Profile Link"
+                        className="flex-1 px-4 py-3 bg-transparent outline-none text-[11px] font-medium"
+                      />
+                      <button
+                        onClick={handleAddLink}
+                        disabled={!newLinkUrl}
+                        className="px-6 bg-slate-900 text-white rounded-xl font-black text-[11px] hover:bg-slate-800 transition-all disabled:opacity-50 active:scale-95 shadow-lg shadow-slate-900/10 uppercase tracking-widest"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-4 sticky bottom-0 z-10 backdrop-blur-md">
+              <button
+                onClick={async () => {
+                  setShowEditModal(false)
+                  await signOut(auth)
+                }}
+                className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[10px] rounded-2xl hover:bg-slate-50 transition-all uppercase tracking-[0.2em] active:scale-95 shadow-sm flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Finish
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={saving}
+                className="flex-[2] py-4 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-black text-[10px] rounded-2xl hover:from-sky-500 hover:to-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-sky-500/20 uppercase tracking-[0.2em] active:scale-95"
+              >
+                {saving ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    Syncing Data...
+                  </>
+                ) : 'Confirm Updates'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

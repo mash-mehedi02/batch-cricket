@@ -14,6 +14,8 @@ import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
+import { Trash2 } from 'lucide-react'
+import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 
 interface AdminSquadsProps {
   mode?: 'list' | 'create' | 'edit'
@@ -39,6 +41,11 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // Deletion state
+  const [itemToDelete, setItemToDelete] = useState<Squad | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (mode === 'list') {
@@ -238,6 +245,43 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
         ? formData.playerIds.filter(id => id !== playerId)
         : [...formData.playerIds, playerId],
     })
+  }
+
+  // Delete Handlers
+  const handleDeleteClick = (squad: Squad) => {
+    setItemToDelete(squad)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return
+
+    setIsDeleting(true)
+    try {
+      await squadService.delete(itemToDelete.id)
+
+      // Unassign players for this squad
+      try {
+        const squadPlayers = await playerService.getBySquad(itemToDelete.id)
+        if (squadPlayers.length > 0) {
+          await Promise.all(squadPlayers.map(p =>
+            playerService.update(p.id, { squadId: '' })
+          ))
+        }
+      } catch (err) {
+        console.error("Error removing players from deleted squad:", err)
+      }
+
+      setSquads(prev => prev.filter(s => s.id !== itemToDelete.id))
+      toast.success('Squad deleted and players unassigned')
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
+    } catch (error) {
+      console.error('Error deleting squad:', error)
+      toast.error('Failed to delete squad')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   if (mode === 'create' || mode === 'edit') {
@@ -485,6 +529,13 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
                   >
                     Edit
                   </Link>
+                  <button
+                    onClick={() => handleDeleteClick(squad)}
+                    className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
                 </div>
               </div>
               <div className="text-sm text-gray-600">
@@ -495,8 +546,19 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
             </div>
           ));
         })()}
-      </div>
-    </div>
+      </div >
+
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Squad"
+        message="This action cannot be undone. This will permanently delete the squad and unassign all players from it."
+        verificationText={itemToDelete?.name || ''}
+        itemType="Squad"
+        isDeleting={isDeleting}
+      />
+    </div >
   )
 }
 

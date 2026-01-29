@@ -32,10 +32,42 @@ service cloud.firestore {
       }
     }
     
-    // Players collection - readable by all, writable by admins only
+    // Users Collection
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Player Secrets Collection (STRICTLY PRIVATE - ADMIN OR OWNER)
+    match /player_secrets/{secretId} {
+      // Only allow reading if it's an admin OR the user's Google email matches the registered email
+      allow read: if request.auth != null && (
+        isAdmin() || 
+        request.auth.token.email.lower() == resource.data.email.lower()
+      );
+      allow write: if isAdmin();
+    }
+    
+    // Players collection - readable by all, special update rules for claimed profiles
     match /players/{playerId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow create, delete: if isAdmin();
+      
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        // 1. THE CLAIM/VERIFY STEP: Bind UID or Refresh Session
+        (request.resource.data.claimed == true && 
+         request.resource.data.ownerUid == request.auth.uid &&
+         // Verify Google Email via secret document join
+         request.auth.token.email.lower() == get(/databases/$(database)/documents/player_secrets/$(playerId)).data.email.lower() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'ownerUid', 'lastVerifiedAt', 'updatedAt'])) ||
+        // 2. THE OWNER STEP: Update personal fields (Session must be < 1 hour old)
+        (resource.data.ownerUid == request.auth.uid && 
+         request.time < resource.data.lastVerifiedAt + duration(1, 'h') &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+           ['username', 'bio', 'photoUrl', 'dateOfBirth', 'socialLinks', 'role', 'battingStyle', 'bowlingStyle', 'updatedAt']
+         ))
+      );
     }
     
     // Admin collection - users can read their own admin doc, admins can read/write all

@@ -8,6 +8,7 @@ import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 import { getAuth, connectAuthEmulator } from 'firebase/auth'
 import { getStorage, connectStorageEmulator } from 'firebase/storage'
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
+import { getMessaging } from 'firebase/messaging'
 // Analytics is optional - may be blocked by ad blockers
 
 const firebaseConfig = {
@@ -29,6 +30,8 @@ export const db = getFirestore(app)
 export const auth = getAuth(app)
 export const storage = getStorage(app)
 export const functions = getFunctions(app)
+export const messaging = typeof window !== "undefined" ? getMessaging(app) : null
+export { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 
 // Lightweight project info (safe to log for debugging)
 export const firebaseProjectInfo = {
@@ -42,8 +45,8 @@ let analytics: any = null
 
 // Only initialize analytics if explicitly enabled and in browser
 // Skip if measurementId is not provided (indicates analytics not needed)
-const shouldInitAnalytics = 
-  typeof window !== 'undefined' && 
+const shouldInitAnalytics =
+  typeof window !== 'undefined' &&
   firebaseConfig.measurementId &&
   import.meta.env.VITE_ENABLE_ANALYTICS !== 'false'
 

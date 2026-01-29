@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { Match, Squad, InningsStats } from '@/types'
 import { matchService } from '@/services/firestore/matches'
 import { coerceToDate, formatTimeHMTo12h } from '@/utils/date'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 interface MatchCardProps {
     match: Match
@@ -237,10 +238,15 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                 <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider truncate max-w-[80%]">
                     {match.venue ? `${match.venue}` : 'SMA Ground'}
                 </span>
-                <div className="flex items-center gap-1.5 opacity-40">
-                    <svg className="w-3 h-3 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
+                <div className="flex items-center gap-1.5 ">
+                    {/* Bell Icon */}
+                    <div className="mr-1">
+                        <NotificationBell
+                            matchId={match.id}
+                            matchTitle={`${teamAName} vs ${teamBName}`}
+                            color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                        />
+                    </div>
                 </div>
             </div>
 

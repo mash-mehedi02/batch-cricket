@@ -9,7 +9,7 @@ import { matchService } from '@/services/firestore/matches'
 import { Ball, Match, InningsStats } from '@/types'
 import MatchLiveSkeleton from '@/components/skeletons/MatchLiveSkeleton'
 
-export default function MatchGraphs() {
+export default function MatchGraphs({ compact = false }: { compact?: boolean }) {
   const { matchId } = useParams<{ matchId: string }>()
   const [match, setMatch] = useState<Match | null>(null)
   const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
@@ -147,30 +147,32 @@ export default function MatchGraphs() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-12 font-inter">
       {/* Mini Scorecard Header */}
-      <div className="bg-[#0f172a] text-white p-4 sm:p-6 shadow-xl sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{firstName[0]}</div>
-              <div>
-                <div className="text-sm font-black uppercase tracking-tight">{firstName}</div>
-                <div className="text-xs text-slate-400 font-bold">{firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0} <span className="opacity-50">({firstInns?.overs || '0.0'})</span></div>
+      {!compact && (
+        <div className="bg-[#0f172a] text-white p-4 sm:p-6 shadow-xl sticky top-0 z-50">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{firstName[0]}</div>
+                <div>
+                  <div className="text-sm font-black uppercase tracking-tight">{firstName}</div>
+                  <div className="text-xs text-slate-400 font-bold">{firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0} <span className="opacity-50">({firstInns?.overs || '0.0'})</span></div>
+                </div>
+              </div>
+              <div className="hidden sm:block text-slate-700 font-black text-xs">VS</div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{secondName[0]}</div>
+                <div>
+                  <div className="text-sm font-black uppercase tracking-tight">{secondName}</div>
+                  <div className="text-xs text-slate-400 font-bold">{secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0} <span className="opacity-50">({secondInns?.overs || '0.0'})</span></div>
+                </div>
               </div>
             </div>
-            <div className="hidden sm:block text-slate-700 font-black text-xs">VS</div>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{secondName[0]}</div>
-              <div>
-                <div className="text-sm font-black uppercase tracking-tight">{secondName}</div>
-                <div className="text-xs text-slate-400 font-bold">{secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0} <span className="opacity-50">({secondInns?.overs || '0.0'})</span></div>
-              </div>
+            <div className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Match Graphs
             </div>
-          </div>
-          <div className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Match Graphs
           </div>
         </div>
-      </div>
+      )}
 
       <div className="max-w-5xl mx-auto p-4 space-y-6 mt-4">
         {/* Manhattan Chart */}
@@ -317,6 +319,3 @@ export default function MatchGraphs() {
     </div>
   )
 }
-
-
-

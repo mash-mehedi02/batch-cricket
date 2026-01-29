@@ -65,7 +65,7 @@ async function recalculateInnings(
   // Import recalculation logic (will be implemented)
   // For now, this is a placeholder
   // The actual recalculation logic should be imported from a shared module
-  
+
   // Calculate innings stats
   const inningsStats = calculateInningsStats(balls, matchId, inningId, matchData)
 
@@ -92,7 +92,7 @@ function calculateInningsStats(
 ): any {
   // TODO: Implement full calculation logic
   // This should match the recalculateInnings function in src/engine/recalculateInnings.ts
-  
+
   let totalRuns = 0
   let totalWickets = 0
   let legalBalls = 0
@@ -142,7 +142,7 @@ export const finalizeMatch = functions.https.onCall(async (data, context) => {
   // Verify user is admin
   const userDoc = await db.collection('users').doc(context.auth.uid).get()
   const userData = userDoc.data()
-  
+
   if (userData?.role !== 'admin') {
     throw new functions.https.HttpsError('permission-denied', 'Admin access required')
   }
@@ -181,3 +181,8 @@ async function updateSquadStats(matchId: string): Promise<void> {
   console.log(`Updating squad stats for match ${matchId}`)
 }
 
+// Export player claim functions
+export * from './playerClaims';
+
+// Export notification functions
+export * from './notifications';

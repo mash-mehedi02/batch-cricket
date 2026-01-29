@@ -13,6 +13,7 @@ import {
     Radio,
     BarChart3,
     ShieldAlert,
+    ShieldCheck,
     Loader2
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -38,6 +39,7 @@ const AdminLayout = () => {
         { name: 'Squads', href: '/admin/squads', icon: Users },
         { name: 'Players', href: '/admin/players', icon: UserPlus },
         { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+        { name: 'Users & Claims', href: '/admin/users', icon: ShieldCheck },
         { name: 'Settings', href: '/admin/settings', icon: Settings },
     ];
 
