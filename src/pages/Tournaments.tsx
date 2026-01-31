@@ -9,6 +9,7 @@ import { gsap } from 'gsap'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { Tournament } from '@/types'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
+import { TournamentNotificationBell } from '@/components/notifications/TournamentNotificationBell'
 
 export default function Tournaments() {
   const [tournaments, setTournaments] = useState<Tournament[]>([])
@@ -140,13 +141,17 @@ export default function Tournaments() {
                 className="tournament-card group bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 p-6 border-2 border-slate-200 hover:border-amber-400 relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/10 rounded-full -mr-16 -mt-16"></div>
+
                 <div className="relative">
                   <div className="flex items-start justify-between mb-5">
                     <div className="flex-1">
                       <h3 className="text-xl font-extrabold text-slate-900 mb-2 group-hover:text-amber-700 transition">
                         {tournament.name}
                       </h3>
-                      <p className="text-sm font-semibold text-amber-600">{tournament.year}</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-sm font-semibold text-amber-600">{tournament.year}</p>
+                        <TournamentNotificationBell tournamentId={tournament.id} tournamentName={tournament.name} />
+                      </div>
                     </div>
                     <span className={`px-3 py-1.5 bg-gradient-to-r ${statusColor} text-white rounded-full text-xs font-bold shadow-lg whitespace-nowrap`}>
                       {tournament.status}

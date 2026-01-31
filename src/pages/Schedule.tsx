@@ -77,7 +77,7 @@ export default function Schedule() {
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-16 z-30">
+            <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
                 <div className="max-w-4xl mx-auto">
                     <div className="px-6 py-6 flex items-center justify-between">
                         <h1 className="text-2xl font-black text-black tracking-tight">Match Schedule</h1>

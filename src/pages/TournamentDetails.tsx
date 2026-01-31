@@ -17,6 +17,7 @@ import { getMatchResultString } from '@/utils/matchWinner'
 import PageHeader from '@/components/common/PageHeader'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
+import { TournamentNotificationBell } from '@/components/notifications/TournamentNotificationBell'
 
 type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats'
 
@@ -280,17 +281,24 @@ export default function TournamentDetails() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl w-fit max-w-full overflow-x-auto no-scrollbar">
-            {(['overview', 'matches', 'teams', 'points', 'stats'] as Tab[]).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {tab}
-              </button>
-            ))}
+          {/* Tabs & Notifications */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl w-fit max-w-full overflow-x-auto no-scrollbar">
+              {(['overview', 'matches', 'teams', 'points', 'stats'] as Tab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <TournamentNotificationBell
+              tournamentId={tournament.id}
+              tournamentName={tournament.name}
+            />
           </div>
         </div>
       </div>

@@ -46,7 +46,7 @@ export const unsubscribeFromTopic = functions.https.onCall(async (data, context)
 })
 
 /**
- * Notification Trigger: Match Status Updates (Start, Result, Toss)
+ * Notification Trigger: Match Status Updates (Start, Result, Toss, Innings Break)
  */
 export const onMatchUpdate = functions.firestore
     .document('matches/{matchId}')
@@ -56,14 +56,14 @@ export const onMatchUpdate = functions.firestore
         const matchId = context.params.matchId
 
         // Get team names for messages
-        const teamAName = after.teamA?.name || 'Team A'
-        const teamBName = after.teamB?.name || 'Team B'
+        const teamAName = after.teamA?.name || after.teamAName || 'Team A'
+        const teamBName = after.teamB?.name || after.teamBName || 'Team B'
         const matchTitle = `${teamAName} vs ${teamBName}`
 
         const topicBase = `match_${matchId}`
+        const tournamentTopic = after.tournamentId ? `tournament_${after.tournamentId}_updates` : null
 
         // 1. Toss Update
-        // Check if toss info was added or changed significantly
         if (!before.toss && after.toss) {
             const winnerName = after.toss.winner === 'teamA' ? teamAName : teamBName
             const decision = after.toss.decision // 'bat' or 'bowl'
@@ -71,32 +71,49 @@ export const onMatchUpdate = functions.firestore
             await sendNotificationToTopic(`${topicBase}_reminders`, {
                 title: 'Toss Update',
                 body: `${winnerName} won the toss and chose to ${decision}`,
-                data: {
-                    type: 'toss',
-                    matchId: matchId
-                }
+                data: { type: 'toss', matchId }
             })
         }
 
         // 2. Match Start
         if (before.status !== 'live' && after.status === 'live') {
-            await sendNotificationToTopic(`${topicBase}_reminders`, {
+            const notification = {
                 title: 'Match Started 🏏',
                 body: matchTitle,
-                data: {
-                    type: 'match_start',
-                    matchId: matchId
-                }
-            })
+                data: { type: 'match_start', matchId }
+            }
+            await sendNotificationToTopic(`${topicBase}_reminders`, notification)
+            if (tournamentTopic) {
+                await sendNotificationToTopic(tournamentTopic, notification)
+            }
         }
 
-        // 3. Match Result
+        // 3. Innings Break
+        // Detect transitions to InningsBreak state
+        const isNowInBreak = after.status === 'InningsBreak' || after.matchPhase === 'InningsBreak'
+        const wasInBreak = before.status === 'InningsBreak' || before.matchPhase === 'InningsBreak'
+
+        if (!wasInBreak && isNowInBreak) {
+            const notification = {
+                title: 'Innings Break ☕',
+                body: `${matchTitle}: First innings completed.`,
+                data: { type: 'innings_break', matchId }
+            }
+            await sendNotificationToTopic(`${topicBase}_reminders`, notification)
+            if (tournamentTopic) {
+                await sendNotificationToTopic(tournamentTopic, notification)
+            }
+        }
+
+        // 4. Match Result
         if (before.status !== 'finished' && after.status === 'finished') {
             let resultText = ''
-            if (after.result?.winner) {
+            if (after.resultSummary) {
+                resultText = after.resultSummary
+            } else if (after.result?.winner) {
                 const winnerName = after.result.winner === 'teamA' ? teamAName : teamBName
                 const margin = after.result.margin || ''
-                const winType = after.result.winType || '' // runs or wickets
+                const winType = after.result.winType || ''
                 resultText = `${winnerName} won by ${margin} ${winType}`
             } else if (after.result?.draw) {
                 resultText = 'Match Drawn'
@@ -105,14 +122,15 @@ export const onMatchUpdate = functions.firestore
             }
 
             if (resultText) {
-                await sendNotificationToTopic(`${topicBase}_reminders`, {
+                const notification = {
                     title: 'Match Result 🏆',
                     body: resultText,
-                    data: {
-                        type: 'match_result',
-                        matchId: matchId
-                    }
-                })
+                    data: { type: 'match_result', matchId }
+                }
+                await sendNotificationToTopic(`${topicBase}_reminders`, notification)
+                if (tournamentTopic) {
+                    await sendNotificationToTopic(tournamentTopic, notification)
+                }
             }
         }
     })

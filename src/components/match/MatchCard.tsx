@@ -234,12 +234,16 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                             {timeLeft}
                         </div>
                     )}
-                    {/* Bell Icon - Interactive and separate */}
-                    <NotificationBell
-                        matchId={match.id}
-                        matchTitle={`${teamAName} vs ${teamBName}`}
-                        color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
-                    />
+                    {/* Bell Icon - Hide for finished matches */}
+                    {!isFinished && (
+                        <NotificationBell
+                            matchId={match.id}
+                            matchTitle={`${teamAName} vs ${teamBName}`}
+                            tournamentId={match.tournamentId}
+                            tournamentName={(match as any).tournamentName}
+                            color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                        />
+                    )}
                 </div>
             </div>
 
