@@ -4,8 +4,12 @@ service cloud.firestore {
     
     // Helper function to check if user is admin
     function isAdmin() {
-      return request.auth != null && 
-             exists(/databases/$(database)/documents/admin/$(request.auth.uid));
+      return request.auth != null && (
+        exists(/databases/$(database)/documents/admin/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']) ||
+        request.auth.token.email.lower() == 'batchcrick@gmail.com'
+      );
     }
     
     // Matches collection - readable by all, writable by admins only
@@ -65,7 +69,8 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         isAdmin() ||
         // 1. THE CLAIM/VERIFY STEP: Bind UID or Refresh Session
-        (request.resource.data.claimed == true && 
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastVerifiedAt']) &&
+         request.resource.data.claimed == true && 
          request.resource.data.ownerUid == request.auth.uid &&
          // Verify Google Email via secret document join
          request.auth.token.email.lower() == get(/databases/$(database)/documents/player_secrets/$(playerId)).data.email.lower() &&
@@ -73,9 +78,7 @@ service cloud.firestore {
         // 2. THE OWNER STEP: Update personal fields (Session must be < 1 hour old)
         (resource.data.ownerUid == request.auth.uid && 
          request.time < resource.data.lastVerifiedAt + duration.value(1, 'h') &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-           ['username', 'bio', 'photoUrl', 'dateOfBirth', 'socialLinks', 'role', 'battingStyle', 'bowlingStyle', 'updatedAt']
-         ))
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'squadId', 'batch', 'school', 'claimed', 'ownerUid', 'lastVerifiedAt', 'email', 'maskedEmail', 'createdAt', 'createdBy']))
       );
     }
     

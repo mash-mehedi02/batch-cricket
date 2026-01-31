@@ -93,7 +93,17 @@ export interface InningsStats {
     runs: number
     balls: number
     overs: string
+    batter1?: { id: string; name: string; runs: number; balls: number }
+    batter2?: { id: string; name: string; runs: number; balls: number }
   }
+  partnerships: Array<{
+    runs: number
+    balls: number
+    overs: string
+    wicketNo: number
+    batter1: { id: string; name: string; runs: number; balls: number }
+    batter2: { id: string; name: string; runs: number; balls: number }
+  }>
   extras: {
     byes: number
     legByes: number
@@ -382,25 +392,39 @@ export async function recalculateInnings(
       console.warn(`[MatchEngine] ⚠️ No balls found for ${inningId}`)
     }
 
-    // Get player names from match data
+    // Get player names from match data with deep lookup
     const getPlayerName = (playerId: string): string => {
       if (!playerId) return ''
 
-      const teamAWithNames = matchData.teamAPlayingXIWithNames || []
-      const teamBWithNames = matchData.teamBPlayingXIWithNames || []
-      const allPlayersWithNames = [...teamAWithNames, ...teamBWithNames]
-      const playerWithName = allPlayersWithNames.find((p: any) => p.id === playerId)
-      if (playerWithName?.name) return playerWithName.name
+      // 1. Check direct name fields if they exist
+      const squads = [
+        ...(matchData.teamAPlayingXIWithNames || []),
+        ...(matchData.teamBPlayingXIWithNames || []),
+        ...(matchData.teamASquad || []),
+        ...(matchData.teamBSquad || []),
+        ...(matchData.players || [])
+      ]
 
-      return `Player ${playerId.substring(0, 4)}...`
+      const player = squads.find((p: any) => p.id === playerId || p.playerId === playerId)
+      if (player?.name || player?.displayName) return player.name || player.displayName
+
+      // 2. Check batsmanStats if we already processed some
+      const stats = Array.from(batsmanStatsMap.values())
+      const statMatch = stats.find(s => s.batsmanId === playerId)
+      if (statMatch?.batsmanName) return statMatch.batsmanName
+
+      return `Player` // Generic fallback for better formatting
     }
 
     // Initialize aggregators
     let totalRuns = 0
     let totalWickets = 0
     let legalBalls = 0 // Only legal deliveries (excludes wides/no-balls)
-    let partnershipRuns = 0 // Only runs off bat (not extras)
-    let partnershipBalls = 0 // Only legal balls
+    let currentPRuns = 0
+    let currentPBalls = 0
+    let pBatter1: { id: string; runs: number; balls: number } | null = null
+    let pBatter2: { id: string; runs: number; balls: number } | null = null
+    const historicalPartnerships: any[] = []
 
     // Helper to format professional dismissal string
     const formatDismissal = (ball: any): string => {
@@ -501,7 +525,6 @@ export async function recalculateInnings(
       // ICC Rule: Only legal deliveries count as legalBalls
       if (isLegal) {
         legalBalls += 1
-        partnershipBalls += 1
       }
 
       // Determine which over this ball belongs to
@@ -512,8 +535,9 @@ export async function recalculateInnings(
       // ICC Rule: Add runs (always count, even for extras)
       totalRuns += totalBallRuns
 
-      // Partnership runs: only runs off bat (not extras)
-      partnershipRuns += runsOffBat
+      // Partnership runs: total runs (including extras like wides/nb)
+      currentPRuns += totalBallRuns
+      if (isLegal) currentPBalls += 1
 
       // Track extras breakdown
       if (ball.extras) {
@@ -555,6 +579,33 @@ export async function recalculateInnings(
         // Mark as dismissed if wicket
         if (isBallWicket && ballDismissedId === batsmanId) {
           batsman.dismissal = formatDismissal(ball)
+        }
+
+        // Detailed Partnership Batter Tracking
+        if (!pBatter1) {
+          pBatter1 = { id: batsmanId, runs: 0, balls: 0 }
+        }
+
+        // Try to identify partner from nonStrikerId if available
+        if (!pBatter2 && ball.nonStrikerId && ball.nonStrikerId !== pBatter1.id) {
+          pBatter2 = { id: ball.nonStrikerId, runs: 0, balls: 0 }
+        }
+
+        // Apply stats to the CORRECT partner in the active pair
+        if (pBatter1.id === batsmanId) {
+          pBatter1.runs += runsOffBat
+          if (!isWide) pBatter1.balls += 1
+        } else if (pBatter2 && pBatter2.id === batsmanId) {
+          pBatter2.runs += runsOffBat
+          if (!isWide) pBatter2.balls += 1
+        } else {
+          // If a 3rd person appeared (unexpected), stick them in pBatter2
+          pBatter2 = { id: batsmanId, runs: runsOffBat, balls: isWide ? 0 : 1 }
+        }
+
+        // Fallback for partner identification if pBatter2 still missing
+        if (!pBatter2 && ball.nonStrikerId && ball.nonStrikerId !== pBatter1.id) {
+          pBatter2 = { id: ball.nonStrikerId, runs: 0, balls: 0 }
         }
       }
 
@@ -621,9 +672,34 @@ export async function recalculateInnings(
           dismissal: formatDismissal(ball),
         })
 
-        // Reset partnership on wicket
-        partnershipRuns = 0
-        partnershipBalls = 0
+        // Save Partnership History before reset
+        const b1 = pBatter1 ? { ...pBatter1, name: getPlayerName(pBatter1.id) } : null
+        const b2 = pBatter2 ? { ...pBatter2, name: getPlayerName(pBatter2.id) } : null
+
+        if (b1 && b2) {
+          historicalPartnerships.push({
+            runs: currentPRuns,
+            balls: currentPBalls,
+            overs: wicketOver,
+            wicketNo: totalWickets,
+            batter1: b1,
+            batter2: b2
+          })
+        }
+
+        // Find the survivor to carry over to the next partnership
+        const survivorId = (pBatter1?.id === ballDismissedId) ? pBatter2?.id : pBatter1?.id
+
+        // Reset partnership state for next pair
+        currentPRuns = 0
+        currentPBalls = 0
+
+        if (survivorId) {
+          pBatter1 = { id: survivorId, runs: 0, balls: 0 }
+        } else {
+          pBatter1 = null
+        }
+        pBatter2 = null
       }
 
       // Add ball to Recent Overs
@@ -877,6 +953,18 @@ export async function recalculateInnings(
     const currentOver = recentOvers[recentOvers.length - 1] || null
     const currentOverBalls: OverBall[] = currentOver && !currentOver.isLocked ? [...currentOver.balls] : []
 
+    // Finalize current active partnership
+    const b1Local: any = pBatter1;
+    const b2Local: any = pBatter2;
+
+    const finalP: any = {
+      runs: currentPRuns,
+      balls: currentPBalls,
+      overs: ballsToOvers(currentPBalls)
+    }
+    if (b1Local) finalP.batter1 = { id: b1Local.id, name: getPlayerName(b1Local.id), runs: b1Local.runs, balls: b1Local.balls }
+    if (b2Local) finalP.batter2 = { id: b2Local.id, name: getPlayerName(b2Local.id), runs: b2Local.runs, balls: b2Local.balls }
+
     // Build innings document
     const inningsStats: InningsStats = {
       matchId,
@@ -893,11 +981,8 @@ export async function recalculateInnings(
       target,
       projectedTotal,
       lastBallSummary: lastBallSummary as any,
-      partnership: {
-        runs: partnershipRuns,
-        balls: partnershipBalls,
-        overs: ballsToOvers(partnershipBalls),
-      },
+      partnership: finalP,
+      partnerships: historicalPartnerships,
       extras,
       fallOfWickets,
       batsmanStats,
@@ -905,8 +990,8 @@ export async function recalculateInnings(
       recentOvers,
       currentOverBalls,
       oversProgress,
-      currentStrikerId: '',
-      nonStrikerId: '',
+      currentStrikerId: finalStrikerId || '',
+      nonStrikerId: finalNonStrikerId || '',
       currentBowlerId,
       lastUpdated: Timestamp.now(),
       updatedAt: new Date().toISOString(),

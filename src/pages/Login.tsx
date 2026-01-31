@@ -19,19 +19,26 @@ export default function Login() {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !loading) {
-      const from = (location.state as any)?.from?.pathname || '/admin'
-      navigate(from, { replace: true })
+      const params = new URLSearchParams(location.search);
+      const redirect = params.get('redirect');
+      const from = redirect || (location.state as any)?.from?.pathname || '/admin';
+      navigate(from, { replace: true });
     }
-  }, [user, loading, navigate, location])
+  }, [user, loading, navigate, location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      await login(email, password)
+      // Logic: If user enters just a username (no @), append a default domain
+      const finalEmail = email.includes('@') ? email : `${email.trim().toLowerCase()}@batchcrick.bd`;
+
+      await login(finalEmail, password)
       toast.success('Login successful!')
-      const from = (location.state as any)?.from?.pathname || '/admin'
+      const params = new URLSearchParams(location.search);
+      const redirect = params.get('redirect');
+      const from = redirect || (location.state as any)?.from?.pathname || '/admin';
       navigate(from, { replace: true })
     } catch (error: any) {
       if (error?.code === 'auth/network-request-failed') {
@@ -42,7 +49,7 @@ export default function Login() {
         toast.error(
           <div>
             <p className="font-semibold text-red-600">❌ Incorrect Login Info</p>
-            <p className="text-sm mt-1">আপনার Email অথবা Password সঠিক নয়। দয়া করে আবার চেক করুন।</p>
+            <p className="text-sm mt-1">আপনার Username অথবা Password সঠিক নয়। দয়া করে আবার চেক করুন।</p>
           </div>
         )
       } else if (error?.code === 'auth/too-many-requests') {
@@ -53,7 +60,7 @@ export default function Login() {
           </div>
         )
       } else if (error?.code === 'auth/user-not-found') {
-        toast.error('User found না। দয়া করে সঠিক ইমেইল দিন।')
+        toast.error('User found না। দয়া করে সঠিক Username দিন।')
       } else if (error?.code === 'auth/wrong-password') {
         toast.error('Password ভুল। দয়া করে সঠিক পাসওয়ার্ড দিন।')
       } else {
@@ -86,15 +93,15 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Email Address
+              Username / Email
             </label>
             <input
-              type="email"
+              type="text"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
-              placeholder="admin@school.com"
+              placeholder="e.g. admin"
               disabled={isLoading}
             />
           </div>

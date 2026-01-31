@@ -185,6 +185,7 @@ export async function verifyPlayerAccess(player: any): Promise<{ hasAccess: bool
 export async function updatePlayerPersonalInfo(
     playerId: string,
     updates: {
+        name?: string
         username?: string
         bio?: string
         photoUrl?: string

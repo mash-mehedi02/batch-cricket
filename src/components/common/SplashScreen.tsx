@@ -14,11 +14,11 @@ const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingCo
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({
         onComplete: () => {
-          // Delay a bit before finishing to let the user see the final state
+          // Fade out immediately after animations complete
           gsap.to(containerRef.current, {
             opacity: 0,
-            duration: 0.8,
-            delay: 1.5,
+            duration: 0.4,
+            delay: 0.2, // Short delay to see final state
             ease: "power2.inOut",
             onComplete: onLoadingComplete
           });
@@ -32,46 +32,46 @@ const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingCo
       });
       gsap.set(imageRef.current, {
         opacity: 0,
-        scale: 0.8,
-        filter: "blur(10px)"
+        scale: 0.9,
+        filter: "blur(8px)"
       });
 
-      // Animation Sequence
+      // Faster Animation Sequence (total ~0.9s)
       tl.to(containerRef.current, {
-        backgroundColor: "rgba(15, 23, 42, 1)", // Deep slate
-        duration: 1
+        backgroundColor: "rgba(15, 23, 42, 1)",
+        duration: 0.3
       })
         .to(topTextRef.current, {
           opacity: 1,
           y: 0,
-          duration: 0.8,
+          duration: 0.4,
           ease: "back.out(1.7)"
-        }, "-=0.4")
+        }, "-=0.2")
         .to(imageRef.current, {
           opacity: 1,
           scale: 1,
           filter: "blur(0px)",
-          duration: 1.2,
+          duration: 0.5,
           ease: "power4.out"
-        }, "-=0.6")
+        }, "-=0.3")
         .to(foreverRef.current, {
           opacity: 1,
           y: 0,
-          duration: 0.8,
+          duration: 0.4,
           ease: "back.out(1.7)"
-        }, "-=0.8")
+        }, "-=0.4")
         .to(footerRef.current, {
           opacity: 0.6,
           y: 0,
-          duration: 0.8,
+          duration: 0.3,
           ease: "power2.out"
-        }, "-=0.4");
+        }, "-=0.2");
 
-      // Continuous pulse for the image glow
+      // Subtle pulse for the image glow
       gsap.to(".glow-effect", {
-        opacity: 0.6,
-        scale: 1.1,
-        duration: 2,
+        opacity: 0.5,
+        scale: 1.05,
+        duration: 1.5,
         repeat: -1,
         yoyo: true,
         ease: "sine.inOut"
@@ -163,7 +163,7 @@ const SplashScreen: React.FC<{ onLoadingComplete: () => void }> = ({ onLoadingCo
           100% { width: 100%; }
         }
         .animate-loading-bar {
-          animation: loading-bar 2.5s linear forwards;
+          animation: loading-bar 1.5s linear forwards;
         }
       `}</style>
     </div>

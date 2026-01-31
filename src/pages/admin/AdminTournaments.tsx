@@ -10,13 +10,15 @@ import { squadService } from '@/services/firestore/squads'
 import { matchService } from '@/services/firestore/matches'
 import { Tournament, Squad, Match } from '@/types'
 import { useAuthStore } from '@/store/authStore'
+import { generateMatchNumber } from '@/utils/matchNumber'
 
 import toast from 'react-hot-toast'
 import { Timestamp } from 'firebase/firestore'
 import { generateGroupFixtures } from '@/engine/tournament/fixtures'
 import { generateKnockoutBracket, generateKnockoutFixtures } from '@/engine/tournament/knockout'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
-import { Settings, Edit2, CheckCircle } from 'lucide-react'
+import { Settings, Edit2, CheckCircle, Search, Trash2, Plus, Filter, MoreHorizontal, Trophy, Calendar } from 'lucide-react'
+import WheelDatePicker from '@/components/common/WheelDatePicker'
 
 interface AdminTournamentsProps {
   mode?: 'dashboard' | 'list' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
@@ -61,6 +63,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   })
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     setActiveTab(mode);
@@ -75,6 +78,26 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       loadMatches(id)
     }
   }, [mode, id])
+
+  // Auto-populate squads from matches if missing in tournament config
+  useEffect(() => {
+    if (!loading && matches.length > 0 && formData.participantSquadIds.length === 0) {
+      const matchSquadIds = new Set<string>()
+      matches.forEach(m => {
+        if (m.teamAId) matchSquadIds.add(m.teamAId)
+        if (m.teamBId) matchSquadIds.add(m.teamBId)
+      })
+      const ids = Array.from(matchSquadIds)
+      if (ids.length > 0) {
+        console.log('Auto-detected participating squads from matches:', ids)
+        setFormData(prev => ({
+          ...prev,
+          participantSquadIds: ids,
+          groupBySquadId: ensureGroupAssignments(ids, prev.groupCount, prev.groupBySquadId)
+        }))
+      }
+    }
+  }, [loading, matches.length]) // Only dependency on length to avoid loops
 
   const loadTournaments = async () => {
     try {
@@ -370,6 +393,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           createdBy: user?.uid || '',
         };
 
+        // Generate and add match number
+        matchData.matchNo = await generateMatchNumber(id, tournament.name);
+
         await matchService.create(matchData);
       }
 
@@ -585,6 +611,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   // Groups management view
   const renderGroups = () => {
     const selectedIds = Array.from(new Set(formData.participantSquadIds || [])).filter(Boolean);
+    const unknownIds = selectedIds.filter(id => !squads.find((s: any) => s.id === id));
     const safeGroupBy = ensureGroupAssignments(selectedIds, formData.groupCount, formData.groupBySquadId);
     const gids = groupIds(formData.groupCount);
     const groupsPreview = gids.map((gid, idx) => ({
@@ -636,7 +663,42 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-lg font-bold text-gray-900 mb-3">Teams</h3>
+
+            {/* Warning for unknown teams */}
+            {unknownIds.length > 0 && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">Unrecognized Teams (from matches)</h4>
+                <div className="space-y-1">
+                  {unknownIds.map(id => (
+                    <div key={id} className="flex items-center gap-2 text-sm text-amber-900 bg-white/50 px-2 py-1 rounded">
+                      <div className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span className="font-mono text-xs overflow-hidden text-ellipsis w-32">{id}</span>
+                      <select
+                        value={safeGroupBy[id] || gids[0]}
+                        onChange={(e) => setFormData((p) => ({
+                          ...p,
+                          groupBySquadId: { ...safeGroupBy, [id]: e.target.value }
+                        }))}
+                        className="ml-auto px-2 py-0.5 border border-amber-300 rounded text-xs bg-white"
+                      >
+                        {gids.map((gid, idx) => (
+                          <option key={gid} value={gid}>
+                            {formData.groupMeta?.[gid]?.name || groupLabel(idx)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2 max-h-96 overflow-y-auto">
+              {squads.length === 0 && (
+                <div className="p-6 text-center bg-slate-50 rounded-lg border border-slate-200 border-dashed">
+                  <p className="text-sm text-slate-500 font-medium">No squads found in library.</p>
+                </div>
+              )}
               {squads.map((squad: any) => {
                 const checked = selectedIds.includes(squad.id);
                 return (
@@ -1468,11 +1530,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Start Date
                 </label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                <WheelDatePicker
+                  value={formData.startDate || new Date().toISOString().split('T')[0]}
+                  onChange={(val) => setFormData({ ...formData, startDate: val })}
                 />
               </div>
 
@@ -1480,11 +1540,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   End Date
                 </label>
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                <WheelDatePicker
+                  value={formData.endDate || new Date().toISOString().split('T')[0]}
+                  onChange={(val) => setFormData({ ...formData, endDate: val })}
                 />
               </div>
 
@@ -1800,117 +1858,118 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     );
   }
 
+  const filteredTournaments = tournaments.filter(t =>
+    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (t.year && String(t.year).includes(searchTerm))
+  )
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 max-w-[1600px] mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tournaments</h1>
-          <p className="text-gray-600 mt-1">Manage all tournaments</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tournaments</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage seasons, formats, and tournament structures.</p>
         </div>
         <Link
           to="/admin/tournaments/new"
-          className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm"
         >
-          + New Tournament
+          <Plus size={18} />
+          New Tournament
         </Link>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+      {/* Filters & Content */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center bg-slate-50/50">
+          <div className="relative w-full sm:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search tournaments..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Year
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Format
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Teams
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Matches
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-4 w-[40%]">Tournament Name</th>
+                <th className="px-6 py-4">Season</th>
+                <th className="px-6 py-4">Format</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-center">Teams</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tournaments.length === 0 ? (
+            <tbody className="divide-y divide-slate-100">
+              {filteredTournaments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    No tournaments found. Create your first tournament!
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <Trophy size={48} strokeWidth={1} className="mb-4 text-slate-200" />
+                      <p className="text-lg font-medium text-slate-900">No tournaments found</p>
+                      <p className="text-sm">Try adjusting your search or create a new one.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                tournaments.map((tournament) => (
-                  <tr key={tournament.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-semibold text-gray-900">{tournament.name}</div>
-                      {tournament.school && (
-                        <div className="text-sm text-gray-500">{tournament.school}</div>
-                      )}
+                filteredTournaments.map((tournament) => (
+                  <tr key={tournament.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-xs shrink-0 overflow-hidden">
+                          {tournament.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-cover" /> : <Trophy size={18} />}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 leading-tight">{tournament.name}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{tournament.school || 'Official Tournament'}</div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">{tournament.year}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                    <td className="px-6 py-4 text-slate-600 font-medium">
+                      {tournament.year}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
                         {tournament.format}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${tournament.status === 'completed'
-                          ? 'bg-green-100 text-green-700'
-                          : tournament.status === 'ongoing'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-gray-100 text-gray-700'
-                          }`}
-                      >
-                        {tournament.status}
-                      </span>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={tournament.status} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {(() => {
-                        const squadIds = (tournament as any).participantSquadIds || [];
-                        return squadIds.length;
-                      })()}
+                    <td className="px-6 py-4 text-center text-slate-600 font-medium">
+                      {(tournament as any).participantSquadIds?.length || 0}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {(() => {
-                        const tournamentMatches = matches.filter(m => m.tournamentId === tournament.id);
-                        return tournamentMatches.length;
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex flex-wrap gap-2">
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Link
                           to={`/admin/tournaments/${tournament.id}/dashboard`}
-                          className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-2 px-4 shadow-sm group"
-                          title="Open Control Panel"
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Manage"
                         >
-                          <Settings size={16} className="group-hover:rotate-90 transition-transform duration-500" />
-                          <span className="text-xs font-black uppercase tracking-widest">Control Panel</span>
+                          <Settings size={18} />
                         </Link>
                         <Link
                           to={`/admin/tournaments/${tournament.id}/edit`}
-                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                          title="Basic Edit"
+                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Edit"
                         >
                           <Edit2 size={18} />
                         </Link>
                         <button
                           onClick={() => handleDelete(tournament.id)}
-                          className="text-red-600 hover:text-red-700 text-sm"
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
                         >
-                          Delete
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
@@ -1922,5 +1981,19 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         </div>
       </div>
     </div>
-  );
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: any = {
+    ongoing: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    upcoming: 'bg-blue-50 text-blue-600 border-blue-100',
+    completed: 'bg-slate-100 text-slate-600 border-slate-200',
+  }
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${styles[status] || styles.completed}`}>
+      {status === 'ongoing' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />}
+      {status}
+    </span>
+  )
 }

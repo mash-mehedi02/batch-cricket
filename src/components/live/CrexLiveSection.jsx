@@ -5,8 +5,9 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import ProjectedScoreTable from './ProjectedScoreTable'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ChevronDown, MapPin, Info, Users, Hash } from 'lucide-react'
 import { calculateWinProbability } from '../../services/ai/winProbabilityEngine'
+import TournamentPointsTable from '../../pages/TournamentPointsTable'
 
 import cricketBatIcon from '../../assets/cricket-bat.png'
 
@@ -39,6 +40,10 @@ const CrexLiveSection = ({
   teamAName,
   teamBName,
   onlyCommentary,
+  teamFormAndH2H,
+  hasGroup,
+  tournamentId,
+  resolveMatchSideRef,
 }) => {
   const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
   const isInningsBreak = matchStatus === 'InningsBreak';
@@ -647,6 +652,87 @@ const CrexLiveSection = ({
             </div>
           </div>
         </div>
+        {/* Team Form Section */}
+        {teamFormAndH2H && (
+          <div className="px-4 py-6 space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-[14px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 uppercase tracking-wide px-1">
+                Team form <span className="text-[11px] font-bold text-slate-400 normal-case">(Last 5 matches)</span>
+              </h3>
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm divide-y divide-slate-50 dark:divide-slate-800 overflow-hidden">
+                {[
+                  { name: teamAName, form: teamFormAndH2H.teamAForm, logo: teamASquad?.logoUrl },
+                  { name: teamBName, form: teamFormAndH2H.teamBForm, logo: teamBSquad?.logoUrl },
+                ].map((row, idx) => (
+                  <div key={idx} className="p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center p-1.5 overflow-hidden shrink-0">
+                        {row.logo ? <img src={row.logo} className="w-full h-full object-contain" alt="" /> : <span className="text-lg font-black text-slate-200">{row.name[0]}</span>}
+                      </div>
+                      <span className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase truncate tracking-tight">{row.name}</span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {(row.form?.length ? row.form : Array.from({ length: 5 }).map((_, i) => ({ id: String(i), badge: '*' }))).slice(0, 5).map((f, i) => (
+                        <div
+                          key={i}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] shadow-sm ${f.badge === 'W' ? 'bg-[#10b981] text-white' :
+                            f.badge === 'L' ? 'bg-[#f43f5e] text-white' :
+                              'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200/50 dark:border-slate-700'
+                            }`}
+                        >
+                          {f.badge === '*' ? '—' : f.badge}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Head to Head Summary */}
+            <div className="space-y-4">
+              <h3 className="text-[14px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide px-1">Head to Head</h3>
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-black text-slate-900 dark:text-white mb-1">{teamFormAndH2H.h2hSummary.winsA}</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{teamAName.substring(0, 3)}</div>
+                  </div>
+                  <div className="px-4 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{teamFormAndH2H.h2hSummary.total} Mtchs</span>
+                  </div>
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-black text-slate-900 dark:text-white mb-1">{teamFormAndH2H.h2hSummary.winsB}</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{teamBName.substring(0, 3)}</div>
+                  </div>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full flex overflow-hidden">
+                  <div className="h-full bg-blue-600" style={{ width: `${(teamFormAndH2H.h2hSummary.winsA / (teamFormAndH2H.h2hSummary.total || 1)) * 100}%` }}></div>
+                  <div className="h-full bg-rose-600" style={{ width: `${(teamFormAndH2H.h2hSummary.winsB / (teamFormAndH2H.h2hSummary.total || 1)) * 100}%` }}></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Points Table Context */}
+            {hasGroup && tournamentId && (
+              <div className="space-y-4">
+                <h3 className="text-[14px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide px-1">Points Table</h3>
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                  <TournamentPointsTable
+                    embedded={true}
+                    tournamentId={tournamentId}
+                    hideQualification={true}
+                    filterSquadIds={[
+                      String(resolveMatchSideRef ? resolveMatchSideRef({ teamAId: teamASquad?.id, teamBId: teamBSquad?.id }, 'A') : ''),
+                      String(resolveMatchSideRef ? resolveMatchSideRef({ teamAId: teamASquad?.id, teamBId: teamBSquad?.id }, 'B') : '')
+                    ].filter(Boolean)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   )

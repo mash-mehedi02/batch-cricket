@@ -1,6 +1,6 @@
 /**
  * Tournament Key Stats (Public)
- * Most Runs, Most Wickets, Best Strike Rate, Most 50s, Most 100s
+ * Redesigned with Podium & Scrollable Categories
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -10,7 +10,9 @@ import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import type { InningsStats, Match, Tournament } from '@/types'
-import PlayerLink from '@/components/PlayerLink'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
+
+type StatCategory = 'runs' | 'wickets' | 'sixes' | 'hs' | 'bestFigures' | 'sr' | 'econ'
 
 type BatAgg = {
   playerId: string
@@ -20,11 +22,12 @@ type BatAgg = {
   balls: number
   inns: number
   outs: number
-  hundreds: number
-  fifties: number
-  fours: number
   sixes: number
   strikeRate: number
+  fifties: number
+  hundreds: number
+  fours: number
+  isNotOut?: boolean // for HS
 }
 
 type BowlAgg = {
@@ -39,9 +42,17 @@ type BowlAgg = {
 
 const safeNum = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0)
 
-export default function TournamentKeyStats(
-  { embedded = false, tournamentId: tournamentIdProp }: { embedded?: boolean; tournamentId?: string } = {}
-) {
+export default function TournamentKeyStats({
+  embedded = false,
+  tournamentId: tournamentIdProp,
+  matches: matchesProp,
+  inningsMap: inningsMapProp
+}: {
+  embedded?: boolean
+  tournamentId?: string
+  matches?: Match[]
+  inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>
+} = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
   const [tournament, setTournament] = useState<Tournament | null>(null)
@@ -50,21 +61,26 @@ export default function TournamentKeyStats(
   const [playersById, setPlayersById] = useState<Map<string, any>>(new Map())
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [activeCategory, setActiveCategory] = useState<StatCategory>('runs')
 
-  if (!tournamentId) return null
+  // Sync props to state if provided
+  useEffect(() => {
+    if (matchesProp) setMatches(matchesProp)
+    if (inningsMapProp) setInningsMap(inningsMapProp)
+  }, [matchesProp, inningsMapProp])
 
   useEffect(() => {
     const run = async () => {
       if (!tournamentId) return
-      setLoading(true)
+
+      // Only set loading if we don't have props
+      if (!matchesProp && !inningsMapProp) setLoading(true)
+
       try {
         const t = await tournamentService.getById(tournamentId)
         setTournament(t)
 
-        const ms = await matchService.getByTournament(tournamentId)
-        setMatches(ms)
-
-        // Realtime: keep player/squad names in sync after renames
+        // Realtime updates (names)
         const unsubPlayers = playerService.subscribeAll((list) => {
           const pMap = new Map<string, any>()
             ; (list as any[]).forEach((p) => p?.id && pMap.set(p.id, p))
@@ -76,18 +92,26 @@ export default function TournamentKeyStats(
           setSquadsById(sMap)
         })
 
-        const entries = await Promise.all(
-          ms.map(async (m) => {
-            const [a, b] = await Promise.all([
-              matchService.getInnings(m.id, 'teamA'),
-              matchService.getInnings(m.id, 'teamB'),
-            ])
-            return [m.id, { teamA: a, teamB: b }] as const
-          })
-        )
-        const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
-        entries.forEach(([id, v]) => im.set(id, v))
-        setInningsMap(im)
+        // Fetch matches/innings ONLY if not provided via props
+        if (!matchesProp) {
+          const ms = await matchService.getByTournament(tournamentId)
+          setMatches(ms)
+
+          if (!inningsMapProp) {
+            const entries = await Promise.all(
+              ms.map(async (m) => {
+                const [a, b] = await Promise.all([
+                  matchService.getInnings(m.id, 'teamA'),
+                  matchService.getInnings(m.id, 'teamB'),
+                ])
+                return [m.id, { teamA: a, teamB: b }] as const
+              })
+            )
+            const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
+            entries.forEach(([id, v]) => im.set(id, v))
+            setInningsMap(im)
+          }
+        }
 
         return () => {
           unsubPlayers()
@@ -97,309 +121,361 @@ export default function TournamentKeyStats(
         setLoading(false)
       }
     }
-    let cleanup: undefined | (() => void)
-    run().then((c: any) => { cleanup = typeof c === 'function' ? c : undefined }).catch(() => { })
-    return () => cleanup?.()
-  }, [tournamentId])
+    const cleanup = run()
+    return () => { }
+  }, [tournamentId, matchesProp, inningsMapProp])
 
-  const { mostRuns, mostWickets, bestStrikeRate, mostFifties, mostHundreds } = useMemo(() => {
+  const statsData = useMemo(() => {
     const getPlayerName = (id: string) => String(playersById.get(id)?.name || '').trim() || 'Player'
+    const getPlayerPhoto = (id: string) => playersById.get(id)?.photoUrl || playersById.get(id)?.photo
     const getSquadName = (playerId: string) => {
       const squadId = playersById.get(playerId)?.squadId
-      const fromSquad = String(squadsById.get(squadId)?.name || squadsById.get(squadId)?.teamName || '').trim()
-      if (fromSquad) return fromSquad
-      // tournament meta fallback
-      const meta = (tournament as any)?.participantSquadMeta || {}
-      const m = meta?.[squadId]
-      return String(m?.name || '').trim() || 'Team'
+      const s = squadsById.get(squadId)
+      return String(s?.name || s?.teamName || (tournament as any)?.participantSquadMeta?.[squadId]?.name || '').trim() || 'Team'
     }
 
-    const bat = new Map<string, BatAgg>()
-    const bowl = new Map<string, BowlAgg>()
+    const batMap = new Map<string, BatAgg>()
+    const bowlMap = new Map<string, BowlAgg>()
 
-    const addBat = (playerId: string, patch: Partial<BatAgg>) => {
-      if (!playerId) return
-      if (!bat.has(playerId)) {
-        bat.set(playerId, {
-          playerId,
-          playerName: getPlayerName(playerId),
-          squadName: getSquadName(playerId),
-          runs: 0,
-          balls: 0,
-          inns: 0,
-          outs: 0,
-          hundreds: 0,
-          fifties: 0,
-          fours: 0,
-          sixes: 0,
-          strikeRate: 0,
+    // For single innings records
+    let highestScores: BatAgg[] = []
+    let bestFigures: BowlAgg[] = []
+
+    const ensureBat = (pid: string) => {
+      if (!batMap.has(pid)) {
+        batMap.set(pid, {
+          playerId: pid,
+          playerName: getPlayerName(pid),
+          squadName: getSquadName(pid),
+          runs: 0, balls: 0, inns: 0, outs: 0, sixes: 0, strikeRate: 0, fifties: 0, hundreds: 0, fours: 0
         })
       }
-      const r = bat.get(playerId)!
-      r.runs += safeNum(patch.runs)
-      r.balls += safeNum(patch.balls)
-      r.inns += safeNum(patch.inns)
-      r.outs += safeNum(patch.outs)
-      r.hundreds += safeNum(patch.hundreds)
-      r.fifties += safeNum(patch.fifties)
-      r.fours += safeNum(patch.fours)
-      r.sixes += safeNum(patch.sixes)
+      return batMap.get(pid)!
     }
 
-    const addBowl = (playerId: string, patch: Partial<BowlAgg>) => {
-      if (!playerId) return
-      if (!bowl.has(playerId)) {
-        bowl.set(playerId, {
-          playerId,
-          playerName: getPlayerName(playerId),
-          squadName: getSquadName(playerId),
-          wickets: 0,
-          balls: 0,
-          runsConceded: 0,
-          economy: 0,
+    const ensureBowl = (pid: string) => {
+      if (!bowlMap.has(pid)) {
+        bowlMap.set(pid, {
+          playerId: pid,
+          playerName: getPlayerName(pid),
+          squadName: getSquadName(pid),
+          wickets: 0, balls: 0, runsConceded: 0, economy: 0
         })
       }
-      const r = bowl.get(playerId)!
-      r.wickets += safeNum(patch.wickets)
-      r.balls += safeNum(patch.balls)
-      r.runsConceded += safeNum(patch.runsConceded)
+      return bowlMap.get(pid)!
     }
 
-    // Aggregate from innings docs (already computed)
     inningsMap.forEach((inn) => {
-      ;[inn.teamA, inn.teamB].filter(Boolean).forEach((i) => {
-        const innings = i as any
-          ; (innings?.batsmanStats || []).forEach((b: any) => {
-            const pid = String(b.batsmanId || '')
-            const runs = safeNum(b.runs)
-            const balls = safeNum(b.balls)
-            const notOut = Boolean(b.notOut)
-            addBat(pid, {
-              runs,
+      [inn.teamA, inn.teamB].filter(Boolean).forEach((i: any) => {
+        // Batting
+        const batters = Array.isArray(i?.batsmanStats) ? i.batsmanStats : []
+        batters.forEach((b: any) => {
+          const pid = String(b.batsmanId || '')
+          if (!pid) return
+          const runs = safeNum(b.runs)
+          const balls = safeNum(b.balls)
+          const sixes = safeNum(b.sixes)
+          const notOut = Boolean(b.notOut)
+
+          // Aggregate
+          const agg = ensureBat(pid)
+          agg.runs += runs
+          agg.balls += balls
+          agg.sixes += sixes
+          agg.inns += 1
+          if (!notOut) agg.outs += 1
+
+          // Single Innings (Highest Score)
+          if (runs > 0) {
+            highestScores.push({
+              playerId: pid,
+              playerName: getPlayerName(pid),
+              squadName: getSquadName(pid),
+              runs, balls, inns: 1, outs: notOut ? 0 : 1, sixes,
+              strikeRate: balls > 0 ? (runs / balls) * 100 : 0,
+              isNotOut: notOut,
+              fifties: 0, hundreds: 0, fours: 0
+            })
+          }
+        })
+
+        // Bowling
+        const bowlers = Array.isArray(i?.bowlerStats) ? i.bowlerStats : []
+        bowlers.forEach((bw: any) => {
+          const pid = String(bw.bowlerId || '')
+          if (!pid) return
+          const wkts = safeNum(bw.wickets)
+          const runs = safeNum(bw.runsConceded)
+          const balls = safeNum(bw.ballsBowled)
+
+          // Aggregate
+          const agg = ensureBowl(pid)
+          agg.wickets += wkts
+          agg.runsConceded += runs
+          agg.balls += balls
+
+          // Single Innings (Best Figures)
+          if (balls > 0) {
+            bestFigures.push({
+              playerId: pid,
+              playerName: getPlayerName(pid),
+              squadName: getSquadName(pid),
+              wickets: wkts,
+              runsConceded: runs,
               balls,
-              inns: 1,
-              outs: notOut ? 0 : 1,
-              hundreds: runs >= 100 ? 1 : 0,
-              fifties: runs >= 50 && runs < 100 ? 1 : 0,
-              fours: safeNum(b.fours),
-              sixes: safeNum(b.sixes),
+              economy: balls > 0 ? runs / (balls / 6) : 0
             })
-          })
-          ; (innings?.bowlerStats || []).forEach((bw: any) => {
-            const pid = String(bw.bowlerId || '')
-            addBowl(pid, {
-              wickets: safeNum(bw.wickets),
-              balls: safeNum(bw.ballsBowled),
-              runsConceded: safeNum(bw.runsConceded),
-            })
-          })
+          }
+        })
       })
     })
 
-    // finalize SR + economy
-    bat.forEach((r) => {
-      r.strikeRate = r.balls > 0 ? Number(((r.runs / r.balls) * 100).toFixed(2)) : 0
+    // Finalize aggregations
+    batMap.forEach(r => {
+      r.strikeRate = r.balls > 0 ? (r.runs / r.balls) * 100 : 0
     })
-    bowl.forEach((r) => {
+    bowlMap.forEach(r => {
       const overs = r.balls / 6
-      r.economy = overs > 0 ? Number((r.runsConceded / overs).toFixed(2)) : 0
+      r.economy = overs > 0 ? r.runsConceded / overs : 0
     })
 
-    const batArr = Array.from(bat.values())
-    const bowlArr = Array.from(bowl.values())
+    const batList = Array.from(batMap.values())
+    const bowlList = Array.from(bowlMap.values())
 
-    const mostRuns = [...batArr].sort((a, b) => b.runs - a.runs).slice(0, 15)
-    const mostFifties = [...batArr].sort((a, b) => b.fifties - a.fifties || b.runs - a.runs).slice(0, 15)
-    const mostHundreds = [...batArr].sort((a, b) => b.hundreds - a.hundreds || b.runs - a.runs).slice(0, 15)
+    // Filter and Sort
+    const mostRuns = [...batList].filter(r => r.runs > 0).sort((a, b) => b.runs - a.runs || b.strikeRate - a.strikeRate)
+    const mostWickets = [...bowlList].filter(r => r.wickets > 0).sort((a, b) => b.wickets - a.wickets || a.economy - b.economy)
+    const mostSixes = [...batList].filter(r => r.sixes > 0).sort((a, b) => b.sixes - a.sixes || b.runs - a.runs)
 
-    // Best strike rate: ignore tiny samples
-    const MIN_BALLS = 10
-    const bestStrikeRate = [...batArr]
-      .filter((r) => r.balls >= MIN_BALLS)
-      .sort((a, b) => b.strikeRate - a.strikeRate || b.runs - a.runs)
-      .slice(0, 15)
+    // Sort HS: Runs desc, then balls asc (faster scoring better)
+    const hsList = highestScores.sort((a, b) => b.runs - a.runs || a.balls - b.balls)
 
-    const mostWickets = [...bowlArr].sort((a, b) => b.wickets - a.wickets || a.economy - b.economy).slice(0, 15)
+    // Sort Best Figures: Wickets desc, then Runs asc
+    const bfList = bestFigures.filter(r => r.wickets > 0).sort((a, b) => b.wickets - a.wickets || a.runsConceded - b.runsConceded)
 
-    return { mostRuns, mostWickets, bestStrikeRate, mostFifties, mostHundreds }
+    // Best SR (min 10 balls)
+    const srList = batList.filter(r => r.balls >= 10 && r.runs > 0).sort((a, b) => b.strikeRate - a.strikeRate)
+
+    // Best Economy (min 12 balls)
+    const econList = bowlList.filter(r => r.balls >= 12).sort((a, b) => a.economy - b.economy || b.wickets - a.wickets)
+
+    return { mostRuns, mostWickets, mostSixes, hsList, bfList, srList, econList, getPlayerPhoto }
   }, [inningsMap, playersById, squadsById, tournament])
 
-  if (!tournamentId) return <div className="max-w-4xl mx-auto px-4 py-10">Tournament not found</div>
-
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="h-8 w-64 bg-slate-200 rounded animate-pulse mb-4" />
-        <div className="h-4 w-80 bg-slate-200 rounded animate-pulse mb-8" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="h-80 bg-slate-100 rounded-2xl animate-pulse" />
-          <div className="h-80 bg-slate-100 rounded-2xl animate-pulse" />
-        </div>
+  if (!tournamentId) return null
+  if (loading) return (
+    <div className="max-w-4xl mx-auto px-4 py-10 animate-pulse space-y-8">
+      <div className="h-8 w-48 bg-slate-200 rounded" />
+      <div className="h-40 bg-slate-100 rounded-2xl" />
+      <div className="space-y-2">
+        {[1, 2, 3].map(i => <div key={i} className="h-12 bg-slate-50 rounded-xl" />)}
       </div>
-    )
+    </div>
+  )
+
+  const getCurrentList = () => {
+    switch (activeCategory) {
+      case 'runs': return statsData.mostRuns
+      case 'wickets': return statsData.mostWickets
+      case 'sixes': return statsData.mostSixes
+      case 'hs': return statsData.hsList
+      case 'bestFigures': return statsData.bfList
+      case 'sr': return statsData.srList
+      case 'econ': return statsData.econList
+      default: return []
+    }
   }
 
-  const Section = ({
-    title,
-    subtitle,
-    children,
-  }: {
-    title: string
-    subtitle?: string
-    children: React.ReactNode
-  }) => (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
-        <div className="text-lg font-extrabold text-slate-900">{title}</div>
-        {subtitle ? <div className="text-xs text-slate-500 mt-1">{subtitle}</div> : null}
-      </div>
-      <div className="p-4">{children}</div>
-    </div>
-  )
+  const currentList = getCurrentList()
+  const top3 = currentList.slice(0, 3)
+  const rest = currentList.slice(3)
 
-  const Table = ({
-    columns,
-    rows,
-  }: {
-    columns: Array<{ key: string; label: string; align?: 'left' | 'right' }>
-    rows: Array<Record<string, any>>
-  }) => (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="text-xs uppercase tracking-wide text-slate-600 border-b border-slate-200">
-            {columns.map((c) => (
-              <th key={c.key} className={`py-3 px-3 ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {rows.map((r, idx) => (
-            <tr key={r.id || r.playerId || idx} className="hover:bg-slate-50">
-              {columns.map((c) => (
-                <td key={c.key} className={`py-3 px-3 ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
-                  {c.key === 'playerName' ? (
-                    <PlayerLink playerId={r.playerId} playerName={r.playerName} className="font-bold text-slate-900 block" />
-                  ) : (
-                    r[c.key]
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="py-8 text-center text-slate-500">
-                No data yet.
-              </td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
-    </div>
-  )
+  const getPrimaryValue = (item: any) => {
+    switch (activeCategory) {
+      case 'runs': return item.runs
+      case 'wickets': return item.wickets
+      case 'sixes': return item.sixes
+      case 'hs': return `${item.runs}${item.isNotOut ? '*' : ''}`
+      case 'bestFigures': return `${item.wickets}-${item.runsConceded}`
+      case 'sr': return item.strikeRate.toFixed(1)
+      case 'econ': return item.economy.toFixed(2)
+      default: return 0
+    }
+  }
 
-  const title = tournament?.name || 'Tournament'
+  const getSecondaryLabel = () => {
+    switch (activeCategory) {
+      case 'runs': return 'Runs'
+      case 'wickets': return 'Wickets'
+      case 'sixes': return 'Sixes'
+      case 'hs': return 'Score'
+      case 'bestFigures': return 'Fig'
+      case 'sr': return 'S/R'
+      case 'econ': return 'Econ'
+    }
+  }
+
+  const getSubInfo = (item: any) => {
+    switch (activeCategory) {
+      case 'runs': return `${item.inns} Inns`
+      case 'wickets': return `${Number(item.balls / 6).toFixed(1)} Ov`
+      case 'sixes': return `${item.inns} Inns`
+      case 'hs': return `${item.balls} Balls`
+      case 'bestFigures': return `${Number(item.balls / 6).toFixed(1)} Ov`
+      case 'sr': return `${item.runs} Runs`
+      case 'econ': return `${Number(item.balls / 6).toFixed(1)} Ov`
+    }
+  }
+
+  // Podium Order: 2nd, 1st, 3rd to match visualization (left, center, right)
+  const podiumOrder = [top3[1], top3[0], top3[2]]
+  // Ranks for display
+  const podiumRanks = [2, 1, 3]
 
   return (
-    <div className={embedded ? 'space-y-6' : 'max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6'}>
-      {!embedded ? (
-        <div className="flex items-start justify-between gap-4">
+    <div className={embedded ? 'space-y-6' : 'max-w-5xl mx-auto px-4 py-8 space-y-6'}>
+      {!embedded && (
+        <div className="flex items-center gap-4 mb-6 relative z-10">
+          <Link
+            to={`/tournaments/${tournamentId}`}
+            className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-all active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+          </Link>
           <div>
-            <Link to={`/tournaments/${tournamentId}`} className="text-sm font-semibold text-teal-700 hover:underline">
-              ← Back to Tournament
-            </Link>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 mt-2">Key Stats</h1>
-            <p className="text-slate-600 mt-1">
-              <span className="font-semibold">{title}</span>
-              {tournament?.year ? <> • {tournament.year}</> : null}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Link
-              to={`/tournaments/${tournamentId}?tab=points`}
-              className="px-4 py-2 rounded-xl bg-white text-slate-900 border-2 border-slate-200 font-semibold hover:bg-slate-50"
-            >
-              Points Table
-            </Link>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Tournament Stats</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{tournament?.name}</p>
           </div>
         </div>
-      ) : null}
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Section title="Most Runs" subtitle="Total runs across all matches in this tournament">
-          <Table
-            columns={[
-              { key: 'rank', label: 'No.' },
-              { key: 'playerName', label: 'Player' },
-              { key: 'squadName', label: 'Team' },
-              { key: 'runs', label: 'Runs', align: 'right' },
-              { key: 'inns', label: 'Inns', align: 'right' },
-              { key: 'strikeRate', label: 'SR', align: 'right' },
-            ]}
-            rows={mostRuns.map((r, i) => ({ ...r, rank: i + 1 }))}
-          />
-        </Section>
+      {/* Tabs */}
+      <div className="flex gap-2 pb-2 overflow-x-auto no-scrollbar mask-linear-fade">
+        {[
+          { id: 'runs', label: 'Most Runs' },
+          { id: 'wickets', label: 'Most Wickets' },
+          { id: 'sixes', label: 'Most Sixes' },
+          { id: 'hs', label: 'Highest Score' },
+          { id: 'bestFigures', label: 'Best Figures' },
+          { id: 'sr', label: 'Best Strike Rate' },
+          { id: 'econ', label: 'Best Economy' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveCategory(tab.id as any)}
+            className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${activeCategory === tab.id
+              ? 'bg-slate-900 text-white shadow-lg scale-105'
+              : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        <Section title="Most Wickets" subtitle="Total wickets across all matches in this tournament">
-          <Table
-            columns={[
-              { key: 'rank', label: 'No.' },
-              { key: 'playerName', label: 'Player' },
-              { key: 'squadName', label: 'Team' },
-              { key: 'wickets', label: 'Wkts', align: 'right' },
-              { key: 'economy', label: 'Econ', align: 'right' },
-            ]}
-            rows={mostWickets.map((r, i) => ({ ...r, rank: i + 1 }))}
-          />
-        </Section>
+      {/* Podium Section */}
+      {top3.length > 0 && (
+        <div className="relative pt-8 pb-12 px-4">
+          {/* Background Decoration */}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-50/50 to-transparent rounded-[2rem] -z-10" />
 
-        <Section title="Best Strike Rate" subtitle="Min 10 balls faced">
-          <Table
-            columns={[
-              { key: 'rank', label: 'No.' },
-              { key: 'playerName', label: 'Player' },
-              { key: 'squadName', label: 'Team' },
-              { key: 'strikeRate', label: 'SR', align: 'right' },
-              { key: 'runs', label: 'Runs', align: 'right' },
-              { key: 'balls', label: 'Balls', align: 'right' },
-            ]}
-            rows={bestStrikeRate.map((r, i) => ({ ...r, rank: i + 1 }))}
-          />
-        </Section>
+          <div className="flex items-end justify-center gap-4 sm:gap-8 md:gap-12">
+            {podiumOrder.map((p, idx) => {
+              const rank = podiumRanks[idx] // 2, 1, 3
+              if (!p && rank === 1) return null // If no first place, show nothing (unlikely)
+              if (!p) return <div key={idx} className="w-16 sm:w-24" /> // Spacer
 
-        <Section title="Most 50s" subtitle="Count of innings with 50–99">
-          <Table
-            columns={[
-              { key: 'rank', label: 'No.' },
-              { key: 'playerName', label: 'Player' },
-              { key: 'squadName', label: 'Team' },
-              { key: 'fifties', label: '50s', align: 'right' },
-              { key: 'runs', label: 'Runs', align: 'right' },
-            ]}
-            rows={mostFifties.map((r, i) => ({ ...r, rank: i + 1 }))}
-          />
-        </Section>
+              const isFirst = rank === 1
+              const photo = statsData.getPlayerPhoto(p.playerId)
+              const val = getPrimaryValue(p)
+              const firstName = p.playerName.split(' ')[0]
+              const lastName = p.playerName.split(' ').slice(1).join(' ') || ''
 
-        <div className="lg:col-span-2">
-          <Section title="Most 100s" subtitle="Count of innings with 100+">
-            <Table
-              columns={[
-                { key: 'rank', label: 'No.' },
-                { key: 'playerName', label: 'Player' },
-                { key: 'squadName', label: 'Team' },
-                { key: 'hundreds', label: '100s', align: 'right' },
-                { key: 'runs', label: 'Runs', align: 'right' },
-              ]}
-              rows={mostHundreds.map((r, i) => ({ ...r, rank: i + 1 }))}
-            />
-          </Section>
+              return (
+                <div key={`${p.playerId}-${idx}`} className={`flex flex-col items-center group cursor-pointer ${isFirst ? '-mt-8 z-10' : ''}`}>
+                  <Link to={`/players/${p.playerId}`} className="text-center mb-3">
+                    <div className={`font-black text-slate-500 uppercase leading-none mb-1 truncate max-w-[100px] ${isFirst ? 'text-sm' : 'text-[10px]'}`}>
+                      {firstName} <span className="hidden sm:inline">{lastName}</span>
+                    </div>
+                    <div className={`font-black tracking-tighter ${isFirst ? 'text-4xl sm:text-5xl text-slate-900 scale-110' : 'text-2xl sm:text-3xl text-slate-700'}`}>
+                      {val}
+                    </div>
+                  </Link>
+
+                  <Link to={`/players/${p.playerId}`} className="relative transition-transform hover:scale-105">
+                    <div className={`relative rounded-full border-4 border-white shadow-xl overflow-hidden bg-slate-200 ${isFirst ? 'w-24 h-24 sm:w-32 sm:h-32' : 'w-16 h-16 sm:w-20 sm:h-20'
+                      }`}>
+                      <PlayerAvatar
+                        photoUrl={photo}
+                        name={p.playerName}
+                        size={isFirst ? 'xl' : 'lg'}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center font-black text-white shadow-md w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm ${rank === 1 ? 'bg-emerald-500 scale-125 ring-2 ring-white' : 'bg-slate-300'
+                      }`}>
+                      #{rank}
+                    </div>
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* List Section */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-50 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="flex items-center gap-4">
+            <span className="w-6 text-center">Pos</span>
+            <span>Name</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <span className="hidden sm:block w-16 text-right">Info</span>
+            <span className="w-12 text-right">{getSecondaryLabel()}</span>
+          </div>
+        </div>
+
+        <div className="divide-y divide-slate-50">
+          {top3.concat(rest).map((p, idx) => {
+            const photo = statsData.getPlayerPhoto(p.playerId)
+            return (
+              <div key={`${p.playerId}-${idx}`} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors group">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className={`w-6 text-center font-black ${idx < 3 ? 'text-emerald-500 text-lg' : 'text-slate-300 text-sm'}`}>
+                    {idx + 1}
+                  </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {idx >= 3 && (
+                      <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden shrink-0 hidden sm:block">
+                        <PlayerAvatar photoUrl={photo} name={p.playerName} size="xs" className="w-full h-full" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <Link to={`/players/${p.playerId}`} className="font-bold text-slate-900 text-sm truncate group-hover:text-emerald-700 transition-colors">
+                        {p.playerName}
+                      </Link>
+                      <div className="text-[10px] text-slate-400 font-medium truncate uppercase tracking-wider">{p.squadName}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 pl-4">
+                  <div className="hidden sm:block text-xs font-medium text-slate-400 w-16 text-right tabular-nums">
+                    {getSubInfo(p)}
+                  </div>
+                  <div className="w-12 text-right font-black text-slate-900 text-base tabular-nums">
+                    {getPrimaryValue(p)}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
   )
 }
-
-

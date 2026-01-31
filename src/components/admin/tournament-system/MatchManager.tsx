@@ -7,6 +7,7 @@ import { Timestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import MatchSetupModal from './MatchSetupModal';
+import WheelDatePicker from '@/components/common/WheelDatePicker';
 
 interface MatchManagerProps {
     tournament: Tournament;
@@ -475,11 +476,9 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                                                 <Calendar size={14} /> Date
                                             </label>
-                                            <input
-                                                type="date"
+                                            <WheelDatePicker
                                                 value={formData.date}
-                                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                                className="w-full bg-slate-50 border-transparent rounded-xl font-bold text-slate-700"
+                                                onChange={(val) => setFormData({ ...formData, date: val })}
                                             />
                                         </div>
                                         <div>

@@ -49,9 +49,15 @@ function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    // Check if splash has been shown in this session
+    const hasSeenSplash = sessionStorage.getItem('hasSeenSplash')
+    return !hasSeenSplash // Show splash only if not seen before
+  });
 
   const handleLoadingComplete = () => {
+    // Mark splash as seen for this session
+    sessionStorage.setItem('hasSeenSplash', 'true')
     setShowSplash(false);
   };
 

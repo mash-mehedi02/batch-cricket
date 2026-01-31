@@ -1,6 +1,6 @@
 /**
- * Tournament Details (Public)
- * Quick overview + navigation to points table.
+ * Tournament Details Page - Redesigned to match Squad Details structure
+ * Same sticky header, tab navigation, and content layout
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -9,54 +9,71 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
-import type { Match, Tournament } from '@/types'
+import type { Match, Tournament, Squad, Player, InningsStats } from '@/types'
+import { Timestamp } from 'firebase/firestore'
+import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
+import PlayerAvatar from '@/components/common/PlayerAvatar'
+import { getMatchResultString } from '@/utils/matchWinner'
+import PageHeader from '@/components/common/PageHeader'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
-import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
+
+type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats'
 
 export default function TournamentDetails() {
   const { tournamentId } = useParams<{ tournamentId: string }>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const activeTab = useMemo(() => {
-    const raw = String(searchParams.get('tab') || 'overview').toLowerCase().trim()
-    if (raw === 'schedule' || raw === 'points' || raw === 'stats') return raw
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const tab = searchParams.get('tab')?.toLowerCase()
+    if (tab === 'matches' || tab === 'teams' || tab === 'points' || tab === 'stats') return tab as Tab
     return 'overview'
-  }, [searchParams])
+  })
 
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
+  const [squads, setSquads] = useState<Squad[]>([])
+  const [players, setPlayers] = useState<Player[]>([])
   const [inningsMap, setInningsMap] = useState<Map<string, { teamA: any | null; teamB: any | null }>>(new Map())
-  const [playersById, setPlayersById] = useState<Map<string, any>>(new Map())
-  const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
 
+  // Update URL when tab changes
+  useEffect(() => {
+    setSearchParams({ tab: activeTab }, { replace: true })
+  }, [activeTab, setSearchParams])
+
+  // Data loading
   useEffect(() => {
     const run = async () => {
       if (!tournamentId) return
       setLoading(true)
       try {
+        // Load tournament
         const t = await tournamentService.getById(tournamentId)
         setTournament(t)
+
+        // Load matches
         const ms = await matchService.getByTournament(tournamentId)
         setMatches(ms)
 
-        // Players map (for key stats) - realtime
-        const unsubPlayers = playerService.subscribeAll((list) => {
-          const pm = new Map<string, any>()
-            ; (list as any[]).forEach((p) => p?.id && pm.set(p.id, p))
-          setPlayersById(pm)
-        })
+        // Load squads
+        const allSquads = await squadService.getAll()
+        const tournamentSquads = allSquads.filter(s =>
+          (t as any)?.participantSquadIds?.includes(s.id) ||
+          ms.some(m => m.teamAId === s.id || m.teamBId === s.id)
+        )
+        setSquads(tournamentSquads)
 
-        // Squads map (for live name resolution everywhere) - realtime
-        const unsubSquads = squadService.subscribeAll((list) => {
-          const sm = new Map<string, any>()
-            ; (list as any[]).forEach((s) => s?.id && sm.set(s.id, s))
-          setSquadsById(sm)
-        })
+        // Load players
+        const allPlayers = await playerService.getAll()
+        setPlayers(allPlayers)
 
-        // Innings for stats/featured matches/points preview
-        const entries = await Promise.all(
+        // End loading state here - page can now display!
+        setLoading(false)
+
+        // Load innings in background
+        Promise.all(
           ms.map(async (m) => {
             const [a, b] = await Promise.all([
               matchService.getInnings(m.id, 'teamA'),
@@ -64,36 +81,45 @@ export default function TournamentDetails() {
             ])
             return [m.id, { teamA: a, teamB: b }] as const
           })
-        )
-        const im = new Map<string, { teamA: any | null; teamB: any | null }>()
-        entries.forEach(([id, v]) => im.set(id, v))
-        setInningsMap(im)
+        ).then(entries => {
+          const im = new Map<string, { teamA: any | null; teamB: any | null }>()
+          entries.forEach(([id, v]) => im.set(id, v))
+          setInningsMap(im)
+        })
 
-        return () => {
-          unsubPlayers()
-          unsubSquads()
-        }
-      } finally {
+      } catch (e) {
+        console.error('Error loading tournament details:', e)
+        setTournament(null)
         setLoading(false)
       }
     }
-    let cleanup: undefined | (() => void)
-    run().then((c: any) => { cleanup = typeof c === 'function' ? c : undefined }).catch(() => { })
-    return () => cleanup?.()
+    run()
   }, [tournamentId])
 
-  const meta = useMemo(() => {
-    return ((tournament as any)?.participantSquadMeta || {}) as Record<string, { name?: string; batch?: string }>
-  }, [tournament])
+  const handleImgError = (url: string) => {
+    setBrokenImages(prev => ({ ...prev, [url]: true }))
+  }
 
-  const participantNames = useMemo(() => {
-    const ids = (tournament as any)?.participantSquadIds as string[] | undefined
-    const list = (ids || Object.keys(meta || [])).map((id) => String(meta?.[id]?.name || '').trim()).filter(Boolean)
-    return Array.from(new Set(list))
-  }, [meta, tournament])
+  const safeRender = (val: any) => {
+    if (val instanceof Timestamp) {
+      return val.toDate().getFullYear().toString()
+    }
+    if (typeof val === 'object' && val !== null) {
+      return 'Tournament'
+    }
+    return val
+  }
 
+  const formatShortName = (name: string) => {
+    if (!name) return '???'
+    const parts = name.split(/[- ]+/).filter(Boolean)
+    const label = parts[0]?.substring(0, 3).toUpperCase() || '???'
+    const batch = parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
+    return batch ? `${label}-${batch}` : label
+  }
+
+  // Featured matches logic
   const featuredMatches = useMemo(() => {
-    // Show up to 3 matches: next upcoming by date/time + latest finished (based on innings availability)
     const parseDT = (m: any) => {
       const d0 = coerceToDate(m?.date)
       if (d0) return d0.getTime()
@@ -106,10 +132,12 @@ export default function TournamentDetails() {
 
     const withTs = matches.map((m: any) => ({ m, ts: parseDT(m) }))
     const upcoming = withTs
-      .filter((x) => x.ts > 0)
+      .filter((x) => x.ts > 0 && x.ts > Date.now())
       .sort((a, b) => a.ts - b.ts)
       .slice(0, 2)
       .map((x) => x.m)
+
+    const live = matches.filter(m => String(m.status || '').toLowerCase() === 'live').slice(0, 1)
 
     const completed = matches
       .filter((m) => {
@@ -120,161 +148,76 @@ export default function TournamentDetails() {
       .reverse()
       .slice(0, 1)
 
-    const combined = [...upcoming, ...completed]
+    const combined = [...live, ...upcoming, ...completed]
     const seen = new Set<string>()
-    return combined.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)))
+    return combined.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true))).slice(0, 3)
   }, [inningsMap, matches])
 
-  const overviewPoints = useMemo(() => {
-    // Mini points table (simple points + NRR) from innings, across all matches.
-    // NOTE: This is a lightweight preview; full logic is in Points Table page.
-    const rows = new Map<string, { id: string; name: string; p: number; w: number; l: number; t: number; pts: number; rf: number; bf: number; ra: number; bb: number; nrr: number }>()
-    const resolveId = (m: any, side: 'A' | 'B') => (side === 'A' ? (m.teamAId || m.teamASquadId || m.teamA) : (m.teamBId || m.teamBSquadId || m.teamB))
-    const getName = (sid: string, m?: any, side?: 'A' | 'B') => {
-      const fromSquad = String(squadsById.get(sid)?.name || squadsById.get(sid)?.teamName || '').trim()
-      if (fromSquad) return fromSquad
-      const fromMeta = String(meta?.[sid]?.name || '').trim()
-      if (fromMeta) return fromMeta
-      if (m && side === 'A') return String(m.teamAName || '').trim() || sid
-      if (m && side === 'B') return String(m.teamBName || '').trim() || sid
-      return sid
-    }
-    const ensure = (sid: string, name: string) => {
-      if (!rows.has(sid)) rows.set(sid, { id: sid, name, p: 0, w: 0, l: 0, t: 0, pts: 0, rf: 0, bf: 0, ra: 0, bb: 0, nrr: 0 })
-      return rows.get(sid)!
-    }
-    matches.forEach((m: any) => {
-      const inn = inningsMap.get(m.id)
-      if (!inn?.teamA || !inn?.teamB) return
-      const aId = String(resolveId(m, 'A') || '').trim()
-      const bId = String(resolveId(m, 'B') || '').trim()
-      if (!aId || !bId) return
-      const a = ensure(aId, getName(aId, m, 'A'))
-      const b = ensure(bId, getName(bId, m, 'B'))
-      const aRuns = Number(inn.teamA.totalRuns || 0)
-      const bRuns = Number(inn.teamB.totalRuns || 0)
-      const aBalls = Number(inn.teamA.legalBalls || 0)
-      const bBalls = Number(inn.teamB.legalBalls || 0)
-      a.p += 1
-      b.p += 1
-      a.rf += aRuns
-      a.bf += aBalls
-      a.ra += bRuns
-      a.bb += bBalls
-      b.rf += bRuns
-      b.bf += bBalls
-      b.ra += aRuns
-      b.bb += aBalls
-      if (aRuns > bRuns) {
-        a.w += 1
-        a.pts += 2
-        b.l += 1
-      } else if (bRuns > aRuns) {
-        b.w += 1
-        b.pts += 2
-        a.l += 1
-      } else {
-        a.t += 1
-        b.t += 1
-        a.pts += 1
-        b.pts += 1
-      }
-    })
-    rows.forEach((r) => {
-      const rf = r.bf > 0 ? r.rf / (r.bf / 6) : 0
-      const ra = r.bb > 0 ? r.ra / (r.bb / 6) : 0
-      r.nrr = Number((rf - ra).toFixed(3))
-    })
-    return Array.from(rows.values())
-      .sort((a, b) => b.pts - a.pts || b.nrr - a.nrr || a.name.localeCompare(b.name))
-      .slice(0, 6)
-  }, [inningsMap, matches, meta])
-
-  const resolveSquadName = useMemo(() => {
-    return (m: any, side: 'A' | 'B') => {
-      const sidRaw = side === 'A'
-        ? (m.teamAId || m.teamASquadId || m.teamA)
-        : (m.teamBId || m.teamBSquadId || m.teamB)
-      const sid = String(sidRaw || '').trim()
-      const fromSquad = String(squadsById.get(sid)?.name || squadsById.get(sid)?.teamName || '').trim()
-      if (fromSquad) return fromSquad
-      const fromMeta = String(meta?.[sid]?.name || '').trim()
-      if (fromMeta) return fromMeta
-      if (side === 'A') return String(m.teamAName || m.teamA || m.teamAId || 'Team A')
-      return String(m.teamBName || m.teamB || m.teamBId || 'Team B')
-    }
-  }, [meta, squadsById])
-
+  // Key stats
   const keyStatsTop = useMemo(() => {
-    // From innings batsmanStats/bowlerStats -> top 1 in each category
-    const bat = new Map<string, { id: string; name: string; team: string; runs: number; balls: number; fifties: number; hundreds: number; sixes: number; sr: number }>()
+    const bat = new Map<string, { id: string; name: string; team: string; runs: number; balls: number; sixes: number; sr: number }>()
     const bowl = new Map<string, { id: string; name: string; team: string; wickets: number }>()
+
     const getTeam = (pid: string) => {
-      const sid = playersById.get(pid)?.squadId
-      return String(meta?.[sid]?.name || '').trim() || 'Team'
+      const player = players.find(p => p.id === pid)
+      const squad = squads.find(s => s.id === player?.squadId)
+      return squad?.name || 'Team'
     }
+
     inningsMap.forEach((inn) => {
-      ;[inn.teamA, inn.teamB].filter(Boolean).forEach((i: any) => {
-        ; (i?.batsmanStats || []).forEach((b: any) => {
+      [inn.teamA, inn.teamB].filter(Boolean).forEach((i: any) => {
+        // Batsman stats
+        const batsmanStats = Array.isArray(i?.batsmanStats) ? i.batsmanStats : []
+        batsmanStats.forEach((b: any) => {
           const pid = String(b.batsmanId || '')
           if (!pid) return
-          const prev = bat.get(pid) || { id: pid, name: String(playersById.get(pid)?.name || b.batsmanName || 'Player'), team: getTeam(pid), runs: 0, balls: 0, fifties: 0, hundreds: 0, sixes: 0, sr: 0 }
+          const player = players.find(p => p.id === pid)
+          const prev = bat.get(pid) || { id: pid, name: player?.name || b.batsmanName || 'Player', team: getTeam(pid), runs: 0, balls: 0, sixes: 0, sr: 0 }
           const runs = Number(b.runs || 0)
           const balls = Number(b.balls || 0)
           prev.runs += runs
           prev.balls += balls
           prev.sixes += Number(b.sixes || 0)
-          prev.fifties += runs >= 50 && runs < 100 ? 1 : 0
-          prev.hundreds += runs >= 100 ? 1 : 0
           bat.set(pid, prev)
         })
-          ; (i?.bowlerStats || []).forEach((bw: any) => {
-            const pid = String(bw.bowlerId || '')
-            if (!pid) return
-            const prev = bowl.get(pid) || { id: pid, name: String(playersById.get(pid)?.name || bw.bowlerName || 'Player'), team: getTeam(pid), wickets: 0 }
-            prev.wickets += Number(bw.wickets || 0)
-            bowl.set(pid, prev)
-          })
+
+        // Bowler stats
+        const bowlerStats = Array.isArray(i?.bowlerStats) ? i.bowlerStats : []
+        bowlerStats.forEach((bw: any) => {
+          const pid = String(bw.bowlerId || '')
+          if (!pid) return
+          const player = players.find(p => p.id === pid)
+          const prev = bowl.get(pid) || { id: pid, name: player?.name || bw.bowlerName || 'Player', team: getTeam(pid), wickets: 0 }
+          prev.wickets += Number(bw.wickets || 0)
+          bowl.set(pid, prev)
+        })
       })
     })
+
     bat.forEach((r) => {
       r.sr = r.balls > 0 ? Number(((r.runs / r.balls) * 100).toFixed(2)) : 0
     })
+
     const mostRuns = Array.from(bat.values()).sort((a, b) => b.runs - a.runs)[0] || null
     const mostWickets = Array.from(bowl.values()).sort((a, b) => b.wickets - a.wickets)[0] || null
     const mostSixes = Array.from(bat.values()).sort((a, b) => b.sixes - a.sixes)[0] || null
     const bestSR = Array.from(bat.values()).filter((x) => x.balls >= 10).sort((a, b) => b.sr - a.sr)[0] || null
+
     return { mostRuns, mostWickets, mostSixes, bestSR }
-  }, [inningsMap, meta, playersById])
-
-  const scheduleMatches = useMemo(() => {
-    const parseDT = (m: any) => {
-      const d0 = coerceToDate(m?.date)
-      if (d0) return d0.getTime()
-      const d = String(m.date || '').trim()
-      const t = String(m.time || '').trim()
-      if (!d) return 0
-      const ts = Date.parse(`${d}T${t || '00:00'}:00`)
-      return Number.isFinite(ts) ? ts : 0
-    }
-    return matches
-      .slice()
-      .sort((a: any, b: any) => parseDT(a) - parseDT(b) || String(a.id).localeCompare(String(b.id)))
-  }, [matches])
-
-  if (!tournamentId) {
-    return <div className="max-w-4xl mx-auto px-4 py-10">Tournament not found</div>
-  }
+  }, [inningsMap, players, squads])
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="h-8 w-64 bg-slate-200 rounded animate-pulse mb-4" />
-        <div className="h-4 w-80 bg-slate-200 rounded animate-pulse mb-8" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-24 bg-slate-100 rounded-2xl animate-pulse" />
-          <div className="h-24 bg-slate-100 rounded-2xl animate-pulse" />
-          <div className="h-24 bg-slate-100 rounded-2xl animate-pulse" />
+      <div className="min-h-screen bg-white pb-20 animate-pulse">
+        <div className="h-[20vh] md:h-[30vh] bg-slate-200" />
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="h-16 bg-slate-200 rounded-xl mb-6" />
+          <div className="h-10 bg-slate-100 rounded-xl w-64 mb-6" />
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-slate-100 rounded-2xl" />
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -282,11 +225,11 @@ export default function TournamentDetails() {
 
   if (!tournament) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-10">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
-          <div className="text-4xl mb-3">🏆</div>
-          <div className="text-xl font-bold text-slate-900">Tournament not found</div>
-          <Link to="/tournaments" className="inline-block mt-6 px-4 py-2 rounded-xl bg-slate-900 text-white">
+      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🏆</div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">Tournament Not Found</h2>
+          <Link to="/tournaments" className="inline-block px-8 py-3 bg-emerald-600 text-white rounded-2xl font-bold shadow-xl hover:bg-emerald-700 transition-all">
             Back to Tournaments
           </Link>
         </div>
@@ -295,262 +238,291 @@ export default function TournamentDetails() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Link to="/tournaments" className="text-sm font-semibold text-teal-700 hover:underline">
-            ← Back to Tournaments
-          </Link>
-          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 mt-2">{tournament.name}</h1>
-          <p className="text-slate-600 mt-1">
-            <span className="font-semibold">{tournament.year}</span> • {tournament.format} • {tournament.status}
-          </p>
+    <div className="min-h-screen bg-white text-slate-900 pb-20 overflow-x-hidden">
+      <PageHeader title={tournament.name} subtitle={tournament.year || tournament.season} />
+
+      {/* Hero Banner */}
+      <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-900">
+        {tournament.bannerUrl && !brokenImages[tournament.bannerUrl] ? (
+          <img src={tournament.bannerUrl} onError={() => handleImgError(tournament.bannerUrl || '')} alt={tournament.name} className="w-full h-full object-cover opacity-40" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-black" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent" />
+      </div>
+
+      {/* Sticky Header Section */}
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-4 mb-3">
+            {/* Compact Logo */}
+            <div className="w-12 h-12 bg-white rounded-2xl border-2 border-white shadow-lg overflow-hidden flex items-center justify-center p-1 shrink-0">
+              {tournament.logoUrl && !brokenImages[tournament.logoUrl] ? (
+                <img src={tournament.logoUrl} onError={() => handleImgError(tournament.logoUrl || '')} alt={tournament.name} className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-xl font-black text-emerald-600 uppercase">{tournament.name[0]}</span>
+              )}
+            </div>
+
+            {/* Tournament Info */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight leading-none mb-1 truncate">
+                {tournament.name}
+              </h1>
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                  {safeRender(tournament.year)}
+                </span>
+                <span className="text-slate-400 text-[9px] font-bold uppercase">
+                  {tournament.format}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl w-fit max-w-full overflow-x-auto no-scrollbar">
+            {(['overview', 'matches', 'teams', 'points', 'stats'] as Tab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex gap-1 px-2 py-2 sticky top-0 bg-white">
-          <Link
-            to={`/tournaments/${tournamentId}?tab=overview`}
-            className={`px-4 py-2 rounded-xl font-semibold ${activeTab === 'overview' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
-          >
-            Overview
-          </Link>
-          <Link
-            to={`/tournaments/${tournamentId}?tab=schedule`}
-            className={`px-4 py-2 rounded-xl font-semibold ${activeTab === 'schedule' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
-          >
-            Schedule
-          </Link>
-          <Link
-            to={`/tournaments/${tournamentId}?tab=points`}
-            className={`px-4 py-2 rounded-xl font-semibold ${activeTab === 'points' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
-          >
-            Points Table
-          </Link>
-          <Link
-            to={`/tournaments/${tournamentId}?tab=stats`}
-            className={`px-4 py-2 rounded-xl font-semibold ${activeTab === 'stats' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
-          >
-            Key Stats
-          </Link>
-        </div>
-      </div>
-
-      {activeTab === 'overview' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-          {/* Left */}
-          <div className="space-y-6">
+      {/* Content Section */}
+      <div className="max-w-4xl mx-auto px-4 pt-6">
+        {activeTab === 'overview' && (
+          <div className="space-y-6 animate-in fade-in duration-500">
             {/* Featured Matches */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div className="text-lg font-extrabold text-slate-900">Featured Matches</div>
-                <Link to={`/tournaments/${tournamentId}?tab=schedule`} className="text-sm font-bold text-teal-700 hover:underline">
-                  All Matches →
-                </Link>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {featuredMatches.length === 0 ? (
-                  <div className="p-6 text-slate-600">No matches yet.</div>
-                ) : (
-                  featuredMatches.map((m: any) => {
-                    const inn = inningsMap.get(m.id)
-                    const aName = resolveSquadName(m, 'A')
-                    const bName = resolveSquadName(m, 'B')
-                    const done = Boolean(inn?.teamA && inn?.teamB)
-                    const d = coerceToDate(m?.date)
-                    const dtText = d
-                      ? `${formatDateLabelTZ(d)} ${formatTimeLabelBD(d)}`
-                      : `${String(m.date || '').trim()} ${formatTimeHMTo12h(String(m.time || '').trim())}`.trim()
-                    return (
-                      <div key={m.id} className="p-5 flex items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="font-extrabold text-slate-900 truncate">{aName} vs {bName}</div>
-                          <div className="text-sm text-slate-600 mt-1">
-                            {done
-                              ? `Result: ${aName} ${inn?.teamA?.totalRuns || 0}-${inn?.teamA?.totalWickets || 0} • ${bName} ${inn?.teamB?.totalRuns || 0}-${inn?.teamB?.totalWickets || 0}`
-                              : dtText || 'Scheduled'}
-                          </div>
-                        </div>
-                        <Link
-                          to={`/match/${m.id}`}
-                          className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 font-bold text-slate-800"
-                        >
-                          View →
-                        </Link>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Mini Points Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div className="text-lg font-extrabold text-slate-900">Points Table</div>
-                <Link to={`/tournaments/${tournamentId}?tab=points`} className="text-sm font-bold text-teal-700 hover:underline">
-                  Full Table →
-                </Link>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-xs uppercase tracking-wide text-slate-600 border-b border-slate-200">
-                      <th className="text-left py-3 px-4">Team</th>
-                      <th className="text-right py-3 px-3">P</th>
-                      <th className="text-right py-3 px-3">W</th>
-                      <th className="text-right py-3 px-3">Pts</th>
-                      <th className="text-right py-3 px-3">NRR</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {overviewPoints.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500">No standings yet.</td>
-                      </tr>
-                    ) : (
-                      overviewPoints.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-50">
-                          <td className="py-3 px-4 font-semibold text-slate-900">{r.name}</td>
-                          <td className="py-3 px-3 text-right text-slate-700">{r.p}</td>
-                          <td className="py-3 px-3 text-right text-slate-700">{r.w}</td>
-                          <td className="py-3 px-3 text-right font-extrabold text-slate-900">{r.pts}</td>
-                          <td className="py-3 px-3 text-right text-slate-700">{Number(r.nrr).toFixed(3)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Right sidebar */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
-                <div className="text-lg font-extrabold text-slate-900">Key Stats</div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {([
-                  { title: 'Most Runs', v: keyStatsTop.mostRuns ? `${keyStatsTop.mostRuns.runs}` : '—', who: keyStatsTop.mostRuns?.name, team: keyStatsTop.mostRuns?.team },
-                  { title: 'Most Wickets', v: keyStatsTop.mostWickets ? `${keyStatsTop.mostWickets.wickets}` : '—', who: keyStatsTop.mostWickets?.name, team: keyStatsTop.mostWickets?.team },
-                  { title: 'Most Sixes', v: keyStatsTop.mostSixes ? `${keyStatsTop.mostSixes.sixes}` : '—', who: keyStatsTop.mostSixes?.name, team: keyStatsTop.mostSixes?.team },
-                  { title: 'Best Strike Rate', v: keyStatsTop.bestSR ? `${keyStatsTop.bestSR.sr}` : '—', who: keyStatsTop.bestSR?.name, team: keyStatsTop.bestSR?.team },
-                ] as const).map((k) => (
-                  <div key={k.title} className="p-5">
-                    <div className="text-xs font-bold text-slate-500">{k.title}</div>
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-extrabold text-slate-900 truncate">{k.who || '—'}</div>
-                        <div className="text-sm text-slate-600 truncate">{k.team || ''}</div>
-                      </div>
-                      <div className="text-2xl font-extrabold text-slate-900">{k.v}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="px-6 py-4 border-t border-slate-200 bg-white">
-                <Link
-                  to={`/tournaments/${tournamentId}?tab=stats`}
-                  className="block w-full text-center px-4 py-3 rounded-xl bg-white border-2 border-slate-200 hover:bg-slate-50 font-extrabold text-slate-900"
-                >
-                  View All Key Stats →
-                </Link>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-              <div className="text-sm font-extrabold text-slate-900">Teams</div>
-              <div className="text-xs text-slate-500 mt-1">Tournament squads</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(participantNames.length ? participantNames : ['—']).slice(0, 12).map((n) => (
-                  <span key={n} className="px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-800 text-sm font-semibold">
-                    {n}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {activeTab === 'schedule' ? (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <div className="text-lg font-extrabold text-slate-900">Schedule</div>
-              <div className="text-sm text-slate-600 mt-0.5">All fixtures & results in this tournament</div>
-            </div>
-            <div className="text-sm font-semibold text-slate-600">{scheduleMatches.length} matches</div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-slate-600 border-b border-slate-200">
-                  <th className="text-left py-3 px-4">Match</th>
-                  <th className="text-left py-3 px-4">Date</th>
-                  <th className="text-left py-3 px-4">Time</th>
-                  <th className="text-left py-3 px-4">Status</th>
-                  <th className="text-right py-3 px-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {scheduleMatches.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-500">No matches yet.</td>
-                  </tr>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-black text-slate-900">Featured Matches</h2>
+                <button onClick={() => setActiveTab('matches')} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                  All Matches →
+                </button>
+              </div>
+              <div className="space-y-3">
+                {featuredMatches.length === 0 ? (
+                  <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-400 font-bold">
+                    No matches yet
+                  </div>
                 ) : (
-                  scheduleMatches.map((m: any) => {
-                    const aName = resolveSquadName(m, 'A')
-                    const bName = resolveSquadName(m, 'B')
-                    const inn = inningsMap.get(m.id)
-                    const done = Boolean(inn?.teamA && inn?.teamB)
-                    const status = String(m.status || '').trim() || (done ? 'Finished' : 'Upcoming')
-                    const d = coerceToDate(m?.date)
-                    const dateText = d ? formatDateLabelTZ(d) : '—'
-                    const timeText = String(m.time || '').trim()
-                      ? formatTimeHMTo12h(String(m.time || '').trim())
-                      : d
-                        ? formatTimeLabelBD(d)
-                        : '—'
-                    return (
-                      <tr key={m.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4 font-semibold text-slate-900">{aName} vs {bName}</td>
-                        <td className="py-3 px-4 text-slate-700">{dateText}</td>
-                        <td className="py-3 px-4 text-slate-700">{timeText}</td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${done ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                            {status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Link to={`/match/${m.id}`} className="inline-flex items-center px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 font-bold text-slate-800">
-                            View →
-                          </Link>
-                        </td>
-                      </tr>
-                    )
-                  })
+                  featuredMatches.map(match => (
+                    <MatchCard key={match.id} match={match} innings={inningsMap.get(match.id)} />
+                  ))
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {/* Key Stats Cards */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-black text-slate-900">Key Stats</h2>
+                <button onClick={() => setActiveTab('stats')} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                  See More →
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard title="Most Runs" value={keyStatsTop.mostRuns?.runs || 0} player={keyStatsTop.mostRuns?.name} team={keyStatsTop.mostRuns?.team} />
+                <StatCard title="Most Wickets" value={keyStatsTop.mostWickets?.wickets || 0} player={keyStatsTop.mostWickets?.name} team={keyStatsTop.mostWickets?.team} />
+                <StatCard title="Most Sixes" value={keyStatsTop.mostSixes?.sixes || 0} player={keyStatsTop.mostSixes?.name} team={keyStatsTop.mostSixes?.team} />
+                <StatCard title="Best SR" value={keyStatsTop.bestSR?.sr || 0} player={keyStatsTop.bestSR?.name} team={keyStatsTop.bestSR?.team} />
+              </div>
+            </div>
           </div>
-        </div>
-      ) : null}
+        )}
 
-      {activeTab === 'points' ? (
-        <TournamentPointsTable embedded tournamentId={tournamentId} />
-      ) : null}
+        {activeTab === 'matches' && (
+          <TournamentMatchesTab matches={matches} inningsMap={inningsMap} />
+        )}
 
-      {activeTab === 'stats' ? (
-        <TournamentKeyStats embedded tournamentId={tournamentId} />
-      ) : null}
+        {activeTab === 'teams' && (
+          <TournamentTeamsTab squads={squads} players={players} />
+        )}
+
+        {activeTab === 'points' && (
+          <TournamentPointsTable embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
+        )}
+
+        {activeTab === 'stats' && (
+          <TournamentKeyStats embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
+        )}
+      </div>
     </div>
   )
 }
 
+// Match Card Component
+function MatchCard({ match, innings }: { match: Match; innings?: { teamA: any; teamB: any } }) {
+  const status = String(match.status || '').toLowerCase()
+  const isLive = status === 'live'
+  const isFin = status === 'finished' || status === 'completed' || Boolean(innings?.teamA && innings?.teamB)
 
+  const d = coerceToDate(match.date)
+  const dStr = d
+    ? `${formatDateLabelTZ(d)} ${formatTimeLabelBD(d)}`
+    : `${String(match.date || '').trim()} ${formatTimeHMTo12h(String(match.time || '').trim())}`.trim()
+
+  return (
+    <Link
+      to={`/match/${match.id}`}
+      className={`block bg-white border rounded-2xl overflow-hidden transition-all hover:shadow-lg ${isLive ? 'border-red-500/30 shadow-md shadow-red-500/5' : 'border-slate-100'
+        }`}
+    >
+      <div className={`px-4 py-2 flex items-center justify-between border-b ${isLive ? 'bg-red-50/50 border-red-100/50' : 'bg-slate-50 border-slate-100'
+        }`}>
+        <div className="flex items-center gap-2">
+          {isLive ? (
+            <span className="flex items-center gap-1.5 text-[9px] font-black text-red-500 tracking-widest uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Live Now
+            </span>
+          ) : (
+            <span className="text-[9px] font-black text-slate-500 tracking-widest uppercase">
+              {isFin ? 'Match Completed' : 'Upcoming'}
+            </span>
+          )}
+        </div>
+        <span className="text-[9px] font-bold text-slate-500 tabular-nums">{dStr}</span>
+      </div>
+
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-bold text-slate-900">{match.teamAName}</span>
+          {(isLive || isFin) && innings && (
+            <span className="text-sm font-black text-slate-900 tabular-nums">
+              {innings.teamA?.totalRuns || 0}/{innings.teamA?.totalWickets || 0}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-slate-900">{match.teamBName}</span>
+          {(isLive || isFin) && innings && (
+            <span className="text-sm font-black text-slate-900 tabular-nums">
+              {innings.teamB?.totalRuns || 0}/{innings.teamB?.totalWickets || 0}
+            </span>
+          )}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// Stat Card Component
+function StatCard({ title, value, player, team }: { title: string; value: number | string; player?: string; team?: string }) {
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{title}</div>
+      <div className="text-2xl font-black text-slate-900 mb-1">{value}</div>
+      {player && (
+        <>
+          <div className="text-xs font-bold text-slate-700 truncate">{player}</div>
+          <div className="text-[10px] text-slate-400 truncate">{team}</div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Matches Tab Component
+function TournamentMatchesTab({ matches, inningsMap }: { matches: Match[]; inningsMap: Map<string, any> }) {
+  const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'finished'>('all')
+
+  const filteredMatches = useMemo(() => {
+    let filtered = matches
+    if (filter === 'live') {
+      filtered = matches.filter(m => String(m.status || '').toLowerCase() === 'live')
+    } else if (filter === 'upcoming') {
+      filtered = matches.filter(m => {
+        const status = String(m.status || '').toLowerCase()
+        return status === 'upcoming' || status === 'scheduled' || !status
+      })
+    } else if (filter === 'finished') {
+      filtered = matches.filter(m => {
+        const status = String(m.status || '').toLowerCase()
+        const inn = inningsMap.get(m.id)
+        return status === 'finished' || status === 'completed' || Boolean(inn?.teamA && inn?.teamB)
+      })
+    }
+    return filtered.sort((a, b) => {
+      const aDate = coerceToDate(a.date)?.getTime() || 0
+      const bDate = coerceToDate(b.date)?.getTime() || 0
+      return bDate - aDate
+    })
+  }, [matches, filter, inningsMap])
+
+  return (
+    <div className="space-y-4 animate-in fade-in duration-500">
+      {/* Filter */}
+      <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl w-fit">
+        {(['all', 'live', 'upcoming', 'finished'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
+              }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* Match List */}
+      <div className="space-y-3">
+        {filteredMatches.length === 0 ? (
+          <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-400 font-bold">
+            No {filter !== 'all' ? filter : ''} matches found
+          </div>
+        ) : (
+          filteredMatches.map(match => (
+            <MatchCard key={match.id} match={match} innings={inningsMap.get(match.id)} />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Teams Tab Component
+function TournamentTeamsTab({ squads, players }: { squads: Squad[]; players: Player[] }) {
+  return (
+    <div className="space-y-3 animate-in fade-in duration-500">
+      {squads.length === 0 ? (
+        <div className="bg-slate-50 rounded-2xl p-8 text-center text-slate-400 font-bold">
+          No teams found
+        </div>
+      ) : (
+        squads.map(squad => {
+          const squadPlayers = players.filter(p => p.squadId === squad.id)
+          return (
+            <Link
+              key={squad.id}
+              to={`/squads/${squad.id}`}
+              className="flex items-center gap-4 bg-slate-50/50 p-3 rounded-2xl border border-slate-100 hover:bg-white hover:border-emerald-200 transition-all hover:shadow-md group"
+            >
+              <div className="w-12 h-12 bg-white rounded-xl border border-slate-100 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                {squad.logoUrl ? (
+                  <img src={squad.logoUrl} alt={squad.name} className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-xl font-black text-emerald-600 uppercase">{squad.name[0]}</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-900 group-hover:text-emerald-600 truncate">{squad.name}</div>
+                <div className="text-xs text-slate-400 uppercase tracking-widest">{squadPlayers.length} Players</div>
+              </div>
+              <svg className="w-5 h-5 text-slate-300 group-hover:text-emerald-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          )
+        })
+      )}
+    </div>
+  )
+}

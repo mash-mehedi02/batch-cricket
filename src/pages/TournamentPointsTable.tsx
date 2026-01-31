@@ -49,9 +49,23 @@ const getSquadDisplayName = (s: any): string => {
   )
 }
 
-export default function TournamentPointsTable(
-  { embedded = false, tournamentId: tournamentIdProp, filterSquadIds, hideQualification = false }: { embedded?: boolean; tournamentId?: string; filterSquadIds?: string[]; hideQualification?: boolean } = {}
-) {
+// ... imports
+
+export default function TournamentPointsTable({
+  embedded = false,
+  tournamentId: tournamentIdProp,
+  filterSquadIds,
+  hideQualification = false,
+  matches: matchesProp,
+  inningsMap: inningsMapProp
+}: {
+  embedded?: boolean
+  tournamentId?: string
+  filterSquadIds?: string[]
+  hideQualification?: boolean
+  matches?: Match[]
+  inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>
+} = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
   const [tournament, setTournament] = useState<Tournament | null>(null)
@@ -61,18 +75,26 @@ export default function TournamentPointsTable(
   const [squadIdByName, setSquadIdByName] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
 
+  // Sync props
+  useEffect(() => {
+    if (matchesProp) setMatches(matchesProp)
+    if (inningsMapProp) setInningsMap(inningsMapProp)
+  }, [matchesProp, inningsMapProp])
+
   useEffect(() => {
     const run = async () => {
       if (!tournamentId) return
-      setLoading(true)
+
+      if (!matchesProp && !inningsMapProp) setLoading(true)
+
       try {
         const t = await tournamentService.getById(tournamentId)
         setTournament(t)
 
-        const ms = await matchService.getByTournament(tournamentId)
-        setMatches(ms)
+        const ms = matchesProp || await matchService.getByTournament(tournamentId)
+        if (!matchesProp) setMatches(ms)
 
-        // Realtime squads: so renames reflect immediately
+        // Realtime squads
         const byId = new Map<string, any>()
         const byName = new Map<string, string>()
         const unsubSquads = squadService.subscribeAll((allSquads) => {
@@ -88,49 +110,21 @@ export default function TournamentPointsTable(
           setSquadIdByName(new Map(byName))
         })
 
-        // Collect referenced squads from tournament config + matches
-        const referenced: string[] = []
-          ; (((t as any)?.participantSquadIds || []) as any[]).forEach((sid) => referenced.push(String(sid || '').trim()))
-          ; (((t as any)?.groups || []) as any[]).forEach((g: any) => {
-            ; (g?.squadIds || []).forEach((sid: any) => referenced.push(String(sid || '').trim()))
-          })
-        ms.forEach((m) => {
-          referenced.push(String(resolveSquadId(m as any, 'A') || '').trim())
-          referenced.push(String(resolveSquadId(m as any, 'B') || '').trim())
-        })
-
-        // Try to resolve name references to IDs first
-        const referencedResolved = referenced
-          .filter(Boolean)
-          .map((x) => (byId.has(x) ? x : (byName.get(x.toLowerCase()) || x)))
-
-        const uniqueMissing = Array.from(new Set(referencedResolved)).filter((id) => id && !byId.has(id))
-        if (uniqueMissing.length > 0) {
-          const fetched = await Promise.all(uniqueMissing.map((id) => squadService.getById(id).catch(() => null)))
-          fetched.filter(Boolean).forEach((s: any) => {
-            if (!s?.id) return
-            byId.set(s.id, s)
-            const key = getSquadDisplayName(s).toLowerCase()
-            if (key) byName.set(key, s.id)
-          })
+        // Load innings if needed
+        if (!inningsMapProp) {
+          const entries = await Promise.all(
+            ms.map(async (m) => {
+              const [a, b] = await Promise.all([
+                matchService.getInnings(m.id, 'teamA'),
+                matchService.getInnings(m.id, 'teamB'),
+              ])
+              return [m.id, { teamA: a, teamB: b }] as const
+            })
+          )
+          const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
+          entries.forEach(([id, v]) => im.set(id, v))
+          setInningsMap(im)
         }
-        // Push initial (includes any missing fetched byId)
-        setSquadsById(new Map(byId))
-        setSquadIdByName(new Map(byName))
-
-        // Load innings for each match (needed to determine results + NRR)
-        const entries = await Promise.all(
-          ms.map(async (m) => {
-            const [a, b] = await Promise.all([
-              matchService.getInnings(m.id, 'teamA'),
-              matchService.getInnings(m.id, 'teamB'),
-            ])
-            return [m.id, { teamA: a, teamB: b }] as const
-          })
-        )
-        const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
-        entries.forEach(([id, v]) => im.set(id, v))
-        setInningsMap(im)
 
         return () => {
           unsubSquads()
@@ -139,10 +133,9 @@ export default function TournamentPointsTable(
         setLoading(false)
       }
     }
-    let cleanup: undefined | (() => void)
-    run().then((c: any) => { cleanup = typeof c === 'function' ? c : undefined }).catch(() => { })
-    return () => cleanup?.()
-  }, [tournamentId])
+    const cleanup = run()
+    return () => { }
+  }, [tournamentId, matchesProp, inningsMapProp])
 
   const { groups, groupBySquadId, standingsByGroup, confirmedQualifiedIds } = useMemo(() => {
     // Basic point rules
@@ -277,15 +270,26 @@ export default function TournamentPointsTable(
         return raw
       }
 
-      const groups: GroupConfig[] = ((tournament as any)?.groups || []) as any
-      const participantIds: string[] = (((tournament as any)?.participantSquadIds || []) as any)
-        .map((x: any) => normalizeSquadRef(x))
-        .filter(Boolean)
+      let rawGroups = ((tournament as any)?.groups || []) as any
+      if (!rawGroups.length) {
+        const pIds = new Set<string>()
+        // From explicit list
+        if (Array.isArray((tournament as any)?.participantSquadIds)) {
+          (tournament as any).participantSquadIds.forEach((id: any) => pIds.add(String(id)))
+        }
+        // From matches (Critical fallback)
+        matches.forEach((m: any) => {
+          const aId = resolveSquadId(m, 'A'); if (aId) pIds.add(String(aId))
+          const bId = resolveSquadId(m, 'B'); if (bId) pIds.add(String(bId))
+        })
 
-      const fallbackGroups: GroupConfig[] = participantIds.length
-        ? [{ id: 'group-1', name: 'Group A', squadIds: participantIds }]
-        : []
-      const effectiveGroups = (groups.length ? groups : fallbackGroups).map((g: any) => ({
+        const uniqueIds = Array.from(pIds).filter(Boolean)
+        if (uniqueIds.length > 0) {
+          rawGroups = [{ id: 'all', name: 'Standings', squadIds: uniqueIds }]
+        }
+      }
+
+      const effectiveGroups = rawGroups.map((g: any) => ({
         ...g,
         squadIds: (g.squadIds || []).map((sid: any) => normalizeSquadRef(sid)).filter(Boolean),
       }))
@@ -362,19 +366,31 @@ export default function TournamentPointsTable(
       // Let's stick to what's in the confirmedQualifiers map mainly.
     })
 
+    // 3. Filter groups by filterSquadIds if provided
+    let finalGroups = groupsList
+    if (filterSquadIds?.length) {
+      const filterSet = new Set(filterSquadIds)
+      finalGroups = groupsList.filter(g =>
+        (g.squadIds || []).some((sid: string) => filterSet.has(sid))
+      )
+    }
+
     return {
-      groups: groupsList,
+      groups: finalGroups,
       groupBySquadId: squadToGroupMap,
       standingsByGroup: standingsData,
       confirmedQualifiedIds: Array.from(confirmedQualifiedIds),
     }
-  }, [inningsMap, matches, squadIdByName, squadsById, tournament])
+  }, [inningsMap, matches, squadIdByName, squadsById, tournament, filterSquadIds])
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (groups.length > 0 && !activeGroupId) {
-      setActiveGroupId(groups[0].id)
+    if (groups.length > 0) {
+      // If none of our groups match the current activeGroupId, reset to the first one
+      if (!activeGroupId || !groups.find(g => g.id === activeGroupId)) {
+        setActiveGroupId(groups[0].id)
+      }
     }
   }, [groups, activeGroupId])
 
@@ -415,13 +431,13 @@ export default function TournamentPointsTable(
         <div className="space-y-8">
           {/* Group Selector Tabs */}
           {groups.length > 1 && (
-            <div className="p-1 bg-slate-200/40 backdrop-blur rounded-[1.25rem] flex gap-1 w-fit mx-auto sm:mx-0">
+            <div className="p-1 bg-slate-200/40 backdrop-blur rounded-[1.25rem] flex gap-1 w-fit max-w-full overflow-x-auto no-scrollbar mx-auto sm:mx-0">
               {groups.map((g) => (
                 <button
                   key={g.id}
                   onClick={() => setActiveGroupId(g.id)}
-                  className={`px-6 py-2.5 rounded-2xl text-[10px] sm:text-xs font-medium uppercase tracking-widest transition-all duration-300 ${activeGroupId === g.id
-                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100Scale-[1.02]'
+                  className={`px-6 py-2.5 rounded-2xl text-[10px] sm:text-xs font-medium uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${activeGroupId === g.id
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100 scale-[1.02]'
                     : 'text-slate-400 hover:text-slate-600'
                     }`}
                 >
@@ -450,10 +466,12 @@ export default function TournamentPointsTable(
 
                 return (
                   <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-50 flex items-center justify-between">
-                      <div className="font-medium text-slate-900 tracking-tight">{activeGroup.name}</div>
-                      <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Sorted by Points & NRR</div>
-                    </div>
+                    {!embedded && (
+                      <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-50 flex items-center justify-between">
+                        <div className="font-medium text-slate-900 tracking-tight">{activeGroup.name}</div>
+                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Sorted by Points & NRR</div>
+                      </div>
+                    )}
                     <div className="overflow-x-auto no-scrollbar">
                       <table className="w-full">
                         <thead>

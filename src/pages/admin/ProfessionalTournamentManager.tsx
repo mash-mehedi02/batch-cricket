@@ -14,6 +14,8 @@ import { Timestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { generateGroupFixtures } from '@/engine/tournament/fixtures';
 import { generateKnockoutFixtures } from '@/engine/tournament/knockout';
+import { generateMatchNumber } from '@/utils/matchNumber';
+import WheelDatePicker from '@/components/common/WheelDatePicker';
 
 interface ProfessionalTournamentManagerProps {
   mode?: 'dashboard' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
@@ -345,6 +347,9 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
           stage: 'group',
           stageLabel: 'Group',
         };
+
+        // Generate and add match number
+        (matchData as any).matchNo = await generateMatchNumber(id, tournament.name);
 
         await matchService.create(matchData as any);
       }
@@ -945,11 +950,9 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Start Date
                 </label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                <WheelDatePicker
+                  value={formData.startDate || new Date().toISOString().split('T')[0]}
+                  onChange={(val) => setFormData({ ...formData, startDate: val })}
                 />
               </div>
 
@@ -957,11 +960,9 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   End Date
                 </label>
-                <input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                <WheelDatePicker
+                  value={formData.endDate || new Date().toISOString().split('T')[0]}
+                  onChange={(val) => setFormData({ ...formData, endDate: val })}
                 />
               </div>
 

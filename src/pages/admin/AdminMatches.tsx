@@ -12,12 +12,15 @@ import { playerService } from '@/services/firestore/players'
 import { Match, Tournament, Squad } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { Timestamp } from 'firebase/firestore'
+import { generateMatchNumber } from '@/utils/matchNumber'
 import toast from 'react-hot-toast'
+import { CalendarClock, Play, Eye, Edit2, Trash2, Filter, Search, Plus, MapPin, Calendar, Clock, Trophy, ArrowLeft, Save, Shield, User, CheckCircle, Mic, AlertCircle, Check } from 'lucide-react'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { addManualCommentary } from '@/services/commentary/commentaryService'
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 import { coerceToDate, formatDateLabel, formatTimeLabel } from '@/utils/date'
+import WheelDatePicker from '@/components/common/WheelDatePicker'
 
 interface AdminMatchesProps {
   mode?: 'list' | 'create' | 'edit' | 'view'
@@ -61,6 +64,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     tossWinner: '',
     tossDecision: 'bat' as 'bat' | 'bowl',
     status: 'upcoming' as any,
+    matchNo: '',
   })
   const [formData, setFormData] = useState({
     tournamentId: '',
@@ -76,6 +80,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     tossWinner: '',
     tossDecision: 'bat' as 'bat' | 'bowl',
     status: 'upcoming' as any,
+    matchNo: '',
   })
   const [saving, setSaving] = useState(false)
   const [rescheduleModal, setRescheduleModal] = useState<{ open: boolean; match: Match | null }>({ open: false, match: null })
@@ -85,6 +90,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   const [itemToDelete, setItemToDelete] = useState<Match | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterStatus, setFilterStatus] = useState<string>('all')
 
   // Tournament → Groups → Allowed squads (for tournament-based fixtures)
   const selectedTournament = useMemo(() => {
@@ -222,6 +229,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
           tossWinner: data.tossWinner || '',
           tossDecision: ((data as any).tossDecision as any) || (data as any).electedTo || 'bat',
           status: (data as any).status || 'upcoming',
+          matchNo: (data as any).matchNo || (data as any).matchNumber || '',
         })
 
         // Initialize pre-match states
@@ -683,6 +691,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         tossDecision: (formData.tossDecision as any) || 'bat',
         electedTo: (formData.tossDecision as any) || 'bat',
         status: (formData.status as any) || 'upcoming',
+        matchNo: formData.matchNo || undefined,
         matchPhase: mode === 'create' ? 'FirstInnings' : undefined,
         createdBy: mode === 'create' ? user?.uid || '' : undefined,
       })
@@ -756,8 +765,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       const tossDecision = (matchData as any).tossDecision || 'bat'
 
       // Get team IDs for comparison
-      const teamAId = (matchData as any).teamASquadId || (matchData as any).teamAId || matchData.teamA
-      const teamBId = (matchData as any).teamBSquadId || (matchData as any).teamBId || matchData.teamB
+      const teamAId = (matchData as any).teamASquadId || (matchData as any).teamAId || (matchData as any).teamA
+      const teamBId = (matchData as any).teamBSquadId || (matchData as any).teamBId || (matchData as any).teamB
 
       if (tossWinner) {
         const tossWinnerStr = String(tossWinner).trim()
@@ -901,6 +910,16 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                     teamA: '',
                     teamB: '',
                   }))
+
+                  // Auto-generate match number if creating a new match
+                  if (mode === 'create' && nextTournamentId) {
+                    const t = tournaments.find(x => x.id === nextTournamentId)
+                    if (t) {
+                      generateMatchNumber(nextTournamentId, t.name).then(no => {
+                        setFormData(prev => ({ ...prev, matchNo: no }))
+                      })
+                    }
+                  }
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
               >
@@ -1011,12 +1030,9 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
-              <input
-                type="date"
-                required
+              <WheelDatePicker
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                onChange={(val) => setFormData({ ...formData, date: val })}
               />
             </div>
 
@@ -1040,6 +1056,17 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                 value={formData.oversLimit}
                 onChange={(e) => setFormData({ ...formData, oversLimit: parseInt(e.target.value) })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Match Number (Auto-generated)</label>
+              <input
+                type="text"
+                value={formData.matchNo}
+                onChange={(e) => setFormData({ ...formData, matchNo: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 bg-slate-50 font-mono font-bold"
+                placeholder="e.g. SFM01"
               />
             </div>
 
@@ -1084,8 +1111,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
               Cancel
             </Link>
           </div>
-        </form>
-      </div>
+        </form >
+      </div >
     )
   }
 
@@ -1125,309 +1152,373 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     const timeText = (matchView as any).time || (d ? formatTimeLabel(d) : '')
 
     return (
-      <div className="max-w-6xl mx-auto space-y-6 px-2 sm:px-0">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 pb-6 border-b border-slate-200">
           <div>
-            <Link to="/admin/matches" className="text-teal-600 hover:underline inline-block">
-              ← Back to Matches
+            <Link to="/admin/matches" className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors mb-3 text-sm font-medium">
+              <ArrowLeft size={16} /> Back to Matches
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">
-              {teamAName} vs {teamBName}
+            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+              {teamAName} <span className="text-slate-300 mx-2">vs</span> {teamBName}
             </h1>
-            <p className="text-gray-600 mt-1">
-              {matchView.venue || 'Venue TBA'}
-              {d ? ` • ${formatDateLabel(d)}${timeText ? ` • ${timeText}` : ''}` : ''}
-              {formData.status ? ` • ${String(formData.status).toUpperCase()}` : ''}
-            </p>
+            <div className="flex items-center gap-3 mt-3 text-sm font-medium text-slate-500">
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded text-slate-600">
+                <MapPin size={14} /> {matchView.venue || 'Venue TBA'}
+              </span>
+              {d && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded text-slate-600">
+                  <Calendar size={14} /> {formatDateLabel(d)}
+                </span>
+              )}
+              {timeText && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded text-slate-600">
+                  <Clock size={14} /> {timeText}
+                </span>
+              )}
+              {formData.status && (
+                <StatusBadge status={String(formData.status)} />
+              )}
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap md:justify-end">
+          <div className="flex gap-3 flex-wrap md:justify-end">
             <Link
               to={`/admin/matches/${matchView.id}/edit`}
-              className="px-4 py-2 bg-slate-700 text-white rounded-lg font-semibold hover:bg-slate-800"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 hover:border-slate-300 transition shadow-sm"
             >
-              Edit Match
+              <Edit2 size={16} /> Edit Details
             </Link>
             <Link
               to={`/match/${matchView.id}`}
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 hover:border-slate-300 transition shadow-sm"
             >
-              View Public
+              <Eye size={16} /> Public View
             </Link>
-            {canEditPreMatch ? (
+            {canEditPreMatch && (
               <button
                 onClick={() => handleStartMatch(matchView.id)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition shadow-sm shadow-green-200"
               >
-                Start Match
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Toss */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-gray-900">Toss</h2>
-              {!isEditingToss ? (
-                <span className="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">Saved</span>
-              ) : null}
-            </div>
-            {isEditingToss ? (
-              <button
-                onClick={handleSaveToss}
-                disabled={preMatchSaving || !canEditPreMatch}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-50"
-              >
-                Save Toss
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsEditingToss(true)}
-                disabled={!canEditPreMatch}
-                className="px-4 py-2 bg-slate-700 text-white rounded-lg font-semibold hover:bg-slate-800 disabled:opacity-50"
-              >
-                Modify
+                <Play size={16} fill="currentColor" /> Start Match
               </button>
             )}
           </div>
-          {!canEditPreMatch ? (
-            <p className="text-sm text-gray-500 mb-4">Toss can be edited before the match starts.</p>
-          ) : null}
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${!isEditingToss ? 'opacity-60' : ''}`}>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Toss Winner</label>
-              <select
-                value={formData.tossWinner}
-                onChange={(e) => setFormData({ ...formData, tossWinner: e.target.value })}
-                disabled={!canEditPreMatch || !isEditingToss}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 disabled:bg-gray-50"
-              >
-                <option value="">Not decided</option>
-                <option value="teamA">{teamAName}</option>
-                <option value="teamB">{teamBName}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Decision</label>
-              <select
-                value={formData.tossDecision}
-                onChange={(e) => setFormData({ ...formData, tossDecision: e.target.value as any })}
-                disabled={!canEditPreMatch || !isEditingToss}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 disabled:bg-gray-50"
-              >
-                <option value="bat">Bat</option>
-                <option value="bowl">Bowl</option>
-              </select>
-            </div>
-          </div>
         </div>
 
-        {/* Playing XI */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-gray-900">Playing XI</h2>
-              {!isEditingXI ? (
-                <span className="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">Saved</span>
-              ) : null}
-            </div>
-            {isEditingXI ? (
-              <button
-                onClick={handleSavePlayingXI}
-                disabled={preMatchSaving || !canEditPreMatch}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-50"
-              >
-                Save Playing XI
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsEditingXI(true)}
-                disabled={!canEditPreMatch}
-                className="px-4 py-2 bg-slate-700 text-white rounded-lg font-semibold hover:bg-slate-800 disabled:opacity-50"
-              >
-                Modify
-              </button>
-            )}
-          </div>
-          {!canEditPreMatch ? (
-            <p className="text-sm text-gray-500 mb-4">Playing XI can be edited before the match starts.</p>
-          ) : null}
-
-          <div className={`grid grid-cols-1 xl:grid-cols-2 gap-6 ${!isEditingXI ? 'opacity-60' : ''}`}>
-            {/* Team A */}
-            <div className="border border-gray-200 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-bold text-gray-900">{teamAName}</div>
-                <div className="text-sm text-gray-600">{teamAPlayingXI.length}/11 selected</div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-auto pr-1">
-                {teamAPlayers.map((p: any) => {
-                  const checked = teamAPlayingXI.includes(p.id)
-                  return (
-                    <label key={p.id} className={`flex items-center gap-2 p-2 rounded-lg border ${checked ? 'border-teal-300 bg-teal-50' : 'border-gray-200 bg-white'}`}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleXI('A', p.id)}
-                        disabled={!canEditPreMatch || !isEditingXI}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm font-semibold text-gray-900 truncate">{p.name}</span>
-                    </label>
-                  )
-                })}
-                {teamAPlayers.length === 0 ? <div className="text-sm text-gray-500">No squad players found.</div> : null}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Captain</label>
-                  <select
-                    value={teamACaptainId}
-                    onChange={(e) => setTeamACaptainId(e.target.value)}
-                    disabled={!canEditPreMatch || !isEditingXI}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50"
-                  >
-                    <option value="">Not set</option>
-                    {teamAPlayers.filter((p: any) => teamAPlayingXI.includes(p.id)).map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Column: Playing XI */}
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 leading-none">Playing XI</h2>
+                    <p className="text-sm text-slate-500 mt-1">Select 11 players for each team</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Wicket Keeper</label>
-                  <select
-                    value={teamAKeeperId}
-                    onChange={(e) => setTeamAKeeperId(e.target.value)}
-                    disabled={!canEditPreMatch || !isEditingXI}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50"
+                {isEditingXI ? (
+                  <button
+                    onClick={handleSavePlayingXI}
+                    disabled={preMatchSaving || !canEditPreMatch}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition shadow-sm"
                   >
-                    <option value="">Not set</option>
-                    {teamAPlayers.filter((p: any) => teamAPlayingXI.includes(p.id)).map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    {preMatchSaving ? 'Saving...' : <><Save size={16} /> Save Squads</>}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setIsEditingXI(true)}
+                    disabled={!canEditPreMatch}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 hover:text-blue-600 transition"
+                  >
+                    <Edit2 size={16} /> Modify
+                  </button>
+                )}
+              </div>
+
+              {!canEditPreMatch && (
+                <div className="bg-amber-50 px-6 py-3 border-b border-amber-100 flex items-center gap-2 text-amber-800 text-sm font-medium">
+                  <AlertCircle size={16} /> Playing XI is locked because the match has started/finished.
+                </div>
+              )}
+
+              <div className={`grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100 ${!isEditingXI ? 'opacity-90' : ''}`}>
+                {/* Team A Selection */}
+                <div className="flex flex-col h-full">
+                  <div className="p-4 bg-slate-50/30 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800">{teamAName}</h3>
+                    <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full border ${teamAPlayingXI.length === 11 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                      {teamAPlayingXI.length}/11
+                    </span>
+                  </div>
+                  <div className="flex-1 p-2 max-h-[500px] overflow-y-auto space-y-1">
+                    {teamAPlayers.length === 0 ? (
+                      <div className="p-8 text-center text-slate-400 text-sm italic">No squad players found for this team.</div>
+                    ) : teamAPlayers.map((p: any) => {
+                      const checked = teamAPlayingXI.includes(p.id)
+                      const isCaptain = p.id === teamACaptainId
+                      const isKeeper = p.id === teamAKeeperId
+                      return (
+                        <label key={p.id} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${checked ? 'bg-blue-50/50 border-blue-200 shadow-sm' : 'bg-white border-transparent hover:bg-slate-50'}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                              {checked && <Check size={12} className="text-white" />}
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleXI('A', p.id)}
+                              disabled={!canEditPreMatch || !isEditingXI}
+                              className="hidden"
+                            />
+                            <span className={`text-sm font-semibold ${checked ? 'text-blue-900' : 'text-slate-700'}`}>{p.name}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            {isCaptain && <span className="w-6 h-6 flex items-center justify-center bg-amber-100 text-amber-700 rounded-full text-[10px] font-black border border-amber-200" title="Captain">C</span>}
+                            {isKeeper && <span className="w-6 h-6 flex items-center justify-center bg-purple-100 text-purple-700 rounded-full text-[10px] font-black border border-purple-200" title="Wicket Keeper">WK</span>}
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 pl-1">Captain</label>
+                      <div className="relative">
+                        <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <select
+                          value={teamACaptainId}
+                          onChange={(e) => setTeamACaptainId(e.target.value)}
+                          disabled={!canEditPreMatch || !isEditingXI}
+                          className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100"
+                        >
+                          <option value="">Select C</option>
+                          {teamAPlayers.filter((p: any) => teamAPlayingXI.includes(p.id)).map((p: any) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 pl-1">Wicket Keeper</label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 border border-slate-300 rounded px-0.5">WK</div>
+                        <select
+                          value={teamAKeeperId}
+                          onChange={(e) => setTeamAKeeperId(e.target.value)}
+                          disabled={!canEditPreMatch || !isEditingXI}
+                          className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100"
+                        >
+                          <option value="">Select WK</option>
+                          {teamAPlayers.filter((p: any) => teamAPlayingXI.includes(p.id)).map((p: any) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Team B Selection */}
+                <div className="flex flex-col h-full">
+                  <div className="p-4 bg-slate-50/30 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800">{teamBName}</h3>
+                    <span className={`text-xs font-extrabold px-2.5 py-1 rounded-full border ${teamBPlayingXI.length === 11 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                      {teamBPlayingXI.length}/11
+                    </span>
+                  </div>
+                  <div className="flex-1 p-2 max-h-[500px] overflow-y-auto space-y-1">
+                    {teamBPlayers.length === 0 ? (
+                      <div className="p-8 text-center text-slate-400 text-sm italic">No squad players found for this team.</div>
+                    ) : teamBPlayers.map((p: any) => {
+                      const checked = teamBPlayingXI.includes(p.id)
+                      const isCaptain = p.id === teamBCaptainId
+                      const isKeeper = p.id === teamBKeeperId
+                      return (
+                        <label key={p.id} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${checked ? 'bg-blue-50/50 border-blue-200 shadow-sm' : 'bg-white border-transparent hover:bg-slate-50'}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                              {checked && <Check size={12} className="text-white" />}
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleXI('B', p.id)}
+                              disabled={!canEditPreMatch || !isEditingXI}
+                              className="hidden"
+                            />
+                            <span className={`text-sm font-semibold ${checked ? 'text-blue-900' : 'text-slate-700'}`}>{p.name}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            {isCaptain && <span className="w-6 h-6 flex items-center justify-center bg-amber-100 text-amber-700 rounded-full text-[10px] font-black border border-amber-200" title="Captain">C</span>}
+                            {isKeeper && <span className="w-6 h-6 flex items-center justify-center bg-purple-100 text-purple-700 rounded-full text-[10px] font-black border border-purple-200" title="Wicket Keeper">WK</span>}
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 pl-1">Captain</label>
+                      <div className="relative">
+                        <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <select
+                          value={teamBCaptainId}
+                          onChange={(e) => setTeamBCaptainId(e.target.value)}
+                          disabled={!canEditPreMatch || !isEditingXI}
+                          className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100"
+                        >
+                          <option value="">Select C</option>
+                          {teamBPlayers.filter((p: any) => teamBPlayingXI.includes(p.id)).map((p: any) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 pl-1">Wicket Keeper</label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 border border-slate-300 rounded px-0.5">WK</div>
+                        <select
+                          value={teamBKeeperId}
+                          onChange={(e) => setTeamBKeeperId(e.target.value)}
+                          disabled={!canEditPreMatch || !isEditingXI}
+                          className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-100"
+                        >
+                          <option value="">Select WK</option>
+                          {teamBPlayers.filter((p: any) => teamBPlayingXI.includes(p.id)).map((p: any) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Team B */}
-            <div className="border border-gray-200 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-bold text-gray-900">{teamBName}</div>
-                <div className="text-sm text-gray-600">{teamBPlayingXI.length}/11 selected</div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-auto pr-1">
-                {teamBPlayers.map((p: any) => {
-                  const checked = teamBPlayingXI.includes(p.id)
-                  return (
-                    <label key={p.id} className={`flex items-center gap-2 p-2 rounded-lg border ${checked ? 'border-teal-300 bg-teal-50' : 'border-gray-200 bg-white'}`}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleXI('B', p.id)}
-                        disabled={!canEditPreMatch || !isEditingXI}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm font-semibold text-gray-900 truncate">{p.name}</span>
-                    </label>
-                  )
-                })}
-                {teamBPlayers.length === 0 ? <div className="text-sm text-gray-500">No squad players found.</div> : null}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Captain</label>
-                  <select
-                    value={teamBCaptainId}
-                    onChange={(e) => setTeamBCaptainId(e.target.value)}
-                    disabled={!canEditPreMatch || !isEditingXI}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50"
-                  >
-                    <option value="">Not set</option>
-                    {teamBPlayers.filter((p: any) => teamBPlayingXI.includes(p.id)).map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Wicket Keeper</label>
-                  <select
-                    value={teamBKeeperId}
-                    onChange={(e) => setTeamBKeeperId(e.target.value)}
-                    disabled={!canEditPreMatch || !isEditingXI}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50"
-                  >
-                    <option value="">Not set</option>
-                    {teamBPlayers.filter((p: any) => teamBPlayingXI.includes(p.id)).map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Manual Commentary */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Manual Commentary</h2>
-            <button
-              onClick={handleAddManualCommentary}
-              disabled={preMatchSaving || !manualText.trim()}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-50"
-            >
-              Add Commentary
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Innings</label>
-              <select
-                value={manualInningId}
-                onChange={(e) => setManualInningId(e.target.value as any)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              >
-                <option value="teamA">{teamAName}</option>
-                <option value="teamB">{teamBName}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Over</label>
-              <input
-                value={manualOver}
-                onChange={(e) => setManualOver(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                placeholder="0.0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Ball</label>
-              <input
-                type="number"
-                value={manualBall}
-                onChange={(e) => setManualBall(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                min={0}
-              />
-            </div>
-            <div className="md:col-span-1">
-              <label className="block text-sm font-semibold text-gray-700 mb-1"> </label>
-              <div className="text-xs text-gray-500 pt-2">This can be used before match start as well.</div>
             </div>
           </div>
-          <textarea
-            value={manualText}
-            onChange={(e) => setManualText(e.target.value)}
-            rows={4}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-            placeholder="Write a manual commentary update..."
-          />
+
+          {/* Right Column: Toss & Manual Comm */}
+          <div className="space-y-8">
+            {/* Toss Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-amber-100 text-amber-600 rounded-lg"><Trophy size={18} /></span>
+                  <h2 className="font-bold text-slate-900">Toss</h2>
+                </div>
+                {!isEditingToss && (
+                  <span className="flex items-center gap-1 text-[10px] uppercase font-black tracking-wider text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+                    <CheckCircle size={10} /> Saved
+                  </span>
+                )}
+              </div>
+
+              <div className="p-6">
+                {isEditingToss ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Toss Winner</label>
+                      <select
+                        value={formData.tossWinner}
+                        onChange={(e) => setFormData({ ...formData, tossWinner: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Select Winner</option>
+                        <option value="teamA">{teamAName}</option>
+                        <option value="teamB">{teamBName}</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Decision</label>
+                      <select
+                        value={formData.tossDecision}
+                        onChange={(e) => setFormData({ ...formData, tossDecision: e.target.value as any })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="bat">Bat</option>
+                        <option value="bowl">Bowl</option>
+                      </select>
+                    </div>
+                    <div className="pt-2 flex gap-2">
+                      <button onClick={handleSaveToss} disabled={preMatchSaving} className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-bold text-sm hover:bg-blue-700">Save</button>
+                      <button onClick={() => setIsEditingToss(false)} className="px-3 bg-slate-100 text-slate-600 rounded-lg font-bold text-sm hover:bg-slate-200">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    {formData.tossWinner ? (
+                      <div>
+                        <div className="text-slate-500 text-sm mb-1">Toss Winner</div>
+                        <div className="text-xl font-black text-slate-900 mb-3">
+                          {formData.tossWinner === 'teamA' ? teamAName : teamBName}
+                        </div>
+                        <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-800 px-3 py-1.5 rounded-full border border-amber-100 text-sm font-bold">
+                          Elected to {formData.tossDecision?.toUpperCase()}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-slate-400 italic">Toss not yet decided</div>
+                    )}
+                    {canEditPreMatch && (
+                      <button onClick={() => setIsEditingToss(true)} className="mt-6 w-full py-2 border border-slate-200 rounded-lg text-slate-600 font-bold text-sm hover:bg-slate-50 hover:text-blue-600 transition">
+                        Update Toss
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Manual Commentary Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-purple-100 text-purple-600 rounded-lg"><Mic size={18} /></span>
+                  <h2 className="font-bold text-slate-900">Manual Update</h2>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-3">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Innings</label>
+                    <select
+                      value={manualInningId}
+                      onChange={(e) => setManualInningId(e.target.value as any)}
+                      className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="teamA">{teamAName}</option>
+                      <option value="teamB">{teamBName}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Over</label>
+                    <input value={manualOver} onChange={e => setManualOver(e.target.value)} className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg text-center font-mono" placeholder="0.0" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Ball</label>
+                    <input type="number" value={manualBall} onChange={e => setManualBall(Number(e.target.value))} className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg text-center font-mono" />
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={handleAddManualCommentary} disabled={!manualText.trim()} className="w-full bg-slate-900 text-white rounded-lg py-2 text-sm font-bold hover:bg-slate-800 disabled:opacity-50 transition">
+                      Post
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <textarea
+                    value={manualText}
+                    onChange={e => setManualText(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    placeholder="Type commentary here..."
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -1457,279 +1548,282 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     )
   }
 
-  const upcomingMatches = matches.filter(m => String((m as any).status || '').toLowerCase() === 'upcoming')
-  const liveMatches = matches.filter(m => String((m as any).status || '').toLowerCase() === 'live')
+  const activeLiveMatches = matches.filter(m => String((m as any).status || '').toLowerCase() === 'live')
+
+  const filteredMatches = matches.filter(match => {
+    const rawStatus = String((match as any).status || 'upcoming').toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
+    const matchTerms = [
+      match.teamAName, (match as any).teamA,
+      match.teamBName, (match as any).teamB,
+      match.venue,
+      match.id,
+      (match as any).matchNo,
+      tournaments.find(t => t.id === match.tournamentId)?.name
+    ].map(t => String(t || '').toLowerCase());
+
+    const matchesSearch = !searchTerm || matchTerms.some(t => t.includes(searchLower));
+
+    let matchesStatus = true;
+    if (filterStatus === 'live') matchesStatus = rawStatus === 'live';
+    else if (filterStatus === 'completed') matchesStatus = ['completed', 'finished', 'abandoned'].includes(rawStatus);
+    else if (filterStatus === 'upcoming') matchesStatus = rawStatus === 'upcoming';
+
+    return matchesSearch && matchesStatus;
+  }).sort((a, b) => {
+    const da = coerceToDate((a as any).date) || new Date(0)
+    const db = coerceToDate((b as any).date) || new Date(0)
+    return db.getTime() - da.getTime()
+  })
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 max-w-[1600px] mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Matches</h1>
-          <p className="text-gray-600 mt-1">Manage all matches</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Match Center</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage fixture schedules, venues, and status.</p>
         </div>
         <Link
           to="/admin/matches/new"
-          className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm"
         >
-          + New Match
+          <Plus size={18} />
+          Create Match
         </Link>
       </div>
 
-      {/* Live Matches */}
-      {liveMatches.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">🔴 Live Matches</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {liveMatches.map((match) => (
-              <div
-                key={match.id}
-                className="bg-white rounded-xl shadow-md p-6 border-2 border-red-200"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      {match.teamAName || (match as any).teamA || (match as any).teamAId} vs {match.teamBName || (match as any).teamB || (match as any).teamBId}
-                    </h3>
-                    <p className="text-sm text-gray-600">{match.venue}</p>
-                  </div>
-                  <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                    LIVE
+      {/* Live Matches Section - Pinned */}
+      {activeLiveMatches.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {activeLiveMatches.map(match => (
+            <div key={match.id} className="bg-white rounded-xl shadow-sm border border-rose-100 p-5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Clock size={64} className="text-rose-600" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-rose-600 uppercase tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                    Live Now
+                  </span>
+                  <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded">
+                    {match.oversLimit} Overs
                   </span>
                 </div>
+                <h3 className="font-bold text-slate-900 text-lg leading-snug mb-1">
+                  {match.teamAName || 'Team A'} vs {match.teamBName || 'Team B'}
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">{match.venue}</p>
+
                 <div className="flex gap-2">
                   <Link
                     to={`/admin/live/${match.id}/scoring`}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 text-center"
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-2 px-3 rounded-lg text-center transition-colors shadow-sm shadow-rose-200"
                   >
                     Score Match
                   </Link>
                   <Link
                     to={`/admin/matches/${match.id}`}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                    className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 rounded-lg transition-colors"
                   >
-                    View
+                    <Eye size={18} />
                   </Link>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* All Matches - Comprehensive Table */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">All Matches</h2>
-        <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Teams</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Venue</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date & Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {matches.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      No matches found
-                    </td>
-                  </tr>
-                ) : (
-                  matches.map((match) => {
-                    const matchDate = coerceToDate((match as any).date) || new Date()
-                    const statusRaw = String((match as any).status || '').toLowerCase()
-                    const isUpcoming = statusRaw === 'upcoming'
-                    const isLive = statusRaw === 'live'
-                    const isCompleted = statusRaw === 'completed' || statusRaw === 'finished'
-                    const canStart = isUpcoming || (!isLive && !isCompleted)
-
-                    return (
-                      <tr key={match.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-gray-900">
-                            {match.teamAName || (match as any).teamA || (match as any).teamAId} vs {match.teamBName || (match as any).teamB || (match as any).teamBId}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-gray-700">{match.venue || '—'}</td>
-                        <td className="px-6 py-4 text-gray-700">
-                          <div>
-                            <div>{matchDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                            <div className="text-sm text-gray-500">{matchDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {isLive && (
-                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                              🔴 LIVE
-                            </span>
-                          )}
-                          {isUpcoming && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
-                              Upcoming
-                            </span>
-                          )}
-                          {isCompleted && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-semibold">
-                              Completed
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2 flex-wrap">
-                            {canStart && (
-                              <button
-                                onClick={() => handleStartMatch(match.id)}
-                                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
-                                title="Start match (even before scheduled time)"
-                              >
-                                Start
-                              </button>
-                            )}
-                            {isUpcoming && (
-                              <button
-                                onClick={() => handleOpenReschedule(match)}
-                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-                                title="Reschedule match date/time"
-                              >
-                                Reschedule
-                              </button>
-                            )}
-                            <Link
-                              to={`/admin/matches/${match.id}/edit`}
-                              className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition"
-                              title="Edit match details"
-                            >
-                              Edit
-                            </Link>
-                            <button
-                              onClick={() => handleDeleteClick(match)}
-                              className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
-                              title="Delete match"
-                            >
-                              Delete
-                            </button>
-                            <Link
-                              to={`/admin/matches/${match.id}`}
-                              className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition"
-                              title="Setup / View (Admin)"
-                            >
-                              View
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
+      {/* Main Filter & Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50/50">
+          <div className="relative w-full lg:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search by team, ID, or match number (e.g. BT204)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white"
+            />
           </div>
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-slate-400" />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[140px]"
+            >
+              <option value="all">All Stages</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="live">Live</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-xs tracking-wider">
+              <tr>
+                <th className="px-6 py-4">Match Info</th>
+                <th className="px-6 py-4">Teams</th>
+                <th className="px-6 py-4">Schedule</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredMatches.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-20 text-center">
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <Calendar className="mb-4 text-slate-200" size={48} strokeWidth={1} />
+                      <p className="text-lg font-medium text-slate-900">No matches found</p>
+                      <p className="text-sm">Create a new match to get started.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredMatches.map(match => {
+                  const matchDate = coerceToDate((match as any).date) || new Date();
+                  const statusRaw = String((match as any).status || '').toLowerCase();
+                  const isLive = statusRaw === 'live';
+                  const isUpcoming = statusRaw === 'upcoming';
+                  const tourneyName = tournaments.find(t => t.id === match.tournamentId)?.name || 'Friendly Match';
+
+                  return (
+                    <tr key={match.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded font-mono text-xs font-bold ${(match as any).matchNo ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
+                            {(match as any).matchNo ? (match as any).matchNo : `#${match.id.slice(0, 6).toUpperCase()}`}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-blue-600 uppercase tracking-tight">{tourneyName}</div>
+                            <div className="text-xs text-slate-400 capitalize">{match.groupName ? `${match.groupName} Group` : 'Match'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900 text-sm">
+                          <div className="mb-1">{match.teamAName || 'Team A'}</div>
+                          <div className="text-slate-400 text-xs font-normal mb-1">vs</div>
+                          <div>{match.teamBName || 'Team B'}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col text-slate-600">
+                          <span className="flex items-center gap-1.5 font-medium text-slate-900">
+                            <Calendar size={14} className="text-slate-400" />
+                            {formatDateLabel(matchDate)}
+                          </span>
+                          <span className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+                            <Clock size={14} className="text-slate-400" />
+                            {(match as any).time || matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={statusRaw} />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isUpcoming && (
+                            <button
+                              onClick={() => handleStartMatch(match.id)}
+                              className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-bold hover:bg-emerald-700 transition"
+                            >
+                              Start
+                            </button>
+                          )}
+                          {isLive && (
+                            <Link
+                              to={`/admin/live/${match.id}/scoring`}
+                              className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 transition"
+                            >
+                              Score
+                            </Link>
+                          )}
+
+                          <div className="flex items-center bg-slate-100 rounded-lg p-1">
+                            {isUpcoming && (
+                              <button onClick={() => handleOpenReschedule(match)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition" title="Reschedule">
+                                <CalendarClock size={16} />
+                              </button>
+                            )}
+                            <Link to={`/admin/matches/${match.id}/edit`} className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-white rounded-md transition" title="Edit">
+                              <Edit2 size={16} />
+                            </Link>
+                            <Link to={`/admin/matches/${match.id}`} className="p-1.5 text-slate-900 bg-white shadow-sm rounded-md transition" title="View Full Control">
+                              <Eye size={16} />
+                            </Link>
+                            <button onClick={() => handleDeleteClick(match)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md transition" title="Delete">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Upcoming Matches - Quick View */}
-      {
-        upcomingMatches.length > 0 && (
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Matches</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {upcomingMatches.slice(0, 6).map((match) => {
-                const matchDate = coerceToDate((match as any).date) || new Date()
-                return (
-                  <div
-                    key={match.id}
-                    className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition"
-                  >
-                    <div className="mb-4">
-                      <h3 className="font-semibold text-gray-900 mb-1">
-                        {match.teamAName || (match as any).teamA || (match as any).teamAId} vs {match.teamBName || (match as any).teamB || (match as any).teamBId}
-                      </h3>
-                      <p className="text-sm text-gray-600">{match.venue || '—'}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {matchDate.toLocaleDateString()} at {matchDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        onClick={() => handleStartMatch(match.id)}
-                        className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
-                      >
-                        Start
-                      </button>
-                      <button
-                        onClick={() => handleOpenReschedule(match)}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-                      >
-                        Reschedule
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(match)}
-                        className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
       {/* Reschedule Modal */}
-      {
-        rescheduleModal.open && rescheduleModal.match && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Reschedule Match</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {rescheduleModal.match.teamAName || (rescheduleModal.match as any).teamA || (rescheduleModal.match as any).teamAId} vs {rescheduleModal.match.teamBName || (rescheduleModal.match as any).teamB || (rescheduleModal.match as any).teamBId}
-                  </label>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">New Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={rescheduleData.date}
-                    onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">New Time</label>
-                  <input
-                    type="time"
-                    value={rescheduleData.time}
-                    onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  />
-                </div>
+      {rescheduleModal.open && rescheduleModal.match && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
+                <CalendarClock size={24} />
               </div>
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleRescheduleMatch}
-                  className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition"
-                >
-                  Reschedule
-                </button>
-                <button
-                  onClick={() => setRescheduleModal({ open: false, match: null })}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
-                >
-                  Cancel
-                </button>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Reschedule</h3>
+                <p className="text-xs text-slate-500">Update match timing</p>
               </div>
             </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Date</label>
+                <WheelDatePicker
+                  value={rescheduleData.date}
+                  onChange={(val) => setRescheduleData({ ...rescheduleData, date: val })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Time</label>
+                <input
+                  type="time"
+                  value={rescheduleData.time}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              <button
+                onClick={() => setRescheduleModal({ open: false, match: null })}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRescheduleMatch}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-sm shadow-blue-200"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
-        )
-      }
+        </div>
+      )}
 
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
@@ -1743,5 +1837,13 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       />
     </div>
   )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase()
+  if (s === 'live') return <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-100 uppercase tracking-wide">LIVE</span>
+  if (s === 'upcoming') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wide">Upcoming</span>
+  if (['completed', 'finished'].includes(s)) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase tracking-wide">Finished</span>
+  return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wide">{s}</span>
 }
 

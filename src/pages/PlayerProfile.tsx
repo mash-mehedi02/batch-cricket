@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react'
+import { clsx } from 'clsx'
 import { useParams, Link } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
 import { db } from '@/config/firebase'
@@ -11,15 +12,16 @@ import { squadService } from '@/services/firestore/squads'
 import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle } from '@/types'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import PageHeader from '@/components/common/PageHeader'
 import cricketBatIcon from '@/assets/cricket-bat.png'
 import cricketBallIcon from '@/assets/cricket-ball.png'
 import { useAuthStore } from '@/store/authStore'
 import { claimPlayerWithGoogle, updatePlayerPersonalInfo, verifyPlayerAccess } from '@/services/firestore/playerClaim'
 import toast from 'react-hot-toast'
-import { ShieldCheck, Edit, X, Facebook, Instagram, Twitter, Linkedin, Globe, Trophy, Camera, LogOut } from 'lucide-react'
+import { ShieldCheck, Edit, X, Facebook, Instagram, Twitter, Linkedin, Globe, Camera, ChevronDown } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { uploadImage } from '@/services/cloudinary/uploader'
-import { auth } from '@/config/firebase'
-import { signOut } from 'firebase/auth'
+import WheelDatePicker from '@/components/common/WheelDatePicker'
 
 const detectPlatform = (url: string): 'instagram' | 'facebook' | 'x' | 'linkedin' | null => {
   const lower = url.toLowerCase()
@@ -42,15 +44,6 @@ const extractUsername = (url: string) => {
 
 
 
-// Helper to format role names consistently
-function formatRole(player: any): string {
-  const role = player.role || 'Player'
-  if (role === 'batsman') return 'RHB Batter'
-  if (role === 'bowler') return player.bowlingStyle?.toLowerCase().includes('spin') ? 'Spinner' : 'Pacer'
-  if (role === 'all-rounder') return 'All Rounder'
-  if (role === 'wicket-keeper') return 'WK Batter'
-  return role.charAt(0).toUpperCase() + role.slice(1)
-}
 
 // Helper to format opponent name
 function formatOpponentName(rawName: string): string {
@@ -76,6 +69,7 @@ function formatOpponentName(rawName: string): string {
 }
 
 const INITIAL_EDIT_FORM_STATE = {
+  name: '',
   username: '',
   bio: '',
   photoUrl: '',
@@ -94,31 +88,14 @@ export default function PlayerProfile() {
   const [loading, setLoading] = useState(true)
   // Claim & Edit Handlers
   const handleClaim = async () => {
-    const toastId = toast.loading('Initiating Google Sign-In...');
     setClaiming(true);
     try {
       await claimPlayerWithGoogle(playerId!);
-      toast.success('Identity Verified! Welcome.', { id: toastId });
       setShowClaimModal(false);
-
-      // Open edit modal directly instead of reload
-      if (player) {
-        setEditForm({
-          username: player.username || player.name || '',
-          bio: player.bio || '',
-          photoUrl: player.photoUrl || '',
-          dateOfBirth: player.dateOfBirth || '',
-          socialLinks: player.socialLinks || [],
-          address: player.address || '',
-          role: player.role || 'batsman',
-          battingStyle: player.battingStyle || 'right-handed',
-          bowlingStyle: player.bowlingStyle || 'right-arm-medium'
-        });
-        setShowEditModal(true);
-      }
+      // Success - hasActiveSession will update via useEffect
     } catch (error: any) {
       console.error('Claim failed:', error);
-      toast.error(error.message || 'Verification failed.', { id: toastId });
+      toast.error(error.message || 'Verification failed.');
     } finally {
       setClaiming(false);
     }
@@ -155,6 +132,7 @@ export default function PlayerProfile() {
     setSaving(true)
     try {
       await updatePlayerPersonalInfo(playerId, {
+        name: editForm.name,
         username: editForm.username,
         bio: editForm.bio,
         photoUrl: editForm.photoUrl,
@@ -165,10 +143,8 @@ export default function PlayerProfile() {
         battingStyle: editForm.battingStyle,
         bowlingStyle: editForm.bowlingStyle
       })
-      toast.success('Profile updated! Session cleared for security.')
-      setShowEditModal(false)
-      // Logout after save as requested
-      await signOut(auth)
+      toast.success('Profile updated!')
+      setIsEditing(false)
     } catch (e: any) {
       console.error(e)
       toast.error(e.message || 'Update failed. Ensure you are the owner.')
@@ -178,15 +154,16 @@ export default function PlayerProfile() {
   }
   const [activeTab, setActiveTab] = useState('overview')
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
+  const [isEditing, setIsEditing] = useState(false)
 
   // Claim & Edit States
   const { user } = useAuthStore()
   const [showClaimModal, setShowClaimModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
   const [claiming, setClaiming] = useState(false)
 
   // Edit Form State
   const [editForm, setEditForm] = useState<{
+    name: string
     username: string
     bio: string
     photoUrl: string
@@ -201,6 +178,7 @@ export default function PlayerProfile() {
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [hasActiveSession, setHasActiveSession] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(false)
 
   // Session Checker
   useEffect(() => {
@@ -214,6 +192,11 @@ export default function PlayerProfile() {
     }
     checkSession()
   }, [user, player])
+
+  // Reset date picker visibility when edit mode changes
+  useEffect(() => {
+    if (!isEditing) setShowDatePicker(false)
+  }, [isEditing])
 
   // Real-time states
   const [allMatches, setAllMatches] = useState<any[]>([])
@@ -600,55 +583,22 @@ export default function PlayerProfile() {
 
   return (
     <div className="min-h-screen bg-white relative pb-24">
-      {/* Sticky Top Section (Header + Tabs) */}
-      <div className="sticky top-0 z-[60] shadow-2xl">
+      <PageHeader
+        title={player.name}
+        subtitle={squadName || "Player Profile"}
+      />
+
+      {/* Top Section (Header + Tabs) - Not Sticky anymore to allow PageHeader to scroll away */}
+      <div className="shadow-2xl">
         <div className="bg-slate-950 text-white relative overflow-hidden">
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-emerald-500/10 to-transparent pointer-events-none"></div>
           <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 relative z-10">
+
             {/* Action Button - Top Right */}
-            <div className="absolute top-4 right-4 sm:top-8 sm:right-8 z-[100]">
-              {!hasActiveSession ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShowClaimModal(true);
-                    if (player.claimed) {
-                      toast('Login to edit this profile', { icon: '🔐' });
-                    }
-                  }}
-                  className="cursor-pointer bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg font-black text-[9px] md:text-[10px] flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-500/20 border border-emerald-400/50 uppercase tracking-wider"
-                >
-                  <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  Is it You?
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditForm({
-                      username: player.username || player.name || '',
-                      bio: player.bio || '',
-                      photoUrl: player.photoUrl || '',
-                      dateOfBirth: player.dateOfBirth || '',
-                      socialLinks: player.socialLinks || [],
-                      role: player.role || 'batsman',
-                      battingStyle: player.battingStyle || 'right-handed',
-                      bowlingStyle: player.bowlingStyle || 'right-arm-medium'
-                    })
-                    setShowEditModal(true)
-                  }}
-                  className="cursor-pointer bg-white/10 hover:bg-white/20 active:scale-95 backdrop-blur-md border border-white/20 text-white px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg font-black text-[9px] md:text-[10px] flex items-center gap-1.5 transition-all uppercase tracking-wider"
-                >
-                  <Edit className="w-3 h-3 md:w-3.5 md:h-3.5 text-sky-400" />
-                  Edit Profile
-                </button>
-              )}
-            </div>
+            {/* Removed action buttons from header */}
 
             <div className="flex flex-row items-center gap-4 md:gap-8">
               <div className="relative group shrink-0">
@@ -693,27 +643,27 @@ export default function PlayerProfile() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Refined Tabs (Inside Sticky Container) */}
-        <div className="bg-white border-b border-slate-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex gap-4">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-4 text-sm font-bold relative transition-all ${activeTab === tab.id
-                    ? 'text-emerald-600'
-                    : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                >
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
-                  )}
-                </button>
-              ))}
-            </div>
+      {/* Refined Tabs (Sticky Container) */}
+      <div className="sticky top-0 z-[60] bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-4">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-4 text-sm font-bold relative transition-all ${activeTab === tab.id
+                  ? 'text-emerald-600'
+                  : 'text-slate-500 hover:text-slate-900'
+                  }`}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -967,56 +917,248 @@ export default function PlayerProfile() {
           </div>
         )}
         {activeTab === 'player-info' && (
-          <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+          <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-20">
+
+            {/* Photo Edit (Only if editing) */}
+            {isEditing && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm text-center">
+                <div className="relative inline-block group">
+                  <div className="w-32 h-32 rounded-full bg-slate-50 border-4 border-white shadow-xl overflow-hidden">
+                    {uploadingPhoto ? (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                        <span className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
+                      </div>
+                    ) : (
+                      <img src={editForm.photoUrl || (player as any).photo || "https://placehold.co/200"} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <label className="absolute bottom-0 right-0 w-10 h-10 bg-emerald-500 rounded-full shadow-lg border-2 border-white flex items-center justify-center cursor-pointer hover:bg-emerald-400 transition-all hover:scale-110 active:scale-95">
+                    <Camera className="w-5 h-5 text-white" />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setUploadingPhoto(true)
+                          try {
+                            const url = await uploadImage(file, (p) => console.log(`Uploading: ${p}%`))
+                            setEditForm(prev => ({ ...prev, photoUrl: url }))
+                          } catch (error) {
+                            toast.error("Photo upload failed")
+                          } finally {
+                            setUploadingPhoto(false)
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">Profile Photo</p>
+              </div>
+            )}
+
             {/* Playing Info Card */}
             <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
               <div className="px-8 py-2">
-                <div className="flex py-5 border-b border-slate-50 items-center justify-between">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Role:</span>
-                  <span className="text-sm font-bold text-slate-800 capitalize">{player.role || 'Batter'}</span>
+                <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Role:</span>
+                  {isEditing ? (
+                    <select
+                      value={editForm.role}
+                      onChange={(e) => setEditForm({ ...editForm, role: e.target.value as PlayerRole })}
+                      className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                    >
+                      <option value="batsman">Batsman</option>
+                      <option value="bowler">Bowler</option>
+                      <option value="all-rounder">All Rounder</option>
+                      <option value="wicket-keeper">Wicket Keeper</option>
+                    </select>
+                  ) : (
+                    <span className="text-sm font-bold text-slate-800 capitalize">{player.role || 'Batter'}</span>
+                  )}
                 </div>
-                <div className="flex py-5 border-b border-slate-50 items-center justify-between">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Bats:</span>
-                  <span className="text-sm font-bold text-slate-800 capitalize">{player.battingStyle || 'Right Handed'}</span>
+                <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Bats:</span>
+                  {isEditing ? (
+                    <select
+                      value={editForm.battingStyle}
+                      onChange={(e) => setEditForm({ ...editForm, battingStyle: e.target.value as BattingStyle })}
+                      className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                    >
+                      <option value="right-handed">Right Handed</option>
+                      <option value="left-handed">Left Handed</option>
+                    </select>
+                  ) : (
+                    <span className="text-sm font-bold text-slate-800 capitalize">{player.battingStyle || 'Right Handed'}</span>
+                  )}
                 </div>
-                <div className="flex py-5 items-center justify-between">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Bowl:</span>
-                  <span className="text-sm font-bold text-slate-800 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
+                <div className={clsx("flex items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Bowl:</span>
+                  {isEditing ? (
+                    <select
+                      value={editForm.bowlingStyle}
+                      onChange={(e) => setEditForm({ ...editForm, bowlingStyle: e.target.value as BowlingStyle })}
+                      className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                    >
+                      <option value="right-arm-fast">Right Arm Fast</option>
+                      <option value="right-arm-medium">Right Arm Medium</option>
+                      <option value="right-arm-spin">Right Arm Spin</option>
+                      <option value="left-arm-fast">Left Arm Fast</option>
+                      <option value="left-arm-medium">Left Arm Medium</option>
+                      <option value="left-arm-spin">Left Arm Spin</option>
+                    </select>
+                  ) : (
+                    <span className="text-sm font-bold text-slate-800 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* About Player Card */}
+            {/* Personal Info Card */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900 px-2 flex items-center gap-2">
-                About {player.name.split(' ')[0]}
+                {isEditing ? 'Personal Details' : `About ${player.name.split(' ')[0]}`}
               </h3>
               <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
                 <div className="px-8 py-2">
-                  <div className="flex py-5 border-b border-slate-50 items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Name:</span>
-                    <span className="text-sm font-bold text-slate-800">{player.name}</span>
+                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Name:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold text-slate-800">{player.name}</span>
+                    )}
                   </div>
-                  <div className="flex py-5 border-b border-slate-50 items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Birth:</span>
-                    <span className="text-sm font-bold text-slate-800">
-                      {player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
-                    </span>
+                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Birth:</span>
+                    {isEditing ? (
+                      <div className="w-full mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowDatePicker(!showDatePicker)}
+                          className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 outline-none w-full text-left flex items-center justify-between"
+                        >
+                          <span>{editForm.dateOfBirth ? new Date(editForm.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Select Date'}</span>
+                          <ChevronDown size={14} className={clsx("transition-transform duration-200", showDatePicker && "rotate-180")} />
+                        </button>
+                        <AnimatePresence>
+                          {showDatePicker && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-3">
+                                <WheelDatePicker
+                                  value={editForm.dateOfBirth || new Date().toISOString().split('T')[0]}
+                                  onChange={(val) => setEditForm({ ...editForm, dateOfBirth: val })}
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-bold text-slate-800">
+                        {player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex py-5 border-b border-slate-50 items-center justify-between">
                     <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Squad:</span>
                     <span className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter">{squadName || 'N/A'}</span>
                   </div>
-                  <div className="flex py-5 items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Address:</span>
-                    <span className="text-sm font-bold text-slate-800">{player.address || 'N/A'}</span>
+                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Address:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editForm.address}
+                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold text-slate-800">{player.address || 'N/A'}</span>
+                    )}
                   </div>
+                  {isEditing && (
+                    <div className="flex py-5 flex-col items-start gap-4">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0 mt-2">Bio:</span>
+                      <textarea
+                        value={editForm.bio}
+                        onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-3 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full min-h-[100px] resize-none"
+                        placeholder="Add a bio..."
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Bio Section */}
-            {player.bio && (
+            {/* Social Edit Hub (Only if editing) */}
+            {isEditing && (
+              <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/60">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold text-slate-900">Connect Hub</h3>
+                  <span className="text-[10px] font-black text-white bg-slate-900 px-3 py-1 rounded-full uppercase tracking-widest">{editForm.socialLinks.length}/3 Socials</span>
+                </div>
+                <div className="space-y-3">
+                  {editForm.socialLinks.map((link, idx) => {
+                    const Icon = link.platform === 'facebook' ? Facebook :
+                      link.platform === 'instagram' ? Instagram :
+                        link.platform === 'x' ? Twitter :
+                          link.platform === 'linkedin' ? Linkedin : Globe
+                    return (
+                      <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 group transition-all">
+                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-600 border border-slate-100 shadow-sm">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-black text-slate-800 truncate">@{link.username}</div>
+                          <div className="text-[9px] font-bold text-slate-400 truncate tracking-tight">{link.url}</div>
+                        </div>
+                        <button onClick={() => handleRemoveLink(idx)} className="w-8 h-8 flex items-center justify-center hover:bg-rose-50 rounded-lg text-rose-500 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )
+                  })}
+
+                  {editForm.socialLinks.length < 3 && (
+                    <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200 border-dashed">
+                      <input
+                        type="text"
+                        value={newLinkUrl}
+                        onChange={(e) => setNewLinkUrl(e.target.value)}
+                        placeholder="Paste Profile URL"
+                        className="flex-1 px-4 py-2.5 bg-transparent outline-none text-[11px] font-medium"
+                      />
+                      <button
+                        onClick={handleAddLink}
+                        disabled={!newLinkUrl}
+                        className="px-6 bg-slate-900 text-white rounded-xl font-black text-[10px] hover:bg-slate-800 transition-all disabled:opacity-50 active:scale-95 uppercase tracking-widest"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+
+
+            {/* Bio Section (Non-Editing) */}
+            {!isEditing && player.bio && (
               <div className="bg-white/50 backdrop-blur-md rounded-3xl p-8 border border-white/50 shadow-sm">
                 <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
                   "{player.bio}"
@@ -1024,8 +1166,8 @@ export default function PlayerProfile() {
               </div>
             )}
 
-            {/* Social Connect (Floating Style) */}
-            {player.socialLinks && player.socialLinks.length > 0 && (
+            {/* Social Connect (Floating Style - Non Editing) */}
+            {!isEditing && player.socialLinks && player.socialLinks.length > 0 && (
               <div className="flex items-center justify-center gap-6 py-4">
                 {player.socialLinks.map((link: SocialLink, idx: number) => {
                   const Icon = link.platform === 'facebook' ? Facebook :
@@ -1039,12 +1181,12 @@ export default function PlayerProfile() {
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group flex items-center gap-2 text-slate-400 hover:text-emerald-500 transition-all"
+                      className="group flex flex-col items-center gap-2 text-slate-400 hover:text-emerald-500 transition-all"
                     >
-                      <div className="w-10 h-10 rounded-2xl bg-white shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all">
-                        <Icon className="w-5 h-5" />
+                      <div className="w-12 h-12 rounded-2xl bg-white shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all border border-slate-50">
+                        <Icon className="w-6 h-6" />
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">
+                      <span className="text-[9px] font-black uppercase tracking-widest">
                         {link.platform}
                       </span>
                     </a>
@@ -1052,8 +1194,74 @@ export default function PlayerProfile() {
                 })}
               </div>
             )}
+
+            {/* Inline Action Section (Claim / Toggle Edit) - MOVED TO BOTTOM */}
+            {!isEditing && (
+              <div className="flex justify-center px-2 pt-4">
+                {!hasActiveSession ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowClaimModal(true);
+                      if (player.claimed) {
+                        toast('Login to edit this profile', { icon: '🔐' });
+                      }
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all active:scale-95 hover:shadow-emerald-500/30"
+                  >
+                    <ShieldCheck className="w-5 h-5" />
+                    Is it You? Claim Profile
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditForm({
+                        name: player.name || '',
+                        username: player.username || player.name || '',
+                        bio: player.bio || '',
+                        photoUrl: player.photoUrl || '',
+                        dateOfBirth: player.dateOfBirth || '',
+                        socialLinks: player.socialLinks || [],
+                        address: player.address || '',
+                        role: player.role || 'batsman',
+                        battingStyle: player.battingStyle || 'right-handed',
+                        bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+                      })
+                      setIsEditing(true)
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 transition-all active:scale-95 hover:bg-slate-800"
+                  >
+                    <Edit className="w-4 h-4 text-sky-400" />
+                    Edit My Profile
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Save Buttons at bottom (Floating when editing) */}
+            {isEditing && (
+              <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 z-[110] flex gap-4 max-w-2xl mx-auto rounded-t-[2.5rem] shadow-[0_-20px_50px_rgba(0,0,0,0.1)]">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[10px] rounded-2xl hover:bg-slate-50 transition-all uppercase tracking-[0.2em] active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  disabled={saving}
+                  className="flex-[2] py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-[10px] rounded-2xl hover:from-emerald-500 hover:to-teal-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 uppercase tracking-[0.2em] active:scale-95"
+                >
+                  {saving ? 'Saving...' : 'Confirm Changes'}
+                </button>
+              </div>
+            )}
           </div>
         )}
+
       </div>
 
       {/* Floating Toggle FAB (CREX Style) - HORIZONTAL BOTTOM RIGHT */}
@@ -1142,247 +1350,7 @@ export default function PlayerProfile() {
           </div>
         </div>
       )}
-
-      {/* EDIT PROFILE MODAL */}
-      {showEditModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={async () => {
-            setShowEditModal(false)
-            await signOut(auth)
-            // Clear temporary states on logout
-            setEditForm(INITIAL_EDIT_FORM_STATE)
-            setNewLinkUrl('')
-            setUploadingPhoto(false)
-          }}></div>
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh] border border-white/20">
-            {/* Modal Header */}
-            <div className="bg-white border-b border-slate-100 p-6 flex items-center justify-between sticky top-0 z-10">
-              <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center text-white shadow-lg">
-                  <Edit className="w-5 h-5" />
-                </div>
-                Customize Profile
-              </h3>
-              <button onClick={async () => {
-                setShowEditModal(false)
-                await signOut(auth)
-                // Clear temporary states on logout
-                setEditForm(INITIAL_EDIT_FORM_STATE)
-                setNewLinkUrl('')
-                setUploadingPhoto(false)
-              }} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-600 active:scale-95">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-8 overflow-y-auto space-y-8 custom-scrollbar">
-              {/* Photo Upload Section */}
-              <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 shadow-inner text-center">
-                <div className="relative inline-block group">
-                  <div className="w-32 h-32 rounded-[2.5rem] bg-white border-4 border-white shadow-xl overflow-hidden ring-8 ring-slate-100/50">
-                    {uploadingPhoto ? (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-100">
-                        <span className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
-                      </div>
-                    ) : (
-                      <img src={editForm.photoUrl || "https://placehold.co/200"} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = "https://placehold.co/200"} />
-                    )}
-                  </div>
-                  <label className="absolute -bottom-2 -right-2 w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-100 flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-all hover:scale-110 active:scale-95">
-                    <Camera className="w-6 h-6 text-teal-600" />
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          setUploadingPhoto(true)
-                          try {
-                            const url = await uploadImage(file, (p) => console.log(`Uploading: ${p}%`))
-                            setEditForm(prev => ({ ...prev, photoUrl: url }))
-                          } catch (error) {
-                            toast.error("Photo upload failed")
-                          } finally {
-                            setUploadingPhoto(false)
-                          }
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-                <div className="mt-4">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Profile Picture</p>
-                  <p className="text-[9px] text-slate-500 font-medium italic mt-1">Click the camera icon to upload</p>
-                </div>
-              </div>
-
-              {/* Identity Form */}
-              <div className="space-y-4">
-                <div className="relative">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Username / Display Name</label>
-                  <input
-                    type="text"
-                    value={editForm.username}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-sm font-bold text-slate-700 shadow-inner"
-                    placeholder="Choose a catchy username"
-                  />
-                </div>
-                <div className="relative">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Address</label>
-                  <input
-                    type="text"
-                    value={editForm.address}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all text-sm font-bold text-slate-700 shadow-inner"
-                    placeholder="Enter your current address"
-                  />
-                </div>
-              </div>
-
-              {/* Playing Info Grid Section */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-white rounded-3xl border border-slate-100 p-2">
-                <div className="space-y-2 p-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Role</label>
-                  <select
-                    value={editForm.role}
-                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value as PlayerRole })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
-                  >
-                    <option value="batsman">Batsman</option>
-                    <option value="bowler">Bowler</option>
-                    <option value="all-rounder">All Rounder</option>
-                    <option value="wicket-keeper">Wicket Keeper</option>
-                  </select>
-                </div>
-                <div className="space-y-2 p-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={editForm.dateOfBirth}
-                    onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
-                  />
-                </div>
-                <div className="space-y-2 p-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Batting Style</label>
-                  <select
-                    value={editForm.battingStyle}
-                    onChange={(e) => setEditForm({ ...editForm, battingStyle: e.target.value as BattingStyle })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
-                  >
-                    <option value="right-handed">Right Handed</option>
-                    <option value="left-handed">Left Handed</option>
-                  </select>
-                </div>
-                <div className="space-y-2 p-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bowling Style</label>
-                  <select
-                    value={editForm.bowlingStyle}
-                    onChange={(e) => setEditForm({ ...editForm, bowlingStyle: e.target.value as BowlingStyle })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all text-sm font-bold text-slate-700"
-                  >
-                    <option value="right-arm-fast">Right Arm Fast</option>
-                    <option value="right-arm-medium">Right Arm Medium</option>
-                    <option value="right-arm-spin">Right Arm Spin</option>
-                    <option value="left-arm-fast">Left Arm Fast</option>
-                    <option value="left-arm-medium">Left Arm Medium</option>
-                    <option value="left-arm-spin">Left Arm Spin</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Bio Section */}
-              <div className="space-y-3">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">About Me / Bio</label>
-                <textarea
-                  value={editForm.bio}
-                  onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-[2rem] focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 outline-none transition-all h-28 resize-none text-sm text-slate-600 font-medium leading-relaxed custom-scrollbar shadow-inner"
-                  placeholder="Tell your fans something about yourself..."
-                />
-              </div>
-
-              {/* Social Section */}
-              <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
-                <div className="flex items-center justify-between mb-4 ml-1">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Connect Hub</label>
-                  <span className="text-[9px] font-black text-white bg-slate-900 px-3 py-1 rounded-full">{editForm.socialLinks.length}/3 Socials</span>
-                </div>
-                <div className="space-y-3">
-                  {editForm.socialLinks.map((link, idx) => {
-                    const Icon = link.platform === 'facebook' ? Facebook :
-                      link.platform === 'instagram' ? Instagram :
-                        link.platform === 'x' ? Twitter :
-                          link.platform === 'linkedin' ? Linkedin : Globe
-                    return (
-                      <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200 group hover:border-sky-300 transition-all shadow-sm">
-                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-600 border border-slate-100">
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-black text-slate-800 truncate">@{link.username}</div>
-                          <div className="text-[9px] font-bold text-slate-400 truncate tracking-tight">{link.url}</div>
-                        </div>
-                        <button onClick={() => handleRemoveLink(idx)} className="w-8 h-8 flex items-center justify-center hover:bg-rose-50 rounded-lg text-rose-500 transition-colors">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )
-                  })}
-
-                  {editForm.socialLinks.length < 3 && (
-                    <div className="flex gap-2 bg-white p-1 rounded-2xl border border-slate-200 border-dashed">
-                      <input
-                        type="text"
-                        value={newLinkUrl}
-                        onChange={(e) => setNewLinkUrl(e.target.value)}
-                        placeholder="Paste Profile Link"
-                        className="flex-1 px-4 py-3 bg-transparent outline-none text-[11px] font-medium"
-                      />
-                      <button
-                        onClick={handleAddLink}
-                        disabled={!newLinkUrl}
-                        className="px-6 bg-slate-900 text-white rounded-xl font-black text-[11px] hover:bg-slate-800 transition-all disabled:opacity-50 active:scale-95 shadow-lg shadow-slate-900/10 uppercase tracking-widest"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Modal Actions */}
-            <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-4 sticky bottom-0 z-10 backdrop-blur-md">
-              <button
-                onClick={async () => {
-                  setShowEditModal(false)
-                  await signOut(auth)
-                }}
-                className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[10px] rounded-2xl hover:bg-slate-50 transition-all uppercase tracking-[0.2em] active:scale-95 shadow-sm flex items-center justify-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Finish
-              </button>
-              <button
-                onClick={handleEditSave}
-                disabled={saving}
-                className="flex-[2] py-4 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-black text-[10px] rounded-2xl hover:from-sky-500 hover:to-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-sky-500/20 uppercase tracking-[0.2em] active:scale-95"
-              >
-                {saving ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    Syncing Data...
-                  </>
-                ) : 'Confirm Updates'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
+

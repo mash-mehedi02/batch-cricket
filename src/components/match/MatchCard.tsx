@@ -220,133 +220,129 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
     })()
 
     return (
-        <Link
-            to={`/match/${match.id}`}
-            className="block bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-md transition-all group relative"
-        >
-            {/* Top Right Countdown Overlay */}
-            {isUpcoming && timeLeft && (
-                <div className="absolute top-2 right-2 z-10">
-                    <div className="bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight shadow-sm border border-amber-100 dark:border-amber-900/50">
-                        {timeLeft}
-                    </div>
-                </div>
-            )}
-
-            {/* Header Info */}
-            <div className="px-4 py-2 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/20 dark:bg-slate-800/20">
-                <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider truncate max-w-[80%]">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-md transition-all group relative">
+            {/* Header Info - NOT part of the Link to prevent interaction conflict */}
+            <div className="px-4 py-2 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/20 dark:bg-slate-800/20 relative z-20">
+                <Link to={`/match/${match.id}`} className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider truncate max-w-[50%] hover:text-blue-600 transition-colors">
                     {match.venue ? `${match.venue}` : 'SMA Ground'}
-                </span>
-                <div className="flex items-center gap-1.5 ">
-                    {/* Bell Icon */}
-                    <div className="mr-1">
-                        <NotificationBell
-                            matchId={match.id}
-                            matchTitle={`${teamAName} vs ${teamBName}`}
-                            color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
-                        />
+                </Link>
+                <div className="flex items-center gap-2">
+                    {/* Countdown for upcoming matches */}
+                    {isUpcoming && timeLeft && (
+                        <div className="bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tight shadow-sm border border-amber-100 dark:border-amber-900/50 flex items-center gap-1">
+                            <span className="w-1 h-1 bg-amber-500 rounded-full animate-pulse"></span>
+                            {timeLeft}
+                        </div>
+                    )}
+                    {/* Bell Icon - Interactive and separate */}
+                    <NotificationBell
+                        matchId={match.id}
+                        matchTitle={`${teamAName} vs ${teamBName}`}
+                        color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                    />
+                </div>
+            </div>
+
+            {/* Main Clickable Area - Just the scores and status */}
+            <Link to={`/match/${match.id}`} className="block relative z-10 cursor-pointer">
+                <div className="p-4 flex gap-4">
+                    {/* Teams and Scores */}
+                    <div className="flex-1 space-y-4">
+                        {displayOrder.map((side) => {
+                            const name = side === 'teamA' ? teamAName : teamBName
+                            const logo = side === 'teamA' ? teamALogo : teamBLogo
+                            const inn = side === 'teamA' ? teamAInnings : teamBInnings
+                            return (
+                                <div key={side} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                            {logo ? (
+                                                <img src={logo} alt={name} className="w-full h-full object-contain" />
+                                            ) : (
+                                                <span className="text-[9px] font-bold text-slate-400">{name.substring(0, 2).toUpperCase()}</span>
+                                            )}
+                                        </div>
+                                        <span className={`text-[12px] truncate max-w-[120px] transition-all dark:text-slate-200 ${getTeamColor(side)}`}>
+                                            {name}
+                                        </span>
+                                    </div>
+                                    {(isLive || isFinished) && inn && (
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-[10px] font-medium text-slate-400 font-mono">
+                                                ({inn.overs})
+                                            </span>
+                                            <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                                                {inn.totalRuns}-{inn.totalWickets}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    {/* Status Divider */}
+                    <div className="w-px bg-slate-100 dark:bg-slate-800 self-stretch my-1"></div>
+
+                    <div className="w-24 flex flex-col items-center justify-center text-center px-1">
+                        {isLive ? (
+                            <div className="flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
+                                    <span className="text-[11px] font-black text-red-600 dark:text-red-500 uppercase tracking-widest">Live</span>
+                                </div>
+                            </div>
+                        ) : isFinished && parsedResult ? (
+                            <div className="flex flex-col items-center">
+                                <span className="text-[11px] font-black text-amber-500 leading-none uppercase">
+                                    {parsedResult.main}
+                                </span>
+                                <span className="text-[9px] font-bold text-amber-400 mt-1 lowercase whitespace-nowrap">
+                                    {parsedResult.sub}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">
+                                    Starting
+                                </span>
+                                <div className="text-[10px] font-black leading-tight uppercase text-slate-900 dark:text-slate-100">
+                                    {getStatusText().split(',')[1]?.trim() || getStatusText()}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-            </div>
 
-            <div className="p-4 flex gap-4">
-                {/* Teams and Scores */}
-                <div className="flex-1 space-y-4">
-                    {displayOrder.map((side) => {
-                        const name = side === 'teamA' ? teamAName : teamBName
-                        const logo = side === 'teamA' ? teamALogo : teamBLogo
-                        const inn = side === 'teamA' ? teamAInnings : teamBInnings
-                        return (
-                            <div key={side} className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
-                                        {logo ? (
-                                            <img src={logo} alt={name} className="w-full h-full object-contain" />
-                                        ) : (
-                                            <span className="text-[9px] font-bold text-slate-400">{name.substring(0, 2).toUpperCase()}</span>
-                                        )}
-                                    </div>
-                                    <span className={`text-[12px] truncate max-w-[120px] transition-all dark:text-slate-200 ${getTeamColor(side)}`}>
-                                        {name}
-                                    </span>
-                                </div>
-                                {(isLive || isFinished) && inn && (
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-[10px] font-medium text-slate-400 font-mono">
-                                            ({inn.overs})
-                                        </span>
-                                        <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
-                                            {inn.totalRuns}-{inn.totalWickets}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
-
-                {/* Status Divider */}
-                <div className="w-px bg-slate-100 dark:bg-slate-800 self-stretch my-1"></div>
-
-                <div className="w-24 flex flex-col items-center justify-center text-center px-1">
-                    {isLive ? (
-                        <div className="flex flex-col items-center gap-1">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
-                                <span className="text-[11px] font-black text-red-600 dark:text-red-500 uppercase tracking-widest">Live</span>
-                            </div>
-                        </div>
-                    ) : isFinished && parsedResult ? (
-                        <div className="flex flex-col items-center">
-                            <span className="text-[11px] font-black text-amber-500 leading-none uppercase">
-                                {parsedResult.main}
+                {/* Footer Strip - Toss & Progress & Results */}
+                <div className={`px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between min-h-[36px] ${isLive ? 'bg-red-50/40 dark:bg-red-950/20' : 'bg-slate-50/40 dark:bg-slate-800/40'}`}>
+                    <div className="text-[10px] font-normal uppercase tracking-tight flex-1">
+                        {runsNeededText ? (
+                            <span className="text-blue-600 dark:text-blue-400 font-bold">{runsNeededText}</span>
+                        ) : (isLive && isFirstInningsFinished && match.matchPhase === 'FirstInnings') ? (
+                            <span className="text-amber-500 font-bold normal-case">
+                                {(() => {
+                                    const battedFirst = match.tossWinner === 'teamA'
+                                        ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
+                                        : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
+                                    const stats = battedFirst === 'teamA' ? teamAInnings : teamBInnings
+                                    const chasing = battedFirst === 'teamA' ? teamBName : teamAName
+                                    return `${chasing} need ${(stats?.totalRuns || 0) + 1} runs`
+                                })()}
                             </span>
-                            <span className="text-[9px] font-bold text-amber-400 mt-1 lowercase whitespace-nowrap">
-                                {parsedResult.sub}
+                        ) : (
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">
+                                {isUpcoming ? getStatusText().split(',')[0].toUpperCase() : tossText || 'Match in progress...'}
                             </span>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">
-                                Starting
-                            </span>
-                            <div className="text-[10px] font-black leading-tight uppercase text-slate-900 dark:text-slate-100">
-                                {getStatusText().split(',')[1]?.trim() || getStatusText()}
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1.5 ml-2">
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50"></div>
+                        <span className="text-[7px] font-black lg:text-[9px] text-slate-400 uppercase tracking-widest">SMA</span>
+                    </div>
                 </div>
-            </div>
-
-            {/* Footer Strip - Toss & Progress & Results */}
-            <div className={`px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between min-h-[36px] ${isLive ? 'bg-red-50/40 dark:bg-red-950/20' : 'bg-slate-50/40 dark:bg-slate-800/40'}`}>
-                <div className="text-[10px] font-normal uppercase tracking-tight flex-1">
-                    {runsNeededText ? (
-                        <span className="text-blue-600 dark:text-blue-400 font-bold">{runsNeededText}</span>
-                    ) : (isLive && isFirstInningsFinished && match.matchPhase === 'FirstInnings') ? (
-                        <span className="text-amber-500 font-bold normal-case">
-                            {(() => {
-                                const battedFirst = match.tossWinner === 'teamA'
-                                    ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
-                                    : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
-                                const stats = battedFirst === 'teamA' ? teamAInnings : teamBInnings
-                                const chasing = battedFirst === 'teamA' ? teamBName : teamAName
-                                return `${chasing} need ${(stats?.totalRuns || 0) + 1} runs`
-                            })()}
-                        </span>
-                    ) : (
-                        <span className="text-slate-700 dark:text-slate-300 font-medium">
-                            {isUpcoming ? getStatusText().split(',')[0].toUpperCase() : tossText || 'Match in progress...'}
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-1.5 ml-2">
-                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50"></div>
-                    <span className="text-[7px] font-black lg:text-[9px] text-slate-400 uppercase tracking-widest">SMA</span>
-                </div>
-            </div>
-        </Link>
+            </Link>
+        </div>
     )
 }
 

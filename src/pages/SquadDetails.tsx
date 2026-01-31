@@ -13,8 +13,10 @@ import { Player, Squad, Tournament, Match, InningsStats } from '@/types'
 import toast from 'react-hot-toast'
 import { Timestamp } from 'firebase/firestore'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import PageHeader from '@/components/common/PageHeader'
 import { getMatchResultString } from '@/utils/matchWinner'
 import { schoolConfig } from '@/config/school'
+import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
@@ -36,6 +38,7 @@ export default function SquadDetails() {
       if (!squadId) return
       setLoading(true)
       try {
+        // Load squad data first (critical)
         const squadData = await squadService.getById(squadId)
         if (!squadData) {
           setSquad(null)
@@ -44,17 +47,7 @@ export default function SquadDetails() {
 
         setSquad(squadData)
 
-        // Tournament (optional)
-        try {
-          if (squadData.tournamentId) {
-            const t = await tournamentService.getById(squadData.tournamentId)
-            setTournament(t)
-          }
-        } catch {
-          setTournament(null)
-        }
-
-        // Players
+        // Load players immediately (critical for display)
         const ids = Array.isArray(squadData.playerIds) ? squadData.playerIds : []
         let loadedPlayers: Player[] = []
 
@@ -69,38 +62,59 @@ export default function SquadDetails() {
         loadedPlayers.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
         setPlayers(loadedPlayers)
 
-        // Matches
-        setLoadingMatches(true)
-        try {
-          const allMatches = await matchService.getAll()
-          const squadMatches = allMatches.filter(m =>
-            m.teamAId === squadId ||
-            m.teamBId === squadId ||
-            (m as any).teamA === squadId ||
-            (m as any).teamB === squadId
-          )
-          setMatches(squadMatches)
-        } catch (err) {
-          console.error('Error loading matches:', err)
-        } finally {
-          setLoadingMatches(false)
-        }
+        // End loading state here - page can now display!
+        setLoading(false)
 
-        // All Squads for logos
-        try {
-          const allSq = await squadService.getAll()
-          const sMap: Record<string, Squad> = {}
-          allSq.forEach(s => sMap[s.id] = s)
-          setSquadsMap(sMap)
-        } catch (err) {
-          console.error('Error loading squads map:', err)
-        }
+        // Load non-critical data in background (parallel)
+        Promise.all([
+          // Tournament (optional)
+          (async () => {
+            try {
+              if (squadData.tournamentId) {
+                const t = await tournamentService.getById(squadData.tournamentId)
+                setTournament(t)
+              }
+            } catch {
+              setTournament(null)
+            }
+          })(),
+
+          // Matches (for matches tab)
+          (async () => {
+            setLoadingMatches(true)
+            try {
+              const allMatches = await matchService.getAll()
+              const squadMatches = allMatches.filter(m =>
+                m.teamAId === squadId ||
+                m.teamBId === squadId ||
+                (m as any).teamA === squadId ||
+                (m as any).teamB === squadId
+              )
+              setMatches(squadMatches)
+            } catch (err) {
+              console.error('Error loading matches:', err)
+            } finally {
+              setLoadingMatches(false)
+            }
+          })(),
+
+          // All Squads for logos (for match cards)
+          (async () => {
+            try {
+              const allSq = await squadService.getAll()
+              const sMap: Record<string, Squad> = {}
+              allSq.forEach(s => sMap[s.id] = s)
+              setSquadsMap(sMap)
+            } catch (err) {
+              console.error('Error loading squads map:', err)
+            }
+          })()
+        ])
 
       } catch (e) {
         console.error('Error loading squad details:', e)
         toast.error('Failed to load squad.')
         setSquad(null)
-      } finally {
         setLoading(false)
       }
     }
@@ -311,11 +325,7 @@ export default function SquadDetails() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white p-4 pt-20 text-center font-bold">
-        Loading Squad...
-      </div>
-    )
+    return <SquadDetailsSkeleton />
   }
 
   if (!squad) {
@@ -334,6 +344,8 @@ export default function SquadDetails() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 pb-20">
+      <PageHeader title={squad.name} subtitle={`Batch ${squad.batch || squad.year}`} />
+
       <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-100">
         {squad.bannerUrl && !brokenImages[squad.bannerUrl] ? (
           <img src={squad.bannerUrl} onError={() => handleImgError(squad.bannerUrl || '')} alt={squad.name} className="w-full h-full object-cover" />
@@ -343,72 +355,74 @@ export default function SquadDetails() {
         <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent" />
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 -mt-16 relative z-10">
-        <div className="flex items-end gap-5 mb-8">
-          <div className="w-28 h-28 md:w-36 md:h-36 bg-white rounded-3xl border-4 border-white shadow-xl overflow-hidden flex items-center justify-center p-2">
-            {squad.logoUrl && !brokenImages[squad.logoUrl] ? (
-              <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain" />
-            ) : (
-              <span className="text-4xl md:text-6xl font-black text-emerald-600 uppercase">{squad.name[0]}</span>
-            )}
-          </div>
-          <div className="pb-2">
-            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none mb-2">
-              {squad.name}
-            </h1>
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-black uppercase shrink-0">
-                Batch {safeRender(squad.batch || squad.year)}
-              </span>
-              <span className="text-slate-400 font-bold text-[11px] sm:text-sm truncate max-w-[180px] md:max-w-none">
-                {schoolConfig.name}
-              </span>
+      {/* Sticky Header Section */}
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-4 mb-3">
+            {/* Compact Logo */}
+            <div className="w-12 h-12 bg-white rounded-2xl border-2 border-white shadow-lg overflow-hidden flex items-center justify-center p-1 shrink-0">
+              {squad.logoUrl && !brokenImages[squad.logoUrl] ? (
+                <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-xl font-black text-emerald-600 uppercase">{squad.name[0]}</span>
+              )}
+            </div>
+
+            {/* Squad Info */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight leading-none mb-1 truncate">
+                {squad.name}
+              </h1>
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                  Batch {safeRender(squad.batch || squad.year)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl mb-6 w-fit">
-          {(['squad', 'matches', 'achievement'] as Tab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              {tab}
-            </button>
-          ))}
+          {/* Tabs */}
+          <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl w-fit">
+            {(['squad', 'matches', 'achievement'] as Tab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
+
+      {/* Content Section */}
+      <div className="max-w-4xl mx-auto px-4 pt-6">
 
         {activeTab === 'squad' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
-                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Players</div>
-                <div className="text-2xl font-black text-slate-800">{players.length}</div>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
-                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Captain</div>
-                <div className="text-sm font-black text-slate-800 truncate">{captain?.name?.split(' ')[0] || 'N/A'}</div>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
-                <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Keeper</div>
-                <div className="text-sm font-black text-slate-800 truncate">{wicketKeeper?.name?.split(' ')[0] || 'N/A'}</div>
-              </div>
-            </div>
-
+          <div className="space-y-6 animate-in fade-in duration-500">
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3">
               {players.map(p => (
                 <Link key={p.id} to={`/players/${p.id}`} className="flex items-center gap-2 sm:gap-4 bg-slate-50/50 p-2 sm:p-3 rounded-2xl border border-slate-100 hover:bg-white hover:border-emerald-200 transition-all hover:shadow-md group relative">
                   <PlayerAvatar photoUrl={p.photoUrl || (p as any).photo} name={p.name} size="sm" className="shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-slate-900 group-hover:text-emerald-600 truncate text-[10px] sm:text-base">{p.name}</div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-900 group-hover:text-emerald-600 truncate text-[10px] sm:text-base">
+                        {p.name}
+                      </span>
+                      {squad.captainId === p.id && (
+                        <span className="bg-amber-100 text-amber-700 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
+                          C
+                        </span>
+                      )}
+                      {squad.wicketKeeperId === p.id && (
+                        <span className="bg-blue-100 text-blue-700 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
+                          WK
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[7px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{p.role}</div>
                   </div>
-                  {squad.captainId === p.id && (
-                    <span className="absolute top-1 right-1 sm:static bg-yellow-100 text-yellow-700 text-[6px] sm:text-[8px] font-black px-1 py-0.5 rounded shadow-sm uppercase">
-                      Capt
-                    </span>
-                  )}
                 </Link>
               ))}
             </div>

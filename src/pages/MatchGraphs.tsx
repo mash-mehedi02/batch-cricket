@@ -285,6 +285,40 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
               const pointsA = wormDataA.map(d => `${getX(d.over)},${getY(d.runs)}`).join(' ')
               const pointsB = wormDataB.map(d => `${getX(d.over)},${getY(d.runs)}`).join(' ')
 
+              // Wicket markers for Team A
+              const wicketsA = (firstInns?.fallOfWickets || []).map((fow, i) => {
+                const overMatch = fow.over.match(/(\d+)\.(\d+)/)
+                const overFraction = overMatch ? parseInt(overMatch[1]) + (parseInt(overMatch[2]) / 6) : 0
+                return (
+                  <circle
+                    key={`wkA-${i}`}
+                    cx={getX(overFraction)}
+                    cy={getY(fow.score)}
+                    r="4"
+                    fill="#ef4444"
+                    stroke="white"
+                    strokeWidth="1.5"
+                  />
+                )
+              })
+
+              // Wicket markers for Team B
+              const wicketsB = (secondInns?.fallOfWickets || []).map((fow, i) => {
+                const overMatch = fow.over.match(/(\d+)\.(\d+)/)
+                const overFraction = overMatch ? parseInt(overMatch[1]) + (parseInt(overMatch[2]) / 6) : 0
+                return (
+                  <circle
+                    key={`wkB-${i}`}
+                    cx={getX(overFraction)}
+                    cy={getY(fow.score)}
+                    r="4"
+                    fill="#ef4444"
+                    stroke="white"
+                    strokeWidth="1.5"
+                  />
+                )
+              })
+
               return (
                 <svg width={svgWidth} height={svgHeight} className="overflow-visible">
                   {/* Grids */}
@@ -298,12 +332,16 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
                   <polyline points={pointsA} fill="none" stroke={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                   <polyline points={pointsB} fill="none" stroke={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
+                  {/* Wicket dots */}
+                  {wicketsA}
+                  {wicketsB}
+
                   {/* End Points */}
-                  {wormDataA.length > 0 && (
-                    <circle cx={getX(wormDataA[wormDataA.length - 1].over)} cy={getY(wormDataA[wormDataA.length - 1].runs)} r="4" fill={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} />
+                  {wormDataA.length > 1 && (
+                    <circle cx={getX(wormDataA[wormDataA.length - 1].over)} cy={getY(wormDataA[wormDataA.length - 1].runs)} r="5" fill={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} stroke="white" strokeWidth="2" />
                   )}
-                  {wormDataB.length > 0 && (
-                    <circle cx={getX(wormDataB[wormDataB.length - 1].over)} cy={getY(wormDataB[wormDataB.length - 1].runs)} r="4" fill={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} />
+                  {wormDataB.length > 1 && (
+                    <circle cx={getX(wormDataB[wormDataB.length - 1].over)} cy={getY(wormDataB[wormDataB.length - 1].runs)} r="5" fill={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} stroke="white" strokeWidth="2" />
                   )}
 
                   {/* X-Axis */}
@@ -313,6 +351,22 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
                 </svg>
               )
             })()}
+          </div>
+
+          {/* Legend */}
+          <div className="mt-10 flex flex-wrap gap-6 pt-6 border-t border-slate-50">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${firstSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">{firstName}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${secondSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
+              <span className="text-xs font-black uppercase text-slate-700 tracking-wider">{secondName}</span>
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
+              <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm" />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Wicket (Red Dot)</span>
+            </div>
           </div>
         </div>
       </div>

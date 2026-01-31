@@ -207,6 +207,7 @@ export interface Match {
   // Optional: for group-stage tournaments (prevents cross-group fixtures)
   groupId?: string
   groupName?: string
+  matchNo?: string // Unique match number (e.g., SFM01, SMT02)
   teamAId: string // Squad ID
   teamBId: string // Squad ID
   teamAName: string
@@ -369,10 +370,20 @@ export interface RecentOver {
   isLocked: boolean
 }
 
+export interface PartnershipBatter {
+  id: string
+  name: string
+  runs: number
+  balls: number
+}
+
 export interface Partnership {
   runs: number
   balls: number
   overs: string
+  batter1?: PartnershipBatter
+  batter2?: PartnershipBatter
+  wicketNo?: number
 }
 
 export interface InningsStats {
@@ -395,6 +406,7 @@ export interface InningsStats {
     isBoundary: boolean
   } | null
   partnership: Partnership
+  partnerships?: Partnership[]
   extras: BallExtras
   fallOfWickets: FallOfWicket[]
   batsmanStats: BatsmanStats[]

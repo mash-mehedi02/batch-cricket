@@ -54,7 +54,8 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
         setSettings(newSettings)
     }
 
-    const handleSave = async () => {
+    const handleSave = async (e: React.MouseEvent) => {
+        e.stopPropagation()
         setLoading(true)
         await notificationService.updateMatchSubscription(matchId, settings)
         setLoading(false)
@@ -79,7 +80,10 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                 <span className="text-gray-500 text-xs mt-0.5">{subtitle}</span>
             </div>
             <button
-                onClick={onChange}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onChange();
+                }}
                 className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative ${checked ? 'bg-blue-600' : 'bg-gray-200'
                     }`}
             >
@@ -98,7 +102,11 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 0.5 }}
                         exit={{ opacity: 0 }}
-                        onClick={onClose}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onClose();
+                        }}
                         className="fixed inset-0 bg-black z-50"
                     />
 
@@ -108,13 +116,14 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        onClick={(e) => e.stopPropagation()}
                         className="fixed bottom-0 left-0 right-0 bg-white z-50 rounded-t-2xl shadow-xl max-w-md mx-auto"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                             <h3 className="font-semibold text-gray-900 text-lg">Manage Notifications</h3>
                             <button
-                                onClick={handleSave}
+                                onClick={(e) => handleSave(e)}
                                 disabled={loading}
                                 className="text-blue-600 font-semibold text-sm hover:text-blue-700"
                             >

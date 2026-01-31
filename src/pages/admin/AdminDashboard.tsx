@@ -1,6 +1,6 @@
 /**
- * Admin Dashboard Home Page
- * Main control center with widgets, charts, and quick actions
+ * Admin Dashboard - Professional Redesign
+ * Focus: Clean Data, Quick Access, Enterprise Aesthetics
  */
 
 import { useEffect, useState } from 'react'
@@ -10,6 +10,10 @@ import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import { matchService } from '@/services/firestore/matches'
 import AdminDashboardSkeleton from '@/components/skeletons/AdminDashboardSkeleton'
+import {
+  Trophy, Calendar, Users, UserPlus, Activity,
+  BarChart3, Plus, ArrowRight, Play, Zap
+} from 'lucide-react'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -33,9 +37,7 @@ export default function AdminDashboard() {
           matchService.getAll(),
         ])
 
-        const liveMatches = matches.filter(m => m.status === 'live')
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        const liveMatches = matches.filter((m: any) => m.status === 'live')
 
         setStats({
           tournaments: tournaments.length,
@@ -43,10 +45,16 @@ export default function AdminDashboard() {
           liveMatches: liveMatches.length,
           squads: squads.length,
           players: players.length,
-          ballsToday: 0, // TODO: Calculate from balls collection
+          ballsToday: 0, // Placeholder
         })
 
-        setRecentMatches(matches.slice(0, 5))
+        // Sort by date desc
+        const sorted = matches.sort((a: any, b: any) => {
+          const tA = a.updatedAt?.toMillis?.() || 0
+          const tB = b.updatedAt?.toMillis?.() || 0
+          return tB - tA
+        })
+        setRecentMatches(sorted.slice(0, 5))
         setLoading(false)
       } catch (error) {
         console.error('Error loading dashboard stats:', error)
@@ -62,234 +70,234 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 max-w-[1600px] mx-auto">
+      {/* 1. Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here's what's happening today.</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Overview</h1>
+          <p className="text-slate-500 text-sm mt-1">Real-time insights and management control.</p>
         </div>
-        <div className="flex gap-2">
-          <Link
-            to="/admin/tournaments/new"
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 transition"
-          >
-            + New Tournament
-          </Link>
+
+        {/* Primary Action */}
+        <div className="flex items-center gap-3">
           <Link
             to="/admin/matches/new"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm active:scale-95"
           >
-            + New Match
+            <Play size={16} fill="currentColor" />
+            Start Match
+          </Link>
+          <Link
+            to="/admin/tournaments/new"
+            className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all"
+          >
+            <Plus size={16} />
+            Tournament
           </Link>
         </div>
       </div>
 
-      {/* Stats Widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* 2. Key Metrics Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Tournaments"
-          value={stats.tournaments}
-          icon="🏆"
-          color="from-purple-500 to-purple-600"
-          link="/admin/tournaments"
-        />
-        <StatCard
-          title="Matches"
-          value={stats.matches}
-          icon="⚽"
-          color="from-blue-500 to-blue-600"
-          link="/admin/matches"
-        />
-        <StatCard
-          title="Live Now"
+          title="Live Matches"
           value={stats.liveMatches}
-          icon="🔴"
-          color="from-red-500 to-red-600"
+          icon={<Activity size={20} />}
+          trend="Active Now"
+          trendColor="text-emerald-600"
+          bgIcon="text-emerald-500/10"
+          iconColor="text-emerald-600"
           link="/admin/live"
         />
         <StatCard
-          title="Squads"
-          value={stats.squads}
-          icon="👥"
-          color="from-green-500 to-green-600"
-          link="/admin/squads"
+          title="Total Matches"
+          value={stats.matches}
+          icon={<Calendar size={20} />}
+          trend="+12 this week"
+          iconColor="text-blue-600"
+          bgIcon="text-blue-500/10"
+          link="/admin/matches"
         />
         <StatCard
-          title="Players"
+          title="Players Registered"
           value={stats.players}
-          icon="🏏"
-          color="from-orange-500 to-orange-600"
+          icon={<UserPlus size={20} />}
+          trend="Growing database"
+          iconColor="text-purple-600"
+          bgIcon="text-purple-500/10"
           link="/admin/players"
         />
         <StatCard
-          title="Balls Today"
-          value={stats.ballsToday}
-          icon="⚾"
-          color="from-teal-500 to-teal-600"
+          title="Tournaments"
+          value={stats.tournaments}
+          icon={<Trophy size={20} />}
+          trend="Season 2026"
+          iconColor="text-orange-600"
+          bgIcon="text-orange-500/10"
+          link="/admin/tournaments"
         />
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <QuickActionCard
-          title="Start New Match"
-          description="Create and start a live match"
-          icon="⚽"
-          link="/admin/matches/new"
-          color="bg-blue-600 hover:bg-blue-700"
-        />
-        <QuickActionCard
-          title="Create Tournament"
-          description="Set up a new tournament"
-          icon="🏆"
-          link="/admin/tournaments/new"
-          color="bg-purple-600 hover:bg-purple-700"
-        />
-        <QuickActionCard
-          title="Add New Squad"
-          description="Create a team squad"
-          icon="👥"
-          link="/admin/squads/new"
-          color="bg-green-600 hover:bg-green-700"
-        />
-        <QuickActionCard
-          title="Add Player"
-          description="Register a new player"
-          icon="🏏"
-          link="/admin/players/new"
-          color="bg-orange-600 hover:bg-orange-700"
-        />
-      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-      {/* Charts & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Activity Chart */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Weekly Scoring Activity</h3>
-          <div className="h-64 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <div className="text-4xl mb-2">📊</div>
-              <p>Chart coming soon</p>
-              <p className="text-sm">Integration with chart library</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Matches */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Matches</h3>
-            <Link to="/admin/matches" className="text-sm text-teal-600 hover:underline">
-              View All
+        {/* 3. Recent Matches Table */}
+        <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-semibold text-slate-800">Recent Activity</h3>
+            <Link to="/admin/matches" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+              View All <ArrowRight size={14} />
             </Link>
           </div>
-          <div className="space-y-3">
-            {recentMatches.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No matches yet</p>
-            ) : (
-              recentMatches.map((match) => (
-                <Link
-                  key={match.id}
-                  to={`/admin/matches/${match.id}`}
-                  className="block p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-gray-900">
-                        {match.teamAName || match.teamA} vs {match.teamBName || match.teamB}
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {match.status} • {new Date(match.date?.toDate?.() || match.date).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${match.status === 'live'
-                          ? 'bg-red-100 text-red-700'
-                          : match.status === 'finished' || match.status === 'abandoned'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                    >
-                      {match.status}
-                    </span>
-                  </div>
-                </Link>
-              ))
-            )}
+
+          <div className="flex-1 overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 font-medium">
+                <tr>
+                  <th className="px-6 py-3">Match</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Date</th>
+                  <th className="px-6 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentMatches.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                      No recent matches found. Start one!
+                    </td>
+                  </tr>
+                ) : (
+                  recentMatches.map((match) => (
+                    <tr key={match.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-900">
+                          {match.teamAName || match.teamA} <span className="text-slate-400 font-normal px-1">vs</span> {match.teamBName || match.teamB}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">{match.tournamentName || 'Friendly Match'}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={match.status} />
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {match.date ? new Date(match.date?.toDate?.() || match.date).toLocaleDateString() : 'TBA'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link
+                          to={`/admin/matches/${match.id}`}
+                          className="text-slate-400 hover:text-blue-600 font-medium transition-colors"
+                        >
+                          Manage
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
 
-      {/* Top Players */}
-      <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performing Players</h3>
-        <div className="text-center py-8 text-gray-400">
-          <div className="text-4xl mb-2">🏆</div>
-          <p>Player stats coming soon</p>
-          <p className="text-sm">Auto-calculated from match data</p>
+        {/* 4. Quick Actions Panel */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="font-semibold text-slate-800 mb-4">Quick Management</h3>
+            <div className="grid grid-cols-1 gap-3">
+              <QuickLink
+                to="/admin/squads/new"
+                title="Create Squad"
+                subtitle="Add a new team to the roster"
+                icon={<Users size={18} />}
+              />
+              <QuickLink
+                to="/admin/players/new"
+                title="Register Player"
+                subtitle="Create player profile manually"
+                icon={<UserPlus size={18} />}
+              />
+              <QuickLink
+                to="/admin/analytics"
+                title="View Analytics"
+                subtitle="Deep dive into match stats"
+                icon={<BarChart3 size={18} />}
+              />
+              <QuickLink
+                to="/admin/users"
+                title="Pending Claims"
+                subtitle="Review player identity claims"
+                icon={<Zap size={18} />}
+                badge="3"
+              />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
+            {/* Decorative */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
+
+            <h3 className="font-bold text-lg mb-2 relative z-10">Need Help?</h3>
+            <p className="text-slate-300 text-sm mb-4 relative z-10">Check the documentation for scoring rules and admin guides.</p>
+            <button className="bg-white/10 hover:bg-white/20 border border-white/10 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all relative z-10">
+              Read Guide
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   )
 }
 
-// Stat Card Component
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-  link,
-}: {
-  title: string
-  value: number
-  icon: string
-  color: string
-  link?: string
-}) {
+// --- Components ---
+
+function StatCard({ title, value, icon, trend, link, iconColor, bgIcon, trendColor = 'text-slate-500' }: any) {
   const content = (
-    <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-2xl`}>
+    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden h-full">
+      <div className="flex justify-between items-start mb-4 relative z-10">
+        <div className={`p-2.5 rounded-lg ${bgIcon ? bgIcon.replace('text-', 'bg-') : 'bg-slate-50'} ${iconColor}`}>
           {icon}
         </div>
+        {link && <div className="text-slate-300 group-hover:text-blue-500 transition-colors"><ArrowRight size={16} /></div>}
       </div>
-      <div className="text-3xl font-bold text-gray-900 mb-1">{value}</div>
-      <div className="text-sm text-gray-600">{title}</div>
+      <div className="relative z-10">
+        <h3 className="text-3xl font-bold text-slate-800 tracking-tight mb-1">{value}</h3>
+        <p className="text-sm font-medium text-slate-500 mb-2">{title}</p>
+        {trend && <p className={`text-xs font-semibold ${trendColor}`}>{trend}</p>}
+      </div>
     </div>
   )
-
-  if (link) {
-    return <Link to={link}>{content}</Link>
-  }
-
-  return content
+  return link ? <Link to={link} className="block h-full">{content}</Link> : content
 }
 
-// Quick Action Card Component
-function QuickActionCard({
-  title,
-  description,
-  icon,
-  link,
-  color,
-}: {
-  title: string
-  description: string
-  icon: string
-  link: string
-  color: string
-}) {
+function QuickLink({ to, title, subtitle, icon, badge }: any) {
   return (
-    <Link
-      to={link}
-      className={`${color} rounded-xl shadow-md p-6 text-white hover:shadow-lg transition transform hover:scale-105`}
-    >
-      <div className="text-4xl mb-3">{icon}</div>
-      <h3 className="text-lg font-semibold mb-1">{title}</h3>
-      <p className="text-sm text-white/80">{description}</p>
+    <Link to={to} className="flex items-center gap-4 p-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group">
+      <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-slate-700 group-hover:bg-white transition-colors">
+        {icon}
+      </div>
+      <div className="flex-1">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">{title}</h4>
+          {badge && <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span>}
+        </div>
+        <p className="text-xs text-slate-500">{subtitle}</p>
+      </div>
+      <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
     </Link>
   )
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const styles: any = {
+    live: 'bg-rose-50 text-rose-600 border-rose-100',
+    finished: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    completed: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    upcoming: 'bg-blue-50 text-blue-600 border-blue-100',
+  }
+  const defaultStyle = 'bg-slate-50 text-slate-600 border-slate-100'
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${styles[status?.toLowerCase()] || defaultStyle}`}>
+      {status === 'live' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 animate-pulse" />}
+      {status}
+    </span>
+  )
+}

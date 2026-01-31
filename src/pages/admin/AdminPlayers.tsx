@@ -13,9 +13,10 @@ import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { Trash2, Search } from 'lucide-react'
+import { Trash2, Search, Plus, Edit2, Filter, User, Trophy, Medal, Zap } from 'lucide-react'
 
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
+import WheelDatePicker from '@/components/common/WheelDatePicker'
 
 interface AdminPlayersProps {
   mode?: 'list' | 'create' | 'edit'
@@ -151,9 +152,8 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     }
 
     // Email required for create mode or edit mode
-    if (!formData.email) {
-      newErrors.email = 'Email is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    // Email optional but must be valid if provided
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format'
     }
 
@@ -193,7 +193,9 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           school: formData.school,
         })
 
-        toast.success(`Player created! They can now claim using Google (${formData.email})`)
+        toast.success(formData.email
+          ? `Player created! They can now claim using Google (${formData.email})`
+          : `Player created successfully!`)
         navigate('/admin/players')
       } else if (mode === 'edit' && id) {
         const oldPlayer = players.find(p => p.id === id)
@@ -341,11 +343,10 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
             {/* Email Field - Admin Only, Mandatory on Create */}
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Player Email (Private) <span className="text-red-500">*</span>
+                Player Email (Private)
               </label>
               <input
                 type="email"
-                required
                 value={formData.email}
                 onChange={(e) => {
                   setFormData({ ...formData, email: e.target.value });
@@ -456,11 +457,9 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label>
-              <input
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition"
+              <WheelDatePicker
+                value={formData.dateOfBirth || '2000-01-01'}
+                onChange={(val) => setFormData({ ...formData, dateOfBirth: val })}
               />
             </div>
 
@@ -604,223 +603,167 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-8 max-w-[1600px] mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Players Management</h1>
-          <p className="text-gray-600 mt-1">Manage all cricket players in your system</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Players Database</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage player profiles, stats, and squad assignments.</p>
         </div>
         <Link
           to="/admin/players/new"
-          className="px-4 py-2 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-teal-800 transition-all shadow-sm hover:shadow-md flex items-center gap-2 justify-center"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span className="hidden xs:inline">Add New Player</span>
-          <span className="xs:hidden">New Player</span>
+          <Plus size={18} />
+          New Player
         </Link>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="text-2xl font-bold text-teal-600">{players.length}</div>
-          <div className="text-sm text-gray-600">Total Players</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="text-2xl font-bold text-blue-600">
-            {players.filter(p => p.role === 'batsman').length}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><User size={24} /></div>
+          <div>
+            <div className="text-2xl font-bold text-slate-900">{players.length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Players</div>
           </div>
-          <div className="text-sm text-gray-600">Batsmen</div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="text-2xl font-bold text-green-600">
-            {players.filter(p => p.role === 'bowler').length}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg"><Zap size={24} /></div>
+          <div>
+            <div className="text-2xl font-bold text-slate-900">{players.filter(p => p.role === 'batsman').length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Batsmen</div>
           </div>
-          <div className="text-sm text-gray-600">Bowlers</div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-          <div className="text-2xl font-bold text-purple-600">
-            {players.filter(p => p.role === 'all-rounder').length}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg"><Trophy size={24} /></div>
+          <div>
+            <div className="text-2xl font-bold text-slate-900">{players.filter(p => p.role === 'bowler').length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Bowlers</div>
           </div>
-          <div className="text-sm text-gray-600">All-rounders</div>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg"><Medal size={24} /></div>
+          <div>
+            <div className="text-2xl font-bold text-slate-900">{players.filter(p => p.role === 'all-rounder').length}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">All Rounders</div>
+          </div>
         </div>
       </div>
 
-      {/* Filters Section */}
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-200">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-          Filter Players
-        </h3>
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+      {/* Main Content */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50/50">
+          <div className="relative w-full lg:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search players by name..."
+              placeholder="Search by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 transition-all outline-none"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white"
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">By Role</label>
+          <div className="flex w-full lg:w-auto items-center gap-2 overflow-x-auto">
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+              className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer"
             >
               <option value="">All Roles</option>
               <option value="batsman">Batsman</option>
               <option value="bowler">Bowler</option>
-              <option value="all-rounder">All-rounder</option>
+              <option value="all-rounder">All-Rounder</option>
               <option value="wicket-keeper">Wicket Keeper</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">By Squad</label>
             <select
               value={filterSquad}
               onChange={(e) => setFilterSquad(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+              className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer max-w-[200px]"
             >
               <option value="">All Squads</option>
-              {squads.map((squad) => (
-                <option key={squad.id} value={squad.id}>
-                  {squad.name} ({squad.year})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Batting Style</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition">
-              <option>All Batting Styles</option>
-              <option>Right-handed</option>
-              <option>Left-handed</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Bowling Style</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition">
-              <option>All Bowling Styles</option>
-              <option>Fast</option>
-              <option>Medium</option>
-              <option>Spin</option>
+              {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
         </div>
-      </div>
 
-      {/* Players Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredPlayers.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No players found</h3>
-            <p className="text-gray-500 mb-4">Try adjusting your filters or add a new player</p>
-            <Link
-              to="/admin/players/new"
-              className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add First Player
-            </Link>
-          </div>
-        ) : (
-          filteredPlayers.map((player) => (
-            <div
-              key={player.id}
-              className="bg-white rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition-all duration-200 overflow-hidden group"
-            >
-              <div className="p-5">
-                <div className="flex items-start gap-4 mb-4">
-                  <PlayerAvatar
-                    photoUrl={player.photoUrl}
-                    name={player.name}
-                    size="md"
-                    className="w-16 h-16 ring-2 ring-white shadow-md"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate group-hover:text-teal-600 transition-colors">
-                      {player.name}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-teal-100 text-teal-800">
-                        {player.role.replace('-', ' ')}
-                      </span>
-                      {player.squadId && (
-                        <span className="text-xs text-gray-500 truncate">
-                          {squads.find(s => s.id === player.squadId)?.name}
-                        </span>
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+              <tr>
+                <th className="px-6 py-4 w-[30%]">Player Name</th>
+                <th className="px-6 py-4">Role</th>
+                <th className="px-6 py-4">Squad</th>
+                <th className="px-6 py-4 hidden md:table-cell">Batting</th>
+                <th className="px-6 py-4 hidden md:table-cell">Bowling</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredPlayers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <User size={48} strokeWidth={1} className="mb-4 text-slate-200" />
+                      <p className="text-lg font-medium text-slate-900">No players found</p>
+                      <p className="text-sm">Try adjusting filters or add a new player.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredPlayers.map((player) => (
+                  <tr key={player.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <PlayerAvatar photoUrl={player.photoUrl} name={player.name} size="md" className="ring-1 ring-slate-200" />
+                        <div>
+                          <div className="font-bold text-slate-900">{player.name}</div>
+                          <div className="text-xs text-slate-500">{player.school || 'BatchCrick High'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <RoleBadge role={player.role} />
+                    </td>
+                    <td className="px-6 py-4">
+                      {player.squadId ? (
+                        <span className="font-medium text-slate-700">{squads.find(s => s.id === player.squadId)?.name || 'Unknown Squad'}</span>
+                      ) : (
+                        <span className="text-slate-400 italic">Unassigned</span>
                       )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-600">
-                  {player.battingStyle && (
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span>Batting: <span className="font-medium capitalize">{player.battingStyle}</span></span>
-                    </div>
-                  )}
-                  {player.bowlingStyle && (
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
-                      </svg>
-                      <span>Bowling: <span className="font-medium capitalize">{player.bowlingStyle.replace('-', ' ')}</span></span>
-                    </div>
-                  )}
-                  {player.dateOfBirth && (
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span>DOB: <span className="font-medium">{new Date(player.dateOfBirth).toLocaleDateString()}</span></span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end">
-                <Link
-                  to={`/admin/players/${player.id}/edit`}
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-                >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit
-                </Link>
-                <button
-                  onClick={() => handleDeleteClick(player)}
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors ml-2"
-                >
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
-        )}
+                    </td>
+                    <td className="px-6 py-4 hidden md:table-cell text-slate-600 capitalize">
+                      {player.battingStyle || '-'}
+                    </td>
+                    <td className="px-6 py-4 hidden md:table-cell text-slate-600 capitalize">
+                      {player.bowlingStyle ? player.bowlingStyle.replace(/-/g, ' ') : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <Link
+                          to={`/admin/players/${player.id}/edit`}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 size={18} />
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteClick(player)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <DeleteConfirmationModal
@@ -828,13 +771,26 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
         onClose={() => setDeleteModalOpen(false)}
         onConfirm={confirmDelete}
         title="Delete Player"
-        message="This action cannot be undone. This will permanently delete the player and remove them from their squad."
+        message={`Are you sure you want to delete ${itemToDelete?.name}? This action cannot be undone.`}
         verificationText={itemToDelete?.name || ''}
         itemType="Player"
         isDeleting={isDeleting}
       />
-
     </div>
+  )
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const styles: any = {
+    'batsman': 'bg-blue-50 text-blue-700 border-blue-200',
+    'bowler': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'all-rounder': 'bg-purple-50 text-purple-700 border-purple-200',
+    'wicket-keeper': 'bg-orange-50 text-orange-700 border-orange-200',
+  }
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${styles[role] || 'bg-gray-100'}`}>
+      {role}
+    </span>
   )
 }
 

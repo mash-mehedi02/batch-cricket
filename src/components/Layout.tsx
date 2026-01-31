@@ -35,13 +35,14 @@ export default function Layout({ children }: LayoutProps) {
   }, [navigate])
 
   const isActive = (path: string) => location.pathname === path
-  const isMatchPage = location.pathname.startsWith('/match/')
+  // Hide main navbar on detail pages where we show a custom PageHeader
+  const isDetailPage = /^\/(match|squads|players|tournaments)\/.+/.test(location.pathname)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
-      {/* Navigation - Professional Header - Hidden on Match Pages */}
-      {!isMatchPage && (
+      {/* Navigation - Professional Header - Hidden on Detail Pages */}
+      {!isDetailPage && (
         <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white z-50 backdrop-blur-lg bg-opacity-95">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -151,7 +152,7 @@ export default function Layout({ children }: LayoutProps) {
                       </Link>
                     )}
                     <button
-                      onClick={logout}
+                      onClick={async () => { await logout(); navigate('/'); }}
                       className="hidden md:block px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition-all shadow-lg shadow-red-500/30"
                     >
                       Logout
@@ -276,7 +277,7 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 )}
                 <button
-                  onClick={() => { logout(); setIsMobileMenuOpen(false); }}
+                  onClick={async () => { await logout(); setIsMobileMenuOpen(false); navigate('/'); }}
                   className={`w-full flex items-center justify-center px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-red-900/20 text-red-400 border border-red-900/30' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
                 >
                   Logout

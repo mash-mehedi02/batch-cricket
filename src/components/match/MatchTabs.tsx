@@ -19,7 +19,7 @@ interface MatchTabsProps {
 export default function MatchTabs({ tabs, activeTab, onTabChange, stickyTop = '64px' }: MatchTabsProps) {
   return (
     <div
-      className="bg-[#0f172a] backdrop-blur-md border-b border-white/5 sticky z-40 shadow-2xl"
+      className="bg-[#0f172a] backdrop-blur-md border-b border-white/5 sticky z-40 shadow-lg"
       style={{ top: stickyTop }}
     >
       <div className="max-w-7xl mx-auto px-2">
@@ -29,7 +29,7 @@ export default function MatchTabs({ tabs, activeTab, onTabChange, stickyTop = '6
               key={tab.id}
               onClick={() => (tab.disabled ? null : onTabChange(tab.id))}
               disabled={!!tab.disabled}
-              className={`px-4 py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-widest whitespace-nowrap transition-all relative group h-12 flex items-center justify-center ${activeTab === tab.id
+              className={`px-4 py-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all relative group h-12 flex items-center justify-center ${activeTab === tab.id
                 ? 'text-rose-500'
                 : tab.disabled
                   ? 'text-slate-700 cursor-not-allowed'
