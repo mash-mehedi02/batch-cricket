@@ -16,13 +16,16 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // Redirect if already logged in
+  // Redirect if already logged in as Admin
   useEffect(() => {
     if (user && !loading) {
-      const params = new URLSearchParams(location.search);
-      const redirect = params.get('redirect');
-      const from = redirect || (location.state as any)?.from?.pathname || '/admin';
-      navigate(from, { replace: true });
+      const isAdmin = user.role === 'admin' || user.role === 'super_admin';
+      if (isAdmin) {
+        const params = new URLSearchParams(location.search);
+        const redirect = params.get('redirect');
+        const from = redirect || (location.state as any)?.from?.pathname || '/admin';
+        navigate(from, { replace: true });
+      }
     }
   }, [user, loading, navigate, location]);
 

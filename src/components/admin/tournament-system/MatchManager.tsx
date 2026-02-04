@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react';
-import { Tournament, Match, Squad } from '@/types';
-import { Search, Plus, Calendar, MapPin, Filter, MoreVertical, ExternalLink, X, Users, Clock, Trophy } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, Trophy, MoreVertical, Share2, Filter, Users, AlertTriangle, Save, Mic, Lock, Check, X, Calendar as CalendarIcon, MapPin, ExternalLink } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { matchService } from '@/services/firestore/matches';
+import { squadService } from '@/services/firestore/squads';
+import { Tournament, Squad, Match, MatchStatus } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 import { Timestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '@/store/authStore';
 import MatchSetupModal from './MatchSetupModal';
+import { formatDateLabel } from '@/utils/date';
 import WheelDatePicker from '@/components/common/WheelDatePicker';
 
 interface MatchManagerProps {
@@ -22,6 +24,7 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
     const [stageFilter, setStageFilter] = useState('all');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     // Setup Modal State
     const [setupMatch, setSetupMatch] = useState<Match | null>(null);
@@ -151,6 +154,7 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                 teamBPlayingXI: formData.teamBPlayingXI,
 
                 createdBy: user.uid,
+                adminId: user.uid,
                 createdAt: Timestamp.now(),
                 updatedAt: Timestamp.now()
             };
@@ -256,7 +260,7 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                     <td className="py-6 px-6">
                                         <div className="flex flex-col gap-1">
                                             <div className="text-sm font-bold text-slate-900">{match.teamAName}</div>
-                                            <div className="text-[10px] font-bold text-slate-300">vs</div>
+                                            <div className="text-[10px] font-bold text-slate-300 font-black uppercase">vs</div>
                                             <div className="text-sm font-bold text-slate-900">{match.teamBName}</div>
                                         </div>
                                     </td>
@@ -266,51 +270,42 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                                 <Calendar size={14} className="text-slate-300" />
                                                 {formatMatchDate(match.date)}
                                             </div>
-                                            <div className="flex items-center gap-2 text-xs font-medium text-slate-50">
+                                            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
                                                 <MapPin size={14} className="text-slate-300" />
-                                                <span className="text-slate-500">{match.venue || 'No Venue Set'}</span>
+                                                <span>{match.venue || 'No Venue Set'}</span>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="py-6 px-6 text-center">
                                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${match.status === 'live' ? 'bg-rose-50 text-rose-600 animate-pulse' :
-                                            match.status === 'finished' ? 'bg-emerald-50 text-emerald-600' :
-                                                'bg-slate-50 text-slate-400'
+                                                match.status === 'finished' ? 'bg-emerald-50 text-emerald-600' :
+                                                    'bg-slate-50 text-slate-400'
                                             }`}>
                                             {match.status}
                                         </span>
                                     </td>
                                     <td className="py-6 px-8 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        setSetupMatch(match);
-                                                        setIsSetupModalOpen(true);
-                                                    }}
-                                                    className="px-4 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-100 transition-all"
-                                                >
-                                                    Set
-                                                </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSetupMatch(match);
+                                                    setIsSetupModalOpen(true);
+                                                }}
+                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-indigo-100 transition-all font-bold"
+                                            >
+                                                Setup
+                                            </button>
 
-                                                {match.status === 'live' || match.status === 'finished' ? (
-                                                    <Link
-                                                        to={`/admin/live/${match.id}`}
-                                                        className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-sm"
-                                                        title="Live Scoring"
-                                                    >
-                                                        <ExternalLink size={16} />
-                                                    </Link>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => navigate(`/admin/live/${match.id}`)}
-                                                        className="p-3 bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 rounded-2xl transition-all"
-                                                        title="Open Live Control"
-                                                    >
-                                                        <ExternalLink size={16} />
-                                                    </button>
-                                                )}
-                                            </div>
+                                            <button
+                                                onClick={() => navigate(`/admin/live/${match.id}`)}
+                                                className={`p-3 rounded-2xl transition-all shadow-sm ${match.status === 'live' || match.status === 'finished'
+                                                        ? 'bg-slate-900 text-white hover:bg-indigo-600'
+                                                        : 'bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100'
+                                                    }`}
+                                                title="Match Control"
+                                            >
+                                                <ExternalLink size={16} />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -350,14 +345,16 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                         <div className="px-6 border-b border-slate-100 flex gap-6">
                             <button
                                 onClick={() => setActiveFormTab('basic')}
-                                className={`py-4 text-sm font-bold border-b-2 transition-colors ${activeFormTab === 'basic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                className={`py-4 text-sm font-bold border-b-2 transition-colors ${activeFormTab === 'basic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+                                    }`}
                             >
                                 1. Basic Info
                             </button>
                             <button
                                 onClick={() => setActiveFormTab('setup')}
                                 disabled={!formData.teamA || !formData.teamB}
-                                className={`py-4 text-sm font-bold border-b-2 transition-colors ${activeFormTab === 'setup' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'} ${!formData.teamA || !formData.teamB ? 'opacity-50 cursor-not-allowed' : 'hover:text-slate-600'}`}
+                                className={`py-4 text-sm font-bold border-b-2 transition-colors ${activeFormTab === 'setup' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'
+                                    } ${!formData.teamA || !formData.teamB ? 'opacity-50 cursor-not-allowed' : 'hover:text-slate-600'}`}
                             >
                                 2. Players & Toss (Optional)
                             </button>
@@ -455,13 +452,15 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                                     <div className="flex bg-white rounded-xl border border-slate-200 p-1">
                                                         <button
                                                             onClick={() => setFormData({ ...formData, tossDecision: 'bat' })}
-                                                            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all ${formData.tossDecision === 'bat' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all ${formData.tossDecision === 'bat' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'
+                                                                }`}
                                                         >
                                                             Bat
                                                         </button>
                                                         <button
                                                             onClick={() => setFormData({ ...formData, tossDecision: 'bowl' })}
-                                                            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all ${formData.tossDecision === 'bowl' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all ${formData.tossDecision === 'bowl' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'
+                                                                }`}
                                                         >
                                                             Bowl
                                                         </button>
@@ -472,14 +471,36 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
+                                        <div className="relative">
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                                                 <Calendar size={14} /> Date
                                             </label>
-                                            <WheelDatePicker
-                                                value={formData.date}
-                                                onChange={(val) => setFormData({ ...formData, date: val })}
-                                            />
+                                            <div
+                                                onClick={() => setShowDatePicker(!showDatePicker)}
+                                                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-bold text-slate-700 cursor-pointer hover:bg-slate-100 transition-all flex items-center justify-between"
+                                            >
+                                                <span>{formatDateLabel(formData.date)}</span>
+                                                <Calendar size={18} className="text-slate-300" />
+                                            </div>
+
+                                            {showDatePicker && (
+                                                <div className="absolute z-[110] mt-2 left-0 right-0 animate-in fade-in slide-in-from-top-2">
+                                                    <div className="fixed inset-0 bg-transparent" onClick={() => setShowDatePicker(false)}></div>
+                                                    <div className="relative z-10 bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                                                        <WheelDatePicker
+                                                            value={formData.date}
+                                                            onChange={(val) => setFormData({ ...formData, date: val })}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowDatePicker(false)}
+                                                            className="w-full mt-2 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+                                                        >
+                                                            Done
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         <div>
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
@@ -548,13 +569,15 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => setFormData({ ...formData, tossDecision: 'bat' })}
-                                                    className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${formData.tossDecision === 'bat' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}
+                                                    className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${formData.tossDecision === 'bat' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                                                        }`}
                                                 >
                                                     Bat
                                                 </button>
                                                 <button
                                                     onClick={() => setFormData({ ...formData, tossDecision: 'bowl' })}
-                                                    className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${formData.tossDecision === 'bowl' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}
+                                                    className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${formData.tossDecision === 'bowl' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                                                        }`}
                                                 >
                                                     Bowl
                                                 </button>
@@ -627,4 +650,3 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
         </div>
     );
 }
-

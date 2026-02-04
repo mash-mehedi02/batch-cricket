@@ -15,8 +15,8 @@ export const schoolConfig = {
   shortName: 'SMA',
 
   // App Branding
-  appName: 'BatchCrick BD',
-  appFullName: 'BatchCrick BD - Shalnagor Modern Academy',
+  appName: 'BatchCrick',
+  appFullName: 'BatchCrick - Shalnagor Modern Academy',
 
   // Slogan & Tagline
   slogan: 'Preserving School Cricket Legacy Through Technology',

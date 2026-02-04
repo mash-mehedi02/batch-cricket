@@ -12,6 +12,8 @@ import { Tournament, Squad, Match, MatchStatus } from '@/types';
 import { useAuthStore } from '@/store/authStore';
 import { Timestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { Calendar } from 'lucide-react';
+import { formatDateLabel } from '@/utils/date';
 import { generateGroupFixtures } from '@/engine/tournament/fixtures';
 import { generateKnockoutFixtures } from '@/engine/tournament/knockout';
 import { generateMatchNumber } from '@/utils/matchNumber';
@@ -57,6 +59,8 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
   });
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   useEffect(() => {
     setActiveTab(mode);
@@ -272,6 +276,7 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
       if (mode === 'create') {
         await tournamentService.create({
           ...(persistPayload as any),
+          adminId: user?.uid || '',
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user?.uid || '',
@@ -343,6 +348,7 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
           lastOverBowlerId: '',
           freeHit: false,
           createdBy: user?.uid || '',
+          adminId: user?.uid || '',
           // Extra props for UI / future needs
           stage: 'group',
           stageLabel: 'Group',
@@ -946,24 +952,72 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
                 />
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Start Date
                 </label>
-                <WheelDatePicker
-                  value={formData.startDate || new Date().toISOString().split('T')[0]}
-                  onChange={(val) => setFormData({ ...formData, startDate: val })}
-                />
+                <div
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer bg-white flex items-center justify-between"
+                  onClick={() => setShowStartDatePicker(!showStartDatePicker)}
+                >
+                  <span className={formData.startDate ? "text-slate-900" : "text-slate-400"}>
+                    {formData.startDate ? formatDateLabel(formData.startDate) : 'Select Start Date'}
+                  </span>
+                  <Calendar size={18} className="text-slate-400" />
+                </div>
+
+                {showStartDatePicker && (
+                  <div className="absolute z-[100] mt-2 left-0 right-0 sm:right-auto sm:w-[320px]">
+                    <div className="fixed inset-0 z-0" onClick={() => setShowStartDatePicker(false)}></div>
+                    <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+                      <WheelDatePicker
+                        value={formData.startDate || new Date().toISOString().split('T')[0]}
+                        onChange={(val) => setFormData({ ...formData, startDate: val })}
+                      />
+                      <button
+                        type="button"
+                        className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
+                        onClick={() => setShowStartDatePicker(false)}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   End Date
                 </label>
-                <WheelDatePicker
-                  value={formData.endDate || new Date().toISOString().split('T')[0]}
-                  onChange={(val) => setFormData({ ...formData, endDate: val })}
-                />
+                <div
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer bg-white flex items-center justify-between"
+                  onClick={() => setShowEndDatePicker(!showEndDatePicker)}
+                >
+                  <span className={formData.endDate ? "text-slate-900" : "text-slate-400"}>
+                    {formData.endDate ? formatDateLabel(formData.endDate) : 'Select End Date'}
+                  </span>
+                  <Calendar size={18} className="text-slate-400" />
+                </div>
+
+                {showEndDatePicker && (
+                  <div className="absolute z-[100] mt-2 left-0 right-0 sm:right-auto sm:w-[320px]">
+                    <div className="fixed inset-0 z-0" onClick={() => setShowEndDatePicker(false)}></div>
+                    <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+                      <WheelDatePicker
+                        value={formData.endDate || new Date().toISOString().split('T')[0]}
+                        onChange={(val) => setFormData({ ...formData, endDate: val })}
+                      />
+                      <button
+                        type="button"
+                        className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
+                        onClick={() => setShowEndDatePicker(false)}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

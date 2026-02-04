@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BatchCrick</string>
+    <string name="title_activity_main">BatchCrick</string>
+    <string name="package_name">com.batchcrickbd</string>
+    <string name="custom_url_scheme">com.batchcrickbd</string>
+</resources>

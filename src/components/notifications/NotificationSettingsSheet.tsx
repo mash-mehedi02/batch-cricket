@@ -1,37 +1,45 @@
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Bell, BellRing, Check } from 'lucide-react'
+import { X } from 'lucide-react'
 import { notificationService } from '../../services/notificationService'
 
 interface Props {
     isOpen: boolean
     onClose: () => void
     matchId: string
+    adminId: string
     matchTitle?: string
+    tournamentId?: string
 }
 
 export const NotificationSettingsSheet: React.FC<Props> = ({
     isOpen,
     onClose,
     matchId,
-    matchTitle = "Match"
+    adminId,
+    matchTitle = "Match",
+    tournamentId
 }) => {
     const [settings, setSettings] = useState({
         all: false,
         wickets: false,
-        reminders: false
+        reminders: false,
+        tournament: false
     })
-
-    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
         if (isOpen) {
             const current = notificationService.getSettings(matchId)
-            setSettings(current)
+            const tournamentEnabled = tournamentId ? notificationService.getTournamentSettings(tournamentId) : false
+            setSettings({
+                ...current,
+                tournament: tournamentEnabled
+            })
         }
-    }, [isOpen, matchId])
+    }, [isOpen, matchId, tournamentId])
 
-    const handleToggle = (key: keyof typeof settings) => {
+    const handleToggle = async (key: keyof typeof settings) => {
         const newSettings = { ...settings }
 
         if (key === 'all') {
@@ -39,30 +47,34 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
             newSettings.all = newValue
             newSettings.wickets = newValue
             newSettings.reminders = newValue
+            if (newValue && tournamentId) {
+                newSettings.tournament = true
+                await notificationService.updateTournamentSubscription(tournamentId, adminId, true)
+            }
+        } else if (key === 'tournament') {
+            newSettings.tournament = !settings.tournament
+            if (tournamentId) {
+                await notificationService.updateTournamentSubscription(tournamentId, adminId, newSettings.tournament)
+            }
         } else {
             newSettings[key] = !settings[key]
-
-            // If toggling individual off, turn off 'all'
             if (!newSettings[key]) {
                 newSettings.all = false
-            }
-            // If all individuals are on, turn on 'all'
-            else if (newSettings.wickets && newSettings.reminders) {
+            } else if (newSettings.wickets && newSettings.reminders) {
                 newSettings.all = true
             }
         }
         setSettings(newSettings)
+
+        if (key === 'tournament') return
+
+        await notificationService.updateMatchSubscription(matchId, adminId, {
+            all: newSettings.all,
+            wickets: newSettings.wickets,
+            reminders: newSettings.reminders
+        })
     }
 
-    const handleSave = async (e: React.MouseEvent) => {
-        e.stopPropagation()
-        setLoading(true)
-        await notificationService.updateMatchSubscription(matchId, settings)
-        setLoading(false)
-        onClose()
-    }
-
-    // Toggle Component
     const Toggle = ({
         label,
         subtitle,
@@ -84,19 +96,19 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                     e.stopPropagation();
                     onChange();
                 }}
-                className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative ${checked ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}
+                className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
             >
-                <div className={`w-5 h-5 bg-white rounded-full shadow-sm absolute top-1 transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
+                <div className={`w-5 h-5 bg-white rounded-full shadow-sm absolute top-1 transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
         </div>
     )
 
-    return (
+    if (typeof document === 'undefined') return null
+
+    return createPortal(
         <AnimatePresence>
             {isOpen && (
-                <>
+                <div className="fixed inset-0" style={{ zIndex: 1000000 }}>
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -107,7 +119,7 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                             e.stopPropagation();
                             onClose();
                         }}
-                        className="fixed inset-0 bg-black z-50"
+                        className="absolute inset-0 bg-black"
                     />
 
                     {/* Sheet */}
@@ -117,22 +129,27 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
                         onClick={(e) => e.stopPropagation()}
-                        className="fixed bottom-0 left-0 right-0 bg-white z-50 rounded-t-2xl shadow-xl max-w-md mx-auto"
+                        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[2rem] shadow-2xl max-w-md mx-auto overflow-hidden"
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                            <h3 className="font-semibold text-gray-900 text-lg">Manage Notifications</h3>
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+                            <div>
+                                <h3 className="font-bold text-gray-900 text-lg leading-tight text-left">Manage Notifications</h3>
+                                <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider text-left mt-1">{matchTitle}</p>
+                            </div>
                             <button
-                                onClick={(e) => handleSave(e)}
-                                disabled={loading}
-                                className="text-blue-600 font-semibold text-sm hover:text-blue-700"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onClose();
+                                }}
+                                className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 shadow-sm"
                             >
-                                {loading ? 'Saving...' : 'Done'}
+                                <X size={20} className="text-gray-600" />
                             </button>
                         </div>
 
                         {/* Content */}
-                        <div className="px-5 py-2 pb-8">
+                        <div className="px-6 py-2 pb-10">
                             <Toggle
                                 label="All Notifications"
                                 subtitle="Wickets, 50s, 100s & Match Reminders"
@@ -141,20 +158,30 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                             />
                             <Toggle
                                 label="Wicket Notifications"
-                                subtitle="All wicket updates for Match"
+                                subtitle="All wicket updates for this Match"
                                 checked={settings.wickets}
                                 onChange={() => handleToggle('wickets')}
                             />
                             <Toggle
                                 label="Match Reminders"
-                                subtitle="Toss, Inns Start & Result"
+                                subtitle="Toss, Innings Start & Match Result"
                                 checked={settings.reminders}
                                 onChange={() => handleToggle('reminders')}
                             />
+                            {tournamentId && (
+                                <Toggle
+                                    label="Tournament Notifications"
+                                    subtitle="All matches in this entire tournament"
+                                    checked={settings.tournament}
+                                    onChange={() => handleToggle('tournament')}
+                                />
+                            )}
+
                         </div>
                     </motion.div>
-                </>
+                </div>
             )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     )
 }

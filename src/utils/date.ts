@@ -55,12 +55,16 @@ export function coerceToDate(value: unknown): Date | null {
   return null
 }
 
-export function formatDateLabel(d: Date, locale = 'en-US') {
-  return d.toLocaleDateString(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+export function formatDateLabel(d: unknown, locale = 'en-US') {
+  const date = coerceToDate(d)
+  if (!date) return String(d || '')
+  return date.toLocaleDateString(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function formatTimeLabel(d: Date, locale = 'en-GB') {
-  return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+export function formatTimeLabel(d: unknown, locale = 'en-GB') {
+  const date = coerceToDate(d)
+  if (!date) return String(d || '')
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 }
 
 // Bangladesh timezone helpers (Asia/Dhaka)

@@ -81,11 +81,11 @@ export default function Champions() {
                     {tournament.year}
                   </span>
                 </div>
-                
+
                 <h3 className="text-xl font-extrabold text-slate-900 mb-4 group-hover:text-amber-700 transition">
                   {tournament.name}
                 </h3>
-                
+
                 {tournament.winnerSquadId && (
                   <div className="mt-6 pt-6 border-t-2 border-amber-300 bg-white/60 rounded-xl p-4">
                     <div className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">Champions</div>

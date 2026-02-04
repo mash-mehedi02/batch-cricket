@@ -5,7 +5,7 @@
 
 import { create } from 'zustand'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, setDoc, Timestamp, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, Timestamp, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '@/config/firebase'
 import { User, UserRole } from '@/types'
 
@@ -22,107 +22,95 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
 
   login: async (email: string, password: string) => {
+    let userCredential;
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      userCredential = await signInWithEmailAndPassword(auth, email, password)
+    } catch (error: any) {
+      console.error('Login error details:', error)
+      throw error
+    }
+
+    try {
+      // Multi-tier Role Determination
+      let userRole: UserRole = 'viewer'
+      const OWNER_EMAILS = ['batchcrick@gmail.com']
+      const currentUserEmail = userCredential.user.email?.toLowerCase() || ''
+      const isOwnerEmail = OWNER_EMAILS.includes(currentUserEmail)
+
       try {
-        // Check admin collection first (Firestore rules check this)
-        const adminRef = doc(db, 'admin', userCredential.user.uid)
-        let adminDoc = await getDoc(adminRef)
-        let isAdmin = adminDoc.exists()
+        // 1. Check if they are already in the admins collection
+        const adminsRef = doc(db, 'admins', userCredential.user.uid)
+        const adminsDoc = await getDoc(adminsRef)
+        const isActiveAdmin = adminsDoc.exists() && adminsDoc.data()?.isActive === true
 
-        // EMERGENCY BACKDOOR FOR OWNERS
-        // This ensures you can always get back in if you get locked out
-        const OWNER_EMAILS = ['batchcrick@gmail.com']
-        if (!isAdmin && userCredential.user.email && OWNER_EMAILS.includes(userCredential.user.email)) {
-          console.log('👑 Owner detected! Restoring admin access...')
-          await setDoc(adminRef, {
+        if (isActiveAdmin) {
+          userRole = adminsDoc.data()?.role === 'super_admin' ? 'super_admin' : 'admin'
+        } else if (isOwnerEmail) {
+          // EMERGENCY BACKDOOR FOR OWNERS: Create the admin record if it doesn't exist
+          console.log('👑 Owner detected during login! Initializing super admin access...')
+          await setDoc(adminsRef, {
             uid: userCredential.user.uid,
-            email: userCredential.user.email,
-            createdAt: new Date().toISOString(),
-            role: 'super_admin'
-          }, { merge: true })
-
-          // Force refresh
-          await userCredential.user.getIdToken(true)
-          adminDoc = await getDoc(adminRef)
-          isAdmin = adminDoc.exists()
-        }
-
-        if (!isAdmin) {
-          try {
-            const permitRef = doc(db, 'permitted_admins', (userCredential.user.email || 'unknown').toLowerCase())
-            const permitDoc = await getDoc(permitRef)
-
-            if (permitDoc.exists()) {
-              console.log('User is in permitted_admins list. Granting admin access...')
-              await setDoc(adminRef, {
-                uid: userCredential.user.uid,
-                email: userCredential.user.email || '',
-                createdAt: new Date().toISOString(),
-                grantedBy: permitDoc.data().addedBy || 'system'
-              }, { merge: true })
-
-              // Refresh token
-              await userCredential.user.getIdToken(true)
-              adminDoc = await getDoc(adminRef)
-              isAdmin = adminDoc.exists()
-            }
-          } catch (err) {
-            console.warn('Error checking permission list:', err)
-          }
-        }
-
-        // Create user document if it doesn't exist (for normal players/users)
-        const userRef = doc(db, 'users', userCredential.user.uid)
-        const userDoc = await getDoc(userRef)
-
-        if (!userDoc.exists()) {
-          await setDoc(userRef, {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email || '',
-            role: 'viewer', // Default role for any new login
+            name: userCredential.user.displayName || 'Super Admin',
+            email: currentUserEmail,
+            role: 'super_admin',
+            isActive: true,
+            organizationName: 'BatchCrick',
             createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp(),
           }, { merge: true })
-        } else {
-          await updateDoc(userRef, { lastLogin: serverTimestamp() })
+          userRole = 'super_admin'
         }
+      } catch (dbError) {
+        console.warn('Admin check failed:', dbError)
+        // Fallback for owner even if lookup fails
+        if (isOwnerEmail) userRole = 'super_admin'
+      }
 
-        let userData = (await getDoc(userRef)).data() || {}
+      // Create user document if it doesn't exist (for profiling/last login)
+      const userRef = doc(db, 'users', userCredential.user.uid)
+      const userDoc = await getDoc(userRef)
 
-        set({
-          user: {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email!,
-            displayName: userCredential.user.displayName || userData.displayName,
-            role: isAdmin ? 'admin' : ((userData.role as UserRole) || 'viewer'),
-            createdAt: userData.createdAt,
-            lastLogin: userData.lastLogin,
-          },
-          loading: false,
-        })
-      } catch (error: any) {
-        // If admin doc fetch fails, assume not admin
-        console.warn('Error fetching admin/user document:', error)
-        set({
-          user: {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email!,
-            displayName: userCredential.user.displayName ?? undefined,
-            role: 'viewer' as UserRole,
-            createdAt: Timestamp.now(),
-          },
-          loading: false,
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email || '',
+          role: userRole,
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+        }, { merge: true })
+      } else {
+        await updateDoc(userRef, {
+          lastLogin: serverTimestamp(),
+          role: userRole // Sync role
         })
       }
-    } catch (error: any) {
-      // Re-throw authentication errors
-      console.error('Login error details:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack
+
+      let userData = (await getDoc(userRef)).data() || {}
+
+      set({
+        user: {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email!,
+          displayName: userCredential.user.displayName || userData.displayName,
+          role: userRole,
+          createdAt: userData.createdAt,
+          lastLogin: userData.lastLogin,
+        },
+        loading: false,
       })
-      throw error
+    } catch (error: any) {
+      console.warn('Error fetching admin/user document (using fallback):', error)
+      const OWNER_EMAILS = ['batchcrick@gmail.com']
+      const isOwner = userCredential.user.email && OWNER_EMAILS.includes(userCredential.user.email)
+      set({
+        user: {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email!,
+          displayName: userCredential.user.displayName ?? undefined,
+          role: (isOwner ? 'super_admin' : 'viewer') as UserRole,
+          createdAt: Timestamp.now(),
+        },
+        loading: false,
+      })
     }
   },
 
@@ -135,32 +123,34 @@ export const useAuthStore = create<AuthState>((set) => ({
     onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Check admin collection first (Firestore rules check this)
-          const adminRef = doc(db, 'admin', firebaseUser.uid)
-          let adminDoc = await getDoc(adminRef)
-          let isAdmin = adminDoc.exists()
+          let userRole: UserRole = 'viewer'
+          const OWNER_EMAILS = ['batchcrick@gmail.com']
+          const currentUserEmail = firebaseUser.email?.toLowerCase() || ''
+          const isOwnerEmail = OWNER_EMAILS.includes(currentUserEmail)
 
-          if (!isAdmin) {
-            try {
-              const permitRef = doc(db, 'permitted_admins', (firebaseUser.email || 'unknown').toLowerCase())
-              const permitDoc = await getDoc(permitRef)
+          try {
+            const adminsRef = doc(db, 'admins', firebaseUser.uid)
+            const adminsDoc = await getDoc(adminsRef)
+            const isActiveAdmin = adminsDoc.exists() && adminsDoc.data()?.isActive === true
 
-              if (permitDoc.exists()) {
-                console.log('User is in permitted_admins list. Granting admin access...')
-                await setDoc(adminRef, {
-                  uid: firebaseUser.uid,
-                  email: firebaseUser.email || '',
-                  createdAt: new Date().toISOString(),
-                  grantedBy: permitDoc.data().addedBy || 'system'
-                }, { merge: true })
-
-                await firebaseUser.getIdToken(true)
-                adminDoc = await getDoc(adminRef)
-                isAdmin = adminDoc.exists()
-              }
-            } catch (err) {
-              console.warn('Error checking permission list:', err)
+            if (isActiveAdmin) {
+              userRole = adminsDoc.data()?.role === 'super_admin' ? 'super_admin' : 'admin'
+            } else if (isOwnerEmail) {
+              console.log('👑 Owner detected during init! Initializing super admin access...')
+              await setDoc(adminsRef, {
+                uid: firebaseUser.uid,
+                name: firebaseUser.displayName || 'Super Admin',
+                email: firebaseUser.email,
+                role: 'super_admin',
+                isActive: true,
+                organizationName: 'BatchCrick',
+                createdAt: serverTimestamp(),
+              }, { merge: true })
+              userRole = 'super_admin'
             }
+          } catch (dbError) {
+            console.warn('Admin init check failed:', dbError)
+            if (isOwnerEmail) userRole = 'super_admin'
           }
 
           // Auto-sync with users collection
@@ -170,9 +160,14 @@ export const useAuthStore = create<AuthState>((set) => ({
             await setDoc(userRef, {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
-              role: 'viewer',
+              role: userRole,
               createdAt: serverTimestamp(),
               lastLogin: serverTimestamp(),
+            })
+          } else {
+            await updateDoc(userRef, {
+              lastLogin: serverTimestamp(),
+              role: userRole
             })
           }
 
@@ -183,7 +178,7 @@ export const useAuthStore = create<AuthState>((set) => ({
               uid: firebaseUser.uid,
               email: firebaseUser.email!,
               displayName: firebaseUser.displayName || userData.displayName,
-              role: isAdmin ? 'admin' : ((userData.role as UserRole) || 'viewer'),
+              role: userRole,
               createdAt: userData.createdAt,
               lastLogin: userData.lastLogin,
             },
@@ -191,6 +186,9 @@ export const useAuthStore = create<AuthState>((set) => ({
           })
         } catch (error: any) {
           // Handle permission errors gracefully
+          const OWNER_EMAILS = ['batchcrick@gmail.com']
+          const isOwner = firebaseUser.email && OWNER_EMAILS.includes(firebaseUser.email)
+
           if (error.code === 'permission-denied') {
             console.warn('Permission denied accessing admin/user document - using basic user info')
             set({
@@ -198,14 +196,23 @@ export const useAuthStore = create<AuthState>((set) => ({
                 uid: firebaseUser.uid,
                 email: firebaseUser.email!,
                 displayName: firebaseUser.displayName ?? undefined,
-                role: 'viewer' as UserRole,
+                role: (isOwner ? 'super_admin' : 'viewer') as UserRole,
                 createdAt: Timestamp.now(),
               },
               loading: false,
             })
           } else {
             console.error('Error loading user data:', error)
-            set({ user: null, loading: false })
+            set({
+              user: isOwner ? {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email!,
+                displayName: firebaseUser.displayName ?? undefined,
+                role: 'super_admin' as UserRole,
+                createdAt: Timestamp.now(),
+              } : null,
+              loading: false
+            })
           }
         }
       } else {

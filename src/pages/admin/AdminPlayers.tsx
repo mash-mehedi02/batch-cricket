@@ -7,13 +7,16 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
+import { adminService } from '@/services/firestore/admins'
 import { createPlayerWithClaim, getPlayerSecretEmail, updatePlayerClaimEmail } from '@/services/firestore/playerClaim'
 import { Player, Squad } from '@/types'
 import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { Trash2, Search, Plus, Edit2, Filter, User, Trophy, Medal, Zap } from 'lucide-react'
+import { Trash2, Search, Plus, Edit2, Filter, User, Trophy, Medal, Zap, Calendar } from 'lucide-react'
+import { useAuthStore } from '@/store/authStore'
+import { formatDateLabel } from '@/utils/date'
 
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
@@ -25,9 +28,11 @@ interface AdminPlayersProps {
 export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const { id } = useParams<{ id?: string }>()
   const navigate = useNavigate()
-  // const { user } = useAuthStore() // Unused
+  const { user } = useAuthStore()
   const [players, setPlayers] = useState<Player[]>([])
   const [squads, setSquads] = useState<Squad[]>([])
+  const [allAdmins, setAllAdmins] = useState<any[]>([])
+  const [selectedAdminFilter, setSelectedAdminFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [filterRole, setFilterRole] = useState<string>('')
   const [filterSquad, setFilterSquad] = useState<string>('')
@@ -53,12 +58,16 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const [itemToDelete, setItemToDelete] = useState<Player | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(false)
 
 
   useEffect(() => {
     if (mode === 'list') {
       loadPlayers()
       loadSquads()
+      if (user?.role === 'super_admin') {
+        loadAdmins()
+      }
     } else {
       loadSquads()
       if (mode === 'edit' && id) {
@@ -69,9 +78,20 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     }
   }, [mode, id])
 
-  const loadPlayers = async () => {
+  const loadAdmins = async () => {
     try {
-      const data = await playerService.getAll()
+      const data = await adminService.getAll()
+      setAllAdmins(data)
+    } catch (error) {
+      console.error('Error loading admins:', error)
+    }
+  }
+
+  const loadPlayers = async () => {
+    if (!user) return
+    try {
+      const isSuperAdmin = user.role === 'super_admin'
+      const data = await playerService.getByAdmin(user.uid, isSuperAdmin)
       setPlayers(data)
       setLoading(false)
     } catch (error) {
@@ -82,7 +102,9 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   }
 
   const loadSquads = async () => {
+    if (!user) return
     try {
+      // Load ALL squads from platform so players can be assigned to any squad
       const data = await squadService.getAll()
       setSquads(data)
     } catch (error) {
@@ -94,6 +116,16 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     try {
       const data = await playerService.getById(playerId)
       if (data) {
+        // Check ownership - only allow editing own players (unless super admin)
+        const isSuperAdmin = user?.role === 'super_admin'
+        const isOwner = (data as any).adminId === user?.uid || (data as any).createdBy === user?.uid
+
+        if (!isSuperAdmin && !isOwner) {
+          toast.error('You can only edit players you created')
+          navigate('/admin/players')
+          return
+        }
+
         // Fetch email from secrets if admin
         const secretEmail = await getPlayerSecretEmail(playerId)
 
@@ -171,6 +203,12 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const isSuperAdmin = (user?.role as string) === 'super_admin'
+    const isAdmin = (user?.role as string) === 'admin'
+    if (!user || (!isAdmin && !isSuperAdmin)) {
+      toast.error('Administrative privileges required')
+      return
+    }
 
     if (!validateForm()) {
       toast.error('Please fix the validation errors')
@@ -191,6 +229,8 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           squadName: squad.name,
           email: formData.email,
           school: formData.school,
+          adminId: user?.uid,
+          adminEmail: user?.email,
         })
 
         toast.success(formData.email
@@ -258,7 +298,13 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     if (filterRole && player.role !== filterRole) return false
     if (filterSquad && player.squadId !== filterSquad) return false
     if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
-    return true
+
+    // Admin Filter Logic
+    if (user?.role === 'super_admin' && selectedAdminFilter) {
+      const isAdminMatch = (player as any).adminId === selectedAdminFilter || (player as any).createdBy === selectedAdminFilter;
+      if (!isAdminMatch) return false;
+    }
+
     return true
   })
 
@@ -455,12 +501,40 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               </div>
             )}
 
-            <div>
+            <div className="relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label>
-              <WheelDatePicker
-                value={formData.dateOfBirth || '2000-01-01'}
-                onChange={(val) => setFormData({ ...formData, dateOfBirth: val })}
-              />
+              <div
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer bg-white flex items-center justify-between"
+                onClick={() => setShowDatePicker(!showDatePicker)}
+              >
+                <span className={formData.dateOfBirth ? "text-slate-900" : "text-slate-400"}>
+                  {formData.dateOfBirth ? formatDateLabel(formData.dateOfBirth) : 'Select Date'}
+                </span>
+                <Calendar size={18} className="text-slate-400" />
+              </div>
+
+              {showDatePicker && (
+                <div className="absolute z-[100] mt-2 left-0 right-0 sm:right-auto sm:w-[320px]">
+                  {/* Click away layer */}
+                  <div className="fixed inset-0 z-0" onClick={() => setShowDatePicker(false)}></div>
+                  <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+                    <WheelDatePicker
+                      value={formData.dateOfBirth || '2000-01-01'}
+                      onChange={(val) => {
+                        setFormData({ ...formData, dateOfBirth: val })
+                      }}
+                      maxYear={new Date().getFullYear()}
+                    />
+                    <button
+                      type="button"
+                      className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition"
+                      onClick={() => setShowDatePicker(false)}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -607,8 +681,8 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Players Database</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage player profiles, stats, and squad assignments.</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase italic">Players Database</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium">Manage player profiles, stats, and squad assignments.</p>
         </div>
         <Link
           to="/admin/players/new"
@@ -621,40 +695,40 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><User size={24} /></div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl"><User size={24} /></div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">{players.length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Players</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white">{players.length}</div>
+            <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Total Players</div>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg"><Zap size={24} /></div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl"><Zap size={24} /></div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">{players.filter(p => p.role === 'batsman').length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Batsmen</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white">{players.filter(p => p.role === 'batsman').length}</div>
+            <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Batsmen</div>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg"><Trophy size={24} /></div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl"><Trophy size={24} /></div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">{players.filter(p => p.role === 'bowler').length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Bowlers</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white">{players.filter(p => p.role === 'bowler').length}</div>
+            <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Bowlers</div>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg"><Medal size={24} /></div>
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl"><Medal size={24} /></div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">{players.filter(p => p.role === 'all-rounder').length}</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">All Rounders</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white">{players.filter(p => p.role === 'all-rounder').length}</div>
+            <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">All Rounders</div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex flex-col">
         {/* Toolbar */}
-        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50/50">
+        <div className="p-4 border-b border-slate-100 dark:border-white/5 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
           <div className="relative w-full lg:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
@@ -662,14 +736,14 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               placeholder="Search by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
             />
           </div>
-          <div className="flex w-full lg:w-auto items-center gap-2 overflow-x-auto">
+          <div className="flex w-full lg:w-auto items-center gap-2 overflow-x-auto flex-wrap sm:flex-nowrap">
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer"
+              className="px-3 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer tracking-wider uppercase text-[10px]"
             >
               <option value="">All Roles</option>
               <option value="batsman">Batsman</option>
@@ -680,28 +754,48 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
             <select
               value={filterSquad}
               onChange={(e) => setFilterSquad(e.target.value)}
-              className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer max-w-[200px]"
+              className="px-3 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer max-w-[200px] tracking-wider uppercase text-[10px]"
             >
               <option value="">All Squads</option>
               {squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+
+            {/* Admin Filter for Super Admins */}
+            {user?.role === 'super_admin' && (
+              <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-white/10 ml-2">
+                <User size={16} className="text-slate-400" />
+                <select
+                  value={selectedAdminFilter}
+                  onChange={(e) => setSelectedAdminFilter(e.target.value)}
+                  className="px-3 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[160px] tracking-wider uppercase text-[10px]"
+                >
+                  <option value="">All Admins</option>
+                  {allAdmins.map(admin => (
+                    <option key={admin.uid} value={admin.uid}>
+                      {admin.name || admin.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+            <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-white/5">
               <tr>
                 <th className="px-6 py-4 w-[30%]">Player Name</th>
                 <th className="px-6 py-4">Role</th>
                 <th className="px-6 py-4">Squad</th>
                 <th className="px-6 py-4 hidden md:table-cell">Batting</th>
                 <th className="px-6 py-4 hidden md:table-cell">Bowling</th>
+                {user?.role === 'super_admin' && <th className="px-6 py-4">Admin</th>}
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {filteredPlayers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center">
@@ -740,6 +834,13 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                     <td className="px-6 py-4 hidden md:table-cell text-slate-600 capitalize">
                       {player.bowlingStyle ? player.bowlingStyle.replace(/-/g, ' ') : '-'}
                     </td>
+                    {user?.role === 'super_admin' && (
+                      <td className="px-6 py-4 text-slate-500 text-xs">
+                        <span className="truncate block max-w-[80px]" title={(player as any).adminId || (player as any).createdBy || 'System'}>
+                          {((player as any).adminEmail || (player as any).createdBy || 'System').split('@')[0]}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Link

@@ -4,7 +4,7 @@
  */
 
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
-import { db } from '@/config/firebase'
+import { db, auth } from '@/config/firebase'
 import { Player } from '@/types'
 import { COLLECTIONS } from './collections'
 
@@ -55,27 +55,66 @@ export const playerService = {
   },
 
   /**
-   * Get all players
+   * Subscribe to players for a specific admin
+   */
+  subscribeByAdmin(adminId: string, callback: (players: Player[]) => void): () => void {
+    const q = query(playersRef, where('adminId', '==', adminId))
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Player))
+          .sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
+        callback(list)
+      },
+      (error) => {
+        console.error('[playerService] subscribeByAdmin error:', error)
+        callback([])
+      }
+    )
+  },
+
+  /**
+   * Get players for a specific admin (or all for super admin)
+   */
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Player[]> {
+    try {
+      let snapshot;
+      if (isSuperAdmin) {
+        snapshot = await getDocs(query(playersRef, orderBy('name')))
+      } else {
+        const q = query(playersRef, where('adminId', '==', adminId), orderBy('name'))
+        snapshot = await getDocs(q)
+      }
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+    } catch (error) {
+      console.warn('[playerService] getByAdmin: orderBy failed, fetching and sorting manually')
+      try {
+        let q;
+        if (isSuperAdmin) {
+          q = query(playersRef)
+        } else {
+          q = query(playersRef, where('adminId', '==', adminId))
+        }
+        const snapshot = await getDocs(q)
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+          .sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
+      } catch (fallbackError) {
+        console.error('Error loading players by admin:', fallbackError)
+        return []
+      }
+    }
+  },
+
+  /**
+   * Get all players (Public View)
    */
   async getAll(): Promise<Player[]> {
     try {
       const snapshot = await getDocs(query(playersRef, orderBy('name')))
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
     } catch (error) {
-      console.error('Error loading players with orderBy:', error)
-      // Try without orderBy if index doesn't exist
-      try {
-        const snapshot = await getDocs(playersRef)
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
-          .sort((a, b) => {
-            const nameA = (a.name || '').toLowerCase()
-            const nameB = (b.name || '').toLowerCase()
-            return nameA.localeCompare(nameB)
-          })
-      } catch (fallbackError) {
-        console.error('Error in fallback query:', fallbackError)
-        return []
-      }
+      console.error('Error loading players:', error)
+      return []
     }
   },
 
@@ -127,12 +166,28 @@ export const playerService = {
   },
 
   /**
+   * Get multiple players by IDs
+   */
+  async getByIds(ids: string[]): Promise<Player[]> {
+    if (!ids || ids.length === 0) return []
+    try {
+      const promises = ids.map(id => this.getById(id))
+      const results = await Promise.all(promises)
+      return results.filter((p): p is Player => p !== null)
+    } catch (error) {
+      console.error('[playerService] Error fetching players by IDs:', error)
+      return []
+    }
+  },
+
+  /**
    * Create player
    */
-  async create(data: Omit<Player, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  async create(data: Omit<Player, 'id' | 'createdAt' | 'updatedAt'> & { adminId: string }): Promise<string> {
     const now = Timestamp.now()
     const docRef = await addDoc(playersRef, {
       ...data,
+      adminId: data.adminId || auth.currentUser?.uid,
       createdAt: now,
       updatedAt: now,
     })
@@ -185,9 +240,13 @@ export const playerService = {
       const statsId = `${matchId}_${playerId}`
       const statsRef = doc(collection(db, 'playerMatchStats'), statsId)
 
+      // Ensure adminId is present for security rules
+      const adminId = performance.adminId || (playerData as any).adminId || auth.currentUser?.uid
+
       const statsPayload = {
         matchId,
         playerId,
+        adminId,
         opponent: performance.opponentName || performance.opponent || 'Opponent',
         runs: Number(performance.runs || 0),
         balls: Number(performance.balls || 0),

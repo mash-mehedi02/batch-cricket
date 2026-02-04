@@ -10,9 +10,9 @@ import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'
 import type { Match, Tournament, InningsStats } from '@/types'
 import type { TournamentConfig, MatchResult } from '@/engine/tournament'
-import { computeGroupStandings, computeQualification, validateTournamentConfig } from '@/engine/tournament'
+import { computeGroupStandings, validateTournamentConfig } from '@/engine/tournament'
 
-type GroupConfig = { id: string; name: string; squadIds: string[] }
+
 
 type Row = {
   squadId: string
@@ -55,14 +55,12 @@ export default function TournamentPointsTable({
   embedded = false,
   tournamentId: tournamentIdProp,
   filterSquadIds,
-  hideQualification = false,
   matches: matchesProp,
   inningsMap: inningsMapProp
 }: {
   embedded?: boolean
   tournamentId?: string
   filterSquadIds?: string[]
-  hideQualification?: boolean
   matches?: Match[]
   inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>
 } = {}) {
@@ -415,30 +413,32 @@ export default function TournamentPointsTable({
     <div className={embedded ? 'space-y-6' : 'max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6'}>
       {!embedded && (
         <div className="flex flex-col gap-2">
-          <Link to="/tournaments" className="text-xs font-medium text-teal-600 hover:text-teal-700 uppercase tracking-widest">
+          <Link to="/tournaments" className="text-xs font-black text-blue-600 dark:text-blue-400 hover:underline uppercase tracking-widest">
             ← Back to Tournaments
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-medium text-slate-900 tracking-tight">{tournament?.name || 'Points Table'}</h1>
-          {tournament?.year && <p className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none mt-1">{tournament.year} Season</p>}
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase leading-none">
+            {tournament?.name || 'Points Table'}
+          </h1>
+          {tournament?.year && <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-2">{tournament.year} Season</p>}
         </div>
       )}
 
       {groups.length === 0 ? (
-        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-12 text-center text-slate-400 font-medium uppercase tracking-widest text-xs">
-          No standings information available for this tournament.
+        <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-sm p-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+          No standings information available
         </div>
       ) : (
         <div className="space-y-8">
           {/* Group Selector Tabs */}
           {groups.length > 1 && (
-            <div className="p-1 bg-slate-200/40 backdrop-blur rounded-[1.25rem] flex gap-1 w-fit max-w-full overflow-x-auto no-scrollbar mx-auto sm:mx-0">
+            <div className="p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl flex gap-1 w-fit max-w-full overflow-x-auto no-scrollbar mx-auto sm:mx-0 border border-slate-200 dark:border-white/5">
               {groups.map((g) => (
                 <button
                   key={g.id}
                   onClick={() => setActiveGroupId(g.id)}
-                  className={`px-6 py-2.5 rounded-2xl text-[10px] sm:text-xs font-medium uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${activeGroupId === g.id
-                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100 scale-[1.02]'
-                    : 'text-slate-400 hover:text-slate-600'
+                  className={`px-6 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${activeGroupId === g.id
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-md ring-1 ring-slate-200 dark:ring-white/10'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                     }`}
                 >
                   {g.name}
@@ -447,81 +447,84 @@ export default function TournamentPointsTable({
             </div>
           )}
 
-          {activeGroup && (
-            <div key={activeGroup.id} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* Standings Table Rendering moved here */}
-              {(() => {
-                let rows = standingsByGroup.get(activeGroup.id) || []
-                if (filterSquadIds?.length) {
-                  const filterSet = new Set(filterSquadIds)
-                  rows = rows.filter((r: Row) => filterSet.has(r.squadId))
-                  if (rows.length === 0) return null
-                }
-                const qCount = Number(
-                  activeGroup.qualification?.qualifyCount ||
-                  tournament?.qualification?.perGroup ||
-                  (tournament as any)?.config?.qualification?.perGroup ||
-                  0
-                )
+          {activeGroup && (() => {
+            let rows = standingsByGroup.get(activeGroup.id) || []
+            if (filterSquadIds?.length) {
+              const filterSet = new Set(filterSquadIds)
+              rows = rows.filter((r: Row) => filterSet.has(r.squadId))
+            }
+            if (rows.length === 0) return null
 
-                return (
-                  <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                    {!embedded && (
-                      <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-50 flex items-center justify-between">
-                        <div className="font-medium text-slate-900 tracking-tight">{activeGroup.name}</div>
-                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Sorted by Points & NRR</div>
-                      </div>
-                    )}
-                    <div className="overflow-x-auto no-scrollbar">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50">
-                            <th className="text-left py-4 px-6">Team</th>
-                            <th className="text-center py-4 px-3">P</th>
-                            <th className="text-center py-4 px-2">W</th>
-                            <th className="text-center py-4 px-2">L</th>
-                            <th className="text-center py-4 px-2">T</th>
-                            <th className="text-center py-4 px-3">Pts</th>
-                            <th className="text-right py-4 px-6">NRR</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {rows.map((r: any, idx: number) => {
-                            const isConfirmed = confirmedQualifiedIds.includes(r.squadId)
-                            const isInQualZone = idx < qCount
-                            return (
-                              <tr
-                                key={r.squadId}
-                                className={`transition-colors duration-300 ${isInQualZone ? 'bg-emerald-100/40' : 'hover:bg-slate-50/50'}`}
-                              >
-                                <td className="py-4 px-6 min-w-[160px]">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`text-[10px] font-medium w-5 transition-colors ${isInQualZone ? 'text-emerald-600' : 'text-slate-300'}`}>{idx + 1}</div>
-                                    <div className="font-medium text-slate-900 text-sm tracking-tight">{r.squadName}</div>
-                                    {isConfirmed && (
-                                      <div className="bg-emerald-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm" title="Confirmed Qualified">
-                                        Q
-                                      </div>
+            const qCount = Number(
+              (activeGroup as any)?.qualification?.qualifyCount ||
+              (tournament as any)?.qualification?.perGroup ||
+              (tournament as any)?.config?.qualification?.perGroup ||
+              0
+            )
+
+            return (
+              <div key={activeGroup.id} className="bg-white dark:bg-slate-950 rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {!embedded && (
+                  <div className="px-6 py-5 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                    <div className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{activeGroup.name}</div>
+                    <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Live Standings</div>
+                  </div>
+                )}
+                <div className="overflow-x-auto no-scrollbar">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-white/5">
+                        <th className="text-left py-4 px-6">Team</th>
+                        <th className="text-center py-4 px-2">P</th>
+                        <th className="text-center py-4 px-2">W</th>
+                        <th className="text-center py-4 px-2">L</th>
+                        <th className="text-center py-4 px-2">NR</th>
+                        <th className="text-center py-4 px-4">NRR</th>
+                        <th className="text-center py-4 px-4">Pts</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                      {rows.map((r: any, idx: number) => {
+                        const isConfirmed = confirmedQualifiedIds.includes(r.squadId)
+                        const isInQualZone = idx < qCount
+                        const squad = squadsById.get(r.squadId)
+                        return (
+                          <tr
+                            key={r.squadId}
+                            className={`transition-colors duration-300 ${isInQualZone ? 'bg-amber-50/30 dark:bg-amber-500/5 shadow-inner' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}
+                          >
+                            <td className="py-4 px-6 min-w-[180px]">
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  {isConfirmed && (
+                                    <div className="absolute -top-1.5 -left-1.5 bg-amber-500 text-white text-[8px] font-black w-4 h-4 rounded shadow-sm flex items-center justify-center z-10 animate-in zoom-in" title="Qualified">Q</div>
+                                  )}
+                                  <div className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden p-1">
+                                    {squad?.logoUrl ? (
+                                      <img src={squad.logoUrl} alt="" className="w-full h-full object-contain" />
+                                    ) : (
+                                      <span className="text-[10px] font-black text-slate-300">{r.squadName?.substring(0, 1)}</span>
                                     )}
                                   </div>
-                                </td>
-                                <td className="py-4 px-3 text-center tabular-nums text-sm text-slate-600 font-medium">{r.played}</td>
-                                <td className="py-4 px-2 text-center tabular-nums text-sm text-slate-600">{r.won}</td>
-                                <td className="py-4 px-2 text-center tabular-nums text-sm text-slate-600">{r.lost}</td>
-                                <td className="py-4 px-2 text-center tabular-nums text-sm text-slate-600">{r.tied}</td>
-                                <td className="py-4 px-3 text-center tabular-nums text-[15px] font-medium text-slate-900">{r.points}</td>
-                                <td className="py-4 px-6 text-right tabular-nums text-xs font-medium text-slate-400">{(r.nrr >= 0 ? '+' : '') + r.nrr.toFixed(3)}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          )}
+                                </div>
+                                <div className="font-black text-slate-900 dark:text-white uppercase tracking-tight line-clamp-1">{r.squadName}</div>
+                              </div>
+                            </td>
+                            <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.played}</td>
+                            <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.won}</td>
+                            <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.lost}</td>
+                            <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.noResult || 0}</td>
+                            <td className="py-4 px-4 text-center tabular-nums font-bold text-slate-400 dark:text-slate-500">{(r.nrr >= 0 ? '+' : '') + r.nrr.toFixed(3)}</td>
+                            <td className="py-4 px-4 text-center tabular-nums text-sm font-black text-amber-600 dark:text-amber-500">{r.points}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

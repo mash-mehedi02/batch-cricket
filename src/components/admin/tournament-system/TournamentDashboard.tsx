@@ -34,6 +34,7 @@ export default function TournamentDashboard() {
     const [tournament, setTournament] = useState<Tournament | null>(null);
     const [squads, setSquads] = useState<Squad[]>([]);
     const [matches, setMatches] = useState<Match[]>([]);
+    const [inningsMap, setInningsMap] = useState<Map<string, { teamA: any, teamB: any }>>(new Map());
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'overview' | 'structure' | 'groups' | 'matches' | 'qualification' | 'knockout' | 'champions' | 'standings' | 'settings'>('overview');
 
@@ -52,6 +53,17 @@ export default function TournamentDashboard() {
             if (t) setTournament(t as any);
             setSquads(s as any);
             setMatches(m as any);
+
+            // Fetch innings for standings
+            const im = new Map<string, { teamA: any, teamB: any }>();
+            await Promise.all(m.map(async (match) => {
+                const [a, b] = await Promise.all([
+                    matchService.getInnings(match.id, 'teamA'),
+                    matchService.getInnings(match.id, 'teamB')
+                ]);
+                im.set(match.id, { teamA: a, teamB: b });
+            }));
+            setInningsMap(im);
         } catch (e) {
             console.error(e);
             toast.error('Failed to load tournament data');
@@ -78,6 +90,8 @@ export default function TournamentDashboard() {
     );
 
     if (!tournament) return <div>Tournament not found.</div>;
+
+    const isLocked = tournament.status !== 'upcoming';
 
     const tabs = [
         { id: 'overview', name: 'Dashboard', icon: LayoutDashboard },
@@ -180,11 +194,11 @@ export default function TournamentDashboard() {
                     )}
 
                     {activeTab === 'structure' && (
-                        <StructureBuilder tournament={tournament} onUpdate={handleUpdate} />
+                        <StructureBuilder tournament={tournament} onUpdate={handleUpdate} isLocked={isLocked} />
                     )}
 
                     {activeTab === 'groups' && (
-                        <GroupManager tournament={tournament} squads={squads} onUpdate={handleUpdate} />
+                        <GroupManager tournament={tournament} squads={squads} onUpdate={handleUpdate} isLocked={isLocked} />
                     )}
 
                     {activeTab === 'matches' && (
@@ -192,7 +206,7 @@ export default function TournamentDashboard() {
                     )}
 
                     {activeTab === 'qualification' && (
-                        <QualificationCenter tournament={tournament} matches={matches} squads={squads} onUpdate={handleUpdate} />
+                        <QualificationCenter tournament={tournament} matches={matches} squads={squads} inningsMap={inningsMap} onUpdate={handleUpdate} />
                     )}
 
                     {activeTab === 'knockout' && (
@@ -204,7 +218,7 @@ export default function TournamentDashboard() {
                     )}
 
                     {activeTab === 'standings' && (
-                        <TournamentPointsTable embedded tournamentId={id} />
+                        <TournamentPointsTable embedded tournamentId={id} matches={matches} inningsMap={inningsMap} />
                     )}
 
                     {activeTab === 'settings' && (

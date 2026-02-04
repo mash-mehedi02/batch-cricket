@@ -91,7 +91,7 @@ export default function Squads() {
       <div className="mb-10 squads-header">
         <div className="flex items-center gap-3 mb-6">
           <div className="h-1 w-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"></div>
-          <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 dark:from-white dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent italic tracking-tighter uppercase leading-[0.8]">
             Squads
           </h1>
           <div className="h-1 flex-1 bg-gradient-to-r from-blue-500/30 to-transparent rounded-full"></div>
@@ -103,23 +103,23 @@ export default function Squads() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSelectedBatch(null)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 shadow-sm ${selectedBatch === null
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all duration-200 shadow-sm ${selectedBatch === null
                   ? 'bg-teal-600 text-white shadow-teal-500/20'
-                  : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5'
                   }`}
               >
                 All Batches
               </button>
             </div>
 
-            <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-5 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {batches.map((batch) => (
                 <button
                   key={batch}
                   onClick={() => setSelectedBatch(batch)}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-all duration-200 shadow-sm border ${selectedBatch === batch
+                  className={`px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-black transition-all duration-200 shadow-sm border ${selectedBatch === batch
                     ? 'bg-teal-600 text-white border-teal-600 shadow-teal-500/20'
-                    : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200 hover:border-slate-300'
+                    : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-white/5 hover:border-slate-300'
                     }`}
                 >
                   {batch}
@@ -137,9 +137,9 @@ export default function Squads() {
           ))}
         </div>
       ) : filteredSquads.length === 0 ? (
-        <div className="bg-white rounded-3xl shadow-sm p-16 text-center border border-slate-100">
+        <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-sm p-16 text-center border border-slate-100 dark:border-white/5">
           <div className="text-6xl mb-6">👥</div>
-          <p className="text-xl text-slate-500 font-semibold tracking-tight">No squads found</p>
+          <p className="text-xl text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight italic">No squads found</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-3 md:gap-6">
@@ -150,43 +150,42 @@ export default function Squads() {
             return (
               <div
                 key={squad.id}
-                className="squad-card group bg-white rounded-3xl shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100 hover:border-teal-500/30 overflow-hidden flex flex-col"
+                className="squad-card group bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100 dark:border-white/5 hover:border-teal-500/30 overflow-hidden flex flex-col"
               >
                 {/* Header Decoration */}
-                <div className="h-2 w-full bg-gradient-to-r from-teal-500 to-emerald-500" />
+                <div className="h-2 w-full bg-linear-to-r from-teal-500 to-emerald-500" />
 
-                <div className="p-3 md:p-6 flex-1">
-                  <div className="flex flex-col gap-3 mb-4 md:mb-6">
-                    <div className="flex items-center gap-4">
-                      {/* Squad Logo Container - Increased Size */}
-                      <div className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-500 shadow-sm">
+                <div className="p-4 md:p-8 flex-1">
+                  <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex items-center gap-5">
+                      {/* Squad Logo Container */}
+                      <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-110 transition-transform duration-700 shadow-sm">
                         {logo ? (
-                          <img src={logo} className="w-full h-full object-contain p-1.5" alt={name} />
+                          <img src={logo} className="w-full h-full object-contain p-2" alt={name} />
                         ) : (
-                          <span className="text-2xl md:text-4xl font-black text-slate-300 uppercase select-none">
+                          <span className="text-3xl md:text-5xl font-black text-slate-300 dark:text-slate-600 uppercase select-none italic">
                             {name[0]}
                           </span>
                         )}
                       </div>
 
-                      <div className="px-2.5 py-1.5 bg-teal-50 text-teal-600 rounded-lg text-[10px] md:text-[13px] font-black uppercase tracking-[0.15em] border border-teal-100/50">
+                      <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest border border-teal-100 dark:border-teal-500/20">
                         {(squad as any).batch || squad.year}
                       </div>
                     </div>
 
                     <div className="min-w-0 pr-1">
-                      <h3 className="text-[14px] md:text-xl font-bold text-slate-900 leading-tight tracking-tight transition-colors break-words">
+                      <h3 className="text-lg md:text-3xl font-black text-slate-900 dark:text-white leading-[0.85] tracking-tighter uppercase italic break-words">
                         {name}
                       </h3>
                     </div>
                   </div>
 
                   <div className="space-y-4 mb-8">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100 w-fit">
-                      <span className="text-sm md:text-base font-black text-slate-900">{squad.playerIds?.length || 0}</span>
-                      <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-tight">Players</span>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-white/5 w-fit">
+                      <span className="text-lg md:text-2xl font-black text-slate-900 dark:text-white leading-none">{squad.playerIds?.length || 0}</span>
+                      <span className="text-[10px] md:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Players</span>
                     </div>
-
                   </div>
 
                   <Link

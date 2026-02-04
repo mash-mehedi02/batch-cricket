@@ -9,19 +9,23 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import { matchService } from '@/services/firestore/matches'
+import { adminService } from '@/services/firestore/admins'
+import { useAuthStore } from '@/store/authStore'
 import AdminDashboardSkeleton from '@/components/skeletons/AdminDashboardSkeleton'
 import {
   Trophy, Calendar, Users, UserPlus, Activity,
-  BarChart3, Plus, ArrowRight, Play, Zap
+  BarChart3, Plus, ArrowRight, Play, Zap, Shield
 } from 'lucide-react'
 
 export default function AdminDashboard() {
+  const { user } = useAuthStore()
   const [stats, setStats] = useState({
     tournaments: 0,
     matches: 0,
     liveMatches: 0,
     squads: 0,
     players: 0,
+    admins: 0,
     ballsToday: 0,
   })
   const [loading, setLoading] = useState(true)
@@ -29,15 +33,18 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadStats = async () => {
+      if (!user) return
+      const isSuperAdmin = user.role === 'super_admin'
       try {
-        const [tournaments, squads, players, matches] = await Promise.all([
-          tournamentService.getAll(),
-          squadService.getAll(),
-          playerService.getAll(),
-          matchService.getAll(),
+        const [tournaments, squads, players, matches, admins] = await Promise.all([
+          tournamentService.getByAdmin(user.uid, isSuperAdmin),
+          squadService.getByAdmin(user.uid, isSuperAdmin),
+          playerService.getByAdmin(user.uid, isSuperAdmin),
+          matchService.getByAdmin(user.uid, isSuperAdmin),
+          isSuperAdmin ? adminService.getAll() : Promise.resolve([])
         ])
 
-        const liveMatches = matches.filter((m: any) => m.status === 'live')
+        const liveMatches = matches.filter((m: any) => m.status?.toLowerCase() === 'live')
 
         setStats({
           tournaments: tournaments.length,
@@ -45,13 +52,14 @@ export default function AdminDashboard() {
           liveMatches: liveMatches.length,
           squads: squads.length,
           players: players.length,
-          ballsToday: 0, // Placeholder
+          admins: admins.length,
+          ballsToday: 0
         })
 
-        // Sort by date desc
-        const sorted = matches.sort((a: any, b: any) => {
-          const tA = a.updatedAt?.toMillis?.() || 0
-          const tB = b.updatedAt?.toMillis?.() || 0
+        // Sort by update time or creation time desc
+        const sorted = [...matches].sort((a: any, b: any) => {
+          const tA = (a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0) as number
+          const tB = (b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0) as number
           return tB - tA
         })
         setRecentMatches(sorted.slice(0, 5))
@@ -63,7 +71,7 @@ export default function AdminDashboard() {
     }
 
     loadStats()
-  }, [])
+  }, [user])
 
   if (loading) {
     return <AdminDashboardSkeleton />
@@ -74,8 +82,8 @@ export default function AdminDashboard() {
       {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Overview</h1>
-          <p className="text-slate-500 text-sm mt-1">Real-time insights and management control.</p>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase italic">Overview</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium">Real-time insights and management control.</p>
         </div>
 
         {/* Primary Action */}
@@ -89,7 +97,7 @@ export default function AdminDashboard() {
           </Link>
           <Link
             to="/admin/tournaments/new"
-            className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all"
+            className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all"
           >
             <Plus size={16} />
             Tournament
@@ -113,7 +121,7 @@ export default function AdminDashboard() {
           title="Total Matches"
           value={stats.matches}
           icon={<Calendar size={20} />}
-          trend="+12 this week"
+          trend="Managed entries"
           iconColor="text-blue-600"
           bgIcon="text-blue-500/10"
           link="/admin/matches"
@@ -122,7 +130,7 @@ export default function AdminDashboard() {
           title="Players Registered"
           value={stats.players}
           icon={<UserPlus size={20} />}
-          trend="Growing database"
+          trend="Team roster"
           iconColor="text-purple-600"
           bgIcon="text-purple-500/10"
           link="/admin/players"
@@ -136,30 +144,41 @@ export default function AdminDashboard() {
           bgIcon="text-orange-500/10"
           link="/admin/tournaments"
         />
+        {(user?.role === 'super_admin') && (
+          <StatCard
+            title="Administration"
+            value={stats.admins}
+            icon={<Shield size={20} />}
+            trend="System access"
+            iconColor="text-indigo-600"
+            bgIcon="text-indigo-500/10"
+            link="/admin/users"
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
         {/* 3. Recent Matches Table */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-800">Recent Activity</h3>
-            <Link to="/admin/matches" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+        <div className="xl:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex flex-col">
+          <div className="px-6 py-5 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 dark:text-white uppercase tracking-tight italic">Recent Activity</h3>
+            <Link to="/admin/matches" className="text-sm font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1 uppercase tracking-wider">
               View All <ArrowRight size={14} />
             </Link>
           </div>
 
           <div className="flex-1 overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 font-medium">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-[10px]">
                 <tr>
-                  <th className="px-6 py-3">Match</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3 text-right">Action</th>
+                  <th className="px-6 py-4">Match</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {recentMatches.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
@@ -199,8 +218,8 @@ export default function AdminDashboard() {
 
         {/* 4. Quick Actions Panel */}
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h3 className="font-semibold text-slate-800 mb-4">Quick Management</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm p-6">
+            <h3 className="font-bold text-slate-800 dark:text-white mb-4 uppercase tracking-tight italic">Quick Management</h3>
             <div className="grid grid-cols-1 gap-3">
               <QuickLink
                 to="/admin/squads/new"
@@ -251,17 +270,17 @@ export default function AdminDashboard() {
 
 function StatCard({ title, value, icon, trend, link, iconColor, bgIcon, trendColor = 'text-slate-500' }: any) {
   const content = (
-    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden h-full">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all group relative overflow-hidden h-full">
       <div className="flex justify-between items-start mb-4 relative z-10">
-        <div className={`p-2.5 rounded-lg ${bgIcon ? bgIcon.replace('text-', 'bg-') : 'bg-slate-50'} ${iconColor}`}>
+        <div className={`p-3 rounded-xl ${bgIcon ? bgIcon.replace('text-', 'bg-').replace('/10', '/20') : 'bg-slate-50 dark:bg-slate-800'} ${iconColor} dark:${iconColor}`}>
           {icon}
         </div>
         {link && <div className="text-slate-300 group-hover:text-blue-500 transition-colors"><ArrowRight size={16} /></div>}
       </div>
       <div className="relative z-10">
-        <h3 className="text-3xl font-bold text-slate-800 tracking-tight mb-1">{value}</h3>
-        <p className="text-sm font-medium text-slate-500 mb-2">{title}</p>
-        {trend && <p className={`text-xs font-semibold ${trendColor}`}>{trend}</p>}
+        <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter mb-1">{value}</h3>
+        <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">{title}</p>
+        {trend && <p className={`text-[10px] font-black uppercase tracking-tight ${trendColor}`}>{trend}</p>}
       </div>
     </div>
   )
@@ -270,16 +289,16 @@ function StatCard({ title, value, icon, trend, link, iconColor, bgIcon, trendCol
 
 function QuickLink({ to, title, subtitle, icon, badge }: any) {
   return (
-    <Link to={to} className="flex items-center gap-4 p-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group">
-      <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 group-hover:text-slate-700 group-hover:bg-white transition-colors">
+    <Link to={to} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-100 dark:hover:border-white/5 transition-all group">
+      <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-white/5 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors">
         {icon}
       </div>
       <div className="flex-1">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">{title}</h4>
-          {badge && <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span>}
+          <h4 className="text-sm font-black text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors uppercase tracking-tight">{title}</h4>
+          {badge && <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">{badge}</span>}
         </div>
-        <p className="text-xs text-slate-500">{subtitle}</p>
+        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-tight">{subtitle}</p>
       </div>
       <ArrowRight size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
     </Link>

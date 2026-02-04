@@ -746,58 +746,56 @@ export default function MatchLive() {
       if (!currentKeyA || !currentKeyB) return
       setRelatedLoading(true)
       try {
-        const tid = String((match as any).tournamentId || '').trim()
-        const ms = tid ? await matchService.getByTournament(tid) : await matchService.getAll()
-        const others = ms.filter((m) => m.id !== match.id)
+        try {
+          const tid = String((match as any).tournamentId || '').trim()
 
-        const withKeys = others.map((m: any) => {
-          const aName = String(m.teamAName || m.teamA || m.teamAId || '').trim()
-          const bName = String(m.teamBName || m.teamB || m.teamBId || '').trim()
-          const aKey = teamKeyFor(resolveMatchSideRef(m, 'A'), aName)
-          const bKey = teamKeyFor(resolveMatchSideRef(m, 'B'), bName)
-          return { m, aKey, bKey }
-        }).filter((x) => x.aKey && x.bKey)
+          // Defer this heavy operation to avoid blocking UI interaction
+          setTimeout(async () => {
+            const ms = tid ? await matchService.getByTournament(tid) : await matchService.getAll()
+            const others = ms.filter((m) => m.id !== match.id)
 
-        const involves = (x: any, key: string) => x.aKey === key || x.bKey === key
+            const withKeys = others.map((m: any) => {
+              const aName = String(m.teamAName || m.teamA || m.teamAId || '').trim()
+              const bName = String(m.teamBName || m.teamB || m.teamBId || '').trim()
+              const aKey = teamKeyFor(resolveMatchSideRef(m, 'A'), aName)
+              const bKey = teamKeyFor(resolveMatchSideRef(m, 'B'), bName)
+              return { m, aKey, bKey }
+            }).filter((x) => x.aKey && x.bKey)
 
-        const teamAMs = withKeys.filter((x) => involves(x, currentKeyA))
-        const teamBMs = withKeys.filter((x) => involves(x, currentKeyB))
-        const h2hMs = withKeys.filter((x) => involves(x, currentKeyA) && involves(x, currentKeyB))
+            const involves = (x: any, key: string) => x.aKey === key || x.bKey === key
 
-        // Sort by match date desc
-        const tsOf = (m: any) => {
-          const d = coerceToDate(m?.date)
-          if (d) return d.getTime()
-          const dd = String(m.date || '').trim()
-          const tt = String(m.time || '').trim()
-          const ts = dd ? Date.parse(`${dd}T${tt || '00:00'}:00`) : 0
-          return Number.isFinite(ts) ? ts : 0
+            const teamAMs = withKeys.filter((x) => involves(x, currentKeyA))
+            const teamBMs = withKeys.filter((x) => involves(x, currentKeyB))
+            const h2hMs = withKeys.filter((x) => involves(x, currentKeyA) && involves(x, currentKeyB))
+
+            // Sort by match date desc
+            const tsOf = (m: any) => {
+              const d = coerceToDate(m?.date)
+              if (d) return d.getTime()
+              const dd = String(m.date || '').trim()
+              const tt = String(m.time || '').trim()
+              const ts = dd ? Date.parse(`${dd}T${tt || '00:00'}:00`) : 0
+              return Number.isFinite(ts) ? ts : 0
+            }
+            const sortDesc = (a: any, b: any) => (tsOf(b.m) - tsOf(a.m)) || String(b.m.id).localeCompare(String(a.m.id))
+
+            const pickIds = Array.from(new Set([
+              ...teamAMs.sort(sortDesc).slice(0, 5).map((x) => x.m.id),
+              ...teamBMs.sort(sortDesc).slice(0, 5).map((x) => x.m.id),
+              ...h2hMs.sort(sortDesc).slice(0, 10).map((x) => x.m.id),
+            ].filter(Boolean)))
+
+            const pickedMatches = others.filter((m) => pickIds.includes(m.id))
+            setRelatedMatches(pickedMatches)
+
+            // OPTIMIZATION: Dropped the heavy innings fetch. 
+            // Logic in downstream components should rely on match.score for results.
+            setRelatedLoading(false)
+          }, 1500) // Delay by 1.5s to prioritize main content load
+        } catch (e) {
+          console.warn('[MatchLive] Failed to load related matches:', e)
+          setRelatedLoading(false)
         }
-        const sortDesc = (a: any, b: any) => (tsOf(b.m) - tsOf(a.m)) || String(b.m.id).localeCompare(String(a.m.id))
-
-        const pickIds = Array.from(new Set([
-          ...teamAMs.sort(sortDesc).slice(0, 5).map((x) => x.m.id),
-          ...teamBMs.sort(sortDesc).slice(0, 5).map((x) => x.m.id),
-          ...h2hMs.sort(sortDesc).slice(0, 10).map((x) => x.m.id),
-        ].filter(Boolean)))
-
-        const pickedMatches = others.filter((m) => pickIds.includes(m.id))
-        setRelatedMatches(pickedMatches)
-
-        const entries = await Promise.all(
-          pickIds.map(async (id) => {
-            const [a, b] = await Promise.all([
-              matchService.getInnings(id, 'teamA').catch(() => null),
-              matchService.getInnings(id, 'teamB').catch(() => null),
-            ])
-            return [id, { teamA: a, teamB: b }] as const
-          })
-        )
-        const im = new Map<string, { teamA: any | null; teamB: any | null }>()
-        entries.forEach(([id, v]) => im.set(id, v))
-        setRelatedInningsMap(im)
-      } catch (e) {
-        console.warn('[MatchLive] Failed to load related matches:', e)
         setRelatedMatches([])
         setRelatedInningsMap(new Map())
       } finally {
@@ -1019,7 +1017,8 @@ export default function MatchLive() {
   // Match tabs (MUST be before early returns) - All tabs in one page
   const matchTabs = useMemo(() => {
     const baseTabs: { id: string; label: string; disabled?: boolean }[] = [
-      { id: isFinishedMatch ? 'summary' : 'info', label: isFinishedMatch ? 'Summary' : 'Info' },
+      ...(isFinishedMatch ? [{ id: 'summary', label: 'Summary' }] : []),
+      { id: 'info', label: 'Info' },
       { id: 'commentary', label: 'Commentary' },
       { id: 'live', label: 'Live' },
       { id: 'scorecard', label: 'Scorecard' },
@@ -1553,7 +1552,9 @@ export default function MatchLive() {
           matchId && (
             <NotificationBell
               matchId={matchId}
+              adminId={match?.adminId || ''}
               matchTitle={`${teamAName} vs ${teamBName}`}
+              tournamentId={match?.tournamentId}
               color="text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
             />
           )

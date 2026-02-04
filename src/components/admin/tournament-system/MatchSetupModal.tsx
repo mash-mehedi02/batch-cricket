@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Match, Squad } from '@/types';
-import { X, Trophy, Users, Mic, Save, Lock, Crown, Hand, Check, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Match } from '@/types';
+import { X, Trophy, Users, Mic, Save, Lock, Check, AlertTriangle } from 'lucide-react';
 import { matchService } from '@/services/firestore/matches';
 import { playerService } from '@/services/firestore/players';
 import { squadService } from '@/services/firestore/squads';
@@ -23,7 +23,7 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
         let winner = match.tossWinner || '';
         // If saved as ID, resolve to key
         if (winner && winner.length > 10) {
-            const teamAId = String((match as any).teamASquadId || (match as any).teamAId || match.teamA || '').trim();
+            const teamAId = String((match as any).teamASquadId || match.teamAId || (match as any).teamA || '').trim();
             winner = (String(winner).trim() === teamAId) ? 'teamA' : 'teamB';
         }
         return {
@@ -38,8 +38,6 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
     const [teamAPlayingXI, setTeamAPlayingXI] = useState<string[]>((match as any).teamAPlayingXI || []);
     const [teamBPlayingXI, setTeamBPlayingXI] = useState<string[]>((match as any).teamBPlayingXI || []);
 
-    // Sub-tab for XI
-    const [xiTab, setXiTab] = useState<'teamA' | 'teamB'>('teamA');
 
     const [captains, setCaptains] = useState({
         teamACaptainId: (match as any).teamACaptainId || '',
@@ -97,19 +95,66 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
             setLoading(true);
             try {
                 // Determine squad IDs
-                const teamAId = (match as any).teamASquadId || (match as any).teamAId || (match as any).teamA || match.teamA;
-                const teamBId = (match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB || match.teamB;
+                const teamAId = (match as any).teamASquadId || match.teamAId || (match as any).teamA;
+                const teamBId = (match as any).teamBSquadId || match.teamBId || (match as any).teamB;
 
                 // Helper to load players
                 const fetchPlayers = async (squadId: string) => {
                     if (!squadId) return [];
-                    const squad = await squadService.getById(squadId);
-                    if (squad && (squad as any).players && Array.isArray((squad as any).players)) {
-                        const pList = (squad as any).players;
-                        if (pList.length > 0 && typeof pList[0] === 'object') return pList;
+
+                    console.log(`[MatchSetupModal] Fetching players for squad: ${squadId}`);
+
+                    let squad = await squadService.getById(squadId);
+
+                    // Fallback: If not found by ID, maybe it's a name (legacy match)
+                    if (!squad) {
+                        console.log(`[MatchSetupModal] Squad not found by ID ${squadId}, trying by name...`);
+                        const squadByName = await squadService.getByName(squadId);
+                        if (squadByName && squadByName.length > 0) {
+                            squad = squadByName[0];
+                            console.log(`[MatchSetupModal] Resolved squad by name: ${squad.id}`);
+                        }
                     }
-                    const players = await playerService.getBySquad(squadId);
-                    return players || [];
+
+                    const playerMap = new Map();
+
+                    if (squad) {
+                        const realSquadId = squad.id;
+
+                        // 1. Gather embedded players (premium design)
+                        if ((squad as any).players && Array.isArray((squad as any).players)) {
+                            console.log(`[MatchSetupModal] Processing embedded players for squad ${realSquadId}`);
+                            (squad as any).players.forEach((p: any) => {
+                                if (p && typeof p === 'object') {
+                                    const id = p.id || p.uid;
+                                    if (id) playerMap.set(id, { ...p, id });
+                                }
+                            });
+                        }
+
+                        // 2. Fetch by IDs listed in squad (Primary source of truth in v2)
+                        if (squad.playerIds && Array.isArray(squad.playerIds) && squad.playerIds.length > 0) {
+                            console.log(`[MatchSetupModal] Fetching ${squad.playerIds.length} players by IDs for squad ${realSquadId}`);
+                            const playersFromIds = await playerService.getByIds(squad.playerIds);
+                            playersFromIds.forEach((p: any) => {
+                                if (p.id) playerMap.set(p.id, p);
+                            });
+                        }
+
+                        // 3. Fetch by real ID query as backup (Secondary/Legacy source of truth)
+                        const playersFromQuery = await playerService.getBySquad(realSquadId);
+                        playersFromQuery.forEach((p: any) => {
+                            if (p.id) playerMap.set(p.id, p);
+                        });
+
+                        const finalPlayers = Array.from(playerMap.values());
+                        console.log(`[MatchSetupModal] Final player count for squad ${realSquadId}: ${finalPlayers.length}`);
+                        return finalPlayers;
+                    }
+
+                    // 4. Last resort: Fetch by the original squadId string query
+                    const playersFromOriginalQuery = await playerService.getBySquad(squadId);
+                    return playersFromOriginalQuery || [];
                 };
 
                 const [pA, pB] = await Promise.all([

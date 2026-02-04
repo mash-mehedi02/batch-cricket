@@ -19,6 +19,34 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "adminId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tournaments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "adminId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "year",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "date",
           "order": "DESCENDING"
         }
@@ -27,4 +55,3 @@
   ],
   "fieldOverrides": []
 }
-

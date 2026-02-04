@@ -12,6 +12,7 @@ interface MatchNotificationSettings {
 }
 
 const STORAGE_KEY = 'batchcrick_notifications'
+const TOURNAMENT_STORAGE_KEY = 'batchcrick_tournament_notifications'
 
 // Cloud Functions
 const subscribeToTopicFn = httpsCallable<{ token: string; topic: string }, { success: boolean }>(functions, 'subscribeToTopic')
@@ -20,7 +21,7 @@ const unsubscribeFromTopicFn = httpsCallable<{ token: string; topic: string }, {
 class NotificationService {
     private messaging: Messaging | null = messaging
     private token: string | null = null
-    private listeners: ((matchId: string, settings: MatchNotificationSettings) => void)[] = []
+    private listeners: ((id: string, settings: any) => void)[] = []
 
     constructor() {
         this.messaging = messaging
@@ -29,15 +30,15 @@ class NotificationService {
     /**
      * Subscribe to settings changes
      */
-    addChangeListener(listener: (matchId: string, settings: MatchNotificationSettings) => void) {
+    addChangeListener(listener: (id: string, settings: any) => void) {
         this.listeners.push(listener)
         return () => {
             this.listeners = this.listeners.filter(l => l !== listener)
         }
     }
 
-    private notifyListeners(matchId: string, settings: MatchNotificationSettings) {
-        this.listeners.forEach(l => l(matchId, settings))
+    private notifyListeners(id: string, settings: any) {
+        this.listeners.forEach(l => l(id, settings))
     }
 
     /**
@@ -66,16 +67,14 @@ class NotificationService {
 
     /**
      * Subscribe to match notifications
-     * @param matchId 
-     * @param settings 
      */
-    async updateMatchSubscription(matchId: string, settings: MatchNotificationSettings) {
+    async updateMatchSubscription(matchId: string, adminId: string, settings: MatchNotificationSettings) {
         if (!this.token) {
             const token = await this.requestPermission()
             if (!token) return
         }
 
-        const topicBase = `match_${matchId}`
+        const topicBase = `admin_${adminId}_match_${matchId}`
 
         // Topics
         const topicReminders = `${topicBase}_reminders`
@@ -97,8 +96,34 @@ class NotificationService {
 
         // Save preferences locally
         this.saveSettings(matchId, settings)
+        toast.success('Match notification settings updated')
+    }
 
-        toast.success('Notification settings updated')
+    /**
+     * Subscribe to tournament notifications
+     */
+    async updateTournamentSubscription(tournamentId: string, adminId: string, enabled: boolean) {
+        if (!this.token) {
+            const token = await this.requestPermission()
+            if (!token) return
+        }
+
+        const topic = `admin_${adminId}_tournament_${tournamentId}_updates`
+
+        if (enabled) {
+            await this.subscribe(topic)
+        } else {
+            await this.unsubscribe(topic)
+        }
+
+        // Save preferences locally
+        const stored = localStorage.getItem(TOURNAMENT_STORAGE_KEY)
+        const data = stored ? JSON.parse(stored) : {}
+        data[tournamentId] = enabled
+        localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(data))
+
+        this.notifyListeners(tournamentId, enabled)
+        toast.success(enabled ? 'Subscribed to tournament' : 'Unsubscribed from tournament')
     }
 
     private async subscribe(topic: string) {
@@ -126,6 +151,15 @@ class NotificationService {
             return data[matchId] || { all: false, wickets: false, reminders: false }
         }
         return { all: false, wickets: false, reminders: false }
+    }
+
+    getTournamentSettings(tournamentId: string): boolean {
+        const stored = localStorage.getItem(TOURNAMENT_STORAGE_KEY)
+        if (stored) {
+            const data = JSON.parse(stored)
+            return data[tournamentId] || false
+        }
+        return false
     }
 
     private saveSettings(matchId: string, settings: MatchNotificationSettings) {

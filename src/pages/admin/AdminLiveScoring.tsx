@@ -24,10 +24,12 @@ import {
 import { toast } from 'react-hot-toast';
 import { getMatchResultString } from '@/utils/matchWinner';
 import * as commentaryService from '@/services/commentary/commentaryService';
+import { useAuthStore } from '@/store/authStore';
 
 const AdminLiveScoring = () => {
     const { matchId } = useParams<{ matchId: string }>();
     const navigate = useNavigate();
+    const { user, loading: authLoading } = useAuthStore();
 
     // --- State ---
     const [match, setMatch] = useState<Match | null>(null);
@@ -59,6 +61,19 @@ const AdminLiveScoring = () => {
     const [nextBatterId, setNextBatterId] = useState('');
     const [fielderId, setFielderId] = useState('');
     const [manualCommentary, setManualCommentary] = useState('');
+
+    // Permissions check
+    useEffect(() => {
+        if (!authLoading && match && user) {
+            const isSuperAdmin = user.role === 'super_admin';
+            const isOwner = match.adminId === user.uid || (match as any).createdBy === user.uid;
+
+            if (!isSuperAdmin && !isOwner) {
+                toast.error("Access Denied: You don't have permission to score this match.");
+                navigate('/admin/live');
+            }
+        }
+    }, [match, authLoading, user, navigate]);
 
     // --- Data Subscription ---
     useEffect(() => {

@@ -16,8 +16,29 @@ interface MatchCardProps {
 }
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
-    const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
-    const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(null)
+    // OPTIMIZATION: Initialize with data from match object if available (Instant Load)
+    const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(() => {
+        if (match.score?.teamA) {
+            return {
+                totalRuns: match.score.teamA.runs,
+                totalWickets: match.score.teamA.wickets,
+                overs: match.score.teamA.overs,
+            } as InningsStats
+        }
+        return null
+    })
+
+    const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(() => {
+        if (match.score?.teamB) {
+            return {
+                totalRuns: match.score.teamB.runs,
+                totalWickets: match.score.teamB.wickets,
+                overs: match.score.teamB.overs,
+            } as InningsStats
+        }
+        return null
+    })
+
     const [timeLeft, setTimeLeft] = useState<string>('')
 
     const isLive = String(match.status || '').toLowerCase() === 'live'
@@ -25,7 +46,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
     const isUpcoming = !isLive && !isFinished
 
     useEffect(() => {
-        if (isLive || isFinished) {
+        // OPTIMIZATION: Only subscribe to live matches. 
+        // Finished matches shouldn't change, so we rely on the match.score data.
+        if (isLive) {
             const unsubA = matchService.subscribeToInnings(match.id, 'teamA', (data) => {
                 setTeamAInnings(data)
             })
@@ -37,6 +60,11 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                 unsubA()
                 unsubB()
             }
+        } else if (isFinished && !teamAInnings && !teamBInnings && !match.score) {
+            // Fallback: If it's finished but we somehow don't have score in match obj, fetch once (rare legacy case)
+            // We don't subscribe, just fetch once.
+            matchService.getInnings(match.id, 'teamA').then(setTeamAInnings)
+            matchService.getInnings(match.id, 'teamB').then(setTeamBInnings)
         }
     }, [match.id, isLive, isFinished])
 
@@ -234,12 +262,16 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                             {timeLeft}
                         </div>
                     )}
-                    {/* Bell Icon - Interactive and separate */}
-                    <NotificationBell
-                        matchId={match.id}
-                        matchTitle={`${teamAName} vs ${teamBName}`}
-                        color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
-                    />
+                    {/* Bell Icon - Hide for finished matches */}
+                    {!isFinished && (
+                        <NotificationBell
+                            matchId={match.id}
+                            adminId={match.adminId || ''}
+                            matchTitle={`${teamAName} vs ${teamBName}`}
+                            tournamentId={match.tournamentId}
+                            color="text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                        />
+                    )}
                 </div>
             </div>
 
@@ -266,13 +298,13 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
                                             {name}
                                         </span>
                                     </div>
-                                    {(isLive || isFinished) && inn && (
+                                    {(isLive || isFinished) && (
                                         <div className="flex items-baseline gap-2">
                                             <span className="text-[10px] font-medium text-slate-400 font-mono">
-                                                ({inn.overs})
+                                                ({inn?.overs || '0.0'})
                                             </span>
                                             <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
-                                                {inn.totalRuns}-{inn.totalWickets}
+                                                {inn?.totalRuns || 0}-{inn?.totalWickets || 0}
                                             </span>
                                         </div>
                                     )}

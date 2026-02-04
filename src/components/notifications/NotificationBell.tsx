@@ -5,13 +5,17 @@ import { notificationService } from '../../services/notificationService'
 
 interface Props {
     matchId: string
+    adminId: string
     matchTitle?: string
+    tournamentId?: string
     color?: string
 }
 
 export const NotificationBell: React.FC<Props> = ({
     matchId,
+    adminId,
     matchTitle,
+    tournamentId,
     color = "text-gray-700"
 }) => {
     const [showSheet, setShowSheet] = useState(false)
@@ -61,7 +65,9 @@ export const NotificationBell: React.FC<Props> = ({
                     checkStatus() // Refresh status on close
                 }}
                 matchId={matchId}
+                adminId={adminId}
                 matchTitle={matchTitle}
+                tournamentId={tournamentId}
             />
         </>
     )

@@ -6,12 +6,17 @@ import toast from 'react-hot-toast';
 interface StructureBuilderProps {
     tournament: Tournament;
     onUpdate: (data: Partial<Tournament>) => Promise<void>;
+    isLocked?: boolean;
 }
 
-export default function StructureBuilder({ tournament, onUpdate }: StructureBuilderProps) {
+export default function StructureBuilder({ tournament, onUpdate, isLocked }: StructureBuilderProps) {
     const stages = tournament.stages || [];
 
     const addStage = async () => {
+        if (isLocked) {
+            toast.error('Tournament structure is locked');
+            return;
+        }
         const newStage: TournamentStageInfo = {
             id: `stage-${Date.now()}`,
             name: 'New Stage',
@@ -26,6 +31,10 @@ export default function StructureBuilder({ tournament, onUpdate }: StructureBuil
     };
 
     const removeStage = async (id: string) => {
+        if (isLocked) {
+            toast.error('Tournament structure is locked');
+            return;
+        }
         if (stages.length <= 1) {
             toast.error('Tournament must have at least one stage');
             return;
@@ -36,12 +45,20 @@ export default function StructureBuilder({ tournament, onUpdate }: StructureBuil
     };
 
     const updateStage = async (id: string, patch: Partial<TournamentStageInfo>) => {
+        if (isLocked) {
+            toast.error('Tournament structure is locked');
+            return;
+        }
         await onUpdate({
             stages: stages.map(s => s.id === id ? { ...s, ...patch } : s)
         });
     };
 
     const moveStage = async (id: string, direction: 'up' | 'down') => {
+        if (isLocked) {
+            toast.error('Tournament structure is locked');
+            return;
+        }
         const idx = stages.findIndex(s => s.id === id);
         if (direction === 'up' && idx === 0) return;
         if (direction === 'down' && idx === stages.length - 1) return;
@@ -65,12 +82,20 @@ export default function StructureBuilder({ tournament, onUpdate }: StructureBuil
                     </div>
                     <button
                         onClick={addStage}
-                        className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-medium hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-95"
+                        disabled={isLocked}
+                        className={`flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-medium transition-all shadow-lg hover:shadow-xl active:scale-95 ${isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800'}`}
                     >
                         <Plus size={18} />
                         <span>Add Stage</span>
                     </button>
                 </div>
+
+                {isLocked && (
+                    <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-4 text-xs text-amber-700 font-bold uppercase tracking-wider">
+                        <ShieldCheck size={20} className="text-amber-500" />
+                        Tournament has started. Structural changes are restricted to ensure data integrity.
+                    </div>
+                )}
 
                 <div className="space-y-4">
                     {stages.length === 0 ? (
@@ -110,9 +135,10 @@ export default function StructureBuilder({ tournament, onUpdate }: StructureBuil
                                         <input
                                             type="text"
                                             value={stage.name}
+                                            readOnly={isLocked}
                                             onChange={(e) => updateStage(stage.id, { name: e.target.value })}
                                             placeholder="e.g. Group Stage"
-                                            className="w-full bg-transparent border-none p-0 text-slate-900 font-medium focus:ring-0 placeholder:text-slate-200"
+                                            className={`w-full bg-transparent border-none p-0 text-slate-900 font-medium focus:ring-0 placeholder:text-slate-200 ${isLocked ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
 
@@ -120,8 +146,9 @@ export default function StructureBuilder({ tournament, onUpdate }: StructureBuil
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 block">Type</label>
                                         <select
                                             value={stage.type}
+                                            disabled={isLocked}
                                             onChange={(e) => updateStage(stage.id, { type: e.target.value as any })}
-                                            className="w-full bg-transparent border-none p-0 text-slate-900 font-medium focus:ring-0 appearance-none cursor-pointer"
+                                            className={`w-full bg-transparent border-none p-0 text-slate-900 font-medium focus:ring-0 appearance-none ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                                         >
                                             <option value="group">Group Stage</option>
                                             <option value="knockout">Knockout</option>
@@ -155,7 +182,8 @@ export default function StructureBuilder({ tournament, onUpdate }: StructureBuil
 
                                 <button
                                     onClick={() => removeStage(stage.id)}
-                                    className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
+                                    disabled={isLocked}
+                                    className={`p-3 text-slate-300 transition-all ${isLocked ? 'cursor-not-allowed opacity-30' : 'hover:text-rose-500 hover:bg-rose-50 rounded-2xl'}`}
                                 >
                                     <Trash2 size={18} />
                                 </button>

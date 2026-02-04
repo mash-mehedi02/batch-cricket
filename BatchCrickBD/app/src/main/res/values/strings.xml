@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BatchCrick</string>
+    <string name="title_activity_main">BatchCrick</string>
+    <string name="package_name">com.batchcrickbd</string>
+    <string name="custom_url_scheme">com.batchcrick.bd</string>
+    <string name="google_client_id">899272110972-pjfti5ug438ubliit4ri5civ6nuhkftv.apps.googleusercontent.com</string>
+</resources>

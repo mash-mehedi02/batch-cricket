@@ -6,10 +6,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
+import { useAuthStore } from '@/store/authStore'
 import { Match } from '@/types'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 
 export default function AdminLiveMatches() {
+  const { user } = useAuthStore()
   const [liveMatches, setLiveMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
   const [matchScores, setMatchScores] = useState<Record<string, string>>({})
@@ -49,45 +51,33 @@ export default function AdminLiveMatches() {
   const inferFirstInningsBatting = (m: Match): 'teamA' | 'teamB' => {
     const tw = resolveSideFromValue(m, (m as any).tossWinner);
     const el = normalizeElectedTo((m as any).electedTo);
-    // If toss info is missing, fall back to legacy default.
     if (!tw || !el) return 'teamA';
-    // If toss winner elected to bat, they bat first; otherwise the other team bats first.
     if (el === 'bat') return tw;
     return tw === 'teamA' ? 'teamB' : 'teamA';
   };
 
   const otherSide = (s: 'teamA' | 'teamB'): 'teamA' | 'teamB' => (s === 'teamA' ? 'teamB' : 'teamA');
 
-  // Function to get current score for a match
   const getCurrentScore = async (matchId: string, match: Match) => {
     setScoresLoading(prev => ({ ...prev, [matchId]: true }));
-    
     try {
-      // Determine current batting team based on match phase and toss (similar to AdminLiveScoring logic)
       const first = inferFirstInningsBatting(match);
       let effectiveCurrentBatting: 'teamA' | 'teamB';
-      
-      // If match is in second innings, show the 2nd batting side
       if (match.matchPhase === 'SecondInnings') {
         effectiveCurrentBatting = otherSide(first);
       } else {
-        // Otherwise, use the first batting team
         effectiveCurrentBatting = first;
       }
 
-      // Fetch innings data for the current batting team
       const currentInnings = await matchService.getInnings(matchId, effectiveCurrentBatting);
-      
       if (currentInnings) {
         const runs = currentInnings.totalRuns || 0;
         const wickets = currentInnings.totalWickets || 0;
         const overs = currentInnings.overs || '0.0';
         const battingTeamName = effectiveCurrentBatting === 'teamA' ? (match.teamAName || (match as any).teamA) : (match.teamBName || (match as any).teamB);
-        
         const score = `${battingTeamName} ${runs}/${wickets} (${overs})`;
         setMatchScores(prev => ({ ...prev, [matchId]: score }));
       } else {
-        // If no innings data, show basic placeholder
         const battingTeamName = effectiveCurrentBatting === 'teamA' ? (match.teamAName || (match as any).teamA) : (match.teamBName || (match as any).teamB);
         setMatchScores(prev => ({ ...prev, [matchId]: `${battingTeamName} 0/0 (0.0)` }));
       }
@@ -101,12 +91,12 @@ export default function AdminLiveMatches() {
 
   useEffect(() => {
     const loadLiveMatches = async () => {
+      if (!user) return
       try {
-        const matches = await matchService.getLiveMatches()
+        const matches = await matchService.getLiveMatches(user.uid, user.role === 'super_admin')
         setLiveMatches(matches)
         setLoading(false)
 
-        // Load scores for each match
         for (const match of matches) {
           await getCurrentScore(match.id, match);
         }
@@ -117,20 +107,9 @@ export default function AdminLiveMatches() {
     }
 
     loadLiveMatches()
-
-    // Subscribe to live matches - refresh scores periodically
-    const interval = setInterval(async () => {
-      const matches = await matchService.getLiveMatches();
-      setLiveMatches(matches);
-
-      // Refresh scores for each match
-      for (const match of matches) {
-        await getCurrentScore(match.id, match);
-      }
-    }, 5000); // Refresh every 5 seconds
-
+    const interval = setInterval(loadLiveMatches, 5000);
     return () => clearInterval(interval)
-  }, [])
+  }, [user])
 
   if (loading) {
     return (
@@ -199,15 +178,13 @@ export default function AdminLiveMatches() {
                     <>
                       {(() => {
                         const currentScoreText = matchScores[match.id] || 'Live Scoring...';
-                        // Look for pattern: "Team Name X/Y (Z.Z)" - find where runs/wickets start
                         const scorePattern = /(\d+)\/(\d+) \((\d+\.\d+)\)/;
                         const scoreMatch = currentScoreText.match(scorePattern);
-                        
+
                         if (scoreMatch) {
                           const fullScore = `${scoreMatch[1]}/${scoreMatch[2]} (${scoreMatch[3]})`;
-                          // Everything before the score is the team name
                           const teamName = currentScoreText.replace(fullScore, '').trim();
-                          
+
                           return (
                             <>
                               <span className="text-xs font-medium text-gray-600 truncate max-w-full">{teamName}</span>

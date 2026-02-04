@@ -16,6 +16,7 @@ export interface PlayerMatchStats {
   wickets: number
   matchId: string
   playerId: string
+  adminId: string
   lastUpdated: Timestamp
 }
 
@@ -24,7 +25,7 @@ function docId(matchId: string, playerId: string): string {
 }
 
 export const playerMatchStatsService = {
-  async ensureParticipation(matchId: string, playerId: string, opponentName?: string): Promise<void> {
+  async ensureParticipation(matchId: string, playerId: string, adminId: string, opponentName?: string): Promise<void> {
     const id = docId(matchId, playerId)
     const ref = doc(collection(db, COLLECTION_NAME), id)
     await setDoc(
@@ -32,6 +33,7 @@ export const playerMatchStatsService = {
       {
         matchId,
         playerId,
+        adminId,
         opponent: opponentName || 'Opponent',
         runs: 0,
         balls: 0,

@@ -7,7 +7,7 @@ import { Timestamp } from 'firebase/firestore'
 
 // ==================== AUTH ====================
 
-export type UserRole = 'admin' | 'scorer' | 'viewer'
+export type UserRole = 'super_admin' | 'admin' | 'scorer' | 'viewer'
 
 export interface User {
   uid: string

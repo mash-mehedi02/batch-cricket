@@ -1,16 +1,22 @@
 import { Tournament, Squad } from '@/types';
 import { Plus, Trash2, Users, Trophy } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface GroupManagerProps {
     tournament: Tournament;
     squads: Squad[];
     onUpdate: (data: Partial<Tournament>) => Promise<void>;
+    isLocked?: boolean;
 }
 
-export default function GroupManager({ tournament, squads, onUpdate }: GroupManagerProps) {
+export default function GroupManager({ tournament, squads, onUpdate, isLocked }: GroupManagerProps) {
     const groups = (tournament as any).config?.groups || [];
 
     const addGroup = async () => {
+        if (isLocked) {
+            toast.error('Tournament groups are locked');
+            return;
+        }
         const newGroupId = `group-${Date.now()}`;
         const newGroup = {
             id: newGroupId,
@@ -30,6 +36,10 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
     };
 
     const removeGroup = async (groupId: string) => {
+        if (isLocked) {
+            toast.error('Changes are locked');
+            return;
+        }
         const updatedConfig = {
             ...((tournament as any).config || {}),
             groups: groups.filter((g: any) => g.id !== groupId)
@@ -38,6 +48,10 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
     };
 
     const updateGroupSquads = async (groupId: string, squadIds: string[]) => {
+        if (isLocked) {
+            toast.error('Changes are locked');
+            return;
+        }
         const updatedConfig = {
             ...((tournament as any).config || {}),
             groups: groups.map((g: any) => g.id === groupId ? { ...g, squadIds, teamCount: squadIds.length } : g)
@@ -46,6 +60,10 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
     };
 
     const updateGroupRules = async (groupId: string, patch: any) => {
+        if (isLocked) {
+            toast.error('Changes are locked');
+            return;
+        }
         const updatedConfig = {
             ...((tournament as any).config || {}),
             groups: groups.map((g: any) => g.id === groupId ? { ...g, ...patch } : g)
@@ -62,12 +80,20 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
                 </div>
                 <button
                     onClick={addGroup}
-                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-medium hover:bg-indigo-700 transition-all shadow-lg hover:shadow-xl active:scale-95"
+                    disabled={isLocked}
+                    className={`flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-medium transition-all shadow-lg hover:shadow-xl active:scale-95 ${isLocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'}`}
                 >
                     <Plus size={18} />
                     <span>New Group</span>
                 </button>
             </div>
+
+            {isLocked && (
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-4 text-xs text-amber-700 font-bold uppercase tracking-wider">
+                    <Trophy size={20} className="text-amber-500" />
+                    Tournament group configuration is locked as the tournament is already in progress.
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {groups.map((group: any) => (
@@ -80,13 +106,15 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
                                 <input
                                     type="text"
                                     value={group.name}
+                                    readOnly={isLocked}
                                     onChange={(e) => updateGroupRules(group.id, { name: e.target.value })}
-                                    className="bg-transparent border-none p-0 text-lg font-medium text-slate-900 focus:ring-0 w-32"
+                                    className={`bg-transparent border-none p-0 text-lg font-medium text-slate-900 focus:ring-0 w-32 ${isLocked ? 'cursor-not-allowed' : ''}`}
                                 />
                             </div>
                             <button
                                 onClick={() => removeGroup(group.id)}
-                                className="p-2 text-slate-300 hover:text-rose-500 transition-colors"
+                                disabled={isLocked}
+                                className={`p-2 text-slate-300 transition-colors ${isLocked ? 'cursor-not-allowed opacity-30' : 'hover:text-rose-500'}`}
                                 title="Remove Group"
                             >
                                 <Trash2 size={18} />
@@ -103,10 +131,11 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
                                         <input
                                             type="number"
                                             value={group.qualification?.qualifyCount || 0}
+                                            readOnly={isLocked}
                                             onChange={(e) => updateGroupRules(group.id, {
                                                 qualification: { ...group.qualification, qualifyCount: Number(e.target.value) }
                                             })}
-                                            className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0"
+                                            className={`w-full bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 ${isLocked ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
                                 </div>
@@ -116,10 +145,11 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
                                         <input
                                             type="checkbox"
                                             checked={group.qualification?.winnerPriority}
+                                            disabled={isLocked}
                                             onChange={(e) => updateGroupRules(group.id, {
                                                 qualification: { ...group.qualification, winnerPriority: e.target.checked }
                                             })}
-                                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
                                         />
                                         <span className="text-xs font-bold text-slate-600">Winner Secures Seed</span>
                                     </label>
@@ -148,11 +178,13 @@ export default function GroupManager({ tournament, squads, onUpdate }: GroupMana
                                                         : [...group.squadIds, squad.id];
                                                     updateGroupSquads(group.id, nextIds);
                                                 }}
-                                                disabled={isInOtherGroup}
+                                                disabled={isInOtherGroup || isLocked}
                                                 className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${isSelected
-                                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                                        : isInOtherGroup
-                                                            ? 'bg-slate-50 border-slate-50 text-slate-300 opacity-50 cursor-not-allowed hidden'
+                                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                                    : isInOtherGroup
+                                                        ? 'bg-slate-50 border-slate-50 text-slate-300 opacity-50 cursor-not-allowed hidden'
+                                                        : isLocked
+                                                            ? 'bg-white border-slate-50 text-slate-400 cursor-not-allowed'
                                                             : 'bg-white border-slate-100 hover:border-slate-200 text-slate-500'
                                                     }`}
                                             >

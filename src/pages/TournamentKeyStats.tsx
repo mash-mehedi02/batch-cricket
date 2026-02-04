@@ -56,7 +56,6 @@ export default function TournamentKeyStats({
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
   const [tournament, setTournament] = useState<Tournament | null>(null)
-  const [matches, setMatches] = useState<Match[]>([])
   const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>>(new Map())
   const [playersById, setPlayersById] = useState<Map<string, any>>(new Map())
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
@@ -65,64 +64,63 @@ export default function TournamentKeyStats({
 
   // Sync props to state if provided
   useEffect(() => {
-    if (matchesProp) setMatches(matchesProp)
     if (inningsMapProp) setInningsMap(inningsMapProp)
-  }, [matchesProp, inningsMapProp])
+  }, [inningsMapProp])
 
+  // Realtime Subscriptions (Sync Effect)
+  useEffect(() => {
+    const unsubPlayers = playerService.subscribeAll((list) => {
+      const pMap = new Map<string, any>()
+        ; (list as any[]).forEach((p) => p?.id && pMap.set(p.id, p))
+      setPlayersById(pMap)
+    })
+    const unsubSquads = squadService.subscribeAll((list) => {
+      const sMap = new Map<string, any>()
+        ; (list as any[]).forEach((s) => s?.id && sMap.set(s.id, s))
+      setSquadsById(sMap)
+    })
+
+    return () => {
+      unsubPlayers()
+      unsubSquads()
+    }
+  }, [])
+
+  // Data Fetching (Async Effect)
   useEffect(() => {
     const run = async () => {
       if (!tournamentId) return
 
       // Only set loading if we don't have props
-      if (!matchesProp && !inningsMapProp) setLoading(true)
+      if (!inningsMapProp) setLoading(true)
 
       try {
         const t = await tournamentService.getById(tournamentId)
         setTournament(t)
 
-        // Realtime updates (names)
-        const unsubPlayers = playerService.subscribeAll((list) => {
-          const pMap = new Map<string, any>()
-            ; (list as any[]).forEach((p) => p?.id && pMap.set(p.id, p))
-          setPlayersById(pMap)
-        })
-        const unsubSquads = squadService.subscribeAll((list) => {
-          const sMap = new Map<string, any>()
-            ; (list as any[]).forEach((s) => s?.id && sMap.set(s.id, s))
-          setSquadsById(sMap)
-        })
-
         // Fetch matches/innings ONLY if not provided via props
-        if (!matchesProp) {
-          const ms = await matchService.getByTournament(tournamentId)
-          setMatches(ms)
+        if (!inningsMapProp) {
+          const msProp = matchesProp || await matchService.getByTournament(tournamentId)
+          // We don't store matches in state as they aren't used for rendering stats directly
 
-          if (!inningsMapProp) {
-            const entries = await Promise.all(
-              ms.map(async (m) => {
-                const [a, b] = await Promise.all([
-                  matchService.getInnings(m.id, 'teamA'),
-                  matchService.getInnings(m.id, 'teamB'),
-                ])
-                return [m.id, { teamA: a, teamB: b }] as const
-              })
-            )
-            const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
-            entries.forEach(([id, v]) => im.set(id, v))
-            setInningsMap(im)
-          }
-        }
-
-        return () => {
-          unsubPlayers()
-          unsubSquads()
+          const entries = await Promise.all(
+            msProp.map(async (m) => {
+              const [a, b] = await Promise.all([
+                matchService.getInnings(m.id, 'teamA'),
+                matchService.getInnings(m.id, 'teamB'),
+              ])
+              return [m.id, { teamA: a, teamB: b }] as const
+            })
+          )
+          const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
+          entries.forEach(([id, v]) => im.set(id, v))
+          setInningsMap(im)
         }
       } finally {
         setLoading(false)
       }
     }
-    const cleanup = run()
-    return () => { }
+    run()
   }, [tournamentId, matchesProp, inningsMapProp])
 
   const statsData = useMemo(() => {
@@ -394,29 +392,29 @@ export default function TournamentKeyStats({
               const lastName = p.playerName.split(' ').slice(1).join(' ') || ''
 
               return (
-                <div key={`${p.playerId}-${idx}`} className={`flex flex-col items-center group cursor-pointer ${isFirst ? '-mt-8 z-10' : ''}`}>
-                  <Link to={`/players/${p.playerId}`} className="text-center mb-3">
-                    <div className={`font-black text-slate-500 uppercase leading-none mb-1 truncate max-w-[100px] ${isFirst ? 'text-sm' : 'text-[10px]'}`}>
+                <div key={`${p.playerId}-${idx}`} className={`flex flex-col items-center group cursor-pointer ${isFirst ? '-mt-12 z-10' : ''}`}>
+                  <Link to={`/players/${p.playerId}`} className="text-center mb-4 transition-all group-hover:-translate-y-1">
+                    <div className={`font-black tracking-widest text-slate-400 dark:text-slate-500 uppercase leading-none mb-1.5 truncate max-w-[120px] ${isFirst ? 'text-xs sm:text-sm' : 'text-[10px]'}`}>
                       {firstName} <span className="hidden sm:inline">{lastName}</span>
                     </div>
-                    <div className={`font-black tracking-tighter ${isFirst ? 'text-4xl sm:text-5xl text-slate-900 scale-110' : 'text-2xl sm:text-3xl text-slate-700'}`}>
+                    <div className={`font-black tracking-tighter drop-shadow-sm ${isFirst ? 'text-5xl sm:text-6xl text-slate-900 dark:text-white scale-110 mb-2' : 'text-3xl sm:text-4xl text-slate-800 dark:text-slate-200'}`}>
                       {val}
                     </div>
                   </Link>
 
-                  <Link to={`/players/${p.playerId}`} className="relative transition-transform hover:scale-105">
-                    <div className={`relative rounded-full border-4 border-white shadow-xl overflow-hidden bg-slate-200 ${isFirst ? 'w-24 h-24 sm:w-32 sm:h-32' : 'w-16 h-16 sm:w-20 sm:h-20'
+                  <Link to={`/players/${p.playerId}`} className="relative transition-transform hover:scale-110">
+                    <div className={`relative rounded-full border-4 border-white dark:border-slate-800 shadow-2xl overflow-hidden bg-slate-100 dark:bg-slate-900 transition-all ${isFirst ? 'w-28 h-28 sm:w-40 sm:h-40 ring-4 ring-emerald-500/20' : 'w-20 h-20 sm:w-28 sm:h-28 ring-4 ring-slate-400/10'
                       }`}>
                       <PlayerAvatar
                         photoUrl={photo}
                         name={p.playerName}
-                        size={isFirst ? 'xl' : 'lg'}
-                        className="w-full h-full object-cover"
+                        size="full"
+                        className="w-full h-full"
                       />
                     </div>
-                    <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center font-black text-white shadow-md w-6 h-6 sm:w-8 sm:h-8 rounded-full text-xs sm:text-sm ${rank === 1 ? 'bg-emerald-500 scale-125 ring-2 ring-white' : 'bg-slate-300'
-                      }`}>
-                      #{rank}
+                    <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center justify-center font-black text-white shadow-xl transition-all ${isFirst ? 'bg-emerald-500 w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm ring-2 ring-white scale-125' : 'bg-slate-400 w-6 h-6 sm:w-8 sm:h-8 text-[10px] sm:text-xs ring-2 ring-white'
+                      } rounded-full`}>
+                      {rank}
                     </div>
                   </Link>
                 </div>
@@ -449,11 +447,9 @@ export default function TournamentKeyStats({
                     {idx + 1}
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
-                    {idx >= 3 && (
-                      <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden shrink-0 hidden sm:block">
-                        <PlayerAvatar photoUrl={photo} name={p.playerName} size="xs" className="w-full h-full" />
-                      </div>
-                    )}
+                    <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 hidden sm:block border border-slate-100 dark:border-white/5">
+                      <PlayerAvatar photoUrl={photo} name={p.playerName} size="sm" className="w-full h-full" />
+                    </div>
                     <div className="min-w-0">
                       <Link to={`/players/${p.playerId}`} className="font-bold text-slate-900 text-sm truncate group-hover:text-emerald-700 transition-colors">
                         {p.playerName}

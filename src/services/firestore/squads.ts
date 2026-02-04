@@ -4,7 +4,7 @@
  */
 
 import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
-import { db } from '@/config/firebase'
+import { db, auth } from '@/config/firebase'
 import { Squad } from '@/types'
 import { COLLECTIONS } from './collections'
 
@@ -61,29 +61,74 @@ export const squadService = {
   },
 
   /**
-   * Get all squads
+   * Subscribe to squads for a specific admin
+   */
+  subscribeByAdmin(adminId: string, callback: (squads: Squad[]) => void): () => void {
+    const q = query(squadsRef, where('adminId', '==', adminId))
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Squad))
+          .sort((a, b) => {
+            const yearCompare = (Number(b.year || 0) - Number(a.year || 0))
+            if (yearCompare !== 0) return yearCompare
+            return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
+          })
+        callback(list)
+      },
+      (error) => {
+        console.error('[squadService] subscribeByAdmin error:', error)
+        callback([])
+      }
+    )
+  },
+
+  /**
+   * Get squads for a specific admin (or all for super admin)
+   */
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Squad[]> {
+    try {
+      let snapshot;
+      if (isSuperAdmin) {
+        snapshot = await getDocs(query(squadsRef, orderBy('year', 'desc')))
+      } else {
+        const q = query(
+          squadsRef,
+          where('adminId', '==', adminId),
+          orderBy('year', 'desc')
+        )
+        snapshot = await getDocs(q)
+      }
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Squad))
+    } catch (error) {
+      console.warn('[squadService] getByAdmin: orderBy failed, fetching and sorting manually')
+      try {
+        let q;
+        if (isSuperAdmin) {
+          q = query(squadsRef)
+        } else {
+          q = query(squadsRef, where('adminId', '==', adminId))
+        }
+        const snapshot = await getDocs(q)
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Squad))
+          .sort((a, b) => (b.year || 0) - (a.year || 0))
+      } catch (fallbackError) {
+        console.error('Error loading squads by admin:', fallbackError)
+        return []
+      }
+    }
+  },
+
+  /**
+   * Get all squads (Public View)
    */
   async getAll(): Promise<Squad[]> {
     try {
       const snapshot = await getDocs(query(squadsRef, orderBy('year', 'desc'), orderBy('name')))
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Squad))
     } catch (error) {
-      console.error('Error loading squads with orderBy:', error)
-      // Try without orderBy if index doesn't exist
-      try {
-        const snapshot = await getDocs(squadsRef)
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Squad))
-          .sort((a, b) => {
-            const yearCompare = (b.year || 0) - (a.year || 0)
-            if (yearCompare !== 0) return yearCompare
-            const nameA = (a.name || '').toLowerCase()
-            const nameB = (b.name || '').toLowerCase()
-            return nameA.localeCompare(nameB)
-          })
-      } catch (fallbackError) {
-        console.error('Error in fallback query:', fallbackError)
-        return []
-      }
+      console.error('Error loading squads:', error)
+      return []
     }
   },
 
@@ -133,23 +178,11 @@ export const squadService = {
   /**
    * Create squad
    */
-  async create(data: Omit<Squad, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-    // Check if any player in the squad already belongs to another squad
-    if (data.playerIds && Array.isArray(data.playerIds) && data.playerIds.length > 0) {
-      const allSquads = await this.getAll();
-      for (const playerId of data.playerIds) {
-        const existingSquad = allSquads.find(squad =>
-          squad.playerIds && squad.playerIds.includes(playerId)
-        );
-        if (existingSquad) {
-          throw new Error(`Player with ID ${playerId} is already in squad '${existingSquad.name}'. A player cannot be in multiple squads.`);
-        }
-      }
-    }
-
+  async create(data: Omit<Squad, 'id' | 'createdAt' | 'updatedAt'> & { adminId: string }): Promise<string> {
     const now = Timestamp.now()
     const docRef = await addDoc(squadsRef, {
       ...stripUndefined(data as any),
+      adminId: data.adminId || auth.currentUser?.uid,
       createdAt: now,
       updatedAt: now,
     })

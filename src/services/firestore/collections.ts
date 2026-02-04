@@ -9,6 +9,9 @@ export const COLLECTIONS = {
   PLAYERS: 'players',
   MATCHES: 'matches',
   USERS: 'users',
+  ADMINS: 'admins',
+  NOTIFICATIONS: 'notifications',
+  SETTINGS: 'settings',
 } as const
 
 export const SUBCOLLECTIONS = {

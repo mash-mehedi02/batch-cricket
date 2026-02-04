@@ -4,18 +4,19 @@ interface PlayerAvatarProps {
     photoUrl?: string;
     name?: string;
     className?: string;
-    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
 const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ photoUrl, name, className = '', size = 'md' }) => {
     const [isBroken, setIsBroken] = React.useState(false);
 
-    const sizeClasses = {
+    const sizeClasses: any = {
         xs: 'w-6 h-6',
         sm: 'w-8 h-8',
         md: 'w-10 h-10',
         lg: 'w-11 h-11 sm:w-12 sm:h-12',
         xl: 'w-16 h-16',
+        full: 'w-full h-full',
     };
 
     const currentSizeClass = sizeClasses[size] || sizeClasses.md;

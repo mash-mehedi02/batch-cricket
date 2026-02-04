@@ -5,9 +5,10 @@
 
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search, User, Filter, Plus } from 'lucide-react'
 import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
+import { adminService } from '@/services/firestore/admins'
 import { Squad, Player } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { Timestamp } from 'firebase/firestore'
@@ -27,6 +28,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   const { user } = useAuthStore()
   const [squads, setSquads] = useState<Squad[]>([])
   const [players, setPlayers] = useState<Player[]>([])
+  const [allAdmins, setAllAdmins] = useState<any[]>([])
+  const [selectedAdminFilter, setSelectedAdminFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [formData, setFormData] = useState({
@@ -50,6 +53,9 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   useEffect(() => {
     if (mode === 'list') {
       loadSquads()
+      if (user?.role === 'super_admin') {
+        loadAdmins()
+      }
     } else {
       loadPlayers()
       if (mode === 'edit' && id) {
@@ -60,9 +66,20 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
     }
   }, [mode, id])
 
-  const loadSquads = async () => {
+  const loadAdmins = async () => {
     try {
-      const data = await squadService.getAll()
+      const data = await adminService.getAll()
+      setAllAdmins(data)
+    } catch (error) {
+      console.error('Error loading admins:', error)
+    }
+  }
+
+  const loadSquads = async () => {
+    if (!user) return
+    try {
+      const isSuperAdmin = user.role === 'super_admin'
+      const data = await squadService.getByAdmin(user.uid, isSuperAdmin)
       setSquads(data)
       setLoading(false)
     } catch (error) {
@@ -73,8 +90,10 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   }
 
   const loadPlayers = async () => {
+    if (!user) return
     try {
-      const data = await playerService.getAll()
+      const isSuperAdmin = user.role === 'super_admin'
+      const data = await playerService.getByAdmin(user.uid, isSuperAdmin)
       setPlayers(data)
     } catch (error) {
       console.error('Error loading players:', error)
@@ -85,6 +104,16 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
     try {
       const data = await squadService.getById(squadId)
       if (data) {
+        // Check ownership - only allow editing own squads (unless super admin)
+        const isSuperAdmin = user?.role === 'super_admin'
+        const isOwner = (data as any).adminId === user?.uid || (data as any).createdBy === user?.uid
+
+        if (!isSuperAdmin && !isOwner) {
+          toast.error('You can only edit squads you created')
+          navigate('/admin/squads')
+          return
+        }
+
         setFormData({
           name: data.name,
           batch: (data as any).batch || String(data.year || ''),
@@ -127,9 +156,11 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     console.log('[AdminSquads] Submit triggered', { mode, id, user, formData })
-    if (!user || (user as any).role !== 'admin') {
+    const isSuperAdmin = (user?.role as string) === 'super_admin'
+    const isAdmin = (user?.role as string) === 'admin'
+    if (!user || (!isAdmin && !isSuperAdmin)) {
       console.warn('[AdminSquads] User not authorized', { user })
-      toast.error('Admin role required to save squads. Check Settings → "Make Me Admin".')
+      toast.error('Administrative privileges required')
       navigate('/admin/settings')
       setSaving(false)
       return
@@ -178,6 +209,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user?.uid || '',
+          adminId: user?.uid || '',
+          adminEmail: user?.email || '',
         }) as any)
         finalId = newId
         console.log('[AdminSquads] Created successfully with ID:', newId)
@@ -249,6 +282,15 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
 
   // Delete Handlers
   const handleDeleteClick = (squad: Squad) => {
+    // Check ownership - only allow deleting own squads (unless super admin)
+    const isSuperAdmin = user?.role === 'super_admin'
+    const isOwner = (squad as any).adminId === user?.uid || (squad as any).createdBy === user?.uid
+
+    if (!isSuperAdmin && !isOwner) {
+      toast.error('You can only delete squads you created')
+      return
+    }
+
     setItemToDelete(squad)
     setDeleteModalOpen(true)
   }
@@ -484,8 +526,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
         </Link>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-200">
-        <div className="relative">
+      <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-200 flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -495,19 +537,45 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
             className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 transition-all outline-none"
           />
         </div>
+
+        {user?.role === 'super_admin' && (
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <User size={18} className="text-gray-400" />
+            <select
+              value={selectedAdminFilter}
+              onChange={(e) => setSelectedAdminFilter(e.target.value)}
+              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 transition-all outline-none min-w-[200px] text-sm"
+            >
+              <option value="">All Admins</option>
+              {allAdmins.map(admin => (
+                <option key={admin.uid} value={admin.uid}>
+                  {admin.name || admin.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {(() => {
-          const filteredSquads = squads.filter(s =>
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            String((s as any).batch || s.year || '').toLowerCase().includes(searchTerm.toLowerCase())
-          );
+          const filteredSquads = squads.filter(s => {
+            const matchesSearch = (s.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+              String((s as any).batch || s.year || '').toLowerCase().includes((searchTerm || '').toLowerCase());
+
+            // Admin Filter Logic
+            let matchesAdmin = true;
+            if (user?.role === 'super_admin' && selectedAdminFilter) {
+              matchesAdmin = (s as any).adminId === selectedAdminFilter || (s as any).createdBy === selectedAdminFilter;
+            }
+
+            return matchesSearch && matchesAdmin;
+          });
 
           if (filteredSquads.length === 0) {
             return (
               <div className="col-span-full text-center py-12 text-gray-500">
-                {searchTerm ? 'No matches found for your search.' : 'No squads found. Create your first squad!'}
+                {searchTerm || selectedAdminFilter ? 'No matches found for your filter.' : 'No squads found. Create your first squad!'}
               </div>
             );
           }
@@ -542,6 +610,11 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
                 <div>Players: {squad.playerIds?.length || 0}</div>
                 {squad.captainId && <div>Captain: Assigned</div>}
                 {squad.wicketKeeperId && <div>WK: Assigned</div>}
+                {user?.role === 'super_admin' && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-400 truncate" title={(squad as any).adminId || (squad as any).createdBy}>
+                    Creator: {((squad as any).adminEmail || (squad as any).createdBy || 'System').split('@')[0]}
+                  </div>
+                )}
               </div>
             </div>
           ));

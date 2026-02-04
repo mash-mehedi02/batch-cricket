@@ -2,122 +2,184 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if user is admin
+    // ======================================================
+    // SECURITY HELPERS
+    // ======================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user is an active admin in the new system
     function isAdmin() {
-      return request.auth != null && (
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true;
+    }
+
+    // Check if user is a super admin
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'batchcrick@gmail.com' || (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin'
+        )
+      );
+    }
+
+    // Check if the current user owns the document via adminId
+    function isOwner(data) {
+      return isAuthenticated() && (data.adminId == request.auth.uid || isSuperAdmin());
+    }
+
+    // Legacy admin check
+    function isLegacyAdmin() {
+      return isAuthenticated() && (
         exists(/databases/$(database)/documents/admin/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']) ||
-        request.auth.token.email.lower() == 'batchcrick@gmail.com'
+        request.auth.token.email == 'batchcrick@gmail.com'
       );
     }
-    
-    // Matches collection - readable by all, writable by admins only
+
+    // Combined admin check (prefers new system)
+    function isAnyAdmin() {
+      return isAdmin() || isLegacyAdmin();
+    }
+
+    // ======================================================
+    // ADMIN IDENTITY & OWNERSHIP
+    // ======================================================
+
+    match /admins/{adminId} {
+      // Admins can read their own profile, Super Admins can read all
+      allow read: if isAuthenticated() && (request.auth.uid == adminId || isSuperAdmin());
+      
+      // Allow Super Admin to create any admin (including themselves)
+      allow create: if isSuperAdmin();
+                    
+      // Only super admin can activate or change roles
+      allow update: if isSuperAdmin() || (isAdmin() && request.auth.uid == adminId && 
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isActive']));
+                    
+      allow delete: if isSuperAdmin();
+    }
+
+    match /invited_admins/{email} {
+      // Allow read for the person being invited (to check during login) or any Super Admin
+      allow read: if isAuthenticated() && (request.auth.token.email.lower() == email.lower() || isSuperAdmin());
+      // Only Super Admin can invite/delete invites
+      allow write: if isSuperAdmin();
+    }
+
+    // ======================================================
+    // CORE DATA COLLECTIONS (Public Read, Admin Write)
+    // ======================================================
+
+    match /tournaments/{id} {
+      allow read: if true;
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && isOwner(resource.data);
+    }
+
     match /matches/{matchId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && isOwner(resource.data);
       
-      // Commentary subcollection - readable by all, writable by admins only
-      match /commentary/{commentaryId} {
+      match /commentary/{id} {
         allow read: if true;
-        allow create, update, delete: if isAdmin();
+        allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/matches/$(matchId)).data);
       }
       
-      // Innings subcollection - readable by all, writable by admins only
       match /innings/{inningId} {
         allow read: if true;
-        allow create, update, delete: if isAdmin();
+        allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/matches/$(matchId)).data);
 
-        // Balls subcollection (nested under innings) - readable by all, writable by admins only
         match /balls/{ballId} {
           allow read: if true;
-          allow create, update, delete: if isAdmin();
+          allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/matches/$(matchId)).data);
         }
       }
     }
-    
-    // Users Collection
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Player Secrets Collection (STRICTLY PRIVATE - ADMIN OR OWNER)
-    match /player_secrets/{secretId} {
-      // Only allow reading if it's an admin OR the user's Google email matches the registered email
-      allow read: if request.auth != null && (
-        isAdmin() || 
-        request.auth.token.email.lower() == resource.data.email.lower()
-      );
-      allow write: if isAdmin();
+
+    match /squads/{id} {
+      allow read: if true;
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && isOwner(resource.data);
     }
 
-    // Permitted Admins Collection - admins can read/write, users can read their own email doc
-    match /permitted_admins/{email} {
-      allow read: if request.auth != null && (
-        isAdmin() ||
-        request.auth.token.email.lower() == email.lower()
-      );
-      allow write: if isAdmin();
-    }
-    
-    // Players collection - readable by all, special update rules for claimed profiles
     match /players/{playerId} {
       allow read: if true;
-      allow create, delete: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow delete: if isAdmin() && isOwner(resource.data);
       
-      allow update: if request.auth != null && (
-        isAdmin() ||
-        // 1. THE CLAIM/VERIFY STEP: Bind UID or Refresh Session
-        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastVerifiedAt']) &&
-         request.resource.data.claimed == true && 
-         request.resource.data.ownerUid == request.auth.uid &&
-         // Verify Google Email via secret document join
-         request.auth.token.email.lower() == get(/databases/$(database)/documents/player_secrets/$(playerId)).data.email.lower() &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'ownerUid', 'lastVerifiedAt', 'updatedAt'])) ||
-        // 2. THE OWNER STEP: Update personal fields (Session must be < 1 hour old)
-        (resource.data.ownerUid == request.auth.uid && 
-         request.time < resource.data.lastVerifiedAt + duration.value(1, 'h') &&
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'squadId', 'batch', 'school', 'claimed', 'ownerUid', 'lastVerifiedAt', 'email', 'maskedEmail', 'createdAt', 'createdBy']))
+      allow update: if (isAdmin() && isOwner(resource.data)) || (
+        // Player self-update (claim logic) - MUST NOT allow changing adminId
+        isAuthenticated() && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastVerifiedAt']) &&
+           request.resource.data.claimed == true && 
+           request.resource.data.ownerUid == request.auth.uid &&
+           request.auth.token.email.lower() == get(/databases/$(database)/documents/player_secrets/$(playerId)).data.email.lower() &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'ownerUid', 'lastVerifiedAt', 'updatedAt'])) ||
+          (resource.data.ownerUid == request.auth.uid && 
+           request.time < resource.data.lastVerifiedAt + duration.value(1, 'h') &&
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'squadId', 'batch', 'school', 'claimed', 'ownerUid', 'lastVerifiedAt', 'email', 'maskedEmail', 'createdAt', 'createdBy', 'adminId']))
+        )
       );
-    }
-    
-    // Admin collection - users can read their own admin doc, admins can read/write all
-    match /admin/{adminId} {
-      // Allow users to read their own admin document (needed for login check)
-      allow read: if request.auth != null && request.auth.uid == adminId;
-      // Allow creating admin document if user is creating their own
-      allow create: if request.auth != null && request.auth.uid == adminId;
-      // Allow updating/deleting if user is admin or updating their own doc
-      allow update, delete: if request.auth != null && (
-        request.auth.uid == adminId || 
-        exists(/databases/$(database)/documents/admin/$(request.auth.uid))
-      );
-    }
-    
-    // Champions collection (optional) - readable by all, writable by admins only
-    match /champions/{championId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
-    }
-    
-    // Tournaments collection - readable by all, writable by admins only
-    match /tournaments/{tournamentId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
-    }
-    
-    // Squads collection - readable by all, writable by admins only
-    match /squads/{squadId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
     }
 
-    // Player match stats collection - readable by all, writable by admins only
+    // ======================================================
+    // PRIVATE DATA & SETTINGS
+    // ======================================================
+
+    match /notifications/{id} {
+      allow read, write: if isAdmin() && (isOwner(resource.data) || request.resource.data.adminId == request.auth.uid);
+    }
+
+    match /settings/{id} {
+      allow read, write: if isAdmin() && (isOwner(resource.data) || request.resource.data.adminId == request.auth.uid);
+    }
+
+    match /player_secrets/{playerId} {
+      // Only allow reading if it's an admin of the record OR the user is claiming their own
+      allow read: if isAuthenticated() && (
+        (isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data)) || 
+        request.auth.token.email.lower() == resource.data.email.lower()
+      );
+      allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data);
+    }
+
     match /playerMatchStats/{statId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && isOwner(resource.data);
+    }
+
+    // ======================================================
+    // SYSTEM & LOGS
+    // ======================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+    }
+
+    match /permitted_admins/{email} {
+      allow read: if isAuthenticated() && (isAnyAdmin() || request.auth.token.email.lower() == email.lower());
+      allow write: if isSuperAdmin();
+    }
+
+    match /champions/{id} {
+      allow read: if true;
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && isOwner(resource.data);
+    }
+
+    // LEGACY: Old admin collection (should be migrated)
+    match /admin/{adminId} {
+      allow read: if isAuthenticated() && request.auth.uid == adminId;
+      allow write: if false; // Block new writes to legacy collection
     }
   }
 }
-

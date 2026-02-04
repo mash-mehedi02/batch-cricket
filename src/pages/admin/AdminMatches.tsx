@@ -8,13 +8,14 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
+import { adminService } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
 import { Match, Tournament, Squad } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { Timestamp } from 'firebase/firestore'
 import { generateMatchNumber } from '@/utils/matchNumber'
 import toast from 'react-hot-toast'
-import { CalendarClock, Play, Eye, Edit2, Trash2, Filter, Search, Plus, MapPin, Calendar, Clock, Trophy, ArrowLeft, Save, Shield, User, CheckCircle, Mic, AlertCircle, Check } from 'lucide-react'
+import { CalendarClock, Play, Eye, Edit2, Trash2, Filter, Search, Plus, MapPin, Calendar, Clock, Trophy, ArrowLeft, ArrowRight, Save, Shield, User, CheckCircle, Mic, AlertCircle, Check } from 'lucide-react'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { addManualCommentary } from '@/services/commentary/commentaryService'
@@ -33,6 +34,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   const [matches, setMatches] = useState<Match[]>([])
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [squads, setSquads] = useState<Squad[]>([])
+  const [allAdmins, setAllAdmins] = useState<any[]>([])
+  const [selectedAdminFilter, setSelectedAdminFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [matchView, setMatchView] = useState<Match | null>(null)
   const [teamAPlayers, setTeamAPlayers] = useState<any[]>([])
@@ -85,6 +88,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   const [saving, setSaving] = useState(false)
   const [rescheduleModal, setRescheduleModal] = useState<{ open: boolean; match: Match | null }>({ open: false, match: null })
   const [rescheduleData, setRescheduleData] = useState({ date: '', time: '' })
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showRescheduleDatePicker, setShowRescheduleDatePicker] = useState(false)
 
   // Deletion state
   const [itemToDelete, setItemToDelete] = useState<Match | null>(null)
@@ -141,6 +146,9 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   useEffect(() => {
     if (mode === 'list') {
       loadMatches()
+      if (user?.role === 'super_admin') {
+        loadAdmins()
+      }
     } else {
       loadTournaments()
       loadSquads()
@@ -170,8 +178,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   }, [mode, id])
 
   const loadMatches = async () => {
+    if (!user) return
     try {
-      const data = await matchService.getAll()
+      const isSuperAdmin = user.role === 'super_admin'
+      const data = await matchService.getByAdmin(user.uid, isSuperAdmin)
       setMatches(data)
       setLoading(false)
     } catch (error) {
@@ -181,9 +191,20 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
   }
 
-  const loadTournaments = async () => {
+  const loadAdmins = async () => {
     try {
-      const data = await tournamentService.getAll()
+      const data = await adminService.getAll()
+      setAllAdmins(data)
+    } catch (error) {
+      console.error('Error loading admins:', error)
+    }
+  }
+
+  const loadTournaments = async () => {
+    if (!user) return
+    try {
+      const isSuperAdmin = user.role === 'super_admin'
+      const data = await tournamentService.getByAdmin(user.uid, isSuperAdmin)
       setTournaments(data)
     } catch (error) {
       console.error('Error loading tournaments:', error)
@@ -191,7 +212,9 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   }
 
   const loadSquads = async () => {
+    if (!user) return
     try {
+      // Load ALL squads from platform so any admin can use them in matches
       const data = await squadService.getAll()
       setSquads(data)
     } catch (error) {
@@ -693,6 +716,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         status: (formData.status as any) || 'upcoming',
         matchNo: formData.matchNo || undefined,
         matchPhase: mode === 'create' ? 'FirstInnings' : undefined,
+        adminId: user?.uid || '',
+        adminEmail: user?.email || '',
         createdBy: mode === 'create' ? user?.uid || '' : undefined,
       })
 
@@ -1028,12 +1053,39 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
               />
             </div>
 
-            <div>
+            <div className="relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
-              <WheelDatePicker
-                value={formData.date}
-                onChange={(val) => setFormData({ ...formData, date: val })}
-              />
+              <div
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer bg-white flex items-center justify-between"
+                onClick={() => setShowDatePicker(!showDatePicker)}
+              >
+                <span className={formData.date ? "text-slate-900" : "text-slate-400"}>
+                  {formData.date ? formatDateLabel(formData.date) : 'Select Date'}
+                </span>
+                <Calendar size={18} className="text-slate-400" />
+              </div>
+
+              {showDatePicker && (
+                <div className="absolute z-[100] mt-2 left-0 right-0 sm:right-auto sm:w-[320px]">
+                  {/* Click away layer */}
+                  <div className="fixed inset-0 z-0" onClick={() => setShowDatePicker(false)}></div>
+                  <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+                    <WheelDatePicker
+                      value={formData.date}
+                      onChange={(val) => {
+                        setFormData({ ...formData, date: val })
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition"
+                      onClick={() => setShowDatePicker(false)}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1569,7 +1621,13 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     else if (filterStatus === 'completed') matchesStatus = ['completed', 'finished', 'abandoned'].includes(rawStatus);
     else if (filterStatus === 'upcoming') matchesStatus = rawStatus === 'upcoming';
 
-    return matchesSearch && matchesStatus;
+    // Admin Filter Logic
+    let matchesAdmin = true;
+    if (user?.role === 'super_admin' && selectedAdminFilter) {
+      matchesAdmin = (match as any).adminId === selectedAdminFilter || (match as any).createdBy === selectedAdminFilter;
+    }
+
+    return matchesSearch && matchesStatus && matchesAdmin;
   }).sort((a, b) => {
     const da = coerceToDate((a as any).date) || new Date(0)
     const db = coerceToDate((b as any).date) || new Date(0)
@@ -1625,9 +1683,9 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                   </Link>
                   <Link
                     to={`/admin/matches/${match.id}`}
-                    className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 rounded-lg transition-colors"
+                    className="flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white"
                   >
-                    <Eye size={18} />
+                    <ArrowRight size={18} />
                   </Link>
                 </div>
               </div>
@@ -1650,18 +1708,39 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
               className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[140px]"
-            >
-              <option value="all">All Stages</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="live">Live</option>
-              <option value="completed">Completed</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-slate-400" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[140px]"
+              >
+                <option value="all">All Stages</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="live">Live</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            {/* Admin Filter for Super Admins */}
+            {user?.role === 'super_admin' && (
+              <div className="flex items-center gap-2">
+                <User size={16} className="text-slate-400" />
+                <select
+                  value={selectedAdminFilter}
+                  onChange={(e) => setSelectedAdminFilter(e.target.value)}
+                  className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[180px]"
+                >
+                  <option value="">All Admins</option>
+                  {allAdmins.map(admin => (
+                    <option key={admin.uid} value={admin.uid}>
+                      {admin.name || admin.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1673,6 +1752,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                 <th className="px-6 py-4">Teams</th>
                 <th className="px-6 py-4">Schedule</th>
                 <th className="px-6 py-4">Status</th>
+                {user?.role === 'super_admin' && <th className="px-6 py-4">Creator</th>}
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -1730,6 +1810,13 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                       <td className="px-6 py-4">
                         <StatusBadge status={statusRaw} />
                       </td>
+                      {user?.role === 'super_admin' && (
+                        <td className="px-6 py-4">
+                          <span className="text-xs text-slate-500 truncate block max-w-[80px]" title={(match as any).adminId || (match as any).createdBy || 'System'}>
+                            {((match as any).adminEmail || (match as any).createdBy || 'System').split('@')[0]}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {isUpcoming && (
@@ -1790,12 +1877,36 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
               </div>
             </div>
             <div className="space-y-4">
-              <div>
+              <div className="relative">
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Date</label>
-                <WheelDatePicker
-                  value={rescheduleData.date}
-                  onChange={(val) => setRescheduleData({ ...rescheduleData, date: val })}
-                />
+                <div
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer bg-white flex items-center justify-between"
+                  onClick={() => setShowRescheduleDatePicker(!showRescheduleDatePicker)}
+                >
+                  <span className={rescheduleData.date ? "text-slate-900" : "text-slate-400"}>
+                    {rescheduleData.date ? formatDateLabel(rescheduleData.date) : 'Select Date'}
+                  </span>
+                  <Calendar size={18} className="text-slate-400" />
+                </div>
+
+                {showRescheduleDatePicker && (
+                  <div className="absolute z-[110] mt-2 left-0 right-0">
+                    <div className="fixed inset-0 z-0 bg-transparent" onClick={() => setShowRescheduleDatePicker(false)}></div>
+                    <div className="relative z-10 bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                      <WheelDatePicker
+                        value={rescheduleData.date || new Date().toISOString().split('T')[0]}
+                        onChange={(val) => setRescheduleData({ ...rescheduleData, date: val })}
+                      />
+                      <button
+                        type="button"
+                        className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
+                        onClick={() => setShowRescheduleDatePicker(false)}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Time</label>

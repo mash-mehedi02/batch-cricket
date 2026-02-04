@@ -167,9 +167,9 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
     // Determine animation class for scorecard based on event type
     const scorecardAnimationClass = useMemo(() => {
-        if (isFinishedMatch || isInningsBreak) return 'bg-[#121926]';
+        if (isFinishedMatch || isInningsBreak) return 'bg-[#0f172a]';
         // Only apply special background if animation is active
-        if (!showAnimation && !showBoundaryAnim) return 'bg-[#121926]';
+        if (!showAnimation && !showBoundaryAnim) return 'bg-[#0f172a]';
 
         if (displayEvent === '4') {
             return 'bg-[#034177] animate-pulse border-blue-400/30'
@@ -178,7 +178,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         } else if (isWicket) {
             return 'bg-[#64101e] animate-pulse border-red-500/30'
         }
-        return 'bg-[#121926]';
+        return 'bg-[#0f172a]';
     }, [displayEvent, isWicket, showAnimation, showBoundaryAnim, isFinishedMatch, isInningsBreak]);
 
     // Text glow effect for the main score - Exact Color Calibration

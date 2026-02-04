@@ -8,7 +8,10 @@ import { useAuthStore } from '@/store/authStore'
 import { checkIfAdmin } from '@/utils/createAdmin'
 import { debugAdminPermissions, forceRefreshAuthToken, printAdminDebugInfo } from '@/utils/debugAdmin'
 import toast from 'react-hot-toast'
-import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database } from 'lucide-react'
+import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database, Lock, Key, Save } from 'lucide-react'
+import { auth } from '@/config/firebase'
+import { updatePassword, signOut } from 'firebase/auth'
+import { useNavigate } from 'react-router-dom'
 
 export default function AdminSettings() {
   const { user } = useAuthStore()
@@ -16,6 +19,12 @@ export default function AdminSettings() {
   const [checking, setChecking] = useState(true)
   const [showDebug, setShowDebug] = useState(false)
   const [debugJson, setDebugJson] = useState<string>('')
+  const navigate = useNavigate()
+
+  // Change Password State
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
 
   // Check if user is admin on load
   useEffect(() => {
@@ -50,6 +59,46 @@ export default function AdminSettings() {
     const result = await debugAdminPermissions()
     setDebugJson(JSON.stringify(result, null, 2))
     toast.success('Diagnostics completed')
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newPassword || !confirmPassword) return
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+
+    const currentAuthenticatedUser = auth.currentUser
+    if (!currentAuthenticatedUser) {
+      toast.error('Authentication session not found')
+      return
+    }
+
+    setIsUpdating(true)
+    const toastId = toast.loading('Updating password...')
+
+    try {
+      await updatePassword(currentAuthenticatedUser, newPassword)
+      toast.success('Password updated successfully! Please login again.', { id: toastId })
+
+      // Force logout after password change for security
+      await signOut(auth)
+      navigate('/login')
+    } catch (error: any) {
+      console.error('Password update failed:', error)
+      if (error.code === 'auth/requires-recent-login') {
+        toast.error('For security, please logout and login again before changing your password.', { id: toastId })
+      } else {
+        toast.error(error.message || 'Failed to update password', { id: toastId })
+      }
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   if (!user) {
@@ -129,6 +178,68 @@ export default function AdminSettings() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Change Password Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+          <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <Lock className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Security</h2>
+            <p className="text-xs text-gray-500">Update your administrative credentials</p>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <form onSubmit={handleChangePassword} className="max-w-md space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">New Password</label>
+              <div className="relative">
+                <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">Confirm New Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isUpdating}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-all text-sm shadow-md disabled:opacity-50 active:scale-95"
+            >
+              <Save className="h-4 w-4" />
+              {isUpdating ? 'Updating...' : 'Update Password'}
+            </button>
+
+            <p className="text-[10px] text-gray-400 leading-relaxed italic mt-4">
+              * For security, you will be automatically logged out after changing your password. If you haven't logged in recently, you may be asked to re-authenticate.
+            </p>
+          </form>
         </div>
       </div>
 

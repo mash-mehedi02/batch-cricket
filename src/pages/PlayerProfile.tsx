@@ -7,7 +7,8 @@ import { useEffect, useState, useMemo } from 'react'
 import { clsx } from 'clsx'
 import { useParams, Link } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
-import { db } from '@/config/firebase'
+import { db, auth } from '@/config/firebase'
+import { signOut } from 'firebase/auth'
 import { squadService } from '@/services/firestore/squads'
 import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle } from '@/types'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
@@ -16,7 +17,7 @@ import PageHeader from '@/components/common/PageHeader'
 import cricketBatIcon from '@/assets/cricket-bat.png'
 import cricketBallIcon from '@/assets/cricket-ball.png'
 import { useAuthStore } from '@/store/authStore'
-import { claimPlayerWithGoogle, updatePlayerPersonalInfo, verifyPlayerAccess } from '@/services/firestore/playerClaim'
+import { claimPlayerWithGoogle, updatePlayerPersonalInfo, verifyPlayerAccess, handleGoogleRedirectResult, finalizeClaim } from '@/services/firestore/playerClaim'
 import toast from 'react-hot-toast'
 import { ShieldCheck, Edit, X, Facebook, Instagram, Twitter, Linkedin, Globe, Camera, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -90,9 +91,29 @@ export default function PlayerProfile() {
   const handleClaim = async () => {
     setClaiming(true);
     try {
-      await claimPlayerWithGoogle(playerId!);
-      setShowClaimModal(false);
-      // Success - hasActiveSession will update via useEffect
+      const res = await claimPlayerWithGoogle(playerId!);
+
+      if (res && res.success) {
+        setShowClaimModal(false);
+        toast.success('Profile claimed successfully!');
+
+        // Success - Enter edit mode immediately
+        if (player) {
+          setEditForm({
+            name: player.name || '',
+            username: (player as any).username || player.name || '',
+            bio: player.bio || '',
+            photoUrl: player.photoUrl || (player as any).photo || '',
+            dateOfBirth: player.dateOfBirth || '',
+            socialLinks: player.socialLinks || [],
+            address: player.address || '',
+            role: player.role || 'batsman',
+            battingStyle: player.battingStyle || 'right-handed',
+            bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+          })
+          setIsEditing(true)
+        }
+      }
     } catch (error: any) {
       console.error('Claim failed:', error);
       toast.error(error.message || 'Verification failed.');
@@ -143,8 +164,9 @@ export default function PlayerProfile() {
         battingStyle: editForm.battingStyle,
         bowlingStyle: editForm.bowlingStyle
       })
-      toast.success('Profile updated!')
+      toast.success('Profile updated! You have been logged out for security.')
       setIsEditing(false)
+      await signOut(auth) // Auto-logout after save
     } catch (e: any) {
       console.error(e)
       toast.error(e.message || 'Update failed. Ensure you are the owner.')
@@ -180,17 +202,63 @@ export default function PlayerProfile() {
   const [hasActiveSession, setHasActiveSession] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
 
-  // Session Checker
+  // Session & Redirect Checker
   useEffect(() => {
-    const checkSession = async () => {
+    const checkAuth = async () => {
+      // 1. Check for Redirect result (Important for Capacitor/Android)
+      try {
+        const redirectResult = await handleGoogleRedirectResult();
+        if (redirectResult) {
+          // Use localStorage and fallback to current route playerId
+          const pendingPlayerId = localStorage.getItem('pending_claim_player_id') || playerId;
+
+          if (pendingPlayerId) {
+            try {
+              console.log('[Auth] Finalizing claim for:', pendingPlayerId);
+              const res = await finalizeClaim(pendingPlayerId, redirectResult.user);
+              if (res.success) {
+                toast.success('Identity verified via Google!');
+              }
+            } catch (finalizeErr: any) {
+              console.error('Finalize claim from redirect failed:', finalizeErr);
+              toast.error(finalizeErr.message || 'Verification failed.');
+            } finally {
+              localStorage.removeItem('pending_claim_player_id');
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error('Redirect handler failed:', err);
+        localStorage.removeItem('pending_claim_player_id');
+      }
+
+      // 2. Check Session Access
       if (!user || !player) {
         setHasActiveSession(false)
+        if (isEditing) setIsEditing(false)
         return
       }
       const { hasAccess } = await verifyPlayerAccess(player)
       setHasActiveSession(hasAccess)
+
+      // Automatic edit mode if session is active but not yet editing
+      if (hasAccess && !isEditing) {
+        setEditForm({
+          name: player.name || '',
+          username: (player as any).username || player.name || '',
+          bio: player.bio || '',
+          photoUrl: player.photoUrl || (player as any).photo || '',
+          dateOfBirth: player.dateOfBirth || '',
+          socialLinks: player.socialLinks || [],
+          address: player.address || '',
+          role: player.role || 'batsman',
+          battingStyle: player.battingStyle || 'right-handed',
+          bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+        })
+        setIsEditing(true)
+      }
     }
-    checkSession()
+    checkAuth()
   }, [user, player])
 
   // Reset date picker visibility when edit mode changes
@@ -357,7 +425,7 @@ export default function PlayerProfile() {
     const finalCombinedList = Array.from(uniqueMatchStats.values())
 
     // Recalculate Career Totals
-    let batt = { innings: 0, runs: 0, balls: 0, outs: 0, fours: 0, sixes: 0, highest: 0, isHighestNotOut: false, fifties: 0, hundreds: 0, ducks: 0 }
+    let batt = { innings: 0, runs: 0, balls: 0, outs: 0, fours: 0, sixes: 0, highest: 0, isHighestNotOut: false, fifties: 0, hundreds: 0, ducks: 0, highestScoreMatchId: '' }
     let bowl = { innings: 0, balls: 0, runs: 0, wickets: 0, bestW: 0, bestR: 0, threeW: 0, fiveW: 0, maidens: 0 }
 
     finalCombinedList.forEach(s => {
@@ -378,8 +446,11 @@ export default function PlayerProfile() {
         if (r > batt.highest) {
           batt.highest = r
           batt.isHighestNotOut = isActuallyNotOut
+          batt.highestScoreMatchId = s.matchId
         } else if (r === batt.highest && isActuallyNotOut) {
           batt.isHighestNotOut = true
+          // If equal score but this one is not out, update matchId (optional preference)
+          batt.highestScoreMatchId = s.matchId
         }
 
         if (r >= 100) batt.hundreds++
@@ -429,7 +500,8 @@ export default function PlayerProfile() {
         average: batt.outs > 0 ? batt.runs / batt.outs : (batt.runs > 0 ? batt.runs : 0),
         strikeRate: batt.balls > 0 ? (batt.runs / batt.balls) * 100 : 0,
         highestScore: batt.highest,
-        isHighestNotOut: batt.isHighestNotOut
+        isHighestNotOut: batt.isHighestNotOut,
+        highestScoreMatchId: batt.highestScoreMatchId
       },
       bowling: {
         ...bowl,
@@ -545,6 +617,7 @@ export default function PlayerProfile() {
   const strikeRate = Number(battingStats?.strikeRate || 0).toFixed(1)
   const highestScoreRaw = battingStats?.highestScore
   const isHighestNotOut = battingStats?.isHighestNotOut
+  const highestScoreMatchId = battingStats?.highestScoreMatchId
 
   const highestScore = highestScoreRaw !== undefined ? (
     <span className="relative">
@@ -570,16 +643,21 @@ export default function PlayerProfile() {
   const ducks = Number(battingStats?.ducks || 0)
 
   // Internal component for career grid cells
-  const StatCell = ({ label, value, highlight, labelSmall }: { label: string, value: any, highlight?: boolean, labelSmall?: boolean }) => (
-    <div className="flex flex-col items-center justify-center py-7 px-1 text-center">
-      <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600' : 'text-slate-800'}`}>
-        {value}
-      </div>
-      <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 uppercase tracking-tight`}>
-        {label}
-      </div>
-    </div>
-  )
+  const StatCell = ({ label, value, highlight, labelSmall, matchId }: { label: string, value: any, highlight?: boolean, labelSmall?: boolean, matchId?: string }) => {
+    const Container = matchId ? Link : 'div'
+    const props = matchId ? { to: `/match/${matchId}` } : {}
+
+    return (
+      <Container {...props} className={clsx("flex flex-col items-center justify-center py-7 px-1 text-center transition-all", matchId && "hover:bg-slate-50 cursor-pointer group")}>
+        <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600 group-hover:text-sky-700' : 'text-slate-800'}`}>
+          {value}
+        </div>
+        <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 uppercase tracking-tight`}>
+          {label}
+        </div>
+      </Container>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white relative pb-24">
@@ -740,7 +818,7 @@ export default function PlayerProfile() {
                     <StatCell label="Matches" value={matchesCount} />
                     <StatCell label="Innings" value={battingInnings} />
                     <StatCell label="Runs" value={runs} />
-                    <StatCell label="Highest Score" value={highestScore} highlight labelSmall />
+                    <StatCell label="Highest Score" value={highestScore} highlight labelSmall matchId={highestScoreMatchId} />
                   </div>
                   {/* Row 2 */}
                   <div className="grid grid-cols-4 divide-x divide-slate-200">
@@ -1245,7 +1323,10 @@ export default function PlayerProfile() {
             {isEditing && (
               <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 z-[110] flex gap-4 max-w-2xl mx-auto rounded-t-[2.5rem] shadow-[0_-20px_50px_rgba(0,0,0,0.1)]">
                 <button
-                  onClick={() => setIsEditing(false)}
+                  onClick={async () => {
+                    setIsEditing(false)
+                    await signOut(auth)
+                  }}
                   className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[10px] rounded-2xl hover:bg-slate-50 transition-all uppercase tracking-[0.2em] active:scale-95"
                 >
                   Cancel

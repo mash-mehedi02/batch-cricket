@@ -1,10 +1,6 @@
-/**
- * Player Claim Service - Passwordless Google Sign-In Implementation
- * BatchCrick BD - Secure Player Profiles
- */
-
-import { db, auth, GoogleAuthProvider, signInWithPopup } from '@/config/firebase'
+import { db, auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from '@/config/firebase'
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection } from 'firebase/firestore'
+import { Capacitor } from '@capacitor/core'
 
 /**
  * Mask Email for Display
@@ -23,6 +19,22 @@ export function maskEmail(email: string): string {
 }
 
 /**
+ * Check for pending redirect results (Call this on app load or profile mount)
+ */
+export async function handleGoogleRedirectResult() {
+    try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+            console.log('[Auth] Redirect result found:', result.user.email);
+            return result;
+        }
+    } catch (error) {
+        console.error('[Auth] Redirect error:', error);
+    }
+    return null;
+}
+
+/**
  * Admin: Create Player with Google Email requirement
  */
 export async function createPlayerWithClaim(playerData: {
@@ -37,12 +49,14 @@ export async function createPlayerWithClaim(playerData: {
     dateOfBirth?: string
     photoUrl?: string
     address?: string
+    adminId?: string
+    adminEmail?: string
 }) {
     if (!auth.currentUser) {
         throw new Error('Must be logged in as admin')
     }
 
-    const { name, squadId, school, ...rest } = playerData
+    const { name, squadId, school, adminId, adminEmail, ...rest } = playerData
     const email = playerData.email.trim().toLowerCase()
     const maskedEmail = maskEmail(email)
 
@@ -68,7 +82,9 @@ export async function createPlayerWithClaim(playerData: {
 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        createdBy: auth.currentUser.uid
+        createdBy: auth.currentUser.uid,
+        adminId: adminId || auth.currentUser.uid,
+        adminEmail: adminEmail || auth.currentUser.email
     }
 
     // Secret document stores the raw email
@@ -109,57 +125,124 @@ export async function createPlayerWithClaim(playerData: {
 export async function claimPlayerWithGoogle(playerId: string) {
     try {
         const provider = new GoogleAuthProvider()
-        // Force account selection to avoid accidental logic with wrong account
         provider.setCustomParameters({ prompt: 'select_account' })
 
-        const result = await signInWithPopup(auth, provider)
-        const googleEmail = result.user.email?.toLowerCase()
-        const uid = result.user.uid
+        let result;
+        const isNative = Capacitor.isNativePlatform();
 
-        if (!googleEmail) {
-            throw new Error('No email returned from Google. Access denied.')
-        }
+        if (isNative) {
+            console.log('[Auth] Native platform detected, using Native Google Auth');
+            try {
+                const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
 
-        // 1. Fetch player status
-        const playerRef = doc(db, 'players', playerId)
-        const playerSnap = await getDoc(playerRef)
-        if (!playerSnap.exists()) throw new Error('Player not found')
+                await GoogleAuth.initialize({
+                    clientId: '899272110972-pjfti5ug438ubliit4ri5civ6nuhkftv.apps.googleusercontent.com',
+                    scopes: ['profile', 'email'],
+                });
 
-        // 2. Verify Google Email against secret record
-        const secretRef = doc(db, 'player_secrets', playerId)
-        let registeredEmail: string | undefined;
+                // Force account selection by signing out first
+                try {
+                    await GoogleAuth.signOut();
+                } catch (e) {
+                    // Ignore sign out errors if not logged in
+                }
 
-        try {
-            const secretSnap = await getDoc(secretRef)
-            if (!secretSnap.exists()) {
-                throw new Error('Security record missing. Please contact admin to set your registration email.')
+                const googleUser = await GoogleAuth.signIn();
+
+                if (!googleUser.authentication.idToken) {
+                    throw new Error('No ID token returned from Google Auth');
+                }
+
+                const { signInWithCredential, GoogleAuthProvider } = await import('@/config/firebase');
+                const credential = GoogleAuthProvider.credential(googleUser.authentication.idToken);
+
+                // Sign in directly and finish everything HERE. 
+                // DO NOT let the execution flow out of this 'isNative' block into any shared logic.
+                const userCredential = await signInWithCredential(auth, credential);
+                if (userCredential.user) {
+                    console.log('[Auth] Native login success, finalizing claim...');
+                    // This will throw "Access Denied" if email is wrong
+                    return await finalizeClaim(playerId, userCredential.user);
+                }
+                return { success: false };
+            } catch (err: any) {
+                console.error('[Auth] Native Google Auth failed:', err);
+                // Just throw the error. Do NOT redirect to browser in native app.
+                throw err;
             }
-            registeredEmail = secretSnap.data().email?.toLowerCase()
-        } catch (error: any) {
-            // If Firestore denies read, it's because the emails don't match (see firestore.rules)
-            if (error.code === 'permission-denied') {
-                throw new Error(`Access Denied: Your Google account (${googleEmail}) does not match the email registered for this player profile.`)
+        } else {
+            // Web environment
+            try {
+                result = await signInWithPopup(auth, provider);
+            } catch (err: any) {
+                if (err.code === 'auth/popup-blocked' || err.code === 'auth/internal-error') {
+                    console.warn('[Auth] Popup blocked or failed, falling back to redirect');
+                    localStorage.setItem('pending_claim_player_id', playerId);
+                    await signInWithRedirect(auth, provider);
+                    return { pending: true };
+                }
+                throw err;
             }
-            throw error
         }
 
-        if (googleEmail !== registeredEmail) {
-            throw new Error(`This Google account (${googleEmail}) does not match the registered player email.`)
-        }
+        if (!result) return { success: false };
 
-        // 3. Success -> Bind profile & Set Session
-        await updateDoc(playerRef, {
-            claimed: true,
-            ownerUid: uid,
-            lastVerifiedAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        })
-
-        return { success: true, email: googleEmail }
+        return await finalizeClaim(playerId, result.user);
     } catch (error: any) {
         console.error('Google claim failed:', error)
         throw error
     }
+}
+
+/**
+ * Finalize the binding between Google account and Player profile
+ */
+export async function finalizeClaim(playerId: string, user: any) {
+    const googleEmail = user.email?.toLowerCase()
+    const uid = user.uid
+
+    if (!googleEmail) {
+        throw new Error('No email returned from Google. Access denied.')
+    }
+
+    // 1. Fetch player status
+    const playerRef = doc(db, 'players', playerId)
+    const playerSnap = await getDoc(playerRef)
+    if (!playerSnap.exists()) throw new Error('Player not found')
+
+    // 2. Verify Google Email against secret record
+    const secretRef = doc(db, 'player_secrets', playerId)
+    const secretSnap = await getDoc(secretRef)
+
+    if (!secretSnap.exists()) {
+        throw new Error('Security record missing. Please contact admin to set your registration email.')
+    }
+
+    const registeredEmail = secretSnap.data().email?.toLowerCase()
+
+    if (googleEmail !== registeredEmail) {
+        // Cleanup if wrong account
+        try {
+            const adminSnap = await getDoc(doc(db, 'admins', uid));
+            if (!adminSnap.exists()) {
+                await user.delete();
+            }
+        } catch (cleanupErr) {
+            console.warn('Silent cleanup failed:', cleanupErr);
+        }
+
+        throw new Error(`Access Denied: It looks like this is not your profile. Your Google account (${googleEmail}) does not match our records for this player.`)
+    }
+
+    // 3. Success -> Bind profile
+    await updateDoc(playerRef, {
+        claimed: true,
+        ownerUid: uid,
+        lastVerifiedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    })
+
+    return { success: true, email: googleEmail }
 }
 
 /**

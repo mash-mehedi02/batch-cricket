@@ -7,7 +7,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, Timestamp
 } from 'firebase/firestore'
-import { db } from '@/config/firebase'
+import { db, auth } from '@/config/firebase'
 import { Match, Ball, InningsStats } from '@/types'
 import { COLLECTIONS, SUBCOLLECTIONS } from './collections'
 
@@ -58,11 +58,17 @@ export const matchService = {
   /**
    * Get live matches
    */
-  async getLiveMatches(): Promise<Match[]> {
+  async getLiveMatches(adminId?: string, isSuperAdmin: boolean = false): Promise<Match[]> {
     try {
       // Try both 'live' and 'Live' status
-      const q1 = query(matchesRef, where('status', '==', 'live'))
-      const q2 = query(matchesRef, where('status', '==', 'Live'))
+      let q1 = query(matchesRef, where('status', '==', 'live'))
+      let q2 = query(matchesRef, where('status', '==', 'Live'))
+
+      if (adminId && !isSuperAdmin) {
+        q1 = query(q1, where('adminId', '==', adminId))
+        q2 = query(q2, where('adminId', '==', adminId))
+      }
+
       const [snapshot1, snapshot2] = await Promise.all([
         getDocs(q1).catch(() => ({ docs: [] })),
         getDocs(q2).catch(() => ({ docs: [] }))
@@ -76,7 +82,11 @@ export const matchService = {
         matches.set(doc.id, { id: doc.id, ...doc.data() } as Match)
       })
 
-      return Array.from(matches.values())
+      return Array.from(matches.values()).sort((a: any, b: any) => {
+        const dateA = String(a.date || '')
+        const dateB = String(b.date || '')
+        return dateB.localeCompare(dateA)
+      })
     } catch (error) {
       console.error('Error loading live matches:', error)
       return []
@@ -100,7 +110,36 @@ export const matchService = {
   },
 
   /**
-   * Get all matches
+   * Get matches for a specific admin (or all for super admin)
+   */
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Match[]> {
+    try {
+      let q;
+      if (isSuperAdmin) {
+        q = query(matchesRef) // Remove orderBy to avoid index requirement
+      } else {
+        q = query(
+          matchesRef,
+          where('adminId', '==', adminId)
+        )
+      }
+      const snapshot = await getDocs(q)
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
+
+      // Client-side sort to avoid Missing Index errors
+      return list.sort((a: any, b: any) => {
+        const dateA = String(a.date || '')
+        const dateB = String(b.date || '')
+        return dateB.localeCompare(dateA)
+      })
+    } catch (error) {
+      console.error('Error loading matches by admin:', error)
+      return []
+    }
+  },
+
+  /**
+   * Get all matches (Public View)
    */
   async getAll(): Promise<Match[]> {
     try {
@@ -108,19 +147,7 @@ export const matchService = {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
     } catch (error) {
       console.error('Error loading matches:', error)
-      // Try without orderBy if index doesn't exist
-      try {
-        const snapshot = await getDocs(matchesRef)
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
-          .sort((a, b) => {
-            const dateA = a.date || ''
-            const dateB = b.date || ''
-            return dateB.localeCompare(dateA)
-          })
-      } catch (fallbackError) {
-        console.error('Error in fallback query:', fallbackError)
-        return []
-      }
+      return []
     }
   },
 
@@ -264,10 +291,11 @@ export const matchService = {
   /**
    * Create match
    */
-  async create(data: Omit<Match, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  async create(data: Omit<Match, 'id' | 'createdAt' | 'updatedAt'> & { adminId: string }): Promise<string> {
     const now = Timestamp.now()
     const docRef = await addDoc(matchesRef, {
       ...data,
+      adminId: data.adminId || auth.currentUser?.uid,
       createdAt: now,
       updatedAt: now,
     })

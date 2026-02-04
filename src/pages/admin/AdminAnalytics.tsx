@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
+import { useAuthStore } from '@/store/authStore'
 import { Match, Player } from '@/types'
 import { BarChart3, TrendingUp, User, Activity, AlertCircle } from 'lucide-react'
 
 export default function AdminAnalytics() {
+  const { user } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [recentMatches, setRecentMatches] = useState<Match[]>([])
   const [topBatsmen, setTopBatsmen] = useState<Player[]>([])
@@ -12,11 +14,13 @@ export default function AdminAnalytics() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!user) return
       try {
         setLoading(true)
+        const isSuperAdmin = user.role === 'super_admin'
         const [matches, players] = await Promise.all([
-          matchService.getAll(),
-          playerService.getAll()
+          matchService.getByAdmin(user.uid, isSuperAdmin),
+          playerService.getByAdmin(user.uid, isSuperAdmin)
         ])
 
         // Process Matches for Chart (Last 5 finished matches)
@@ -45,7 +49,7 @@ export default function AdminAnalytics() {
       }
     }
     fetchData()
-  }, [])
+  }, [user])
 
   if (loading) {
     return (

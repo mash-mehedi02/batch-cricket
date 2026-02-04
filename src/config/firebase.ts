@@ -5,7 +5,7 @@
 
 import { initializeApp } from 'firebase/app'
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import { getAuth, connectAuthEmulator, setPersistence, indexedDBLocalPersistence } from 'firebase/auth'
 import { getStorage, connectStorageEmulator } from 'firebase/storage'
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
 import { getMessaging } from 'firebase/messaging'
@@ -28,10 +28,16 @@ const app = initializeApp(firebaseConfig)
 // Initialize services
 export const db = getFirestore(app)
 export const auth = getAuth(app)
+
+// Set persistence for Capacitor/Hybrid app stability
+setPersistence(auth, indexedDBLocalPersistence).catch(err => {
+  console.error('[Firebase] Persistence setup failed:', err)
+})
+
 export const storage = getStorage(app)
 export const functions = getFunctions(app)
 export const messaging = typeof window !== "undefined" ? getMessaging(app) : null
-export { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
+export { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithCredential } from 'firebase/auth'
 
 // Lightweight project info (safe to log for debugging)
 export const firebaseProjectInfo = {

@@ -15,6 +15,7 @@
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+    -ms-overflow-style: none;
   }
 
   h1,
@@ -383,7 +384,15 @@
 
   /* Global Dark Mode Support Utilities */
   .dark body {
-    @apply bg-slate-950 text-slate-100 !important;
+    @apply bg-slate-950 text-slate-50;
+  }
+
+  .glass {
+    @apply bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border border-white/20 dark:border-white/5;
+  }
+
+  .card-glass {
+    @apply bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 shadow-sm;
   }
 
   .dark .bg-white {

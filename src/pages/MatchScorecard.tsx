@@ -445,7 +445,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                 <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">BATTING</h3>
               </div>
 
-              <div className="px-5 py-3 grid grid-cols-[1fr,40px,40px,40px,40px,50px] gap-2 items-center text-slate-400 text-[11px] font-bold border-b border-slate-50">
+              <div className="px-5 py-3 grid grid-cols-[5fr,1fr,1fr,1fr,1fr,1.3fr] gap-1 items-center text-slate-400 text-[10px] font-bold border-b border-slate-50 uppercase tracking-tighter">
                 <span className="text-[#4a90e2]">Batter</span>
                 <span className="text-center">R</span>
                 <span className="text-center">B</span>
@@ -461,27 +461,27 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
 
                   return (
                     <div key={idx} className="px-5 py-5 transition-colors group hover:bg-slate-50/30">
-                      <div className="grid grid-cols-[1fr,40px,40px,40px,40px,50px] gap-2 items-start">
-                        <div className="min-w-0">
+                      <div className="grid grid-cols-[5fr,1fr,1fr,1fr,1fr,1.3fr] gap-1 items-start">
+                        <div className="min-w-0 pr-2">
                           <PlayerLink
                             playerId={b.batsmanId}
                             playerName={b.batsmanName}
-                            className={`text-[14px] font-bold leading-none block truncate ${isActive ? 'text-[#004e96]' : 'text-slate-800'}`}
+                            className={`text-[13px] font-bold leading-none block truncate ${isActive ? 'text-[#004e96]' : 'text-slate-800'}`}
                           >
                             {formatPlayerScorecardName(b.batsmanName)}
                             {b.batsmanId === (currentTab?.inningId === 'teamA' ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
                             {b.batsmanId === (currentTab?.inningId === 'teamA' ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
                             {isStriker && isActive && '*'}
                           </PlayerLink>
-                          <div className="text-[11px] mt-1.5 font-medium text-slate-400 leading-tight">
+                          <div className="text-[10px] mt-1.5 font-medium text-slate-400 leading-tight truncate">
                             {b.dismissal || (isActive && matchData.status === 'live' ? 'Batting' : 'Not out')}
                           </div>
                         </div>
-                        <span className="text-center text-[15px] font-black text-slate-900 tabular-nums">{b.runs}</span>
-                        <span className="text-center text-[13px] font-medium text-slate-400 tabular-nums pt-0.5">{b.balls}</span>
-                        <span className="text-center text-[13px] font-medium text-slate-400 tabular-nums pt-0.5">{b.fours}</span>
-                        <span className="text-center text-[13px] font-medium text-slate-400 tabular-nums pt-0.5">{b.sixes}</span>
-                        <span className="text-right text-[12px] font-medium text-slate-400 tabular-nums pt-0.5">
+                        <span className="text-center text-[14px] font-black text-slate-900 tabular-nums">{b.runs}</span>
+                        <span className="text-center text-[11px] font-medium text-slate-400 tabular-nums pt-0.5">{b.balls}</span>
+                        <span className="text-center text-[11px] font-medium text-slate-400 tabular-nums pt-0.5">{b.fours}</span>
+                        <span className="text-center text-[11px] font-medium text-slate-400 tabular-nums pt-0.5">{b.sixes}</span>
+                        <span className="text-right text-[10px] font-medium text-slate-400 tabular-nums pt-0.5">
                           {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}
                         </span>
                       </div>

@@ -8,6 +8,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { matchService } from '@/services/firestore/matches'
+import { adminService } from '@/services/firestore/admins'
 import { Tournament, Squad, Match } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { generateMatchNumber } from '@/utils/matchNumber'
@@ -15,10 +16,12 @@ import { generateMatchNumber } from '@/utils/matchNumber'
 import toast from 'react-hot-toast'
 import { Timestamp } from 'firebase/firestore'
 import { generateGroupFixtures } from '@/engine/tournament/fixtures'
-import { generateKnockoutBracket, generateKnockoutFixtures } from '@/engine/tournament/knockout'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
-import { Settings, Edit2, CheckCircle, Search, Trash2, Plus, Filter, MoreHorizontal, Trophy, Calendar } from 'lucide-react'
+import { Trash2, Plus, Trophy, Calendar, Search, Settings, Edit2, User, CheckCircle, AlertCircle } from 'lucide-react'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
+import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
+import { formatDateLabel } from '@/utils/date'
+import { uploadImage } from '@/services/cloudinary/uploader'
 
 interface AdminTournamentsProps {
   mode?: 'dashboard' | 'list' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
@@ -31,15 +34,23 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [squads, setSquads] = useState<Squad[]>([])
   const [matches, setMatches] = useState<Match[]>([])
+  const [allAdmins, setAllAdmins] = useState<any[]>([])
+  const [selectedAdminFilter, setSelectedAdminFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(mode)
+
+  // Deletion state
+  const [itemToDelete, setItemToDelete] = useState<Tournament | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const [formData, setFormData] = useState({
     name: '',
     year: new Date().getFullYear(),
     tournamentType: 'standard' as 'standard' | 'custom',
     school: '',
-    format: 'T20' as 'T20' | 'ODI' | 'Test',
-    status: 'upcoming' as 'upcoming' | 'ongoing' | 'completed',
+    format: 'T20' as 'T20' | 'ODI' | 'Test' | 'Batch Cricket',
+    status: 'upcoming' as 'upcoming' | 'ongoing' | 'completed' | 'paused',
     startDate: '',
     endDate: '',
     description: '',
@@ -60,16 +71,24 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       string,
       { name: string; type: 'normal' | 'priority'; roundFormat: 'round_robin' | 'single_match' | 'custom'; qualifyCount: number; winnerPriority: boolean }
     >,
+    hasGroupStage: true,
   })
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingBanner, setUploadingBanner] = useState(false)
 
   useEffect(() => {
     setActiveTab(mode);
     if (mode === 'list' || mode === 'dashboard') {
       loadTournaments()
-      loadSquads() // Load squads for dashboard mode too
+      loadSquads()
+      if (user?.role === 'super_admin') {
+        loadAdmins()
+      }
     } else if (mode === 'create') {
       loadSquads()
     } else if (id) {
@@ -78,6 +97,17 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       loadMatches(id)
     }
   }, [mode, id])
+
+  const isLocked = mode === 'edit' && formData.status !== 'upcoming';
+
+  const loadAdmins = async () => {
+    try {
+      const data = await adminService.getAll()
+      setAllAdmins(data)
+    } catch (error) {
+      console.error('Error loading admins:', error)
+    }
+  }
 
   // Auto-populate squads from matches if missing in tournament config
   useEffect(() => {
@@ -100,8 +130,10 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   }, [loading, matches.length]) // Only dependency on length to avoid loops
 
   const loadTournaments = async () => {
+    if (!user) return
     try {
-      const data = await tournamentService.getAll()
+      const isSuperAdmin = user.role === 'super_admin'
+      const data = await tournamentService.getByAdmin(user.uid, isSuperAdmin)
       setTournaments(data)
       setLoading(false)
     } catch (error) {
@@ -112,7 +144,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   }
 
   const loadSquads = async () => {
+    if (!user) return
     try {
+      // Load ALL squads from platform so any admin can use them in tournaments
       const data = await squadService.getAll()
       console.log('[AdminTournaments] Loaded squads:', data.map(s => ({ id: s.id, name: s.name })))
       setSquads(data)
@@ -184,6 +218,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           location: (data as any).location || '',
           groupBySquadId,
           groupMeta,
+          hasGroupStage: (data as any).stages?.some((s: any) => s.type === 'group') ?? true,
         }))
       }
       setLoading(false)
@@ -210,6 +245,27 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     // Remove stale keys
     Object.keys(next).forEach((sid) => {
       if (!ids.includes(sid)) delete next[sid]
+    })
+    return next
+  }
+
+  const ensureGroupMeta = (count: number, qualificationPerGroup: number, current: any) => {
+    const gids = groupIds(count)
+    const next: any = { ...current }
+    gids.forEach((gid, i) => {
+      if (!next[gid]) {
+        next[gid] = {
+          name: groupLabel(i),
+          type: 'normal',
+          roundFormat: 'round_robin',
+          qualifyCount: qualificationPerGroup || 2,
+          winnerPriority: false
+        }
+      }
+    })
+    // Remove stale
+    Object.keys(next).forEach(gid => {
+      if (!gids.includes(gid)) delete next[gid]
     })
     return next
   }
@@ -311,11 +367,28 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       }
 
       if (mode === 'create') {
-        await tournamentService.create({
+        const createPayload = {
           ...(persistPayload as any),
+          adminId: user?.uid,
+          adminEmail: user?.email,
+          createdBy: user?.uid,
+        }
+        await tournamentService.create({
+          ...createPayload,
           stages: [
-            { id: 'group-stage', name: 'Group Stage', type: 'group', order: 0, status: 'active' },
-            { id: 'final-stage', name: 'Final', type: 'knockout', order: 1, status: 'pending' }
+            ...(formData.hasGroupStage ? [{ id: 'group-stage', name: 'Group Stage', type: 'group', order: 0, status: 'active' }] : []),
+            ...(formData.hasGroupStage
+              ? (() => {
+                const totalQualifying = Object.values(formData.groupMeta || {}).reduce((acc: number, curr: any) => acc + (curr.qualifyCount || 0), 0) + (formData.wildcardQualifiers || 0);
+                const stages = [];
+                if (totalQualifying > 8) stages.push({ id: 'round16-stage', name: 'Round of 16', type: 'knockout', order: 1, status: 'pending' });
+                if (totalQualifying > 4) stages.push({ id: 'quarter-stage', name: 'Quarter Finals', type: 'knockout', order: 2, status: 'pending' });
+                if (totalQualifying > 2) stages.push({ id: 'semi-stage', name: 'Semi Finals', type: 'knockout', order: 3, status: 'pending' });
+                stages.push({ id: 'final-stage', name: 'Final', type: 'knockout', order: 4, status: 'pending' });
+                return stages.map((s, idx) => ({ ...s, order: idx + 1 }));
+              })()
+              : [{ id: 'final-stage', name: 'Final', type: 'knockout', order: 1, status: 'active' }]
+            )
           ],
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
@@ -394,9 +467,13 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         };
 
         // Generate and add match number
-        matchData.matchNo = await generateMatchNumber(id, tournament.name);
+        const mData: any = {
+          ...matchData,
+          adminId: user?.uid || '',
+          matchNo: await generateMatchNumber(id, tournament.name)
+        };
 
-        await matchService.create(matchData);
+        await matchService.create(mData);
       }
 
       toast.success(`${fixturePlan.matches.length} fixtures generated successfully!`);
@@ -447,108 +524,119 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     }
   };
 
-  const handleDelete = async (tournamentId: string) => {
-    if (!confirm('Are you sure you want to delete this tournament? This will also delete all associated matches.')) return
+  // Delete Handlers
+  const handleDeleteClick = (tournament: Tournament) => {
+    setItemToDelete(tournament)
+    setDeleteModalOpen(true)
+  }
 
+  const confirmDelete = async () => {
+    if (!itemToDelete) return
+
+    setIsDeleting(true)
     try {
-      await tournamentService.delete(tournamentId)
-      toast.success('Tournament deleted')
+      await tournamentService.delete(itemToDelete.id)
+      toast.success('Tournament deleted successfully')
+      setDeleteModalOpen(false)
+      setItemToDelete(null)
       loadTournaments()
     } catch (error) {
       console.error('Error deleting tournament:', error)
       toast.error('Failed to delete tournament')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingLogo(true)
+    const uploadToast = toast.loading('Uploading tournament logo...')
+
+    try {
+      const url = await uploadImage(file)
+      setFormData(prev => ({ ...prev, logoUrl: url }))
+      toast.success('Logo uploaded successfully!', { id: uploadToast })
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      toast.error(error.message || 'Failed to upload logo', { id: uploadToast })
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingBanner(true)
+    const uploadToast = toast.loading('Uploading tournament banner...')
+
+    try {
+      const url = await uploadImage(file)
+      setFormData(prev => ({ ...prev, bannerUrl: url }))
+      toast.success('Banner uploaded successfully!', { id: uploadToast })
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      toast.error(error.message || 'Failed to upload banner', { id: uploadToast })
+    } finally {
+      setUploadingBanner(false)
     }
   }
 
   // Navigation tabs for the tournament manager
   const renderNavigation = () => (
-    <div className="mb-6">
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
+    <div className="mb-6 sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md -mx-4 px-4 sm:static sm:bg-transparent sm:mx-0 sm:px-0 border-b border-gray-200">
+      <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto no-scrollbar py-1">
+        {[
+          { id: 'dashboard', label: 'Dashboard' },
+          { id: 'groups', label: 'Groups' },
+          { id: 'fixtures', label: 'Fixtures' },
+          { id: 'knockout', label: 'Knockout' },
+          { id: 'standings', label: 'Standings' },
+          { id: 'settings', label: 'Settings' }
+        ].map((tab) => (
           <button
-            onClick={() => navigate(`/admin/tournaments/${id}/dashboard`)}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'dashboard'
-              ? 'border-teal-500 text-teal-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            key={tab.id}
+            onClick={() => navigate(`/admin/tournaments/${id}/${tab.id}`)}
+            className={`whitespace-nowrap py-3 px-1 border-b-2 font-bold text-xs sm:text-sm transition-all ${activeTab === tab.id
+              ? 'border-teal-600 text-teal-600'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
           >
-            Dashboard
+            {tab.label}
           </button>
-          <button
-            onClick={() => navigate(`/admin/tournaments/${id}/groups`)}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'groups'
-              ? 'border-teal-500 text-teal-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            Groups
-          </button>
-          <button
-            onClick={() => navigate(`/admin/tournaments/${id}/fixtures`)}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'fixtures'
-              ? 'border-teal-500 text-teal-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            Fixtures
-          </button>
-          <button
-            onClick={() => navigate(`/admin/tournaments/${id}/knockout`)}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'knockout'
-              ? 'border-teal-500 text-teal-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            Knockout
-          </button>
-          <button
-            onClick={() => navigate(`/admin/tournaments/${id}/standings`)}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'standings'
-              ? 'border-teal-500 text-teal-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            Standings
-          </button>
-          <button
-            onClick={() => navigate(`/admin/tournaments/${id}/settings`)}
-            className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'settings'
-              ? 'border-teal-500 text-teal-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            Settings
-          </button>
-        </nav>
-      </div>
+        ))}
+      </nav>
     </div>
   );
 
-  // Dashboard view
   const renderDashboard = () => (
-    <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="text-sm font-semibold text-gray-500">Total Teams</div>
-          <div className="text-3xl font-bold text-gray-900 mt-2">
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+          <div className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Total Teams</div>
+          <div className="text-xl sm:text-3xl font-black text-slate-900 mt-1 sm:mt-2">
             {formData.participantSquadIds.length}
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="text-sm font-semibold text-gray-500">Total Groups</div>
-          <div className="text-3xl font-bold text-gray-900 mt-2">
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+          <div className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Groups</div>
+          <div className="text-xl sm:text-3xl font-black text-slate-900 mt-1 sm:mt-2">
             {formData.groupCount}
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="text-sm font-semibold text-gray-500">Total Matches</div>
-          <div className="text-3xl font-bold text-gray-900 mt-2">
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+          <div className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Matches</div>
+          <div className="text-xl sm:text-3xl font-black text-slate-900 mt-1 sm:mt-2">
             {matches.length}
           </div>
         </div>
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="text-sm font-semibold text-gray-500">Status</div>
-          <div className="text-3xl font-bold text-gray-900 mt-2 capitalize">
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+          <div className="text-[10px] sm:text-xs font-black text-gray-400 uppercase tracking-widest">Status</div>
+          <div className="text-xl sm:text-3xl font-black text-teal-600 mt-1 sm:mt-2 capitalize">
             {formData.status}
           </div>
         </div>
@@ -997,9 +1085,9 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3">
                               <div className="font-semibold text-gray-900 truncate">{teamA} vs {teamB}</div>
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${match.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${match.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
                                 match.status === 'live' ? 'bg-red-100 text-red-800' :
-                                  match.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  match.status === 'finished' ? 'bg-green-100 text-green-800' :
                                     'bg-gray-100 text-gray-800'
                                 }`}>
                                 {match.status}
@@ -1394,9 +1482,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               </button>
               <button
                 onClick={() => {
-                  if (confirm('Are you sure you want to delete this tournament? This will also delete all associated matches.')) {
-                    handleDelete(id!);
-                  }
+                  const t = tournaments.find(x => x.id === id) || { id: id!, name: formData.name } as Tournament;
+                  handleDeleteClick(t);
                 }}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition"
               >
@@ -1526,24 +1613,72 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                 />
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Start Date
                 </label>
-                <WheelDatePicker
-                  value={formData.startDate || new Date().toISOString().split('T')[0]}
-                  onChange={(val) => setFormData({ ...formData, startDate: val })}
-                />
+                <div
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer bg-white flex items-center justify-between"
+                  onClick={() => setShowStartDatePicker(!showStartDatePicker)}
+                >
+                  <span className={formData.startDate ? "text-slate-900" : "text-slate-400"}>
+                    {formData.startDate ? formatDateLabel(formData.startDate) : 'Select Start Date'}
+                  </span>
+                  <Calendar size={18} className="text-slate-400" />
+                </div>
+
+                {showStartDatePicker && (
+                  <div className="absolute z-[100] mt-2 left-0 right-0 sm:right-auto sm:w-[320px]">
+                    <div className="fixed inset-0 z-0" onClick={() => setShowStartDatePicker(false)}></div>
+                    <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+                      <WheelDatePicker
+                        value={formData.startDate || new Date().toISOString().split('T')[0]}
+                        onChange={(val) => setFormData({ ...formData, startDate: val })}
+                      />
+                      <button
+                        type="button"
+                        className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
+                        onClick={() => setShowStartDatePicker(false)}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   End Date
                 </label>
-                <WheelDatePicker
-                  value={formData.endDate || new Date().toISOString().split('T')[0]}
-                  onChange={(val) => setFormData({ ...formData, endDate: val })}
-                />
+                <div
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer bg-white flex items-center justify-between"
+                  onClick={() => setShowEndDatePicker(!showEndDatePicker)}
+                >
+                  <span className={formData.endDate ? "text-slate-900" : "text-slate-400"}>
+                    {formData.endDate ? formatDateLabel(formData.endDate) : 'Select End Date'}
+                  </span>
+                  <Calendar size={18} className="text-slate-400" />
+                </div>
+
+                {showEndDatePicker && (
+                  <div className="absolute z-[100] mt-2 left-0 right-0 sm:right-auto sm:w-[320px]">
+                    <div className="fixed inset-0 z-0" onClick={() => setShowEndDatePicker(false)}></div>
+                    <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
+                      <WheelDatePicker
+                        value={formData.endDate || new Date().toISOString().split('T')[0]}
+                        onChange={(val) => setFormData({ ...formData, endDate: val })}
+                      />
+                      <button
+                        type="button"
+                        className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
+                        onClick={() => setShowEndDatePicker(false)}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1599,6 +1734,250 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               </div>
             </div>
 
+            {/* Tournament Structure Configuration */}
+            <div className={`p-5 rounded-xl border transition-all duration-300 ${formData.hasGroupStage ? 'bg-slate-50 border-slate-200' : 'bg-gray-100/50 border-gray-200 opacity-60'} ${isLocked ? 'ring-1 ring-amber-200' : ''}`}>
+              {isLocked && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-1">
+                  <AlertCircle size={16} className="text-amber-500" />
+                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Tournament has started. Structure is locked for integrity.</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Settings size={20} className="text-teal-600" />
+                  Tournament Structure
+                </h3>
+                <label className={`flex items-center gap-2 ${isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                  <span className="text-sm font-bold text-slate-600">Enable Group Stage</span>
+                  <div
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.hasGroupStage ? 'bg-teal-600' : 'bg-gray-300'}`}
+                    onClick={() => {
+                      if (isLocked) return;
+                      setFormData(p => {
+                        const nextHasGroup = !p.hasGroupStage;
+                        return {
+                          ...p,
+                          hasGroupStage: nextHasGroup,
+                          groupMeta: nextHasGroup ? ensureGroupMeta(p.groupCount, p.qualificationPerGroup, p.groupMeta) : p.groupMeta
+                        };
+                      })
+                    }}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.hasGroupStage ? 'translate-x-6' : 'translate-x-1'}`}
+                    />
+                  </div>
+                </label>
+              </div>
+
+              <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 ${!formData.hasGroupStage ? 'pointer-events-none' : ''}`}>
+                <div>
+                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-tight">
+                    Number of Groups
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={8}
+                    disabled={!formData.hasGroupStage || isLocked}
+                    value={formData.groupCount}
+                    onChange={(e) => {
+                      const val = Math.max(1, Math.min(8, parseInt(e.target.value) || 1));
+                      setFormData(prev => ({
+                        ...prev,
+                        groupCount: val,
+                        groupBySquadId: ensureGroupAssignments(prev.participantSquadIds, val, prev.groupBySquadId),
+                        groupMeta: ensureGroupMeta(val, prev.qualificationPerGroup, prev.groupMeta)
+                      }));
+                    }}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 disabled:bg-gray-100 disabled:text-gray-400 outline-none transition-all"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400 font-bold uppercase">1 = League, 2+ = Multi-Group</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-tight">
+                    Advance per group
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    disabled={!formData.hasGroupStage || isLocked}
+                    value={formData.qualificationPerGroup}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setFormData(p => {
+                        const nextMeta = { ...p.groupMeta };
+                        Object.keys(nextMeta).forEach(gid => {
+                          nextMeta[gid] = { ...nextMeta[gid], qualifyCount: val };
+                        });
+                        return { ...p, qualificationPerGroup: val, groupMeta: nextMeta };
+                      });
+                    }}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 disabled:bg-gray-100 disabled:text-gray-400 outline-none transition-all"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400 font-bold uppercase">Default qualify count</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-tight">
+                    Wildcards
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    disabled={!formData.hasGroupStage || isLocked}
+                    value={formData.wildcardQualifiers}
+                    onChange={(e) => setFormData(p => ({ ...p, wildcardQualifiers: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 disabled:bg-gray-100 disabled:text-gray-400 outline-none transition-all"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400 font-bold uppercase">Overall NRR based</p>
+                </div>
+              </div>
+
+              {/* Dynamic Group Cards */}
+              {formData.hasGroupStage && (
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  {groupIds(formData.groupCount).map((gid, idx) => {
+                    const meta = formData.groupMeta?.[gid] || { name: groupLabel(idx), qualifyCount: formData.qualificationPerGroup };
+                    const groupSquads = formData.participantSquadIds.filter(sid => formData.groupBySquadId[sid] === gid);
+
+                    return (
+                      <div key={gid} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <input
+                            type="text"
+                            value={meta.name}
+                            readOnly={isLocked}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              groupMeta: {
+                                ...prev.groupMeta,
+                                [gid]: { ...meta, name: e.target.value }
+                              }
+                            }))}
+                            className={`text-sm font-black text-slate-800 bg-transparent border-none focus:ring-0 p-0 w-2/3 uppercase tracking-wider ${isLocked ? 'cursor-not-allowed' : ''}`}
+                            placeholder="Group Name"
+                          />
+                          <div className={`flex items-center gap-2 bg-teal-50 px-2 py-1 rounded-lg border border-teal-100 shadow-sm transition-all ${isLocked ? '' : 'hover:border-teal-300'}`}>
+                            <Trophy size={12} className="text-teal-600" />
+                            <div className="flex flex-col -space-y-1">
+                              <span className="text-[8px] font-black text-teal-600/60 uppercase tracking-tighter">Qualify</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={meta.qualifyCount}
+                                readOnly={isLocked}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  groupMeta: {
+                                    ...prev.groupMeta,
+                                    [gid]: { ...meta, qualifyCount: parseInt(e.target.value) || 0 }
+                                  }
+                                }))}
+                                className={`w-8 h-4 text-[11px] font-black text-center bg-transparent border-none focus:ring-0 p-0 text-teal-700 outline-none ${isLocked ? 'cursor-not-allowed' : ''}`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-h-[60px] max-h-[120px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                          {groupSquads.length > 0 ? (
+                            groupSquads.map(sid => {
+                              const squad = squads.find(s => s.id === sid);
+                              return (
+                                <div key={sid} className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-between group">
+                                  <span className="text-[11px] font-bold text-slate-600 truncate">{squad?.name || 'Unknown'}</span>
+                                  <Trophy size={10} className="text-teal-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="h-full flex items-center justify-center border-2 border-dashed border-slate-100 rounded-lg">
+                              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Empty</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">
+                          {groupSquads.length} Teams Assigned
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Knockout Summary & Setup */}
+              {formData.hasGroupStage && (
+                <div className="mt-8 relative overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-teal-500 to-blue-500" />
+
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-teal-50 rounded-xl">
+                          <Trophy size={20} className="text-teal-600" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                            Knockout Roadmap
+                          </h4>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Automatic computation</p>
+                        </div>
+                      </div>
+                      <div className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase border border-blue-100 animate-pulse">
+                        Step 2: Knockout
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const totalQualifying = Object.values(formData.groupMeta || {}).reduce((acc: number, curr: any) => acc + (curr.qualifyCount || 0), 0) + (formData.wildcardQualifiers || 0);
+                      let roundName = "";
+                      let iconColor = "text-teal-500";
+                      if (totalQualifying <= 2) { roundName = "Finals"; iconColor = "text-amber-500"; }
+                      else if (totalQualifying <= 4) roundName = "Semi-Finals";
+                      else if (totalQualifying <= 8) roundName = "Quarter-Finals";
+                      else if (totalQualifying <= 16) roundName = "Round of 16";
+                      else roundName = "Playoffs";
+
+                      return (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Qualifying Teams</div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-2xl font-black ${iconColor}`}>{totalQualifying}</span>
+                                <span className="text-[10px] font-bold text-slate-500">Total Slots</span>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Phase Start</div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-black text-slate-800 uppercase tracking-tighter">{roundName}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle size={14} className="text-teal-500" />
+                              <span className="text-[11px] font-bold text-slate-600">Dynamic bracket generation enabled</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <CheckCircle size={14} className="text-teal-500" />
+                              <span className="text-[11px] font-bold text-slate-600">Cross-group seeding support</span>
+                            </div>
+                            <p className="mt-2 text-[10px] font-bold text-slate-400 leading-relaxed italic">
+                              * Based on your current settings, the tournament will proceed with a {totalQualifying}-team knockout structure.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-3">
                 Select Participating Squads *
@@ -1606,27 +1985,61 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto p-4 bg-gray-50 rounded-xl border border-gray-100">
                 {squads.map((squad) => {
                   const isSelected = formData.participantSquadIds.includes(squad.id);
+                  const gids = groupIds(formData.groupCount);
                   return (
-                    <button
+                    <div
                       key={squad.id}
-                      type="button"
-                      onClick={() => {
-                        const next = isSelected
-                          ? formData.participantSquadIds.filter(id => id !== squad.id)
-                          : [...formData.participantSquadIds, squad.id];
-                        setFormData({ ...formData, participantSquadIds: next });
-                      }}
-                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isSelected
+                      className={`flex flex-col gap-2 p-3 rounded-xl border transition-all ${isSelected
                         ? 'bg-teal-50 border-teal-200 text-teal-700 ring-2 ring-teal-500/20'
                         : 'bg-white border-gray-200 text-gray-600 hover:border-teal-200 hover:bg-teal-50/30'
                         }`}
                     >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-teal-600 border-teal-600' : 'bg-gray-100 border-gray-300'
-                        }`}>
-                        {isSelected && <CheckCircle size={12} className="text-white" />}
-                      </div>
-                      <span className="text-sm font-semibold truncate">{squad.name}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isLocked) {
+                            toast.error('Squad selection is locked after tournament starts.');
+                            return;
+                          }
+                          const next = isSelected
+                            ? formData.participantSquadIds.filter(id => id !== squad.id)
+                            : [...formData.participantSquadIds, squad.id];
+                          setFormData(prev => ({
+                            ...prev,
+                            participantSquadIds: next,
+                            groupBySquadId: ensureGroupAssignments(next, prev.groupCount, prev.groupBySquadId)
+                          }));
+                        }}
+                        className={`flex items-center gap-3 text-left w-full ${isLocked ? 'cursor-not-allowed' : ''}`}
+                      >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-teal-600 border-teal-600' : 'bg-gray-100 border-gray-300'
+                          }`}>
+                          {isSelected && <CheckCircle size={12} className="text-white" />}
+                        </div>
+                        <span className="text-sm font-semibold truncate">{squad.name}</span>
+                      </button>
+
+                      {isSelected && formData.hasGroupStage && formData.groupCount > 1 && (
+                        <div className="mt-1 flex items-center gap-2 pt-2 border-t border-teal-100">
+                          <span className="text-[10px] uppercase font-bold text-teal-600/60">Stage Group:</span>
+                          <select
+                            value={formData.groupBySquadId[squad.id] || gids[0]}
+                            disabled={isLocked}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              groupBySquadId: { ...prev.groupBySquadId, [squad.id]: e.target.value }
+                            }))}
+                            className={`flex-1 bg-white border border-teal-200 rounded px-2 py-0.5 text-xs font-bold text-teal-700 focus:outline-none focus:ring-1 focus:ring-teal-500 ${isLocked ? 'cursor-not-allowed opacity-60' : ''}`}
+                          >
+                            {gids.map((gid, idx) => (
+                              <option key={gid} value={gid}>
+                                {formData.groupMeta?.[gid]?.name || groupLabel(idx)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -1635,34 +2048,88 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament Logo URL</label>
-                <input
-                  type="text"
-                  value={formData.logoUrl}
-                  onChange={(e) => setFormData(p => ({ ...p, logoUrl: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  placeholder="https://..."
-                />
+                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-tight">Tournament Logo</label>
+                <div className="flex gap-4">
+                  <input
+                    type="text"
+                    value={formData.logoUrl}
+                    onChange={(e) => setFormData(p => ({ ...p, logoUrl: e.target.value }))}
+                    className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all placeholder:text-slate-300"
+                    placeholder="URL (optional)"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    disabled={uploadingLogo}
+                    className="hidden"
+                    id="logo-upload"
+                  />
+                  <label
+                    htmlFor="logo-upload"
+                    className="h-10 px-6 bg-slate-100 text-slate-700 rounded-xl cursor-pointer hover:bg-slate-200 transition text-sm font-bold flex items-center justify-center sm:min-w-[120px]"
+                  >
+                    {uploadingLogo ? <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent animate-spin rounded-full" /> : (
+                      <span className="flex items-center gap-2">
+                        <Plus size={16} /> Upload
+                      </span>
+                    )}
+                  </label>
+                </div>
+                {formData.logoUrl && (
+                  <div className="mt-2 flex items-center gap-3 p-2 bg-slate-50 rounded-lg border border-slate-100 w-fit">
+                    <img src={formData.logoUrl} className="w-10 h-10 rounded shadow-sm object-cover bg-white" alt="Logo preview" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logo Preview</span>
+                  </div>
+                )}
               </div>
+
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament Banner URL</label>
-                <input
-                  type="text"
-                  value={formData.bannerUrl}
-                  onChange={(e) => setFormData(p => ({ ...p, bannerUrl: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  placeholder="https://..."
-                />
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament Banner</label>
+                <div className="flex gap-4">
+                  <input
+                    type="text"
+                    value={formData.bannerUrl}
+                    onChange={(e) => setFormData(p => ({ ...p, bannerUrl: e.target.value }))}
+                    className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all placeholder:text-slate-300"
+                    placeholder="URL (optional)"
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBannerUpload}
+                    disabled={uploadingBanner}
+                    className="hidden"
+                    id="banner-upload"
+                  />
+                  <label
+                    htmlFor="banner-upload"
+                    className="h-10 px-6 bg-slate-100 text-slate-700 rounded-xl cursor-pointer hover:bg-slate-200 transition text-sm font-bold flex items-center justify-center sm:min-w-[120px]"
+                  >
+                    {uploadingBanner ? <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent animate-spin rounded-full" /> : (
+                      <span className="flex items-center gap-2">
+                        <Plus size={16} /> Upload
+                      </span>
+                    )}
+                  </label>
+                </div>
+                {formData.bannerUrl && (
+                  <div className="mt-2 flex items-center gap-3 p-2 bg-slate-50 rounded-lg border border-slate-100 w-fit">
+                    <img src={formData.bannerUrl} className="w-20 h-10 rounded shadow-sm object-cover bg-white" alt="Banner preview" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Banner Preview</span>
+                  </div>
+                )}
               </div>
+
               <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
+                <label className="block text-sm font-black text-gray-700 mb-2 uppercase tracking-tight">Location</label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all"
                   placeholder="e.g. Bangladesh"
                 />
               </div>
@@ -1858,10 +2325,18 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     );
   }
 
-  const filteredTournaments = tournaments.filter(t =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.year && String(t.year).includes(searchTerm))
-  )
+  const filteredTournaments = tournaments.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.year && String(t.year).includes(searchTerm));
+
+    // Admin Filter Logic
+    let matchesAdmin = true;
+    if (user?.role === 'super_admin' && selectedAdminFilter) {
+      matchesAdmin = (t as any).adminId === selectedAdminFilter || (t as any).createdBy === selectedAdminFilter;
+    }
+
+    return matchesSearch && matchesAdmin;
+  })
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto">
@@ -1894,6 +2369,27 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
               className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all bg-white"
             />
           </div>
+
+          <div className="flex items-center gap-3">
+            {/* Admin Filter for Super Admins */}
+            {user?.role === 'super_admin' && (
+              <div className="flex items-center gap-2">
+                <User size={16} className="text-slate-400" />
+                <select
+                  value={selectedAdminFilter}
+                  onChange={(e) => setSelectedAdminFilter(e.target.value)}
+                  className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[180px]"
+                >
+                  <option value="">All Admins</option>
+                  {allAdmins.map(admin => (
+                    <option key={admin.uid} value={admin.uid}>
+                      {admin.name || admin.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -1906,6 +2402,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                 <th className="px-6 py-4">Format</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-center">Teams</th>
+                {user?.role === 'super_admin' && <th className="px-6 py-4">Creator</th>}
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -1948,6 +2445,13 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                     <td className="px-6 py-4 text-center text-slate-600 font-medium">
                       {(tournament as any).participantSquadIds?.length || 0}
                     </td>
+                    {user?.role === 'super_admin' && (
+                      <td className="px-6 py-4 text-slate-500 text-xs">
+                        <span className="truncate block max-w-[100px]" title={(tournament as any).adminId || (tournament as any).createdBy || 'System'}>
+                          {((tournament as any).adminEmail || (tournament as any).createdBy || 'System').split('@')[0]}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Link
@@ -1965,7 +2469,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                           <Edit2 size={18} />
                         </Link>
                         <button
-                          onClick={() => handleDelete(tournament.id)}
+                          onClick={() => handleDeleteClick(tournament)}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete"
                         >
@@ -1980,6 +2484,16 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           </table>
         </div>
       </div>
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Tournament"
+        message="Are you sure you want to delete this tournament? This will also delete all associated matches and results. This action cannot be undone."
+        verificationText={itemToDelete?.name || ''}
+        itemType="Tournament"
+        isDeleting={isDeleting}
+      />
     </div>
   )
 }

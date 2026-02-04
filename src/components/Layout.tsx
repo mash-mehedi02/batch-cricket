@@ -4,6 +4,7 @@
  */
 
 import React, { ReactNode } from 'react'
+import BottomNav from './common/BottomNav'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import schoolConfig from '@/config/school'
@@ -37,13 +38,17 @@ export default function Layout({ children }: LayoutProps) {
   const isActive = (path: string) => location.pathname === path
   // Hide main navbar on detail pages where we show a custom PageHeader
   const isDetailPage = /^\/(match|squads|players|tournaments)\/.+/.test(location.pathname)
+  const isHome = location.pathname === '/'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
       {/* Navigation - Professional Header - Hidden on Detail Pages */}
       {!isDetailPage && (
-        <nav className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white z-50 backdrop-blur-lg bg-opacity-95">
+        <nav className={`z-50 backdrop-blur-xl border-b sticky top-0 transition-colors duration-300 ${isHome
+          ? 'bg-[#0f172a] text-white border-[#0f172a]'
+          : 'bg-white/80 dark:bg-slate-950/80 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
+          }`}>
           <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center gap-4 md:gap-10 min-w-0 flex-1">
@@ -57,54 +62,54 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="hidden md:flex gap-1">
                   <Link
                     to="/"
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/')
-                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider ${isActive('/')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                      : isHome ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                   >
                     Home
                   </Link>
                   <Link
                     to="/schedule"
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/schedule')
-                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider ${isActive('/schedule')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                      : isHome ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                   >
                     Schedule
                   </Link>
                   <Link
                     to="/tournaments"
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/tournaments')
-                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider ${isActive('/tournaments')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                      : isHome ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                   >
                     Tournaments
                   </Link>
                   <Link
                     to="/squads"
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/squads')
-                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider ${isActive('/squads')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                      : isHome ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                   >
                     Squads
                   </Link>
                   <Link
                     to="/players"
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/players')
-                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider ${isActive('/players')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                      : isHome ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                   >
                     Players
                   </Link>
                   <Link
                     to="/champions"
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive('/champions')
-                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 uppercase tracking-wider ${isActive('/champions')
+                      ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20'
+                      : isHome ? 'text-slate-300 hover:bg-white/10 hover:text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                       }`}
                   >
                     Champions
@@ -120,16 +125,19 @@ export default function Layout({ children }: LayoutProps) {
                     onClick={() => navigate('/search')}
                     className="relative w-full group cursor-pointer transition-all duration-300 hover:scale-[1.02]"
                   >
-                    <div className={`hidden md:flex items-center w-full pl-12 pr-4 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-slate-400 backdrop-blur-xl transition-all group-hover:bg-slate-800 group-hover:border-teal-500/30`}>
+                    <div className={`hidden md:flex items-center w-full pl-12 pr-4 py-2 border rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-inner ${isHome
+                      ? 'bg-white/10 border-white/10 text-slate-300 group-hover:bg-white/20 group-hover:border-white/20'
+                      : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-white/10 text-slate-400 group-hover:border-teal-500/30'
+                      }`}>
                       Search Teams, Players...
                     </div>
-                    <div className="absolute inset-y-0 left-0 flex items-center justify-center w-10 md:pl-4 text-slate-300 group-hover:text-teal-400 transition-colors">
+                    <div className={`absolute inset-y-0 left-0 flex items-center justify-center w-10 md:pl-4 transition-colors ${isHome ? 'text-slate-400 group-hover:text-white' : 'text-slate-400 group-hover:text-teal-600 dark:group-hover:text-teal-400'}`}>
                       <Search className="h-4 w-4 md:h-5 md:w-5" strokeWidth={3} />
                     </div>
 
                     {/* Shortcut Hint - Desktop Only */}
                     <div className="absolute inset-y-0 right-0 pr-3 hidden lg:flex items-center">
-                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-slate-700/50 rounded text-[10px] font-black text-slate-400 border border-slate-600/50">
+                      <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black border ${isHome ? 'bg-black/20 border-white/10 text-slate-400' : 'bg-slate-700/50 text-slate-400 border-slate-600/50'}`}>
                         <Command className="w-2.5 h-2.5" />
                         <span>K</span>
                       </div>
@@ -137,28 +145,6 @@ export default function Layout({ children }: LayoutProps) {
                   </div>
                 </div>
 
-                {user ? (
-                  <>
-                    <div className="hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 bg-slate-700/50 rounded-lg">
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      <span className="text-xs sm:text-sm text-slate-200 font-medium truncate max-w-[80px] sm:max-w-none">{user.email?.split('@')[0]}</span>
-                    </div>
-                    {user.role === 'admin' && (
-                      <Link
-                        to="/admin"
-                        className="hidden md:block px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg text-sm font-semibold hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg shadow-purple-500/30"
-                      >
-                        Admin
-                      </Link>
-                    )}
-                    <button
-                      onClick={async () => { await logout(); navigate('/'); }}
-                      className="hidden md:block px-4 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700 transition-all shadow-lg shadow-red-500/30"
-                    >
-                      Logout
-                    </button>
-                  </>
-                ) : null}
 
                 {/* Mobile Menu Button */}
                 <button
@@ -261,29 +247,6 @@ export default function Layout({ children }: LayoutProps) {
               ))}
             </div>
 
-            {/* Auth/Admin Section */}
-            {user && (
-              <div className="mt-8 pt-8 border-t border-slate-100/10 space-y-2">
-                <p className={`px-4 text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-40 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Account
-                </p>
-                {user.role === 'admin' && (
-                  <Link
-                    to="/admin"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold transition-all ${isDarkMode ? 'bg-purple-900/40 text-purple-300' : 'bg-purple-600 text-white shadow-lg shadow-purple-600/20'}`}
-                  >
-                    Admin Panel
-                  </Link>
-                )}
-                <button
-                  onClick={async () => { await logout(); setIsMobileMenuOpen(false); navigate('/'); }}
-                  className={`w-full flex items-center justify-center px-5 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isDarkMode ? 'bg-red-900/20 text-red-400 border border-red-900/30' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}
-                >
-                  Logout
-                </button>
-              </div>
-            )}
           </div>
 
           {/* 3. FOOTER (Bottom Section) */}
@@ -301,7 +264,10 @@ export default function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Main Content */}
-      <main className="min-h-[calc(100vh-8rem)]">{children}</main>
+      <main className="min-h-[calc(100vh-8rem)] pb-16 md:pb-0">{children}</main>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav onMenuClick={() => setIsMobileMenuOpen(true)} />
 
       {/* Footer - Professional - Only on Homepage */}
       {isActive('/') && (
@@ -332,7 +298,6 @@ export default function Layout({ children }: LayoutProps) {
                 <div className="space-y-2">
                   <Link to="/champions" className="block text-slate-400 hover:text-teal-400 text-sm transition">Champions</Link>
                   <Link to="/squads" className="block text-slate-400 hover:text-teal-400 text-sm transition">Squads</Link>
-                  <Link to="/admin" className="block text-slate-400 hover:text-teal-400 text-sm transition">Admin</Link>
                 </div>
               </div>
             </div>

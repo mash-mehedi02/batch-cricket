@@ -32,6 +32,7 @@ import AdminUsers from './pages/admin/AdminUsers'
 import AdminSettings from './pages/admin/AdminSettings'
 import SplashScreen from './components/common/SplashScreen'
 import ScrollToTop from './components/common/ScrollToTop'
+import NativeAppWrapper from './components/common/NativeAppWrapper'
 
 function LayoutWrapper() {
   return (
@@ -67,6 +68,7 @@ function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <NativeAppWrapper />
       <ScrollToTop />
       <Routes>
         {/* Login Route - No Layout */}

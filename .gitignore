@@ -41,3 +41,16 @@ ui-debug.log
 # Functions
 functions/lib/
 functions/node_modules/
+.vercel
+
+# Keystore and Credentials (NEVER COMMIT!)
+*.keystore
+*.jks
+KEYSTORE-CREDENTIALS.md
+
+# Android Build Outputs
+*.apk
+*.aab
+android/app/build/
+android/app/release/
+android/.gradle/
