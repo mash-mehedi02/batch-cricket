@@ -115,9 +115,24 @@ export async function addBall(
     // Automatic Innings End Detection
     const oversLimit = matchData?.oversLimit || 20
     const matchPhase = (matchData?.matchPhase || '').toLowerCase()
-    const isFirstInnings = matchPhase === 'firstinnings' || (!matchData?.target || matchData?.target === 0)
+
+    // Determine if this is the second innings. 
+    // It's the second innings if:
+    // 1. target is set (>0)
+    // 2. inningId is teamB
+    // 3. innings1Score is already recorded in the match doc
+    // 4. matchPhase is explicitly secondinnings
+    const isSecondInnings = (matchData?.target && Number(matchData.target) > 0) ||
+      (matchData?.innings1Score !== undefined && matchData.innings1Score !== null) ||
+      matchPhase === 'secondinnings' ||
+      inningId === 'teamB';
+
+    const isFirstInnings = !isSecondInnings;
+
     const isAllOut = inningsData.totalWickets >= 10
     const isOversFinished = inningsData.legalBalls >= (oversLimit * 6)
+
+    console.log(`[BallUpdateService] Status check: inning=${inningId}, isFirst=${isFirstInnings}, runs=${inningsData.totalRuns}, target=${matchData?.target}`);
 
     if (isFirstInnings) {
       if (isAllOut || isOversFinished) {
@@ -132,8 +147,9 @@ export async function addBall(
         });
       }
     } else {
-      const targetScore = matchData?.target || 0
-      const isTargetReached = inningsData.totalRuns >= targetScore
+      const targetScore = Number(matchData?.target || 0)
+      const isTargetReached = targetScore > 0 && inningsData.totalRuns >= targetScore
+
       if (isTargetReached || isAllOut || isOversFinished) {
         console.log('[BallUpdateService] Match Finished.');
         const { updateDoc } = await import('firebase/firestore');

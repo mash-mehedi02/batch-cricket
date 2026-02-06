@@ -509,15 +509,16 @@ const CrexLiveSection = ({
           </div>
         )}
 
-        <div className="bg-white border-t border-slate-100 flex flex-col min-h-[400px]">
-          <div className="px-2 py-2 bg-slate-50 border-b border-slate-100 overflow-x-auto no-scrollbar flex items-center gap-1.5">
+        <div className="bg-white border-t border-slate-100 flex flex-col min-h-[500px]">
+          {/* Commentary Filters - CREX Style */}
+          <div className="px-3 py-3 bg-white border-b border-slate-100 overflow-x-auto no-scrollbar flex items-center gap-2">
             {filters.map((f) => (
               <button
                 key={f.id}
                 onClick={() => onCommentaryFilterChange && onCommentaryFilterChange(f.id)}
-                className={`flex-shrink-0 h-7 px-4 rounded-xl text-[9px] font-medium uppercase tracking-widest transition-all duration-300 ${activeCommentaryFilter === f.id
-                  ? 'bg-slate-900 text-white shadow-md'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all border ${activeCommentaryFilter === f.id
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
                   }`}
               >
                 {f.label}
@@ -525,130 +526,236 @@ const CrexLiveSection = ({
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="divide-y divide-slate-100">
-              {activeCommentaryFilter === 'overs' ? (
-                oversGrouped.map((group, idx) => {
-                  if (group.type === 'break') {
-                    return (
-                      <div key={idx} className="py-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] bg-slate-50/50">
-                        {group.label}
-                      </div>
-                    )
+          <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+            <div className="max-w-4xl mx-auto py-2">
+              {(() => {
+                // Group commentary by overs for better flow
+                const displayItems = [];
+                // Ensure we iterate in perfect chronological order
+                const chronologicalCommentary = [...filteredCommentary].sort((a, b) => {
+                  const [aO, aB] = String(a.over || '0.0').split('.').map(Number);
+                  const [bO, bB] = String(b.over || '0.0').split('.').map(Number);
+                  return (aO * 10 + aB) - (bO * 10 + bB);
+                });
+
+                let runningTotalRuns = 0;
+                let runningTotalWickets = 0;
+                let overRuns = 0;
+                let overWickets = 0;
+                let currentBatchInningId = null;
+
+                const playerTracker = {};
+                const bowlerTracker = {};
+
+                chronologicalCommentary.forEach((item, idx) => {
+                  if (item.inningId !== currentBatchInningId) {
+                    runningTotalRuns = 0;
+                    runningTotalWickets = 0;
+                    overRuns = 0;
+                    overWickets = 0;
+                    currentBatchInningId = item.inningId;
+                    Object.keys(playerTracker).forEach(k => delete playerTracker[k]);
+                    Object.keys(bowlerTracker).forEach(k => delete bowlerTracker[k]);
                   }
-                  return (
-                    <div key={idx} className="px-4 py-5 flex items-center justify-between hover:bg-slate-50/30 transition-all border-b border-slate-50 group">
-                      <div className="flex items-center gap-6">
-                        <span className="min-w-[40px] text-xs font-bold text-slate-500">Ov {group.overNum}</span>
-                        <div className="flex items-center gap-2">
-                          {group.balls.map((ball, bidx) => {
-                            const isW = ball.isWicket || ball.milestone === 'wicket'
-                            const r = Number(ball.runs || 0)
-                            const is4 = r === 4 || ball.milestone === '4' || String(ball.milestone) === '4'
-                            const is6 = r === 6 || ball.milestone === '6' || String(ball.milestone) === '6'
-                            const upperText = String(ball.text || '').toUpperCase()
-                            const isExtra = upperText.includes('WIDE') || upperText.includes('NO BALL')
 
-                            return (
-                              <div key={bidx}
-                                className={`w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${isW ? 'bg-rose-600 text-white' :
-                                  is6 ? 'bg-emerald-600 text-white' :
-                                    is4 ? 'bg-blue-600 text-white' :
-                                      isExtra ? 'bg-white text-slate-700 border border-slate-200' :
-                                        'bg-white text-slate-800 border border-slate-100'
-                                  }`}>
-                                {isW ? 'W' :
-                                  isExtra ? (
-                                    upperText.includes('WIDE')
-                                      ? (r > 1 ? `wd+${r - 1}` : 'wd')
-                                      : (r > 1 ? `nb+${r - 1}` : 'nb')
-                                  ) :
-                                    (r === 0 ? '0' : r)}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-800">= {group.totalRuns}</span>
-                        <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
-                      </div>
-                    </div>
-                  )
-                })
-              ) : (
-                filteredCommentary.length > 0 ? (
-                  [...filteredCommentary].reverse().map((item, idx) => {
-                    const runs = Number(item.runs || 0)
-                    const isWicket = item.isWicket || item.milestone === 'wicket'
-                    const isFour = runs === 4 || item.milestone === '4' || String(item.milestone) === '4'
-                    const isSix = runs === 6 || item.milestone === '6' || String(item.milestone) === '6'
-                    const isManual = !!item.manual
-                    const ballLabel = item.over || (item.ball !== undefined ? `${Math.floor(idx / 6)}.${item.ball + 1}` : '—')
+                  // Initialize trackers
+                  if (item.batsman && !playerTracker[item.batsman]) playerTracker[item.batsman] = { runs: 0, balls: 0 };
+                  if (item.bowler && !bowlerTracker[item.bowler]) bowlerTracker[item.bowler] = { runs: 0, wickets: 0, balls: 0 };
 
-                    let displayVal = runs
-                    let ballType = isWicket ? 'wicket' : 'run'
-                    const isBoundary = item.isBoundary || isFour || isSix
+                  const runsPerBall = Number(item.runs || 0);
+                  runningTotalRuns += runsPerBall;
+                  overRuns += runsPerBall;
+                  if (item.isWicket) {
+                    runningTotalWickets += 1;
+                    overWickets += 1;
+                  }
 
-                    if (!isBoundary && !isWicket) {
-                      const upperText = String(item.text || '').toUpperCase()
-                      const isWide = upperText.includes('WIDE') || upperText.includes(' WIDE ')
-                      const isNoBall = upperText.includes('NO BALL') || upperText.includes('NO-BALL')
+                  const upperText = String(item.text || '').toUpperCase();
+                  const isWide = upperText.includes('WIDE');
+                  const isNoBall = upperText.includes('NO BALL') || upperText.includes('NO-BALL');
 
-                      if (isWide) {
-                        displayVal = runs > 1 ? `wd+${runs - 1}` : 'wd'
-                        ballType = 'wide'
-                      } else if (isNoBall) {
-                        displayVal = runs > 1 ? `nb+${runs - 1}` : 'nb'
-                        ballType = 'noball'
-                      }
+                  // Track Batter
+                  if (item.batsman) {
+                    if (!isWide) {
+                      playerTracker[item.batsman].runs += runsPerBall;
+                      playerTracker[item.batsman].balls += 1;
                     }
+                  }
 
-                    return (
-                      <div key={idx} className={`px-4 py-4 flex gap-4 transition-all ${isWicket ? 'bg-rose-50/40' : item.isHighlight ? 'bg-amber-50/30' : 'hover:bg-slate-50/20'}`}>
-                        <div className="flex flex-col items-center gap-2 min-w-[36px]">
-                          <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tighter">{ballLabel}</span>
-                          {isManual ? (
-                            <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shadow-inner">
-                              <span className="text-lg">📢</span>
-                            </div>
-                          ) : (
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-medium shadow-md transition-transform hover:scale-110 ${isWicket ? 'bg-rose-600 text-white shadow-rose-200' :
-                              isSix ? 'bg-emerald-600 text-white shadow-emerald-200' :
-                                isFour ? 'bg-blue-600 text-white shadow-blue-200' :
-                                  (ballType === 'wide' || ballType === 'noball') ? 'bg-orange-500 text-white shadow-orange-200' :
-                                    'bg-white text-slate-900 border border-slate-200 shadow-slate-100'
-                              }`}>
-                              {isWicket ? 'W' : (displayVal === 0 ? '·' : displayVal)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 space-y-1.5 pt-0.5">
-                          <p className={`text-sm leading-relaxed ${item.isHighlight || isWicket || isBoundary ? 'font-medium text-slate-900' : 'text-slate-700 font-medium'}`}>
-                            {item.text}
-                          </p>
-                          {(isWicket || isSix || isFour || isManual) && (
-                            <div className="mt-1 flex gap-2">
-                              <div className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[8px] font-medium uppercase tracking-widest shadow-sm ${isWicket ? 'bg-rose-100 text-rose-700' :
-                                isSix ? 'bg-emerald-100 text-emerald-700' :
-                                  isFour ? 'bg-blue-100 text-blue-700' :
-                                    'bg-slate-100 text-slate-600'
-                                }`}>
-                                {isWicket ? 'Wicket' : isSix ? 'Maximum' : isFour ? 'Boundary' : 'Announcement'}
+                  // Track Bowler
+                  if (item.bowler) {
+                    bowlerTracker[item.bowler].runs += runsPerBall;
+                    if (item.isWicket) bowlerTracker[item.bowler].wickets += 1;
+                    if (!isWide && !isNoBall) bowlerTracker[item.bowler].balls += 1;
+                  }
+
+                  const overStr = String(item.over || '0.0');
+                  const [ov, b] = overStr.split('.');
+                  const overNum = parseInt(ov);
+                  const ballNum = parseInt(b);
+
+                  // 1. Push Ball/Wicket/Entry FIRST
+                  if (item.text?.toLowerCase().includes('is in at')) {
+                    displayItems.push({ type: 'entry', text: item.text, player: item.batsman });
+                  } else {
+                    displayItems.push({ type: 'ball', ...item });
+                  }
+
+                  if (item.isWicket) {
+                    const stats = playerTracker[item.batsman] || { runs: 0, balls: 0 };
+                    displayItems.push({
+                      type: 'wicket-card',
+                      ...item,
+                      batterRuns: stats.runs,
+                      batterBalls: stats.balls
+                    });
+                  }
+
+                  // 2. Detect Over boundaries AFTER pushing the ball
+                  // Trigger summary on the actual completion ball (.6 or .0)
+                  const isLastOfOver = ballNum === 6 || (ballNum === 0 && overNum > 0);
+
+                  if (isLastOfOver) {
+                    const bStats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
+                    const bowlerOvers = `${Math.floor(bStats.balls / 6)}.${bStats.balls % 6}`;
+
+                    displayItems.push({
+                      type: 'over-summary',
+                      overNum: overNum,
+                      displayOverNum: overNum,
+                      runs: overRuns,
+                      wickets: overWickets,
+                      totalScore: `${runningTotalRuns}/${runningTotalWickets}`,
+                      inningId: item.inningId,
+                      bowler: item.bowler,
+                      bowlerFigure: `${bStats.wickets}-${bStats.runs} (${bowlerOvers})`,
+                      striker: item.batsman,
+                    });
+
+                    // Reset accumulators
+                    overRuns = 0;
+                    overWickets = 0;
+                  }
+                });
+
+                if (displayItems.length === 0) {
+                  return (
+                    <div className="py-20 text-center">
+                      <div className="text-4xl mb-4 opacity-30">🎤</div>
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Waiting for match action...</div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-0.5">
+                    {[...displayItems].reverse().map((node, idx) => {
+                      if (node.type === 'over-summary') {
+                        return (
+                          <div key={`ov-${idx}`} className="mx-4 my-4 bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-[12px] font-black text-slate-900 uppercase">END OF OVER {node.overNum}</span>
+                                <div className="h-4 w-px bg-slate-200" />
+                                <span className="text-[12px] font-bold text-orange-600">{node.runs} Runs {node.wickets > 0 ? `• ${node.wickets} Wkt` : ''}</span>
+                              </div>
+                              <div className="text-[13px] font-black text-slate-900 tabular-nums">
+                                Score: {node.totalScore}
                               </div>
                             </div>
-                          )}
+                            <div className="bg-slate-50/50 rounded-xl p-3 flex items-center justify-between border border-slate-50">
+                              <div className="space-y-0.5">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Innings</div>
+                                <div className="text-[11px] font-black text-slate-700 uppercase">
+                                  {node.inningId === 'teamA' ? teamAName : teamBName}
+                                </div>
+                              </div>
+                              <div className="text-right space-y-0.5">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bowler</div>
+                                <div className="text-[11px] font-black text-orange-600 uppercase">
+                                  {node.bowler || 'N/A'} • {node.bowlerFigure}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (node.type === 'entry') {
+                        return (
+                          <div key={`entry-${idx}`} className="mx-4 my-3 bg-[#1C252E] rounded-2xl p-4 flex items-center gap-4 text-white shadow-lg overflow-hidden relative">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl -mr-16 -mt-16"></div>
+                            <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-white/10 flex items-center justify-center p-1 shrink-0">
+                              <span className="text-lg font-black text-white/20">{node.player?.[0] || 'P'}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">New Batter In</div>
+                              <div className="text-lg font-black truncate">{node.player || 'Player'}</div>
+                              <div className="text-[11px] font-bold text-slate-400 mt-1">{node.text}</div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (node.type === 'wicket-card') {
+                        return (
+                          <div key={`wkt-${idx}`} className="mx-4 my-3 bg-rose-600 rounded-2xl p-4 flex items-center gap-4 text-white shadow-lg shadow-rose-200/50">
+                            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                              <span className="text-xl font-black italic">OUT</span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-lg font-black truncate">{node.batsman}</div>
+                              <div className="text-[11px] font-bold text-rose-100 flex items-center gap-2">
+                                <span>{node.batterRuns} Runs</span>
+                                <span className="w-1 h-1 rounded-full bg-rose-300"></span>
+                                <span>{node.batterBalls} Balls</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      const item = node;
+                      const runs = Number(item.runs || 0);
+                      const isWicket = item.isWicket || item.milestone === 'wicket';
+                      const isFour = runs === 4 || item.milestone === '4';
+                      const isSix = runs === 6 || item.milestone === '6';
+                      const ballLabel = item.over || '0.0';
+
+                      const itemText = String(item.text || '').toUpperCase();
+                      const isWide = itemText.includes('WIDE');
+                      const isNoBall = itemText.includes('NO BALL') || itemText.includes('NO-BALL');
+
+                      let badgeColor = "bg-slate-400 text-white border-slate-400"; // Dot ball
+                      if (isWicket) badgeColor = "bg-rose-600 text-white border-rose-600";
+                      else if (isSix) badgeColor = "bg-orange-600 text-white border-orange-600";
+                      else if (isFour) badgeColor = "bg-amber-600 text-white border-amber-600";
+                      else if (isWide || isNoBall) badgeColor = "bg-slate-500 text-white border-slate-500";
+                      else if (runs > 0) badgeColor = "bg-amber-500 text-white border-amber-500";
+
+                      return (
+                        <div key={`ball-${idx}`} className="px-4 py-4 flex gap-4 bg-white border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                          <div className="flex flex-col items-center gap-2 min-w-[40px]">
+                            <span className="text-[11px] font-black text-slate-400 tabular-nums">{ballLabel}</span>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black border shadow-sm ${badgeColor}`}>
+                              {isWicket ? 'W' : (isWide ? 'WD' : (isNoBall ? 'NB' : (runs === 0 ? '0' : runs)))}
+                            </div>
+                          </div>
+                          <div className="flex-1 pt-0.5">
+                            <div className="text-[14px] leading-relaxed text-slate-800">
+                              <span className="font-bold text-slate-900">{item.bowler} to {item.batsman}, </span>
+                              <span className={isWicket || isFour || isSix ? 'font-black text-slate-900' : 'font-medium'}>
+                                {isWicket ? 'OUT!!! ' : isSix ? 'SIX RUNS!!! ' : isFour ? 'FOUR MORE!!! ' : ''}
+                                {item.text}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <div className="py-20 text-center">
-                    <div className="text-3xl mb-3 opacity-20">🎤</div>
-                    <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Waiting for commentary...</div>
+                      );
+                    })}
                   </div>
-                )
-              )}
+                );
+              })()}
             </div>
           </div>
         </div>

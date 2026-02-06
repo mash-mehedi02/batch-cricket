@@ -16,29 +16,32 @@ export default function PageHeader({
 
     return (
         <>
-            {/* Header Content - Dark background */}
-            <div className="relative z-[100] pt-[var(--status-bar-height)] pb-2 flex items-center justify-between px-4 bg-[#0f172a] shadow-lg transition-all duration-300">
+            {/* Header Content - Premium Indigo/Dark Theme */}
+            <div className="relative z-[100] pt-[var(--status-bar-height)] pb-2.5 flex items-center justify-between px-4 bg-[#050B18] border-b border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] transition-all duration-300">
+
+                {/* Background Accent */}
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-blue-600/5 to-transparent pointer-events-none"></div>
 
                 {/* Left: Back Button + Title Group */}
-                <div className="flex items-center gap-4 max-w-[80%]">
+                <div className="flex items-center gap-4 max-w-[80%] relative z-10">
                     <button
                         onClick={() => backLink ? navigate(backLink) : navigate(-1)}
-                        className="group relative w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 active:scale-90 bg-slate-700/80 text-white hover:bg-slate-600"
+                        className="group relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-95 bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 shadow-lg backdrop-blur-sm"
                     >
                         <ArrowLeft size={20} className="transition-transform group-hover:-translate-x-0.5" />
                     </button>
 
                     {/* Title (Always Visible) */}
-                    <div className="flex flex-col justify-center">
+                    <div className="flex flex-col justify-center min-w-0">
                         {title && (
-                            <h1 className="text-white font-black text-[13px] uppercase tracking-wider leading-none truncate pr-2">
+                            <h1 className="text-white font-black text-sm uppercase tracking-widest leading-none truncate pr-2">
                                 {title}
                             </h1>
                         )}
                         {subtitle && (
-                            <div className="flex items-center gap-1.5 mt-1">
-                                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] truncate leading-none">
+                            <div className="flex items-center gap-2 mt-1.5 translate-y-[-1px]">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] animate-pulse"></div>
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.25em] truncate leading-none">
                                     {subtitle}
                                 </p>
                             </div>
@@ -47,7 +50,7 @@ export default function PageHeader({
                 </div>
 
                 {/* Right Content */}
-                <div className="pointer-events-auto flex items-center gap-2">
+                <div className="pointer-events-auto flex items-center gap-1.5 relative z-10">
                     {rightContent}
                 </div>
             </div>

@@ -246,17 +246,34 @@ const AdminLiveScoring = () => {
     };
 
     const handleUndo = async () => {
-        if (!matchId || !match?.currentBatting) return;
+        if (processing) return;
+        if (!matchId || !match) {
+            console.warn("[AdminLiveScoring] Undo blocked: match data not loaded.", { matchId, hasMatch: !!match });
+            toast.error("Match data loading, please wait...");
+            return;
+        }
+
+        // Determine which innings to undo. 
+        // Fallback to teamA if currentBatting is missing or empty.
+        let inningKv = match.currentBatting || 'teamA';
+        console.log(`[AdminLiveScoring] handleUndo triggered. matchId: ${matchId}, currentBatting: ${match.currentBatting || 'N/A'}`);
+
+        if (!match.currentBatting) {
+            console.log("[AdminLiveScoring] currentBatting missing in match doc, defaulting to teamA for undo check.");
+        }
+
         if (!confirm("Are you sure you want to undo the last ball?")) return;
 
         setProcessing(true);
         try {
-            let inningKv = match.currentBatting;
+            console.log(`[AdminLiveScoring] Starting undo for ${inningKv}...`);
+
             let balls = await matchService.getBalls(matchId, inningKv);
 
             // If current innings has no balls, try to undo from the previous innings
             if (balls.length === 0) {
-                if (inningKv === 'teamB') {
+                if (inningKv === 'teamB' && (!inningsB || (inningsB.legalBalls || 0) === 0)) {
+                    console.log("[AdminLiveScoring] No balls in Team B. Switching to Team A for undo.");
                     inningKv = 'teamA';
                     balls = await matchService.getBalls(matchId, inningKv);
                 }
@@ -264,10 +281,12 @@ const AdminLiveScoring = () => {
 
             if (balls.length === 0) {
                 toast.error("No balls to undo");
+                setProcessing(false);
                 return;
             }
 
             const ballToUndo = balls[balls.length - 1];
+            console.log("[AdminLiveScoring] Ball to undo:", ballToUndo.id, "at", ballToUndo.timestamp);
 
             // --- Revert State Logic ---
             let nextStriker = selectedStriker;
@@ -275,7 +294,6 @@ const AdminLiveScoring = () => {
             let nextBowler = selectedBowler;
 
             // 1. Check if the ball being undone completed an over
-            // (We check count of legal balls BEFORE deleting)
             const legalBalls = balls.filter(b => b.isLegal !== false);
             const isLastBallOfOver = legalBalls.length % 6 === 0 && ballToUndo.isLegal !== false;
 
@@ -286,13 +304,11 @@ const AdminLiveScoring = () => {
                 nextBowler = ballToUndo.bowlerId;
             }
 
-            // 2. Was it an odd run rotation? (1, 3, 5 runs and NOT a boundary)
-            // For Extras like Wide+1, Byes, Leg Byes, the batsmen still run.
+            // 2. Was it an odd run rotation?
             let rotationRuns = ballToUndo.runsOffBat || 0;
             const bExtras = ballToUndo.extras || {};
 
             if ((ballToUndo.extras?.wides || 0) > 0) {
-                // For Wide+1, total wides is 2. Rotation runs = 2 - 1 = 1.
                 rotationRuns = (bExtras.wides || 0) - 1;
             } else if (bExtras.byes || bExtras.legByes) {
                 rotationRuns = (bExtras.byes || 0) + (bExtras.legByes || 0);
@@ -303,10 +319,9 @@ const AdminLiveScoring = () => {
                 [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
             }
 
-            // 3. Was it a wicket? Restore the out batter to the crease
+            // 3. Was it a wicket? Restore the out batter
             if (ballToUndo.wicket) {
                 const outId = ballToUndo.wicket.dismissedPlayerId;
-                // Check if they were the striker or non-striker
                 if (outId === ballToUndo.batsmanId) nextStriker = outId;
                 else nextNonStriker = outId;
             }
@@ -318,8 +333,8 @@ const AdminLiveScoring = () => {
             // 2. Delete linked commentary
             await commentaryService.deleteCommentaryForBall(matchId, ballToUndo.id);
 
-            // 3. Recalculate stats (SINGLE SOURCE OF TRUTH)
-            await recalculateInnings(matchId, inningKv, { useTransaction: false });
+            // 3. Recalculate stats
+            const newStats = await recalculateInnings(matchId, inningKv, { useTransaction: false });
 
             // 4. Determine Match Document Reversion
             const updates: any = {
@@ -334,34 +349,32 @@ const AdminLiveScoring = () => {
             const phaseLower = String(match.matchPhase || '').toLowerCase();
 
             // IF match was finished or in break, bring it back to LIVE
-            if (statusLower === 'finished' || statusLower === 'inningsbreak' || phaseLower === 'finished' || phaseLower === 'inningsbreak') {
+            if (statusLower === 'finished' || statusLower === 'inningsbreak' || phaseLower === 'finished' || phaseLower === 'inningsbreak' || statusLower === 'innings break') {
                 updates.status = 'live';
 
-                // Determine phase based on current batting
-                const isTeamA = match.currentBatting === 'teamA';
+                const isTeamA = inningKv === 'teamA';
                 updates.matchPhase = isTeamA ? 'FirstInnings' : 'SecondInnings';
 
-                // Clear all result fields to prevent stale winner info in points table/ui
+                // Clear results
                 updates.winnerId = null;
                 updates.resultSummary = null;
                 updates.winner = null;
                 updates.matchResult = null;
                 updates.matchResultText = null;
 
-                // Sync Player stats - If the match was finished, we must remove it from player histories
+                // Sync Player stats - remove from history
                 if (statusLower === 'finished' || phaseLower === 'finished') {
-                    console.log("[AdminLiveScoring] Match was finished. Reverting player stats...");
                     await matchService.removeMatchStatsFromPlayers(matchId).catch(err => {
                         console.error("Failed to remove match stats from players:", err);
                     });
                 }
 
-                // If it was InningsBreak, we also need to clear those summary fields
-                if (statusLower === 'inningsbreak' || phaseLower === 'inningsbreak') {
-                    updates.innings1Score = 0;
-                    updates.innings1Wickets = 0;
-                    updates.innings1Overs = '0.0';
-                    updates.target = 0;
+                // Restore innings1Score from NEW stats instead of resetting to 0
+                if (isTeamA) {
+                    updates.innings1Score = newStats.totalRuns;
+                    updates.innings1Wickets = newStats.totalWickets;
+                    updates.innings1Overs = newStats.overs;
+                    updates.target = null; // Target is only valid if innings finished
                 }
             }
 
@@ -370,11 +383,10 @@ const AdminLiveScoring = () => {
             }
 
             await matchService.update(matchId, updates);
-
-            toast.success("Last ball undone and match restored to Live");
+            toast.success("Last ball undone successfully");
         } catch (err) {
             console.error("Undo failed:", err);
-            toast.error("Failed to undo");
+            toast.error("Failed to undo last ball");
         } finally {
             setProcessing(false);
         }
@@ -844,27 +856,29 @@ const AdminLiveScoring = () => {
                             </div>
 
                             <div className="mt-12 flex items-center justify-center gap-4">
-                                <button
-                                    onClick={() => {
-                                        if (confirm("Start 2nd Innings?")) {
-                                            const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
-                                            const currentScore = (match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0;
-                                            matchService.update(matchId!, {
-                                                status: 'live',
-                                                matchPhase: 'SecondInnings',
-                                                currentBatting: newBatting,
-                                                target: Number(currentScore) + 1,
-                                                currentStrikerId: '',
-                                                currentNonStrikerId: '',
-                                                currentBowlerId: ''
-                                            });
-                                            toast.success("Second Innings Started!");
-                                        }
-                                    }}
-                                    className="px-8 py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg"
-                                >
-                                    Start 2nd Innings
-                                </button>
+                                {(!inningsB || (inningsB.legalBalls || 0) === 0) && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm("Start 2nd Innings?")) {
+                                                const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
+                                                const currentScore = (match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0;
+                                                matchService.update(matchId!, {
+                                                    status: 'live',
+                                                    matchPhase: 'SecondInnings',
+                                                    currentBatting: newBatting,
+                                                    target: Number(currentScore) + 1,
+                                                    currentStrikerId: '',
+                                                    currentNonStrikerId: '',
+                                                    currentBowlerId: ''
+                                                });
+                                                toast.success("Second Innings Started!");
+                                            }
+                                        }}
+                                        className="px-8 py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg"
+                                    >
+                                        Start 2nd Innings
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setFinalizeModalOpen(true)}
                                     className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
@@ -898,6 +912,7 @@ const AdminLiveScoring = () => {
                             <div className="mt-12 flex items-center justify-center gap-4">
                                 <button
                                     onClick={handleUndo}
+                                    disabled={processing}
                                     className="px-8 py-4 bg-red-50 text-red-600 font-black rounded-2xl hover:bg-red-100 transition-all flex items-center gap-3 border border-red-100"
                                 >
                                     <RotateCcw size={20} /> Undo Last Ball (Restore Match)
@@ -1018,14 +1033,16 @@ const AdminLiveScoring = () => {
             <div className="mt-8 border-t border-slate-200 pt-8">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Game Management</h4>
                 <div className="flex flex-wrap gap-4">
-                    <button
-                        onClick={() => {
-                            if (confirm("End Innings?")) matchService.update(matchId!, { status: 'InningsBreak', matchPhase: 'InningsBreak' });
-                        }}
-                        className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm transition-colors"
-                    >
-                        End Innings
-                    </button>
+                    {match.currentBatting === 'teamA' && (
+                        <button
+                            onClick={() => {
+                                if (confirm("End Innings?")) matchService.update(matchId!, { status: 'InningsBreak', matchPhase: 'InningsBreak' });
+                            }}
+                            className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm transition-colors"
+                        >
+                            End Innings
+                        </button>
+                    )}
                     <button
                         onClick={() => {
                             if (confirm("Start 2nd Innings?")) {
@@ -1066,6 +1083,7 @@ const AdminLiveScoring = () => {
                     </button>
                     <button
                         onClick={handleUndo}
+                        disabled={processing}
                         className="px-6 py-3 bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 font-bold rounded-xl text-sm transition-colors flex items-center gap-2"
                     >
                         <RotateCcw size={16} /> Undo Ball
