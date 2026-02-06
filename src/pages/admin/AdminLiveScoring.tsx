@@ -6,6 +6,7 @@ import { httpsCallable } from 'firebase/functions';
 import { matchService } from '@/services/firestore/matches';
 import { playerService } from '@/services/firestore/players';
 import { addBall, BallUpdateResult } from '@/services/matchEngine/ballUpdateService';
+import * as emailService from '@/services/emailService';
 import { recalculateInnings } from '@/services/matchEngine/recalculateInnings';
 import { Match, InningsStats, Player } from '@/types';
 import {
@@ -25,6 +26,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { getMatchResultString } from '@/utils/matchWinner';
 import * as commentaryService from '@/services/commentary/commentaryService';
+import { oneSignalService } from '@/services/oneSignalService';
 import { useAuthStore } from '@/store/authStore';
 
 const AdminLiveScoring = () => {
@@ -479,6 +481,24 @@ const AdminLiveScoring = () => {
                         wickets: ballInnings?.totalWickets,
                     }
                 });
+
+                // OneSignal Notifications
+                if (wicketData) {
+                    oneSignalService.sendBroadcast(
+                        "WICKET! 🔴",
+                        `${strikerObj?.name || 'Batter'} is OUT! ${ballInnings?.totalRuns}/${ballInnings?.totalWickets} (${ballInnings?.overs} ov)`
+                    );
+                } else if (batRuns === 6) {
+                    oneSignalService.sendBroadcast(
+                        "SIXER! ⚾🔥",
+                        `${strikerObj?.name || 'Batter'} hits a MASSIVE SIX! (${ballInnings?.overs} ov)`
+                    );
+                } else if (batRuns === 4) {
+                    oneSignalService.sendBroadcast(
+                        "FOUR! 🏏💨",
+                        `${strikerObj?.name || 'Batter'} finds the boundary! (4 Runs)`
+                    );
+                }
             } catch (commErr) {
                 console.error("[AdminLiveScoring] Commentary generation failed:", commErr);
             }
@@ -582,6 +602,10 @@ const AdminLiveScoring = () => {
                 currentInn?.overs || '0.0',
                 0, 0, false, false
             );
+
+            // Send Push Notification for manual highlight
+            oneSignalService.sendBroadcast("Live Update 📢", manualCommentary);
+
             setManualCommentary('');
             toast.success("Commentary added!");
         } catch (err) {
@@ -593,10 +617,26 @@ const AdminLiveScoring = () => {
     };
 
     const handleFinalizeConfirm = async () => {
+        if (!matchId) return;
         setProcessing(true);
         try {
-            const finalizeFn = httpsCallable(functions, 'finalizeMatch');
-            await finalizeFn({ matchId, sendMail: sendMailChecked });
+            // 1. Update Match Status (Triggers stats sync in service)
+            await matchService.update(matchId, {
+                status: 'finished',
+                matchPhase: 'finished'
+            });
+
+            // 2. Send Emails if requested
+            if (sendMailChecked) {
+                const emailToastId = toast.loading("Sending personalized scores to Playing XI...");
+                const emailResult = await emailService.sendMatchEndEmails(matchId, resultSummary);
+
+                if (emailResult.success) {
+                    toast.success("Scores sent successfully!", { id: emailToastId });
+                } else {
+                    toast.error("Match finished, but score emails failed.", { id: emailToastId });
+                }
+            }
 
             toast.success("Match Finalized!");
             setFinalizeModalOpen(false);

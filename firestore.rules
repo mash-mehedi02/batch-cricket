@@ -181,5 +181,10 @@ service cloud.firestore {
       allow read: if isAuthenticated() && request.auth.uid == adminId;
       allow write: if false; // Block new writes to legacy collection
     }
+
+    match /email_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAdmin() || isSuperAdmin();
+    }
   }
 }

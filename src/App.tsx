@@ -29,6 +29,7 @@ import AdminLiveMatches from './pages/admin/AdminLiveMatches'
 import AdminLiveScoring from './pages/admin/AdminLiveScoring'
 import AdminAnalytics from './pages/admin/AdminAnalytics'
 import AdminUsers from './pages/admin/AdminUsers'
+import AdminEmailBroadcast from './pages/admin/AdminEmailBroadcast'
 import AdminSettings from './pages/admin/AdminSettings'
 import SplashScreen from './components/common/SplashScreen'
 import ScrollToTop from './components/common/ScrollToTop'
@@ -121,6 +122,7 @@ function App() {
           <Route path="/admin/live/:matchId/scoring" element={<AdminLiveScoring />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/broadcast" element={<AdminEmailBroadcast />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>
 

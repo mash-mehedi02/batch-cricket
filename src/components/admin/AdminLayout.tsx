@@ -15,7 +15,8 @@ import {
     ShieldCheck,
     Loader2,
     Hexagon,
-    Lock
+    Lock,
+    Mail
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
@@ -118,7 +119,10 @@ const AdminLayout = () => {
         { name: 'Squads', href: '/admin/squads', icon: Users },
         { name: 'Players', href: '/admin/players', icon: UserPlus },
         { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-        ...((user?.role as string) === 'super_admin' ? [{ name: 'Users & Claims', href: '/admin/users', icon: ShieldCheck }] : []),
+        ...((user?.role as string) === 'super_admin' ? [
+            { name: 'Users & Claims', href: '/admin/users', icon: ShieldCheck },
+            { name: 'Email Broadcast', href: '/admin/broadcast', icon: Mail }
+        ] : []),
         { name: 'Settings', href: '/admin/settings', icon: Settings },
     ], [user?.role]);
 

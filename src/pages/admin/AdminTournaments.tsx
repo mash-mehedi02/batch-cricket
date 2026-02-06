@@ -22,6 +22,7 @@ import WheelDatePicker from '@/components/common/WheelDatePicker'
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 import { formatDateLabel } from '@/utils/date'
 import { uploadImage } from '@/services/cloudinary/uploader'
+import * as emailService from '@/services/emailService'
 
 interface AdminTournamentsProps {
   mode?: 'dashboard' | 'list' | 'create' | 'edit' | 'groups' | 'fixtures' | 'knockout' | 'standings' | 'settings';
@@ -401,6 +402,16 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           ...(persistPayload as any),
           updatedAt: Timestamp.now(),
         } as any)
+
+        // Trigger Tournament Summary Emails if completed
+        if (persistPayload.status === 'completed') {
+          toast.loading("Sending tournament summaries to all players...", { id: 'tourney-email' });
+          emailService.sendTournamentEndEmails(id).then(res => {
+            if (res.success) toast.success("Summary emails sent!", { id: 'tourney-email' });
+            else toast.error("Tournament saved, but emails failed.", { id: 'tourney-email' });
+          });
+        }
+
         toast.success('Tournament updated successfully!')
         navigate('/admin/tournaments')
       }
