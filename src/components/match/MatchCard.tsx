@@ -13,9 +13,10 @@ import { NotificationBell } from '@/components/notifications/NotificationBell'
 interface MatchCardProps {
     match: Match
     squadsMap: Record<string, Squad>
+    tournamentName?: string
 }
 
-const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
+const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName }) => {
     // OPTIMIZATION: Initialize with data from match object if available (Instant Load)
     const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(() => {
         if (match.score?.teamA) {
@@ -251,8 +252,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap }) => {
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-md transition-all group relative">
             {/* Header Info - NOT part of the Link to prevent interaction conflict */}
             <div className="px-4 py-2 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/20 dark:bg-slate-800/20 relative z-20">
-                <Link to={`/match/${match.id}`} className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider truncate max-w-[50%] hover:text-blue-600 transition-colors">
-                    {match.venue ? `${match.venue}` : 'SMA Ground'}
+                <Link to={`/match/${match.id}`} className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider truncate max-w-[70%] hover:text-blue-600 transition-colors">
+                    {tournamentName || 'SMA Tournament'}
                 </Link>
                 <div className="flex items-center gap-2">
                     {/* Countdown for upcoming matches */}

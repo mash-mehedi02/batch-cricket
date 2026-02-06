@@ -394,7 +394,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 <div className="space-y-4">
                     <h3 className="text-base font-black text-slate-800 px-2">{tournament?.name || 'Tournament'}</h3>
                     <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm divide-y divide-slate-50">
-                        <Link to={`/tournaments/${match.tournamentId}/matches`} className="flex items-center gap-4 p-4 px-6 hover:bg-slate-50 transition-colors group">
+                        <Link to={`/tournaments/${match.tournamentId}`} className="flex items-center gap-4 p-4 px-6 hover:bg-slate-50 transition-colors group">
                             <Calendar size={18} className="text-blue-500" />
                             <span className="text-sm font-bold text-slate-700">Matches</span>
                         </Link>
@@ -406,18 +406,17 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                             <Table size={18} className="text-amber-500" />
                             <span className="text-sm font-bold text-slate-700">Points Table</span>
                         </Link>
-                        <Link to={`/tournaments/${match.tournamentId}/news`} className="flex items-center gap-4 p-4 px-6 hover:bg-slate-50 transition-colors group">
-                            <Newspaper size={18} className="text-indigo-500" />
-                            <span className="text-sm font-bold text-slate-700">News</span>
-                        </Link>
                     </div>
                 </div>
 
                 <div className="py-6 px-2">
-                    <Link to="/settings" className="flex items-center gap-3 text-slate-400 hover:text-slate-600 transition-colors">
+                    <button 
+                        onClick={() => (window as any).openMatchSettings && (window as any).openMatchSettings()}
+                        className="flex items-center gap-3 text-slate-400 hover:text-slate-600 transition-colors w-full text-left"
+                    >
                         <Settings size={18} />
                         <span className="text-sm font-bold">Match Settings</span>
-                    </Link>
+                    </button>
                 </div>
             </div>
         </div>

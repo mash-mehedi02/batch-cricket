@@ -13,10 +13,28 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Set window background to match splash to avoid white flash -->
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:colorBackground">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+        <item name="android:statusBarColor">@color/colorPrimary</item>
     </style>
 
-
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <!-- Set splash background color -->
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        
+        <!-- Hide the splash icon by making it transparent -->
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        
+        <!-- Duration to keep splash on screen (optional, can be controlled by code too) -->
+        <item name="windowSplashScreenAnimationDuration">0</item> 
+        
+        <!-- Theme to use after splash -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        
+        <!-- Fallback compatibility -->
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
     </style>
 </resources>

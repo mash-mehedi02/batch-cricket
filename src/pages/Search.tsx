@@ -127,7 +127,7 @@ export default function Search() {
     return (
         <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
             {/* Header - Native App Style */}
-            <div className={`sticky top-0 z-50 pt-3 pb-3 px-4 flex items-center gap-3 border-b ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+            <div className={`sticky top-0 z-50 pt-[var(--status-bar-height)] pb-3 px-4 flex items-center gap-3 border-b ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
                 <div className="relative flex-1">
                     <input
                         autoFocus

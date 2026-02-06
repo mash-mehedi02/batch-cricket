@@ -247,6 +247,7 @@ export interface Match {
   createdAt: Timestamp
   updatedAt: Timestamp
   createdBy: string
+  adminId?: string
   resultSummary?: string
   winnerId?: string
   score?: {

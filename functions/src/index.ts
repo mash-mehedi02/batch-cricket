@@ -133,7 +133,7 @@ function formatOvers(balls: number): string {
  * Finalize match and update player stats
  */
 export const finalizeMatch = functions.https.onCall(async (data, context) => {
-  const { matchId } = data
+  const { matchId, sendMail } = data
 
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated')
@@ -157,6 +157,16 @@ export const finalizeMatch = functions.https.onCall(async (data, context) => {
   // Update player and squad statistics
   await updatePlayerStats(matchId)
   await updateSquadStats(matchId)
+
+  // Send Match End Emails if requested
+  if (sendMail) {
+    try {
+      await sendMatchEndEmails(matchId)
+    } catch (error) {
+      console.error(`Failed to send match end emails: ${error}`)
+      // Don't fail the finalize call, just log
+    }
+  }
 
   return { success: true }
 })
@@ -186,3 +196,5 @@ export * from './playerClaims';
 
 // Export notification functions
 export * from './notifications';
+import { sendMatchEndEmails } from './emails';
+export * from './emails';

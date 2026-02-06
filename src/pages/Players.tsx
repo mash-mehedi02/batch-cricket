@@ -98,7 +98,7 @@ export default function Players() {
   return (
     <div ref={containerRef} className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 font-sans">
       {/* Search and Navigation Bar */}
-      <div className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-100 dark:border-white/5 pt-10 pb-4 mb-8 sticky top-0 z-40 px-4 md:px-8">
+      <div className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-slate-100 dark:border-white/5 pt-10 pb-4 mb-8 sticky top-[calc(56px+var(--status-bar-height))] z-40 px-4 md:px-8">
         <div className="max-w-7xl mx-auto players-header">
           {/* Top Header Area */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">

@@ -2,13 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --status-bar-height: 0px;
+}
+
 @layer base {
   * {
     @apply antialiased;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-sans;
+    @apply bg-slate-50 dark:bg-[#050B18] text-slate-900 dark:text-white font-sans;
     font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
     transition: background-color 0.3s ease, color 0.3s ease;
     user-select: none;
@@ -16,6 +21,12 @@
     -moz-user-select: none;
     -ms-user-select: none;
     -ms-overflow-style: none;
+    /* Professional Native Feel */
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-overflow-scrolling: touch;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
   h1,

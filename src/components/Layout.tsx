@@ -41,7 +41,7 @@ export default function Layout({ children }: LayoutProps) {
   const isHome = location.pathname === '/'
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    <div className={`min-h-screen transition-colors duration-300 ${isDetailPage ? 'bg-[#050B18]' : 'bg-slate-50 dark:bg-slate-950'}`}>
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
       {/* Navigation - Professional Header - Hidden on Detail Pages */}
       {!isDetailPage && (
@@ -49,8 +49,8 @@ export default function Layout({ children }: LayoutProps) {
           ? 'bg-[#0f172a] text-white border-[#0f172a]'
           : 'bg-white/80 dark:bg-slate-950/80 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
           }`}>
-          <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-[var(--status-bar-height)]">
+            <div className="flex justify-between items-center h-14">
               <div className="flex items-center gap-4 md:gap-10 min-w-0 flex-1">
                 <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
                   <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0" />
@@ -271,7 +271,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Footer - Professional - Only on Homepage */}
       {isActive('/') && (
-        <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700">
+        <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700 pb-14 md:pb-0">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
               <div className="col-span-2 md:col-span-1">

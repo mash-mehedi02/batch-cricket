@@ -20,58 +20,61 @@ export default function NativeAppWrapper() {
         // 1. Handle Hardware Back Button
         const setupBackButton = async () => {
             try {
-                // Remove existing listeners if any
                 if (backButtonListener) backButtonListener.remove();
-
                 backButtonListener = await CapacitorApp.addListener('backButton', () => {
                     const currentPath = locationRef.current.pathname;
-
-                    // Logic: If we are at the home/dashboard page, we exit.
-                    // Otherwise, we try to go back in React Router history.
                     const isTabRoot = ['/', '/login', '/admin', '/admin/tournaments', '/admin/matches', '/admin/players', '/admin/squads'].includes(currentPath);
 
                     if (!isTabRoot) {
-                        console.log('[Native] Navigating back from:', currentPath);
                         navigate(-1);
                     } else {
-                        console.log('[Native] At root page or no history, exiting app');
                         CapacitorApp.exitApp();
                     }
                 });
-            } catch (e) {
-                console.warn('Native back button handling failed', e);
-            }
+            } catch (e) { }
         };
 
-        // 2. Configure Status Bar to be Transparent/Overlay
+        // 2. Configure Status Bar
         const setupStatusBar = async () => {
             try {
-                // Show status bar (don't hide)
+                const currentPath = locationRef.current.pathname;
+
+                // Show status bar
                 await StatusBar.show();
 
-                // Set status bar background color to match PageHeader
+                // Fallback background color (important for some Android versions)
                 await StatusBar.setBackgroundColor({ color: '#0f172a' });
 
-                // Ensure icons are white (for dark background)
-                await StatusBar.setStyle({ style: 'DARK' as any });
-
-                // Disable overlay so the status bar is fixed and doesn't overlap content
+                // Disable overlay (Content starts BELOW status bar)
                 await StatusBar.setOverlaysWebView({ overlay: false });
-            } catch (e) {
-                console.warn('Status bar setup failed', e);
-            }
+
+                // Logic for icon style:
+                // Style.Dark = White text/icons (for dark backgrounds)
+                // Style.Light = Dark text/icons (for light backgrounds)
+
+                // Match Pages (Detail), Home, Squad Details, Tournament Details, Player Details are all DARK BLUE
+                const isDarkBluePage = currentPath === '/' ||
+                    /^\/(match|squads|players|tournaments)\/.+/.test(currentPath);
+
+                if (isDarkBluePage) {
+                    await StatusBar.setStyle({ style: 'DARK' as any });
+                } else {
+                    // Admin pages or List pages are usually LIGHT/WHITE
+                    await StatusBar.setBackgroundColor({ color: '#ffffff' });
+                    await StatusBar.setStyle({ style: 'LIGHT' as any });
+                }
+            } catch (e) { }
         };
 
         setupBackButton();
         setupStatusBar();
 
-        // Cleanup listeners
         return () => {
             if (backButtonListener) {
                 backButtonListener.remove();
             }
         };
-    }, [navigate]);
+    }, [navigate, location.pathname]);
 
     return null;
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'
+import { tournamentService } from '@/services/firestore/tournaments'
 import { Match, Squad } from '@/types'
 import MatchCard from '@/components/match/MatchCard'
 import MatchCardSkeleton from '@/components/skeletons/MatchCardSkeleton'
@@ -14,6 +15,7 @@ export default function Schedule() {
 
     const [matches, setMatches] = useState<Match[]>([])
     const [squads, setSquads] = useState<Squad[]>([])
+    const [tournamentsMap, setTournamentsMap] = useState<Record<string, string>>({})
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -26,6 +28,12 @@ export default function Schedule() {
             try {
                 setLoading(true)
                 const all = await matchService.getAll()
+
+                // Load all tournaments for map
+                const allTournaments = await tournamentService.getAll()
+                const tMap: Record<string, string> = {}
+                allTournaments.forEach(t => { tMap[t.id] = t.name })
+                setTournamentsMap(tMap)
 
                 const statusLower = (m: any) => String(m?.status || '').toLowerCase().trim()
 
@@ -131,7 +139,7 @@ export default function Schedule() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {groupedMatches[dateKey].map(m => (
-                                        <MatchCard key={m.id} match={m} squadsMap={squadsMap} />
+                                        <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />
                                     ))}
                                 </div>
                             </div>

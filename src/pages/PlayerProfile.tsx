@@ -666,14 +666,14 @@ export default function PlayerProfile() {
         subtitle={squadName || "Player Profile"}
       />
 
-      {/* Top Section (Header + Tabs) - Not Sticky anymore to allow PageHeader to scroll away */}
-      <div className="shadow-2xl">
+      {/* Sticky Identity Section (Hero + Tabs) */}
+      <div className="sticky top-[var(--status-bar-height)] z-[60] shadow-2xl transition-all duration-300">
         <div className="bg-slate-950 text-white relative overflow-hidden">
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-emerald-500/10 to-transparent pointer-events-none"></div>
           <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 relative z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-6 relative z-10">
 
             {/* Action Button - Top Right */}
             {/* Removed action buttons from header */}
@@ -721,27 +721,27 @@ export default function PlayerProfile() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Refined Tabs (Sticky Container) */}
-      <div className="sticky top-0 z-[60] bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-4">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-4 text-sm font-bold relative transition-all ${activeTab === tab.id
-                  ? 'text-emerald-600'
-                  : 'text-slate-500 hover:text-slate-900'
-                  }`}
-              >
-                {tab.label}
-                {activeTab === tab.id && (
-                  <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
-                )}
-              </button>
-            ))}
+        {/* Refined Tabs (Now part of the same sticky container) */}
+        <div className="bg-white border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex gap-4">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-4 text-sm font-bold relative transition-all ${activeTab === tab.id
+                    ? 'text-emerald-600'
+                    : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                >
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

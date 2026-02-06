@@ -272,7 +272,7 @@ const AdminLayout = () => {
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-full w-full">
                 {/* Mobile Header */}
-                <header className="bg-white border-b border-slate-200 lg:hidden flex items-center justify-between p-4 sticky top-0 z-30">
+                <header className="bg-white border-b border-slate-200 lg:hidden flex items-center justify-between pt-[var(--status-bar-height)] pb-3 px-4 sticky top-0 z-30">
                     <div className="font-bold text-slate-900 flex items-center gap-2">
                         <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white">
                             <Hexagon size={14} fill="currentColor" />

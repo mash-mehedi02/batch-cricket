@@ -69,9 +69,16 @@ class NotificationService {
      * Subscribe to match notifications
      */
     async updateMatchSubscription(matchId: string, adminId: string, settings: MatchNotificationSettings) {
+        // Save preferences locally first to ensure UI consistency
+        this.saveSettings(matchId, settings)
+
         if (!this.token) {
             const token = await this.requestPermission()
-            if (!token) return
+            if (!token) {
+                // Return but we already saved locally
+                console.warn('Could not update FCM subscription: No token available')
+                return
+            }
         }
 
         const topicBase = `admin_${adminId}_match_${matchId}`
@@ -94,8 +101,6 @@ class NotificationService {
             await this.unsubscribe(topicWickets)
         }
 
-        // Save preferences locally
-        this.saveSettings(matchId, settings)
         toast.success('Match notification settings updated')
     }
 

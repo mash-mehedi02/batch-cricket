@@ -101,27 +101,11 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
         ])
 
         if (inningsA) {
-          console.log('[MatchScorecard] ✅ Initial Loaded Team A innings:', {
-            totalRuns: inningsA.totalRuns,
-            totalWickets: inningsA.totalWickets,
-            batsmanStatsCount: inningsA.batsmanStats?.length || 0,
-            overs: inningsA.overs,
-          })
           setTeamAInnings(inningsA)
-        } else {
-          console.log('[MatchScorecard] ℹ️ No Team A innings data found')
         }
 
         if (inningsB) {
-          console.log('[MatchScorecard] ✅ Initial Loaded Team B innings:', {
-            totalRuns: inningsB.totalRuns,
-            totalWickets: inningsB.totalWickets,
-            batsmanStatsCount: inningsB.batsmanStats?.length || 0,
-            overs: inningsB.overs,
-          })
           setTeamBInnings(inningsB)
-        } else {
-          console.log('[MatchScorecard] ℹ️ No Team B innings data found')
         }
       } catch (error) {
         console.error('[MatchScorecard] ❌ Error loading initial innings:', error)
@@ -330,36 +314,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
     return currentInningsDataRaw
   }, [currentInningsDataRaw, matchData, currentTab, playersMap])
 
-  // Debug logging
-  useEffect(() => {
-    if (currentInningsData) {
-      console.log('[MatchScorecard] 🔍 Current Innings Data:', {
-        totalRuns: currentInningsData.totalRuns,
-        totalWickets: currentInningsData.totalWickets,
-        batsmanStatsCount: currentInningsData.batsmanStats?.length || 0,
-        bowlerStatsCount: currentInningsData.bowlerStats?.length || 0,
-        batsmanStats: currentInningsData.batsmanStats,
-        overs: currentInningsData.overs,
-      })
 
-      // Log each batsman's data
-      if (currentInningsData.batsmanStats && currentInningsData.batsmanStats.length > 0) {
-        currentInningsData.batsmanStats.forEach((batsman: any, idx: number) => {
-          console.log(`[MatchScorecard] Batsman ${idx + 1}:`, {
-            batsmanId: batsman.batsmanId,
-            batsmanName: batsman.batsmanName,
-            runs: batsman.runs,
-            balls: batsman.balls,
-            fromMap: playersMap.get(batsman.batsmanId)?.name,
-          })
-        })
-      }
-    }
-    console.log('[MatchScorecard] 👥 Players Map Size:', playersMap.size)
-    if (playersMap.size > 0) {
-      console.log('[MatchScorecard] Players in Map:', Array.from(playersMap.entries()).slice(0, 5).map(([id, player]) => ({ id, name: player?.name })))
-    }
-  }, [currentInningsData, playersMap, teamAInnings, teamBInnings])
 
   if (loading) {
     return <ScorecardSkeleton />

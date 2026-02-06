@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
-// Rebuild trigger 1
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { SplashScreen as NativeSplash } from '@capacitor/splash-screen';
 import Layout from './components/Layout'
 import AdminLayout from './components/admin/AdminLayout'
 import Home from './pages/Home'
@@ -42,28 +42,25 @@ function LayoutWrapper() {
   )
 }
 
-
-
 function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
   const tournamentId = window.location.pathname.split('/')[2]
   return <Navigate to={`/tournaments/${tournamentId}?tab=${tab}`} replace />
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(() => {
-    // Check if splash has been shown in this session
-    const hasSeenSplash = sessionStorage.getItem('hasSeenSplash')
-    return !hasSeenSplash // Show splash only if not seen before
-  });
+  const [showSplash, setShowSplash] = useState(true);
 
-  const handleLoadingComplete = () => {
-    // Mark splash as seen for this session
-    sessionStorage.setItem('hasSeenSplash', 'true')
+  useEffect(() => {
+    // Hide the native splash immediately so our custom React splash can show
+    NativeSplash.hide().catch(() => { });
+  }, []);
+
+  const handleSplashFinish = () => {
     setShowSplash(false);
   };
 
   if (showSplash) {
-    return <SplashScreen onLoadingComplete={handleLoadingComplete} />;
+    return <SplashScreen onFinish={handleSplashFinish} />;
   }
 
   return (

@@ -290,7 +290,7 @@ export default function TournamentDetails() {
         </div>
       ) : (
         <>
-          <div className="sticky top-0 z-40 bg-white dark:bg-slate-950 transition-colors shadow-sm">
+          <div className="sticky top-0 z-40 bg-white dark:bg-slate-950 transition-colors shadow-sm pt-[var(--status-bar-height)]">
             {/* 2. Series Header */}
             <div className="px-5 py-4 pb-2">
               <div className="flex items-center justify-between mb-1">

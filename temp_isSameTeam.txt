@@ -1,0 +1,16 @@
+﻿            const isSameTeam = (matchKey: string, matchTeamName: string, targetKey: string) => {
+              if (matchKey === targetKey) return true
+
+              // Fallback: If keys don't match (e.g. one is ID, one is Name), try name matching
+              // Only do this if one of them is a 'name:' key or purely fallback
+              if (targetKey.startsWith('name:') || matchKey.startsWith('name:')) {
+                const tNameRaw = targetKey.replace('name:', '').replace('id:', '')
+                const mNameRaw = matchKey.replace('name:', '').replace('id:', '') // fallback if key was used
+                const realMName = matchTeamName || mNameRaw
+
+                // Normalized comparison
+                const n1 = tNameRaw.toLowerCase().trim()
+                const n2 = realMName.toLowerCase().trim()
+                return n1 === n2 || (n1.length > 3 && n2.includes(n1)) || (n2.length > 3 && n1.includes(n2))
+              }
+              return false

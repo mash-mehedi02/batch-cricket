@@ -50,71 +50,25 @@ export function calculateWinProbability(input: WinProbabilityInput): WinProbabil
   const maxBalls = oversLimit * 6
   const isChasing = target && target > 0
 
-  // --- LAYER 1: BASE PROBABILITY (50%) ---
+  const wicketsRemaining = 10 - wickets
+  const ballsRemaining = maxBalls - legalBalls
+  const projectedTotal = currentRuns + (ballsRemaining / 6) * (CRR_BENCHMARK * (0.5 + (wicketsRemaining / 20)))
+
+  // --- LAYER 1: BASE PROBABILITY (Unified Linear Model) ---
   let battingWinPercent = 50
 
   if (!isChasing) {
-    // --- FIRST INNINGS LOGIC ---
-    // In first innings, win prob is based on the projected total vs a benchmark
-    const wicketsRemaining = 10 - wickets
-    const ballsRemaining = maxBalls - legalBalls
-
-    // Simple but effective: Projected total = current + (balls/6 * 8.0 * wicketFactor)
-    const projectedTotal = currentRuns + (ballsRemaining / 6) * (CRR_BENCHMARK * (0.5 + (wicketsRemaining / 20)))
-
-    // Benchmark for a "good" total in school/amateur cricket seems to be high
+    // --- FIRST INNINGS ---
     const benchmarkTotal = oversLimit * 8.5
-
     battingWinPercent = 50 + (projectedTotal - benchmarkTotal) / 2
-    battingWinPercent = Math.max(10, Math.min(90, battingWinPercent))
   } else {
-    // --- SECOND INNINGS LOGIC (THE BRAIN) ---
-    const R = Math.max(0, target - currentRuns)
-    const B = Math.max(0, maxBalls - legalBalls)
-    const W = Math.max(0, 10 - wickets)
+    // --- SECOND INNINGS ---
+    // Target is our benchmark now. We use a slightly steeper factor (1.5) for chases.
+    battingWinPercent = 50 + (projectedTotal - target) / 1.5
 
-    // 1. Immediate results
-    if (R <= 0) battingWinPercent = 100
-    else if (B <= 0 || W <= 0) battingWinPercent = 0
-    else {
-      // 2. Resource-based Expected Score
-      // CRR provides a hint of the team's momentum
-      const CRR = legalBalls > 0 ? (currentRuns / legalBalls) * 6 : 8.0
-
-      // Expected Rate (How fast they are likely to go from here)
-      // It's a blend of their current form (CRR) and their resources (Wickets)
-      const resourceFactor = (W / 10) // 0.1 to 1.0
-      const likelyRPO = (CRR * 0.6) + (CRR_BENCHMARK * 0.4) + (resourceFactor - 0.5) * 4
-
-      const expectedRuns = (B / 6) * likelyRPO
-      const margin = expectedRuns - R
-
-      // 3. Logistic Curve for Winning Probability
-      // k (sensitivity) increases as match balls decrease
-      const k = 0.1 + (0.7 * (maxBalls - B) / maxBalls)
-
-      battingWinPercent = (1 / (1 + Math.exp(-k * margin))) * 100
-
-      // 4. Specialized Protection for ultra-low requirements
-      if (R <= B && W >= 3) {
-        const ratio = R / B // e.g. 2/4 = 0.5
-        if (ratio < 0.8) {
-          // If they need less than 0.8 runs per ball, they are very likely to win
-          const boost = (0.8 - ratio) * 100 // (0.8 - 0.5) * 100 = 30
-          battingWinPercent = Math.max(battingWinPercent, 60 + boost) // 60 + 30 = 90%
-        }
-      }
-
-      // Secondary absolute protection: 2 needed in 4 balls is basically a win
-      if (R <= 3 && B >= 4 && W >= 5) {
-        battingWinPercent = Math.max(battingWinPercent, 95)
-      }
-
-      // 5. Hard Clamp for impossible miracle zones
-      const RRR = (R / (B / 6))
-      if (RRR > 24 && B < 12) battingWinPercent = Math.min(battingWinPercent, 2)
-      if (RRR > 36) battingWinPercent = 0.1
-    }
+    // Check for win/loss conditions
+    if (currentRuns >= target) battingWinPercent = 100
+    else if (ballsRemaining <= 0 || wickets >= 10) battingWinPercent = 0
   }
 
   // --- LAYER 3: BALL IMPACT ADJUSTMENT ---

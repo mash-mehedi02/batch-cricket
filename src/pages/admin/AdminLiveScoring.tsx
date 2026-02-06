@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
+import { db, functions } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { matchService } from '@/services/firestore/matches';
 import { playerService } from '@/services/firestore/players';
 import { addBall, BallUpdateResult } from '@/services/matchEngine/ballUpdateService';
@@ -54,6 +55,8 @@ const AdminLiveScoring = () => {
     const [extras, setExtras] = useState({ wide: false, noBall: false, bye: false, legBye: false, penalty: false });
     const [wicketModalOpen, setWicketModalOpen] = useState(false);
     const [nextBatterModalOpen, setNextBatterModalOpen] = useState(false);
+    const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
+    const [sendMailChecked, setSendMailChecked] = useState(false);
 
     // Wicket Modal State
     const [wicketType, setWicketType] = useState('caught');
@@ -246,8 +249,17 @@ const AdminLiveScoring = () => {
 
         setProcessing(true);
         try {
-            const inningKv = match.currentBatting;
-            const balls = await matchService.getBalls(matchId, inningKv);
+            let inningKv = match.currentBatting;
+            let balls = await matchService.getBalls(matchId, inningKv);
+
+            // If current innings has no balls, try to undo from the previous innings
+            if (balls.length === 0) {
+                if (inningKv === 'teamB') {
+                    inningKv = 'teamA';
+                    balls = await matchService.getBalls(matchId, inningKv);
+                }
+            }
+
             if (balls.length === 0) {
                 toast.error("No balls to undo");
                 return;
@@ -307,21 +319,43 @@ const AdminLiveScoring = () => {
             // 3. Recalculate stats (SINGLE SOURCE OF TRUTH)
             await recalculateInnings(matchId, inningKv, { useTransaction: false });
 
-            // 3. Revert match state IDs
+            // 4. Determine Match Document Reversion
             const updates: any = {
+                currentBatting: inningKv,
                 currentStrikerId: nextStriker,
                 currentNonStrikerId: nextNonStriker,
-                currentBowlerId: nextBowler
+                currentBowlerId: nextBowler,
+                updatedAt: Timestamp.now()
             };
 
-            // IF match was finished or in break, bring it back to LIVE
             const statusLower = String(match.status || '').toLowerCase();
-            if (statusLower === 'finished' || statusLower === 'inningsbreak') {
+            const phaseLower = String(match.matchPhase || '').toLowerCase();
+
+            // IF match was finished or in break, bring it back to LIVE
+            if (statusLower === 'finished' || statusLower === 'inningsbreak' || phaseLower === 'finished' || phaseLower === 'inningsbreak') {
                 updates.status = 'live';
-                updates.matchPhase = match.currentBatting === 'teamA' ? 'FirstInnings' : 'SecondInnings';
+
+                // Determine phase based on current batting
+                const isTeamA = match.currentBatting === 'teamA';
+                updates.matchPhase = isTeamA ? 'FirstInnings' : 'SecondInnings';
+
+                // Clear all result fields to prevent stale winner info in points table/ui
+                updates.winnerId = null;
+                updates.resultSummary = null;
+                updates.winner = null;
+                updates.matchResult = null;
+                updates.matchResultText = null;
+
+                // Sync Player stats - If the match was finished, we must remove it from player histories
+                if (statusLower === 'finished' || phaseLower === 'finished') {
+                    console.log("[AdminLiveScoring] Match was finished. Reverting player stats...");
+                    await matchService.removeMatchStatsFromPlayers(matchId).catch(err => {
+                        console.error("Failed to remove match stats from players:", err);
+                    });
+                }
 
                 // If it was InningsBreak, we also need to clear those summary fields
-                if (statusLower === 'inningsbreak') {
+                if (statusLower === 'inningsbreak' || phaseLower === 'inningsbreak') {
                     updates.innings1Score = 0;
                     updates.innings1Wickets = 0;
                     updates.innings1Overs = '0.0';
@@ -329,14 +363,13 @@ const AdminLiveScoring = () => {
                 }
             }
 
-            // Clear lastOverBowlerId if we are returning to the same over
             if (isLastBallOfOver) {
                 updates.lastOverBowlerId = '';
             }
 
             await matchService.update(matchId, updates);
 
-            toast.success("Last ball undone and match reverted to Live");
+            toast.success("Last ball undone and match restored to Live");
         } catch (err) {
             console.error("Undo failed:", err);
             toast.error("Failed to undo");
@@ -554,6 +587,22 @@ const AdminLiveScoring = () => {
         } catch (err) {
             console.error(err);
             toast.error("Failed to add commentary");
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleFinalizeConfirm = async () => {
+        setProcessing(true);
+        try {
+            const finalizeFn = httpsCallable(functions, 'finalizeMatch');
+            await finalizeFn({ matchId, sendMail: sendMailChecked });
+
+            toast.success("Match Finalized!");
+            setFinalizeModalOpen(false);
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Failed to finalize: " + error.message);
         } finally {
             setProcessing(false);
         }
@@ -777,9 +826,7 @@ const AdminLiveScoring = () => {
                                     Start 2nd Innings
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        if (confirm("Finalize Match?")) matchService.update(matchId!, { status: 'finished', matchPhase: 'finished' });
-                                    }}
+                                    onClick={() => setFinalizeModalOpen(true)}
                                     className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
                                 >
                                     Finalize Match
@@ -984,9 +1031,7 @@ const AdminLiveScoring = () => {
                         <RotateCcw size={16} /> Undo Ball
                     </button>
                     <button
-                        onClick={() => {
-                            if (confirm("Finalize Match?")) matchService.update(matchId!, { status: 'finished', matchPhase: 'finished' });
-                        }}
+                        onClick={() => setFinalizeModalOpen(true)}
                         className="px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm transition-colors ml-auto shadow-lg"
                     >
                         Finalize Match
@@ -1149,6 +1194,47 @@ const AdminLiveScoring = () => {
                             >
                                 Send to Crease
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* FINALIZE MODAL */}
+            {finalizeModalOpen && (
+                <div className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <h2 className="text-2xl font-black text-slate-800 mb-4">Finalize Match?</h2>
+                            <p className="text-slate-600 mb-6">This will end the match permanently and calculate statistics.</p>
+
+                            <label className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    className="mt-1 w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                                    checked={sendMailChecked}
+                                    onChange={(e) => setSendMailChecked(e.target.checked)}
+                                />
+                                <div>
+                                    <span className="font-bold text-slate-800 block">Confirm & Send Mail</span>
+                                    <span className="text-xs text-slate-500 block">Send personalized match reports to all players in Playing XI.</span>
+                                </div>
+                            </label>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => setFinalizeModalOpen(false)}
+                                    className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-700"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleFinalizeConfirm}
+                                    disabled={processing}
+                                    className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 flex justify-center items-center gap-2"
+                                >
+                                    {processing ? <Loader2 className="animate-spin" /> : 'Finalize Match'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -5,12 +5,11 @@
  */
 
 import schoolLogo from '@/assets/school_logo.png'
-import batchLogo from '@/assets/batch-logo.png'
 
 export const schoolConfig = {
   // School Identity
   logo: schoolLogo,
-  batchLogo: batchLogo,
+  batchLogo: '/logo.png',
   name: 'Shalnagor Modern Academy',
   shortName: 'SMA',
 

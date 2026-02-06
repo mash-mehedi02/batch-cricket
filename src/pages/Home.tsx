@@ -9,9 +9,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'
+import { tournamentService } from '@/services/firestore/tournaments'
 import { Match, Squad } from '@/types'
 import MatchCardSkeleton from '@/components/skeletons/MatchCardSkeleton'
 import MatchCard from '@/components/match/MatchCard'
+import { PinnedScoreWidget } from '@/components/match/PinnedScoreWidget'
 import { coerceToDate } from '@/utils/date'
 import schoolConfig from '@/config/school'
 import heroStumps from '@/assets/hero_stumps.png'
@@ -22,6 +24,7 @@ export default function Home() {
   const [finishedMatches, setFinishedMatches] = useState<Match[]>([])
   const [featuredMatches, setFeaturedMatches] = useState<Match[]>([])
   const [squads, setSquads] = useState<Squad[]>([])
+  const [tournamentsMap, setTournamentsMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,6 +40,14 @@ export default function Home() {
 
         // Load all matches
         const allMatches = await matchService.getAll()
+
+        // Load all tournaments
+        const allTournaments = await tournamentService.getAll()
+        const tMap: Record<string, string> = {}
+        allTournaments.forEach(t => {
+          tMap[t.id] = t.name
+        })
+        setTournamentsMap(tMap)
 
         const parseStartTs = (m: any): number => {
           const d0 = coerceToDate(m?.date)
@@ -263,7 +274,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {activeTab === 'featured' && featuredMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
+            {activeTab === 'featured' && featuredMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)}
 
             {activeTab === 'live' && (
               <>
@@ -273,13 +284,13 @@ export default function Home() {
                     <p className="text-slate-900 font-bold uppercase text-xs tracking-widest">No Live Matches</p>
                   </div>
                 ) : (
-                  liveMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)
+                  liveMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)
                 )}
               </>
             )}
 
-            {activeTab === 'upcoming' && upcomingMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
-            {activeTab === 'finished' && finishedMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
+            {activeTab === 'upcoming' && upcomingMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)}
+            {activeTab === 'finished' && finishedMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)}
 
             {!loading && activeTab === 'featured' && featuredMatches.length === 0 && (
               <div className="col-span-full text-center py-12 text-slate-400 text-sm">No matches found</div>
@@ -318,6 +329,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+      <PinnedScoreWidget />
     </div>
   )
 }

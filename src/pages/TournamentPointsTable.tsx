@@ -131,15 +131,14 @@ export default function TournamentPointsTable({
         setLoading(false)
       }
     }
-    const cleanup = run()
+    run()
     return () => { }
   }, [tournamentId, matchesProp, inningsMapProp])
 
-  const { groups, groupBySquadId, standingsByGroup, confirmedQualifiedIds } = useMemo(() => {
+  const { groups, standingsByGroup, confirmedQualifiedIds } = useMemo(() => {
     // Basic point rules
     const WIN = 2
     const TIE = 1
-    const NR = 1
 
     const getQualificationThreshold = (tournament: any, groupId: string) => {
       const g = (tournament as any)?.groups?.find((g: any) => g.id === groupId)
@@ -178,6 +177,9 @@ export default function TournamentPointsTable({
 
         const results: MatchResult[] = []
         matches.forEach((m: any) => {
+          const status = String(m.status || '').toLowerCase()
+          if (status !== 'finished' && status !== 'completed') return
+
           const inn = inningsMap.get(m.id)
           if (!inn?.teamA || !inn?.teamB) return
           const aId = normalizeSquadRef(resolveSquadId(m, 'A'))
@@ -310,9 +312,12 @@ export default function TournamentPointsTable({
       }
 
       const rows = new Map<string, Row>()
-      effectiveGroups.forEach((g) => (g.squadIds || []).forEach((sid) => rows.set(sid, initRow(sid))))
+      effectiveGroups.forEach((g: any) => (g.squadIds || []).forEach((sid: string) => rows.set(sid, initRow(sid))))
 
-      matches.forEach((m) => {
+      matches.forEach((m: any) => {
+        const status = String(m.status || '').toLowerCase()
+        if (status !== 'finished' && status !== 'completed') return
+
         const inn = inningsMap.get(m.id)
         if (!inn?.teamA || !inn?.teamB) return
         const aId = normalizeSquadRef(resolveSquadId(m as any, 'A'))
@@ -375,7 +380,6 @@ export default function TournamentPointsTable({
 
     return {
       groups: finalGroups,
-      groupBySquadId: squadToGroupMap,
       standingsByGroup: standingsData,
       confirmedQualifiedIds: Array.from(confirmedQualifiedIds),
     }
@@ -470,7 +474,7 @@ export default function TournamentPointsTable({
                     <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Live Standings</div>
                   </div>
                 )}
-                <div className="overflow-x-auto no-scrollbar">
+                <div className="no-scrollbar">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-white/5">
@@ -478,7 +482,6 @@ export default function TournamentPointsTable({
                         <th className="text-center py-4 px-2">P</th>
                         <th className="text-center py-4 px-2">W</th>
                         <th className="text-center py-4 px-2">L</th>
-                        <th className="text-center py-4 px-2">NR</th>
                         <th className="text-center py-4 px-4">NRR</th>
                         <th className="text-center py-4 px-4">Pts</th>
                       </tr>
@@ -493,7 +496,7 @@ export default function TournamentPointsTable({
                             key={r.squadId}
                             className={`transition-colors duration-300 ${isInQualZone ? 'bg-amber-50/30 dark:bg-amber-500/5 shadow-inner' : 'hover:bg-slate-50 dark:hover:bg-white/5'}`}
                           >
-                            <td className="py-4 px-6 min-w-[180px]">
+                            <td className="py-4 px-6 min-w-[140px] max-w-[180px]">
                               <div className="flex items-center gap-3">
                                 <div className="relative">
                                   {isConfirmed && (
@@ -513,7 +516,6 @@ export default function TournamentPointsTable({
                             <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.played}</td>
                             <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.won}</td>
                             <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.lost}</td>
-                            <td className="py-4 px-2 text-center tabular-nums text-slate-600 dark:text-slate-400 font-bold">{r.noResult || 0}</td>
                             <td className="py-4 px-4 text-center tabular-nums font-bold text-slate-400 dark:text-slate-500">{(r.nrr >= 0 ? '+' : '') + r.nrr.toFixed(3)}</td>
                             <td className="py-4 px-4 text-center tabular-nums text-sm font-black text-amber-600 dark:text-amber-500">{r.points}</td>
                           </tr>

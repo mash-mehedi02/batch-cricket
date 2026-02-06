@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Live Match Page
  * Screenshot-based design with tabs, dark blue header, tables
  */
@@ -26,8 +26,9 @@ import MatchPlayingXI from '@/pages/MatchPlayingXI'
 import MatchGraphs from '@/pages/MatchGraphs'
 import MatchInfo from '@/pages/MatchInfo'
 import MatchSummary from '@/components/match/MatchSummary'
+import { MatchSettingsSheet } from '@/components/match/MatchSettingsSheet'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
-import { MapPin, Info, Users, Hash, ChevronDown } from 'lucide-react'
+import { MapPin, Info, Users, Hash, ChevronDown, Pin, PinOff } from 'lucide-react'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 export default function MatchLive() {
@@ -57,6 +58,32 @@ export default function MatchLive() {
   const [animationEvent, setAnimationEvent] = useState<string>('')
   const [showAnimation, setShowAnimation] = useState<boolean>(false)
   const [expandedTeamIdx, setExpandedTeamIdx] = useState<number | null>(null)
+  const [isPinned, setIsPinned] = useState(false)
+
+  useEffect(() => {
+    const pinnedId = localStorage.getItem('pinnedMatchId')
+    setIsPinned(pinnedId === matchId)
+  }, [matchId])
+
+  const togglePin = () => {
+    if (isPinned) {
+      localStorage.removeItem('pinnedMatchId')
+      setIsPinned(false)
+    } else {
+      localStorage.setItem('pinnedMatchId', matchId || '')
+      localStorage.setItem('pinnedMatchTitle', `${teamAName} vs ${teamBName}`)
+      setIsPinned(true)
+    }
+    window.dispatchEvent(new Event('matchPinned'))
+  }
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  // Provide global function for child components (MatchSummary) to open settings
+  useEffect(() => {
+    (window as any).openMatchSettings = () => setIsSettingsOpen(true)
+    return () => { delete (window as any).openMatchSettings }
+  }, [])
 
   // --- Match status and derived data (Must be declared before hooks) ---
   const statusLower = String(match?.status || '').toLowerCase()
@@ -167,7 +194,7 @@ export default function MatchLive() {
   // Subscribe to Commentary
   useEffect(() => {
     if (!matchId) return
-    console.log('[MatchLive] Subscribing to commentary for match:', matchId)
+
     const unsub = subscribeToCommentary(matchId, (data) => {
       setCommentary(data)
     })
@@ -739,19 +766,30 @@ export default function MatchLive() {
     return teamKeyFor(resolveMatchSideRef(match as any, 'B'), teamBName)
   }, [match, teamBName])
 
-  // Load recent matches for Team Form + Head-to-Head (upcoming only)
+  // Load recent matches for Team Form + Head-to-Head
   useEffect(() => {
     const run = async () => {
       if (!match) return
       if (!currentKeyA || !currentKeyB) return
       setRelatedLoading(true)
       try {
-        try {
-          const tid = String((match as any).tournamentId || '').trim()
+        const tid = String((match as any).tournamentId || '').trim()
 
-          // Defer this heavy operation to avoid blocking UI interaction
-          setTimeout(async () => {
-            const ms = tid ? await matchService.getByTournament(tid) : await matchService.getAll()
+        // Defer this heavy operation to avoid blocking UI interaction
+        setTimeout(async () => {
+          try {
+            let ms = tid ? await matchService.getByTournament(tid) : await matchService.getAll()
+
+            // Fallback: If tournament specific fetch yields very few matches, try fetching all matches
+            // This ensures we find cross-tournament history if available
+            if (ms.length < 5 && tid) {
+              const allMs = await matchService.getAll()
+              // Deduplicate just in case
+              const existingIds = new Set(ms.map(m => m.id))
+              const newMatches = allMs.filter(m => !existingIds.has(m.id))
+              ms = [...ms, ...newMatches]
+            }
+
             const others = ms.filter((m) => m.id !== match.id)
 
             const withKeys = others.map((m: any) => {
@@ -759,14 +797,66 @@ export default function MatchLive() {
               const bName = String(m.teamBName || m.teamB || m.teamBId || '').trim()
               const aKey = teamKeyFor(resolveMatchSideRef(m, 'A'), aName)
               const bKey = teamKeyFor(resolveMatchSideRef(m, 'B'), bName)
+
+              // DEBUG: Log if this match involves Team B but key doesn't match
+              if (bName.includes('Elite') || bName.includes('Eagle')) {
+                // console.log(`[MatchLive] DEBUG MATCH ${m.id} vs Team B KEY:`, { bName, bKey, currentKeyB, match: bKey === currentKeyB })
+              }
+
               return { m, aKey, bKey }
             }).filter((x) => x.aKey && x.bKey)
 
-            const involves = (x: any, key: string) => x.aKey === key || x.bKey === key
+
+
+            // Robust matching function taking key AND name into account
+            const normalizeTeamName = (name: string): string => {
+              return name.toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*-\s*/g, '-')
+            }
+
+            const isSameTeam = (matchKey: string, matchTeamName: string, targetKey: string) => {
+              if (matchKey === targetKey) return true
+
+              // Fallback: If keys don't match (e.g. one is ID, one is Name), try name matching
+              // Only do this if one of them is a 'name:' key or purely fallback
+              if (targetKey.startsWith('name:') || matchKey.startsWith('name:')) {
+                const tNameRaw = targetKey.replace('name:', '').replace('id:', '')
+                const mNameRaw = matchKey.replace('name:', '').replace('id:', '') // fallback if key was used
+                const realMName = matchTeamName || mNameRaw
+
+                // Normalized comparison with better normalization
+                const n1 = normalizeTeamName(tNameRaw)
+                const n2 = normalizeTeamName(realMName)
+
+                // Exact match
+                if (n1 === n2) return true
+
+                // Partial match for longer names
+                if (n1.length > 3 && n2.includes(n1)) return true
+                if (n2.length > 3 && n1.includes(n2)) return true
+
+                // Try matching without numbers/suffixes
+                const n1Base = n1.replace(/\s*-\s*\d+$/, '').replace(/\d+$/, '').trim()
+                const n2Base = n2.replace(/\s*-\s*\d+$/, '').replace(/\d+$/, '').trim()
+                if (n1Base.length > 3 && n2Base.length > 3 && (n1Base === n2Base || n1Base.includes(n2Base) || n2Base.includes(n1Base))) {
+                  return true
+                }
+              }
+              return false
+            }
+
+            const involves = (x: any, targetKey: string) => {
+              // Extract names from match object x.m
+              const aName = String(x.m.teamAName || x.m.teamA || '').trim()
+              const bName = String(x.m.teamBName || x.m.teamB || '').trim()
+
+              return isSameTeam(x.aKey, aName, targetKey) || isSameTeam(x.bKey, bName, targetKey)
+            }
 
             const teamAMs = withKeys.filter((x) => involves(x, currentKeyA))
             const teamBMs = withKeys.filter((x) => involves(x, currentKeyB))
             const h2hMs = withKeys.filter((x) => involves(x, currentKeyA) && involves(x, currentKeyB))
+
+
 
             // Sort by match date desc
             const tsOf = (m: any) => {
@@ -791,19 +881,18 @@ export default function MatchLive() {
             // OPTIMIZATION: Dropped the heavy innings fetch. 
             // Logic in downstream components should rely on match.score for results.
             setRelatedLoading(false)
-          }, 1500) // Delay by 1.5s to prioritize main content load
-        } catch (e) {
-          console.warn('[MatchLive] Failed to load related matches:', e)
-          setRelatedLoading(false)
-        }
-        setRelatedMatches([])
-        setRelatedInningsMap(new Map())
-      } finally {
+          } catch (e) {
+            console.warn('[MatchLive] Failed to load related matches:', e)
+            setRelatedLoading(false)
+          }
+        }, 1500) // Delay by 1.5s to prioritize main content load
+      } catch (e) {
+        console.warn('[MatchLive] Failed to initialize related matches:', e)
         setRelatedLoading(false)
       }
     }
     run()
-  }, [match?.id, (match as any)?.tournamentId, currentKeyA, currentKeyB, isUpcomingMatch])
+  }, [match?.id, (match as any)?.tournamentId, currentKeyA, currentKeyB])
 
   const teamFormAndH2H = useMemo(() => {
     try {
@@ -830,12 +919,62 @@ export default function MatchLive() {
       }
 
       const related = relatedMatches.slice().sort((a: any, b: any) => tsOf(b) - tsOf(a))
+      // Filter only completed/finished matches
+      const completedMatches = related.filter((m: any) => {
+        const status = String(m.status || '').toLowerCase()
+        const isFinishedStatus = status === 'finished' || status === 'completed' || status === 'result' || status === 'abandoned'
+
+        // Also check if match has scores and a result, even if status tag is missing
+        const hasScores = (m.score?.teamA?.runs !== undefined && m.score?.teamB?.runs !== undefined) ||
+          (relatedInningsMap.get(m.id)?.teamA && relatedInningsMap.get(m.id)?.teamB)
+        const hasWinner = Boolean(m.winner || m.winningTeam || m.winnerId || m.resultSummary)
+
+        return isFinishedStatus || (hasScores && hasWinner)
+      })
+
+
 
       const resultBadge = (m: any, teamKey: string): 'W' | 'L' | 'T' | '*' => {
+        // USE match.score if available (Optimized)
+        const sA = m.score?.teamA
+        const sB = m.score?.teamB
+        // Fallback to relatedInningsMap if no score
         const inn = relatedInningsMap.get(m.id)
-        if (!inn?.teamA || !inn?.teamB) return '*'
-        const aRuns = Number(inn.teamA.totalRuns || 0)
-        const bRuns = Number(inn.teamB.totalRuns || 0)
+
+        let aRuns = 0, bRuns = 0, hasData = false
+
+        if (sA && sB) {
+          aRuns = Number(sA.runs || 0)
+          bRuns = Number(sB.runs || 0)
+          hasData = true
+        } else if (inn?.teamA && inn?.teamB) {
+          aRuns = Number(inn.teamA.totalRuns || 0)
+          bRuns = Number(inn.teamB.totalRuns || 0)
+          hasData = true
+        }
+
+        // Try to determine result from winner fields if scores missing
+        if (!hasData) {
+          const winnerId = String(m.winnerId || m.winningTeam || '').trim()
+          const winnerName = String(m.winner || m.winnerName || '').trim().toLowerCase()
+          const resultSummary = String(m.resultSummary || '').toLowerCase()
+
+          // If we have a winner ID, check against team key
+          if (winnerId) {
+            // Check if current team matches the winner ID
+            if (teamKey.includes(winnerId)) return 'W'
+            // If it doesn't match winner ID, it's a Loss (unless tie/abandoned)
+            if (resultSummary.includes('tie') || resultSummary.includes('draw') || resultSummary.includes('abandoned')) return 'T'
+            return 'L'
+          }
+
+          // Tie/No Result checks
+          if (resultSummary.includes('tie') || resultSummary.includes('draw')) return 'T'
+          if (resultSummary.includes('abandoned') || resultSummary.includes('no result')) return 'T' // Treat NR as neutral/tie badge
+
+          return '*'
+        }
+
         if (aRuns === bRuns) return 'T'
         const aKey = keyForMatchSide(m, 'A')
         const bKey = keyForMatchSide(m, 'B')
@@ -843,10 +982,19 @@ export default function MatchLive() {
         const teamIsB = bKey === teamKey
         if (!teamIsA && !teamIsB) return '*'
         const teamWon = (aRuns > bRuns && teamIsA) || (bRuns > aRuns && teamIsB)
-        return teamWon ? 'W' : 'L'
+        const badge = teamWon ? 'W' : 'L'
+        return badge
       }
 
       const getScoreText = (m: any, side: 'A' | 'B') => {
+        const s = side === 'A' ? m.score?.teamA : m.score?.teamB
+        if (s) {
+          const r = Number(s.runs || 0)
+          const w = Number(s.wickets || 0)
+          const o = String(s.overs || '').trim()
+          return `${r}/${w}${o ? `  ${o}` : ''}`
+        }
+
         const inn = relatedInningsMap.get(m.id)
         const data = side === 'A' ? inn?.teamA : inn?.teamB
         if (!data) return '—'
@@ -856,30 +1004,46 @@ export default function MatchLive() {
         return `${r}/${w}${o ? `  ${o}` : ''}`
       }
 
-      const teamAForm = related.filter((m: any) => {
+      const teamAForm = completedMatches.filter((m: any) => {
         const aKey = keyForMatchSide(m, 'A')
         const bKey = keyForMatchSide(m, 'B')
         return aKey === currentKeyA || bKey === currentKeyA
       }).slice(0, 5)
-      const teamBForm = related.filter((m: any) => {
+      const teamBForm = completedMatches.filter((m: any) => {
         const aKey = keyForMatchSide(m, 'A')
         const bKey = keyForMatchSide(m, 'B')
         return aKey === currentKeyB || bKey === currentKeyB
       }).slice(0, 5)
 
-      const h2h = related.filter((m: any) => {
+      const h2h = completedMatches.filter((m: any) => {
         const aKey = keyForMatchSide(m, 'A')
         const bKey = keyForMatchSide(m, 'B')
         return (aKey === currentKeyA || bKey === currentKeyA) && (aKey === currentKeyB || bKey === currentKeyB)
       }).slice(0, 10)
 
+
+
       let winsA = 0
       let winsB = 0
       h2h.forEach((m: any) => {
-        const inn = relatedInningsMap.get(m.id)
-        if (!inn?.teamA || !inn?.teamB) return
-        const aRuns = Number(inn.teamA.totalRuns || 0)
-        const bRuns = Number(inn.teamB.totalRuns || 0)
+        let aRuns = 0
+        let bRuns = 0
+        let hasData = false
+
+        if (m.score?.teamA && m.score?.teamB) {
+          aRuns = Number(m.score.teamA.runs || 0)
+          bRuns = Number(m.score.teamB.runs || 0)
+          hasData = true
+        } else {
+          const inn = relatedInningsMap.get(m.id)
+          if (inn?.teamA && inn?.teamB) {
+            aRuns = Number(inn.teamA.totalRuns || 0)
+            bRuns = Number(inn.teamB.totalRuns || 0)
+            hasData = true
+          }
+        }
+
+        if (!hasData) return
         if (aRuns === bRuns) return
         const aKey = keyForMatchSide(m, 'A')
         const bKey = keyForMatchSide(m, 'B')
@@ -894,14 +1058,29 @@ export default function MatchLive() {
         const badge = resultBadge(m, currentTeamKey)
         const scoreA = getScoreText(m, 'A')
         const scoreB = getScoreText(m, 'B')
-        const inn = relatedInningsMap.get(m.id)
+
         let winnerText = '—'
-        if (inn?.teamA && inn?.teamB) {
-          const aRuns = Number(inn.teamA.totalRuns || 0)
-          const bRuns = Number(inn.teamB.totalRuns || 0)
+        let hasData = false
+        let aRuns = 0, bRuns = 0
+
+        if (m.score?.teamA && m.score?.teamB) {
+          aRuns = Number(m.score.teamA.runs || 0)
+          bRuns = Number(m.score.teamB.runs || 0)
+          hasData = true
+        } else {
+          const inn = relatedInningsMap.get(m.id)
+          if (inn?.teamA && inn?.teamB) {
+            aRuns = Number(inn.teamA.totalRuns || 0)
+            bRuns = Number(inn.teamB.totalRuns || 0)
+            hasData = true
+          }
+        }
+
+        if (hasData) {
           if (aRuns === bRuns) winnerText = 'Tied'
           else winnerText = (aRuns > bRuns ? aName : bName) + ' won'
         }
+
         const d = coerceToDate(m?.date)
         const dt = d ? formatDateLabelTZ(d) : ''
         return {
@@ -916,9 +1095,14 @@ export default function MatchLive() {
         }
       }
 
+      const teamAFormMapped = teamAForm.map((m: any) => mapFormItem(m, currentKeyA))
+      const teamBFormMapped = teamBForm.map((m: any) => mapFormItem(m, currentKeyB))
+
+
+
       return {
-        teamAForm: teamAForm.map((m: any) => mapFormItem(m, currentKeyA)),
-        teamBForm: teamBForm.map((m: any) => mapFormItem(m, currentKeyB)),
+        teamAForm: teamAFormMapped,
+        teamBForm: teamBFormMapped,
         h2hSummary: { winsA, winsB, total: h2h.length },
         h2hRows: h2h.map((m: any) => {
           const aKey = keyForMatchSide(m, 'A')
@@ -926,14 +1110,29 @@ export default function MatchLive() {
           const bName = getMatchDisplayTeam(m, 'B')
           const aScore = getScoreText(m, 'A')
           const bScore = getScoreText(m, 'B')
-          const inn = relatedInningsMap.get(m.id)
+
           let winnerText = '—'
-          if (inn?.teamA && inn?.teamB) {
-            const aRuns = Number(inn.teamA.totalRuns || 0)
-            const bRuns = Number(inn.teamB.totalRuns || 0)
+          let hasData = false
+          let aRuns = 0, bRuns = 0
+
+          if (m.score?.teamA && m.score?.teamB) {
+            aRuns = Number(m.score.teamA.runs || 0)
+            bRuns = Number(m.score.teamB.runs || 0)
+            hasData = true
+          } else {
+            const inn = relatedInningsMap.get(m.id)
+            if (inn?.teamA && inn?.teamB) {
+              aRuns = Number(inn.teamA.totalRuns || 0)
+              bRuns = Number(inn.teamB.totalRuns || 0)
+              hasData = true
+            }
+          }
+
+          if (hasData) {
             if (aRuns === bRuns) winnerText = 'Tied'
             else winnerText = (aRuns > bRuns ? aName : bName) + ' Won'
           }
+
           const d = coerceToDate(m?.date)
           const dt = d ? `${formatDateLabelTZ(d)}${String((m as any).time || '').trim() ? ` • ${formatTimeHMTo12h(String((m as any).time || '').trim())}` : ''}` : ''
           const leftIsA = aKey === currentKeyA
@@ -1210,174 +1409,6 @@ export default function MatchLive() {
 
             {/* Right Column: Stats & Data Info */}
             <div className="space-y-8 sm:space-y-12">
-              {/* Team Form Section */}
-              <div className="space-y-4">
-                <h3 className="text-[14px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-wide px-1">
-                  Team form <span className="text-[11px] font-bold text-slate-400 normal-case">(Last 5 matches)</span>
-                </h3>
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
-                  {[
-                    { name: teamAName, form: teamFormAndH2H.teamAForm, logo: teamASquad?.logoUrl },
-                    { name: teamBName, form: teamFormAndH2H.teamBForm, logo: teamBSquad?.logoUrl },
-                  ].map((row, idx) => {
-                    const isExpanded = expandedTeamIdx === idx
-                    return (
-                      <div key={idx} className="group">
-                        <div
-                          onClick={() => setExpandedTeamIdx(isExpanded ? null : idx)}
-                          className="flex items-center justify-between gap-4 p-5 hover:bg-slate-50/80 transition-all cursor-pointer"
-                        >
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center p-2 overflow-hidden shrink-0 shadow-inner">
-                              {row.logo ? <img src={row.logo} className="w-full h-full object-contain" alt="" /> : <span className="text-xl font-black text-slate-200">{row.name[0]}</span>}
-                            </div>
-                            <span className="text-sm font-black text-slate-800 uppercase truncate tracking-tight">{row.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-                              {(row.form.length ? row.form : Array.from({ length: 5 }).map((_, i) => ({ id: String(i), badge: '*' as const }))).slice(0, 5).map((f: any, i) => (
-                                <div
-                                  key={i}
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[11px] shadow-sm transition-transform active:scale-95 ${f.badge === 'W' ? 'bg-[#10b981] text-white' :
-                                    f.badge === 'L' ? 'bg-[#f43f5e] text-white' :
-                                      'bg-slate-100 text-slate-400 border border-slate-200/50'
-                                    }`}
-                                >
-                                  {f.badge === '*' ? '—' : f.badge}
-                                </div>
-                              ))}
-                            </div>
-                            <div className={`w-8 h-8 flex items-center justify-center text-slate-300 ml-1 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-500' : 'group-hover:text-slate-400'}`}>
-                              <ChevronDown size={18} />
-                            </div>
-                          </div>
-                        </div>
-
-                        <AnimatePresence>
-                          {isExpanded && row.form.filter((f: any) => f.badge !== '*').length > 0 && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden bg-slate-50/50"
-                            >
-                              <div className="p-4 space-y-3">
-                                {row.form.filter((f: any) => f.badge !== '*').map((f: any) => (
-                                  <div key={f.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:border-blue-100 transition-colors">
-                                    <div className="bg-slate-50/80 px-4 py-2 flex items-center justify-between border-b border-slate-100">
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{f.dt}</span>
-                                      <span className="text-[10px] font-black text-blue-500/40 tracking-tighter italic">MATCH SUMMARY</span>
-                                    </div>
-                                    <div className="p-4 flex items-center justify-between gap-6">
-                                      <div className="flex-1 space-y-3">
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 font-black text-[10px] text-slate-300">{f.teamAName[0]}</div>
-                                            <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{f.teamAName}</span>
-                                          </div>
-                                          <span className="text-xs font-black text-slate-900 tabular-nums">{f.scoreA}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                          <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 font-black text-[10px] text-slate-300">{f.teamBName[0]}</div>
-                                            <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{f.teamBName}</span>
-                                          </div>
-                                          <span className="text-xs font-black text-slate-900 tabular-nums">{f.scoreB}</span>
-                                        </div>
-                                      </div>
-                                      <div className="w-px h-12 bg-slate-100"></div>
-                                      <div className="min-w-[120px] text-right">
-                                        <div className={`text-[12px] font-black leading-tight mb-1 ${f.badge === 'W' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                          {f.winnerText}
-                                        </div>
-                                        <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Completed</div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="text-[11px] font-bold text-slate-400 italic pl-1 flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                  Asterisk (*) marks upcoming scheduled matches
-                </div>
-              </div>
-
-              {/* Head to Head Section */}
-              <div className="space-y-6 pt-4">
-                <div className="flex items-center justify-between px-1">
-                  <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-wide">
-                    Head to Head <span className="text-[11px] font-bold text-slate-400 normal-case">(Last 10 matches)</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('scorecard')} className="text-[12px] font-black text-blue-600 hover:text-blue-700 transition-colors uppercase tracking-widest">History</button>
-                </div>
-
-                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 flex flex-col items-center">
-                  <div className="flex items-center justify-center gap-10 sm:gap-20 w-full mb-8">
-                    <div className="text-center group flex-1">
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden mx-auto shadow-inner p-4 group-hover:scale-105 transition-transform">
-                        {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" alt="" /> : <span className="text-4xl font-black text-slate-100">{teamAName[0]}</span>}
-                      </div>
-                      <div className="mt-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{teamAName}</div>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-2 px-6">
-                      <div className="flex items-center gap-6 tabular-nums text-slate-900">
-                        <span className="text-5xl sm:text-7xl font-black drop-shadow-sm">{teamFormAndH2H.h2hSummary.winsA}</span>
-                        <span className="text-slate-200 text-3xl font-light">|</span>
-                        <span className="text-5xl sm:text-7xl font-black drop-shadow-sm">{teamFormAndH2H.h2hSummary.winsB}</span>
-                      </div>
-                      <div className="px-4 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black uppercase tracking-widest">Winning Ratio</div>
-                    </div>
-
-                    <div className="text-center group flex-1">
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden mx-auto shadow-inner p-4 group-hover:scale-105 transition-transform">
-                        {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" alt="" /> : <span className="text-4xl font-black text-slate-100">{teamBName[0]}</span>}
-                      </div>
-                      <div className="mt-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{teamBName}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                    {teamFormAndH2H.h2hRows.slice(0, 4).map((r: any) => (
-                      <div key={r.id} className="bg-slate-50/50 border border-slate-100 rounded-2xl overflow-hidden hover:bg-white hover:border-blue-100 transition-all group">
-                        <div className="px-4 py-2 border-b border-white/50 flex items-center justify-between">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{r.dt}</span>
-                          <div className="flex gap-1">
-                            <div className="w-1 h-1 rounded-full bg-blue-400/30"></div>
-                            <div className="w-1 h-1 rounded-full bg-blue-400/30"></div>
-                          </div>
-                        </div>
-                        <div className="p-4 flex items-center justify-between">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight truncate max-w-[100px]">{r.leftName}</span>
-                              <span className="text-[11px] font-black text-slate-900 tabular-nums">{r.leftScore}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight truncate max-w-[100px]">{r.rightName}</span>
-                              <span className="text-[11px] font-black text-slate-900 tabular-nums">{r.rightScore}</span>
-                            </div>
-                          </div>
-                          <div className="w-px h-8 bg-slate-200 mx-4"></div>
-                          <div className="text-right min-w-[70px]">
-                            <div className={`text-[10px] font-black uppercase tracking-tighter ${r.winnerText.includes('Tied') ? 'text-slate-500' : 'text-blue-600'}`}>
-                              {r.winnerText.replace(' Won', '')}
-                            </div>
-                            <div className="text-[8px] font-bold text-slate-300 uppercase">Winner</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
               {/* Points Table Context */}
               {hasGroup && match?.tournamentId && (
@@ -1543,20 +1574,31 @@ export default function MatchLive() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#050B18]">
       {/* 1. Page Header (Sticky) */}
       <PageHeader
         title={isUpcomingMatch ? `${firstName} vs ${secondName}` : `${teamAName} vs ${teamBName}`}
         subtitle={isUpcomingMatch ? "Upcoming Match" : `${match.matchNo || 'Match'} • ${tournament?.name || 'Tournament'}`}
         rightContent={
           matchId && (
-            <NotificationBell
-              matchId={matchId}
-              adminId={match?.adminId || ''}
-              matchTitle={`${teamAName} vs ${teamBName}`}
-              tournamentId={match?.tournamentId}
-              color="text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
-            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={togglePin}
+                className={`p-2 rounded-full transition-all ${isPinned
+                  ? 'text-amber-500'
+                  : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+              >
+                {isPinned ? <Pin size={20} fill="currentColor" /> : <Pin size={20} />}
+              </button>
+              <NotificationBell
+                matchId={matchId}
+                adminId={match?.adminId || ''}
+                matchTitle={`${teamAName} vs ${teamBName}`}
+                tournamentId={match?.tournamentId}
+                color="text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+              />
+            </div>
           )
         }
       />
@@ -1566,12 +1608,12 @@ export default function MatchLive() {
         tabs={matchTabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        stickyTop="0px"
+        stickyTop="var(--status-bar-height)"
       />
 
       {/* 3. Sticky Scoreboard (Below Tabs) - Global for all tabs */}
       {(!isUpcomingMatch || (match as any).tossWinner) && !(isFinishedMatch && activeTab === 'summary') && !(activeTab === 'live' && isUpcomingMatch && !isPastStart) && (
-        <div className="sticky z-40 transition-all duration-300" style={{ top: '48px' }}>
+        <div className="sticky z-40 transition-all duration-300" style={{ top: 'calc(48px + var(--status-bar-height))' }}>
           <MatchLiveHero
             match={match}
             teamAName={teamAName}
@@ -1616,6 +1658,12 @@ export default function MatchLive() {
           </motion.div>
         </AnimatePresence>
       </div>
+      <MatchSettingsSheet
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        matchId={matchId || ''}
+        matchTitle={`${teamAName} vs ${teamBName}`}
+      />
     </div>
   )
 }

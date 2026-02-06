@@ -310,11 +310,11 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
 
     const FormCircle = ({ result }: { result: 'W' | 'L' | 'T' | '*' }) => (
         <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-[6px] flex items-center justify-center text-[10px] sm:text-[11px] font-black shadow-sm transition-all
-      ${result === 'W' ? 'bg-[#51b163] text-white' :
-                result === 'L' ? 'bg-[#f76a6a] text-white' :
+      ${result === 'W' ? 'bg-[#10b981] text-white' :
+                result === 'L' ? 'bg-[#f43f5e] text-white' :
                     result === 'T' ? 'bg-[#94a3b8] text-white' :
                         'bg-slate-50 text-slate-300 border border-slate-200/50'}`}>
-            <span className="leading-none">{result === '*' ? '—' : result}</span>
+            <span className="leading-none">{result === '*' ? '·' : result}</span>
         </div>
     )
 
@@ -331,7 +331,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
     })() : null;
 
     return (
-        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-6 pb-24 bg-gray-50/50`}>
+        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-6 pb-24 bg-white`}>
 
             {/* 1. Toss Message */}
             {tossMessage && (
@@ -427,21 +427,31 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                         return (
                             <div key={idx} className="space-y-3">
                                 <div
-                                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${isExpanded ? 'bg-slate-50 border-slate-200' : 'hover:bg-slate-50/50 border border-transparent'}`}
+                                    className={`flex items-center justify-between gap-4 p-3 rounded-xl cursor-pointer transition-all ${isExpanded ? 'bg-slate-50 border-slate-200' : 'hover:bg-slate-50/50 border border-transparent'}`}
                                     onClick={() => setExpandedTeamIdx(isExpanded ? null : idx)}
                                 >
-                                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                                        <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center overflow-hidden p-1.5 shadow-sm">
-                                            {row.squad?.logoUrl ? <img src={row.squad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{row.name[0]}</span>}
-                                        </div>
-                                        <span className="text-sm font-black text-slate-800 uppercase truncate tracking-tight">{row.short}</span>
+                                    {/* Logo */}
+                                    <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center overflow-hidden p-1.5 shadow-sm shrink-0">
+                                        {row.squad?.logoUrl ? <img src={row.squad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{row.name[0]}</span>}
                                     </div>
-                                    <div className="flex gap-2 items-center">
-                                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-[6px] bg-slate-50 border border-slate-200/50 flex items-center justify-center text-[10px] font-bold text-slate-300">*</div>
-                                        {(row.form.length ? row.form : Array.from({ length: 5 }).map(() => '*')).map((r: any, i) => (
-                                            <FormCircle key={i} result={typeof r === 'string' ? r : (r as any).formResult} />
-                                        ))}
-                                        <div className="w-8 h-8 flex items-center justify-center text-slate-400 ml-1 hover:bg-slate-200 rounded-full transition-colors">
+
+                                    {/* Name */}
+                                    <span className="text-sm font-black text-slate-800 uppercase truncate tracking-tight flex-1 min-w-0">{row.name}</span>
+
+                                    {/* Badges + Chevron */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex gap-1">
+                                            {(row.form.length ? row.form : Array.from({ length: 5 }).map(() => ({ formResult: '*' }))).slice(0, 5).map((r: any, i) => (
+                                                <div key={i} className={`w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black shadow-sm transition-all
+                                                      ${r.formResult === 'W' ? 'bg-[#10b981] text-white' :
+                                                        r.formResult === 'L' ? 'bg-[#f43f5e] text-white' :
+                                                            r.formResult === 'T' ? 'bg-[#94a3b8] text-white' :
+                                                                'bg-slate-50 text-slate-300 border border-slate-200/50'}`}>
+                                                    <span className="leading-none">{r.formResult === '*' ? '·' : r.formResult}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-full transition-colors shrink-0">
                                             <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-500' : ''}`} />
                                         </div>
                                     </div>
@@ -497,7 +507,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
 
                                                     <div className="flex items-center gap-4">
                                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-sm transition-transform group-hover:scale-110
-                                                            ${result === 'W' ? 'bg-[#51b163]' : result === 'L' ? 'bg-[#f76a6a]' : 'bg-slate-400'}`}>
+                                                            ${result === 'W' ? 'bg-[#10b981]' : result === 'L' ? 'bg-[#f43f5e]' : 'bg-slate-400'}`}>
                                                             {result}
                                                         </div>
                                                         <div className="hidden sm:block text-right min-w-[100px] space-y-0.5">
@@ -620,7 +630,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
 
                                         <div className="flex items-center gap-4">
                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-sm transition-transform group-hover:scale-110
-                                                ${m.resCode === 'W' ? 'bg-[#51b163]' : m.resCode === 'L' ? 'bg-[#f76a6a]' : 'bg-[#94a3b8]'}`}>
+                                                ${m.resCode === 'W' ? 'bg-[#10b981]' : m.resCode === 'L' ? 'bg-[#f43f5e]' : 'bg-[#94a3b8]'}`}>
                                                 {m.resCode}
                                             </div>
                                             <div className="hidden sm:block text-right min-w-[120px] space-y-1">

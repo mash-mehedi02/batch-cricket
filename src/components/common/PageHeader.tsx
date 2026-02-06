@@ -17,7 +17,7 @@ export default function PageHeader({
     return (
         <>
             {/* Header Content - Dark background */}
-            <div className="relative z-[100] h-[60px] flex items-center justify-between px-4 bg-[#0f172a]">
+            <div className="relative z-[100] pt-[var(--status-bar-height)] pb-2 flex items-center justify-between px-4 bg-[#0f172a] shadow-lg transition-all duration-300">
 
                 {/* Left: Back Button + Title Group */}
                 <div className="flex items-center gap-4 max-w-[80%]">
