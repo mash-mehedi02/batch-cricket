@@ -66,14 +66,18 @@ class OneSignalService {
     }
 
     async isSubscribed(): Promise<boolean> {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        if (!this.isNative && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
             return true; // Mock for local testing
         }
         try {
             if (!this.initialized) await this.init();
             if (this.isNative) return true;
-            return OneSignalWeb.Notifications.permission === true;
-        } catch {
+
+            const permission = OneSignalWeb.Notifications.permission === true;
+            console.log('[OneSignal] Current permission state:', OneSignalWeb.Notifications.permission);
+            return permission;
+        } catch (e) {
+            console.error('[OneSignal] isSubscribed error:', e);
             return false;
         }
     }
@@ -194,6 +198,10 @@ class OneSignalService {
 
         try {
             const tag = `match_${adminId || 'admin'}_${matchId}`;
+            const targetUrl = url || `https://batchcrick.vercel.app/match/${matchId}`;
+
+            console.log(`[OneSignal] Attempting to notify match: ${tag}`);
+
             // Use our Vercel API route as a proxy to avoid CORS and hide the REST Key
             const response = await fetch('/api/notify', {
                 method: 'POST',
@@ -205,22 +213,23 @@ class OneSignalService {
                     tag: tag,
                     title: title,
                     message: message,
-                    url: url || `${window.location.origin}/match/${matchId}`
+                    url: targetUrl
                 })
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
                 console.error('[OneSignal] Proxy send failed:', errorData);
-                // toast.error('Failed to send notification: ' + (errorData.error || 'Unknown error'));
+                toast.error('Notification failed: ' + (errorData.errors?.[0] || errorData.error || 'Server error'));
                 return false;
             }
 
             console.log('[OneSignal] Notification sent via proxy successfully');
+            toast.success('Notification Sent! 🚀');
             return true;
         } catch (error: any) {
             console.error('[OneSignal] Notification send failed:', error);
-            // toast.error('Notification error: ' + error.message);
+            toast.error('Notification system unavailable');
             return false;
         }
     }
