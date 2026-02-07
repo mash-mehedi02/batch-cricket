@@ -20,8 +20,7 @@ export const onMatchUpdate = functions.firestore
         const teamAName = after.teamAName || 'Team A'
         const teamBName = after.teamBName || 'Team B'
         const matchTitle = `${teamAName} vs ${teamBName}`
-        const adminId = after.adminId || after.createdBy || 'admin'
-        const tag = `match_${adminId}_${matchId}`
+        const tag = `match_${matchId}`
 
         // 1. Toss Update
         if (!before.tossWinner && after.tossWinner) {
@@ -69,8 +68,7 @@ export const onBallCreated = functions.firestore
         const matchDoc = await db.collection('matches').doc(matchId).get()
         if (!matchDoc.exists) return;
         const match = matchDoc.data()!
-        const adminId = match.adminId || match.createdBy || 'admin'
-        const tag = `match_${adminId}_${matchId}`
+        const tag = `match_${matchId}`
 
         // 1. Wicket Notification
         if (ball.isWicket || ball.wicket) {

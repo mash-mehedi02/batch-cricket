@@ -122,7 +122,7 @@ class OneSignalService {
         }
         try {
             if (!this.initialized) await this.init();
-            const tag = `match_${adminId || 'admin'}_${matchId}`;
+            const tag = `match_${matchId}`;
 
             if (this.isNative) {
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
@@ -139,7 +139,7 @@ class OneSignalService {
     async unsubscribeFromMatch(matchId: string, adminId: string): Promise<void> {
         try {
             if (!this.initialized) await this.init();
-            const tag = `match_${adminId || 'admin'}_${matchId}`;
+            const tag = `match_${matchId}`;
 
             if (this.isNative) {
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
@@ -197,7 +197,7 @@ class OneSignalService {
         }
 
         try {
-            const tag = `match_${adminId || 'admin'}_${matchId}`;
+            const tag = `match_${matchId}`;
             const targetUrl = url || `https://batchcrick.vercel.app/match/${matchId}`;
 
             console.log(`[OneSignal] Attempting to notify match: ${tag}`);
