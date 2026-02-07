@@ -3,7 +3,6 @@ import { Capacitor } from '@capacitor/core';
 import toast from 'react-hot-toast';
 
 const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID;
-const ONESIGNAL_REST_API_KEY = import.meta.env.VITE_ONESIGNAL_REST_API_KEY;
 
 class OneSignalService {
     private initialized = false;
@@ -187,8 +186,8 @@ class OneSignalService {
         message: string,
         url?: string
     ): Promise<boolean> {
-        if (!ONESIGNAL_REST_API_KEY || !ONESIGNAL_APP_ID) {
-            console.error('[OneSignal] Missing keys in environment');
+        if (!ONESIGNAL_APP_ID) {
+            console.error('[OneSignal] Missing APP ID in environment');
             return false;
         }
 
@@ -202,7 +201,6 @@ class OneSignalService {
                 },
                 body: JSON.stringify({
                     appId: ONESIGNAL_APP_ID,
-                    restKey: ONESIGNAL_REST_API_KEY,
                     tag: tag,
                     title: title,
                     message: message,

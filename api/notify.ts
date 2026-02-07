@@ -19,10 +19,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { title, message, tag, appId, restKey, url } = req.body;
+    const { title, message, tag, appId, url } = req.body;
+    const restKey = process.env.ONESIGNAL_REST_API_KEY;
 
     if (!restKey || !appId) {
-        return res.status(400).json({ error: 'Missing required parameters' });
+        return res.status(500).json({ error: 'Server configuration error: Missing API Key' });
     }
 
     try {

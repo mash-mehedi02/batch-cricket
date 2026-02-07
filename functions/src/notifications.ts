@@ -4,8 +4,8 @@ import * as https from 'https'
 
 const db = admin.firestore()
 
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || "76d0d60c-60ce-4e15-adf7-21166ae3522a";
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || "os_v2_app_o3inmddazzhbllpxeelgvy2sfk3rs3ttmjfefyeoq4ooburniofa7fv4hbqr3vzuedr4r7ltrq4exztn7ff2w6vxr5ympi64k3eqddq";
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
+const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
 
 /**
  * Notification Trigger: Match Status Updates (Start, Result, Toss, Innings Changes)
