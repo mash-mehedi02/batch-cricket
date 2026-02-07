@@ -60,13 +60,20 @@ export const onMatchUpdate = functions.firestore
         const teamBName = after.teamB?.name || 'Team B'
         const matchTitle = `${teamAName} vs ${teamBName}`
 
-        const topicBase = `match_${matchId}`
+        // Get adminId for topic
+        const adminId = after.adminId || after.createdBy
+        if (!adminId) {
+            console.warn(`Match ${matchId} has no adminId, skipping notifications`)
+            return
+        }
+
+        const topicBase = `admin_${adminId}_match_${matchId}`
 
         // 1. Toss Update
         // Check if toss info was added or changed significantly
-        if (!before.toss && after.toss) {
-            const winnerName = after.toss.winner === 'teamA' ? teamAName : teamBName
-            const decision = after.toss.decision // 'bat' or 'bowl'
+        if (!before.tossWinner && after.tossWinner) {
+            const winnerName = after.tossWinner === 'teamA' ? teamAName : teamBName
+            const decision = after.electedTo // 'bat' or 'bowl'
 
             await sendNotificationToTopic(`${topicBase}_reminders`, {
                 title: 'Toss Update',
@@ -92,8 +99,9 @@ export const onMatchUpdate = functions.firestore
 
         // 3. Match Result
         if (before.status !== 'finished' && after.status === 'finished') {
-            let resultText = ''
-            if (after.result?.winner) {
+            let resultText = after.resultSummary || ''
+
+            if (!resultText && after.result?.winner) {
                 const winnerName = after.result.winner === 'teamA' ? teamAName : teamBName
                 const margin = after.result.margin || ''
                 const winType = after.result.winType || '' // runs or wickets
@@ -127,19 +135,30 @@ export const onBallCreated = functions.firestore
     .onCreate(async (snap, context) => {
         const ball = snap.data()
         const matchId = context.params.matchId
-        const topicBase = `match_${matchId}`
+
+        // Fetch match to get adminId
+        const matchDoc = await db.collection('matches').doc(matchId).get()
+        if (!matchDoc.exists) {
+            console.warn(`Match ${matchId} not found for ball notification`)
+            return
+        }
+
+        const match = matchDoc.data()!
+        const adminId = match.adminId || match.createdBy
+        if (!adminId) {
+            console.warn(`Match ${matchId} has no adminId, skipping ball notifications`)
+            return
+        }
+
+        const topicBase = `admin_${adminId}_match_${matchId}`
 
         // 1. Wicket
-        if (ball.wicket) {
-            // Fetch match to get team names and score if needed, or rely on info in ball doc if available
-            // Usually ball doc has 'bowlerName', 'batterName', 'wicketType'
-
-            const wicketType = ball.wicket.type || 'out'
-            const batterName = ball.batter?.name || 'Batter'
-            const bowlerName = ball.bowler?.name || 'Bowler'
+        if (ball.wicket || ball.isWicket) {
+            const wicketType = ball.wicket?.type || ball.wicketType || 'out'
+            const batterName = ball.batter?.name || ball.batterName || 'Batter'
+            const bowlerName = ball.bowler?.name || ball.bowlerName || 'Bowler'
 
             // Construct message
-            // "Wicket! 🔴 \n Mehedi Hasan b Sajib"
             const body = `${batterName} ${getWicketDescription(wicketType, bowlerName)}`
 
             await sendNotificationToTopic(`${topicBase}_wickets`, {
@@ -173,6 +192,13 @@ export const checkMatchReminders = functions.pubsub.schedule('every 15 minutes')
         const match = doc.data()
         if (match.reminderSent) continue // Already sent
 
+        // Get adminId
+        const adminId = match.adminId || match.createdBy
+        if (!adminId) {
+            console.warn(`Match ${doc.id} has no adminId, skipping reminder`)
+            continue
+        }
+
         // Calculate start time
         let startTime: Date | null = null
         if (match.date) {
@@ -198,7 +224,7 @@ export const checkMatchReminders = functions.pubsub.schedule('every 15 minutes')
         // If between 10 and 25 minutes (targeting 15 min mark)
         if (diffMins >= 10 && diffMins <= 25) {
             // Send Reminder
-            const topic = `match_${doc.id}_reminders`
+            const topic = `admin_${adminId}_match_${doc.id}_reminders`
             const title = `${match.teamAName || 'Team A'} vs ${match.teamBName || 'Team B'}`
 
             await sendNotificationToTopic(topic, {

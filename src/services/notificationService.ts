@@ -72,11 +72,27 @@ class NotificationService {
         // Save preferences locally first to ensure UI consistency
         this.saveSettings(matchId, settings)
 
+        // Check if any notification is enabled
+        const anyEnabled = settings.all || settings.wickets || settings.reminders
+
+        if (!anyEnabled) {
+            // User is disabling all notifications, no need for token
+            const topicBase = `admin_${adminId}_match_${matchId}`
+            if (this.token) {
+                await this.unsubscribe(`${topicBase}_reminders`)
+                await this.unsubscribe(`${topicBase}_wickets`)
+            }
+            toast.success('Match notifications disabled')
+            return
+        }
+
+        // User wants to enable notifications - ensure we have permission
         if (!this.token) {
             const token = await this.requestPermission()
             if (!token) {
-                // Return but we already saved locally
-                console.warn('Could not update FCM subscription: No token available')
+                // Permission denied - revert settings
+                this.saveSettings(matchId, { all: false, wickets: false, reminders: false })
+                toast.error('Please allow notifications in your browser settings')
                 return
             }
         }

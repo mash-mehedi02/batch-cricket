@@ -4,9 +4,15 @@ import App from './App'
 import './index.css'
 import { useAuthStore } from './store/authStore'
 import { oneSignalService } from './services/oneSignalService'
+import { notificationService } from './services/notificationService'
 
 // Initialize OneSignal
 oneSignalService.init()
+
+// Initialize FCM notifications (request permission)
+if ('Notification' in window && Notification.permission === 'default') {
+  notificationService.requestPermission().catch(console.error)
+}
 
 // Suppress harmless browser extension errors
 if (typeof window !== 'undefined') {
