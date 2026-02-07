@@ -102,6 +102,7 @@ class OneSignalService {
                     return false;
                 }
                 const result = await OneSignalWeb.Notifications.requestPermission();
+                console.log('[OneSignal] Web permission request result:', result);
                 return result === true;
             }
         } catch (error) {
