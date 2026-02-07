@@ -12,16 +12,39 @@ public class MainActivity extends BridgeActivity {
 
         // Enable edge-to-edge display with transparent status bar
         setTransparentStatusBar();
+
+        // Create notification channel for Android 8.0+
+        createNotificationChannel();
+    }
+
+    private void createNotificationChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            String channelId = "match_updates";
+            CharSequence name = "Match Updates";
+            String description = "Notifications for wickets, boundaries, and match results";
+            int importance = android.app.NotificationManager.IMPORTANCE_HIGH;
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(channelId, name, importance);
+            channel.setDescription(description);
+            channel.enableLights(true);
+            channel.setLightColor(android.graphics.Color.RED);
+            channel.enableVibration(true);
+
+            android.app.NotificationManager notificationManager = getSystemService(
+                    android.app.NotificationManager.class);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
     }
 
     private void setTransparentStatusBar() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            
+
             // Matches PageHeader background #0f172a
             getWindow().setStatusBarColor(android.graphics.Color.parseColor("#0f172a"));
-            
+
             // Set navigation bar color to match dark theme
             getWindow().setNavigationBarColor(android.graphics.Color.parseColor("#020617"));
 

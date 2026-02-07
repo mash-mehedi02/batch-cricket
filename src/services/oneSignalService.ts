@@ -80,7 +80,7 @@ class OneSignalService {
     }
 
     async requestPermission(): Promise<boolean> {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        if (!this.isNative && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
             return true; // Mock for local testing
         }
         try {
@@ -88,8 +88,12 @@ class OneSignalService {
 
             if (this.isNative) {
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                console.log('[OneSignal] Requesting native permission explicitly...');
+
+                // OneSignal's prompt for push notifications
                 return new Promise((resolve) => {
                     OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
+                        console.log('[OneSignal] Native permission decision:', accepted);
                         resolve(accepted);
                     });
                 });
@@ -183,28 +187,37 @@ class OneSignalService {
         message: string,
         url?: string
     ): Promise<boolean> {
-        if (!ONESIGNAL_REST_API_KEY || !ONESIGNAL_APP_ID) return false;
+        if (!ONESIGNAL_REST_API_KEY || !ONESIGNAL_APP_ID) {
+            console.error('[OneSignal] Missing keys in environment');
+            return false;
+        }
 
         try {
             const tag = `match_${adminId || 'admin'}_${matchId}`;
-            const response = await fetch('https://onesignal.com/api/v1/notifications', {
+            // Use our Vercel API route as a proxy to avoid CORS and hide the REST Key
+            const response = await fetch('/api/notify', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
                 },
                 body: JSON.stringify({
-                    app_id: ONESIGNAL_APP_ID,
-                    filters: [
-                        { field: 'tag', key: tag, relation: '=', value: 'subscribed' }
-                    ],
-                    headings: { en: title },
-                    contents: { en: message },
+                    appId: ONESIGNAL_APP_ID,
+                    restKey: ONESIGNAL_REST_API_KEY,
+                    tag: tag,
+                    title: title,
+                    message: message,
                     url: url || `${window.location.origin}/match/${matchId}`
                 })
             });
 
-            return response.ok;
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('[OneSignal] Proxy send failed:', errorData);
+                return false;
+            }
+
+            console.log('[OneSignal] Notification sent via proxy successfully');
+            return true;
         } catch (error) {
             console.error('[OneSignal] Notification send failed:', error);
             return false;
