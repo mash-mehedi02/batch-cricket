@@ -211,13 +211,15 @@ class OneSignalService {
             if (!response.ok) {
                 const errorData = await response.json();
                 console.error('[OneSignal] Proxy send failed:', errorData);
+                // toast.error('Failed to send notification: ' + (errorData.error || 'Unknown error'));
                 return false;
             }
 
             console.log('[OneSignal] Notification sent via proxy successfully');
             return true;
-        } catch (error) {
+        } catch (error: any) {
             console.error('[OneSignal] Notification send failed:', error);
+            // toast.error('Notification error: ' + error.message);
             return false;
         }
     }
