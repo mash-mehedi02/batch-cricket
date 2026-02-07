@@ -58,6 +58,7 @@ const AdminLiveScoring = () => {
     const [wicketModalOpen, setWicketModalOpen] = useState(false);
     const [nextBatterModalOpen, setNextBatterModalOpen] = useState(false);
     const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
+    const [undoModalOpen, setUndoModalOpen] = useState(false);
     const [sendMailChecked, setSendMailChecked] = useState(false);
 
     // Wicket Modal State
@@ -200,12 +201,15 @@ const AdminLiveScoring = () => {
         bowlingTeamPlayersAll
     );
 
+    const dismissedIds = useMemo(() => {
+        return currentInnings?.fallOfWickets?.map(w => w.batsmanId) || [];
+    }, [currentInnings]);
+
     const availableBatters = useMemo(() => {
         if (!currentInnings || !battingPlayingXI) return [];
-        const atCrease = [match?.currentStrikerId, match?.currentNonStrikerId];
-        const dismissedIds = currentInnings.fallOfWickets?.map(w => w.batsmanId) || [];
-        return battingPlayingXI.filter(p => !atCrease.includes(p.id) && !dismissedIds.includes(p.id));
-    }, [currentInnings, battingPlayingXI, match]);
+        const atCrease = [match?.currentStrikerId, match?.currentNonStrikerId].filter(Boolean);
+        return battingPlayingXI.filter(p => !atCrease.includes(p.id!) && !dismissedIds.includes(p.id));
+    }, [currentInnings, battingPlayingXI, match, dismissedIds]);
 
     const getPlayerName = (id: string) => {
         const p = [...teamAPlayers, ...teamBPlayers].find(x => x.id === id);
@@ -245,7 +249,7 @@ const AdminLiveScoring = () => {
         });
     };
 
-    const handleUndo = async () => {
+    const executeUndo = async () => {
         if (processing) return;
         if (!matchId || !match) {
             console.warn("[AdminLiveScoring] Undo blocked: match data not loaded.", { matchId, hasMatch: !!match });
@@ -256,13 +260,11 @@ const AdminLiveScoring = () => {
         // Determine which innings to undo. 
         // Fallback to teamA if currentBatting is missing or empty.
         let inningKv = match.currentBatting || 'teamA';
-        console.log(`[AdminLiveScoring] handleUndo triggered. matchId: ${matchId}, currentBatting: ${match.currentBatting || 'N/A'}`);
+        console.log(`[AdminLiveScoring] executeUndo triggered. matchId: ${matchId}, currentBatting: ${match.currentBatting || 'N/A'}`);
 
         if (!match.currentBatting) {
             console.log("[AdminLiveScoring] currentBatting missing in match doc, defaulting to teamA for undo check.");
         }
-
-        if (!confirm("Are you sure you want to undo the last ball?")) return;
 
         setProcessing(true);
         try {
@@ -333,7 +335,7 @@ const AdminLiveScoring = () => {
             // 2. Delete linked commentary
             await commentaryService.deleteCommentaryForBall(matchId, ballToUndo.id);
 
-            // 3. Recalculate stats
+            // 3. Recalculate stats - This updates the innings document and some match fields
             const newStats = await recalculateInnings(matchId, inningKv, { useTransaction: false });
 
             // 4. Determine Match Document Reversion
@@ -348,11 +350,12 @@ const AdminLiveScoring = () => {
             const statusLower = String(match.status || '').toLowerCase();
             const phaseLower = String(match.matchPhase || '').toLowerCase();
 
-            // IF match was finished or in break, bring it back to LIVE
-            if (statusLower === 'finished' || statusLower === 'inningsbreak' || phaseLower === 'finished' || phaseLower === 'inningsbreak' || statusLower === 'innings break') {
-                updates.status = 'live';
+            // IF match was finished or in break, or if we are back in Team A, bring it back to LIVE
+            const isTeamA = inningKv === 'teamA';
+            const wasFinished = statusLower === 'finished' || statusLower === 'inningsbreak' || phaseLower === 'finished' || phaseLower === 'inningsbreak' || statusLower === 'innings break';
 
-                const isTeamA = inningKv === 'teamA';
+            if (wasFinished || isTeamA) {
+                updates.status = 'live';
                 updates.matchPhase = isTeamA ? 'FirstInnings' : 'SecondInnings';
 
                 // Clear results
@@ -362,19 +365,19 @@ const AdminLiveScoring = () => {
                 updates.matchResult = null;
                 updates.matchResultText = null;
 
-                // Sync Player stats - remove from history
+                // Sync Player stats - remove from history if it was finished
                 if (statusLower === 'finished' || phaseLower === 'finished') {
                     await matchService.removeMatchStatsFromPlayers(matchId).catch(err => {
                         console.error("Failed to remove match stats from players:", err);
                     });
                 }
 
-                // Restore innings1Score from NEW stats instead of resetting to 0
+                // IF undoing from/back to Team A, clear the "finalized" first innings fields
                 if (isTeamA) {
-                    updates.innings1Score = newStats.totalRuns;
-                    updates.innings1Wickets = newStats.totalWickets;
-                    updates.innings1Overs = newStats.overs;
-                    updates.target = null; // Target is only valid if innings finished
+                    updates.innings1Score = 0;
+                    updates.innings1Wickets = 0;
+                    updates.innings1Overs = "0.0";
+                    updates.target = 0;
                 }
             }
 
@@ -423,6 +426,17 @@ const AdminLiveScoring = () => {
         const runs = runInput || 0;
 
         let batRuns = runs;
+
+        // Force 0 runs for standard dismissal types to prevent generic 'W+Runs' errors
+        // (e.g. User selects 6 then clicks OUT -> Caught). 
+        // Only Run Out, Obstructing, etc. can have runs attached.
+        if (wicketData) {
+            const allowRuns = ['runout', 'obstructing', 'hitBallTwice'].includes(wicketData.type);
+            if (!allowRuns) {
+                batRuns = 0;
+            }
+        }
+
         let wideVal = 0;
         let nbVal = 0;
         let byeVal = 0;
@@ -743,94 +757,11 @@ const AdminLiveScoring = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* --- MAIN GRID --- */}
+            <div className="space-y-6">
 
-                {/* --- LEFT COL: PLAYERS --- */}
-                <div className="lg:col-span-4 space-y-4">
-                    {/* Batsmen Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Activity size={16} className="text-blue-600" /> On Crease
-                            </h3>
-                            <button
-                                onClick={() => {
-                                    const temp = selectedStriker;
-                                    handlePlayerAssign('currentStrikerId', selectedNonStriker);
-                                    handlePlayerAssign('currentNonStrikerId', temp);
-                                }}
-                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 active:scale-95 transition-transform"
-                            >
-                                <ArrowRightLeft size={14} /> Swap
-                            </button>
-                        </div>
-
-                        <div className="p-4 space-y-4">
-                            {/* Striker */}
-                            <div className="relative">
-                                <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block pl-1">Striker (On Strike)</label>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-xs">S</div>
-                                    <select
-                                        className="flex-1 form-select bg-slate-50 border-slate-200 rounded-lg text-sm font-semibold focus:ring-blue-500 focus:border-blue-500"
-                                        value={selectedStriker}
-                                        onChange={(e) => handlePlayerAssign('currentStrikerId', e.target.value)}
-                                    >
-                                        <option value="">Select Striker...</option>
-                                        {battingPlayingXI.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Non-Striker */}
-                            <div className="relative">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block pl-1">Non-Striker</label>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-black text-xs">NS</div>
-                                    <select
-                                        className="flex-1 form-select bg-slate-50 border-slate-200 rounded-lg text-sm font-semibold text-slate-600 focus:ring-blue-500 focus:border-blue-500"
-                                        value={selectedNonStriker}
-                                        onChange={(e) => handlePlayerAssign('currentNonStrikerId', e.target.value)}
-                                    >
-                                        <option key="empty" value="">Select Non-Striker...</option>
-                                        {battingPlayingXI.filter(p => p.id !== selectedStriker).map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Bowler Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Target size={16} className="text-red-600" /> Current Bowler
-                            </h3>
-                        </div>
-                        <div className="p-4">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-black text-xs">B</div>
-                                <select
-                                    className={`flex-1 form-select rounded-lg text-sm font-semibold focus:ring-red-500 focus:border-red-500 ${!selectedBowler ? 'border-red-300 bg-red-50 text-red-900 animate-pulse' : 'bg-slate-50 border-slate-200'}`}
-                                    value={selectedBowler}
-                                    onChange={(e) => handlePlayerAssign('currentBowlerId', e.target.value)}
-                                >
-                                    <option value="">{selectedBowler ? 'Change Bowler...' : '⚠ Select Bowler Required'}</option>
-                                    {bowlingPlayingXI.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* --- CENTER COL: SCORING PAD --- */}
-                <div className="lg:col-span-8">
+                {/* --- TOP: SCORING PAD --- */}
+                <div className="w-full">
                     {(match.matchPhase?.toLowerCase() === 'inningsbreak' || match.status?.toLowerCase() === 'inningsbreak') ? (
                         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden text-center p-12">
                             <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -893,7 +824,7 @@ const AdminLiveScoring = () => {
                                 <Trophy size={48} />
                             </div>
                             <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">Match Finished</h2>
-                            <p className="text-xl font-bold text-slate-600 mb-8">{resultSummary}</p>
+                            <p className="text-xl font-bold text-slate-600 mb-8">{getMatchResultString(match, inningsA, inningsB)}</p>
 
                             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Summary</h3>
@@ -911,7 +842,7 @@ const AdminLiveScoring = () => {
 
                             <div className="mt-12 flex items-center justify-center gap-4">
                                 <button
-                                    onClick={handleUndo}
+                                    onClick={() => setUndoModalOpen(true)}
                                     disabled={processing}
                                     className="px-8 py-4 bg-red-50 text-red-600 font-black rounded-2xl hover:bg-red-100 transition-all flex items-center gap-3 border border-red-100"
                                 >
@@ -1027,6 +958,141 @@ const AdminLiveScoring = () => {
                         </div>
                     )}
                 </div>
+
+                {/* --- BOTTOM: PLAYERS & BOWLER --- */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Batsmen Card */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
+                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                                <Activity size={16} className="text-blue-600" /> On Crease
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    const temp = selectedStriker;
+                                    handlePlayerAssign('currentStrikerId', selectedNonStriker);
+                                    handlePlayerAssign('currentNonStrikerId', temp);
+                                }}
+                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 active:scale-95 transition-transform"
+                            >
+                                <ArrowRightLeft size={14} /> Swap
+                            </button>
+                        </div>
+
+                        <div className="p-4 space-y-4 flex-1">
+                            {/* Striker */}
+                            <div className="relative">
+                                <div className="flex justify-between items-end mb-1">
+                                    <label className="text-[10px] font-bold text-emerald-600 uppercase block pl-1">Striker (On Strike)</label>
+                                    {(() => {
+                                        const s = currentInnings?.batsmanStats?.find(b => b.batsmanId === selectedStriker);
+                                        return s ? (
+                                            <span className="text-[10px] font-mono text-slate-500">
+                                                {s.runs}({s.balls}) <span className="text-slate-300">|</span> 4s:{s.fours} 6s:{s.sixes}
+                                            </span>
+                                        ) : null;
+                                    })()}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-xs">S</div>
+                                    <select
+                                        className="flex-1 form-select bg-slate-50 border-slate-200 rounded-lg text-sm font-semibold focus:ring-blue-500 focus:border-blue-500"
+                                        value={selectedStriker}
+                                        onChange={(e) => handlePlayerAssign('currentStrikerId', e.target.value)}
+                                    >
+                                        <option value="">Select Striker...</option>
+                                        {battingPlayingXI.map(p => {
+                                            const isOut = dismissedIds.includes(p.id);
+                                            const isNS = p.id === selectedNonStriker;
+                                            return (
+                                                <option key={p.id} value={p.id} disabled={isOut || isNS}>
+                                                    {p.name} {isOut ? '(Out)' : ''} {isNS ? '(Non-Striker)' : ''}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Non-Striker */}
+                            <div className="relative">
+                                <div className="flex justify-between items-end mb-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block pl-1">Non-Striker</label>
+                                    {(() => {
+                                        const s = currentInnings?.batsmanStats?.find(b => b.batsmanId === selectedNonStriker);
+                                        return s ? (
+                                            <span className="text-[10px] font-mono text-slate-500">
+                                                {s.runs}({s.balls}) <span className="text-slate-300">|</span> 4s:{s.fours} 6s:{s.sixes}
+                                            </span>
+                                        ) : null;
+                                    })()}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-black text-xs">NS</div>
+                                    <select
+                                        className="flex-1 form-select bg-slate-50 border-slate-200 rounded-lg text-sm font-semibold text-slate-600 focus:ring-blue-500 focus:border-blue-500"
+                                        value={selectedNonStriker}
+                                        onChange={(e) => handlePlayerAssign('currentNonStrikerId', e.target.value)}
+                                    >
+                                        <option key="empty" value="">Select Non-Striker...</option>
+                                        {battingPlayingXI.map(p => {
+                                            const isOut = dismissedIds.includes(p.id);
+                                            const isStriker = p.id === selectedStriker;
+                                            return (
+                                                <option key={p.id} value={p.id} disabled={isOut || isStriker}>
+                                                    {p.name} {isOut ? '(Out)' : ''} {isStriker ? '(Striker)' : ''}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bowler Card */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
+                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
+                                <Target size={16} className="text-red-600" /> Current Bowler
+                            </h3>
+                        </div>
+                        <div className="p-4 flex-1">
+                            <div className="mb-2 flex justify-end">
+                                {(() => {
+                                    const b = currentInnings?.bowlerStats?.find(b => b.bowlerId === selectedBowler);
+                                    return b ? (
+                                        <div className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                                            <span className="font-bold text-slate-900">{b.wickets}-{b.runsConceded}</span>
+                                            <span className="mx-1 text-slate-400">|</span>
+                                            {b.overs} ov
+                                            <span className="mx-1 text-slate-400">|</span>
+                                            Eco: {b.economy}
+                                        </div>
+                                    ) : null;
+                                })()}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-black text-xs">B</div>
+                                <select
+                                    className={`flex-1 form-select rounded-lg text-sm font-semibold focus:ring-red-500 focus:border-red-500 ${!selectedBowler ? 'border-red-300 bg-red-50 text-red-900 animate-pulse' : 'bg-slate-50 border-slate-200'}`}
+                                    value={selectedBowler}
+                                    onChange={(e) => handlePlayerAssign('currentBowlerId', e.target.value)}
+                                >
+                                    <option value="">{selectedBowler ? 'Change Bowler...' : '⚠ Select Bowler Required'}</option>
+                                    {bowlingPlayingXI.map(p => {
+                                        const isLastBowler = p.id === match.lastOverBowlerId;
+                                        return (
+                                            <option key={p.id} value={p.id} disabled={isLastBowler}>
+                                                {p.name} {isLastBowler ? '(Last Over)' : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* --- MATCH CONTROLS --- */}
@@ -1082,7 +1148,7 @@ const AdminLiveScoring = () => {
                         <RotateCcw size={16} /> Sync History
                     </button>
                     <button
-                        onClick={handleUndo}
+                        onClick={() => setUndoModalOpen(true)}
                         disabled={processing}
                         className="px-6 py-3 bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 font-bold rounded-xl text-sm transition-colors flex items-center gap-2"
                     >
@@ -1120,184 +1186,227 @@ const AdminLiveScoring = () => {
             </div>
 
             {/* WICKET MODAL */}
-            {wicketModalOpen && (
-                <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="bg-red-600 p-4 text-center">
-                            <h2 className="text-white font-black text-xl uppercase tracking-widest flex items-center justify-center gap-2">
-                                <ShieldAlert /> Wicket Fall
-                            </h2>
-                        </div>
-                        <div className="p-6 space-y-5">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Who is Out?</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => setWhoIsOut('striker')}
-                                        className={`p-4 border rounded-xl font-bold text-sm transition-all ${whoIsOut === 'striker' ? 'bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200' : 'bg-white hover:bg-slate-50 text-slate-600'}`}
-                                    >
-                                        {getPlayerName(selectedStriker) || 'Striker'}
-                                    </button>
-                                    <button
-                                        onClick={() => setWhoIsOut('nonStriker')}
-                                        className={`p-4 border rounded-xl font-bold text-sm transition-all ${whoIsOut === 'nonStriker' ? 'bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200' : 'bg-white hover:bg-slate-50 text-slate-600'}`}
-                                    >
-                                        {getPlayerName(selectedNonStriker) || 'Non-Striker'}
-                                    </button>
-                                </div>
+            {
+                wicketModalOpen && (
+                    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="bg-red-600 p-4 text-center">
+                                <h2 className="text-white font-black text-xl uppercase tracking-widest flex items-center justify-center gap-2">
+                                    <ShieldAlert /> Wicket Fall
+                                </h2>
                             </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Method</label>
-                                <select
-                                    className="w-full form-select rounded-xl border-slate-200 font-semibold disabled:bg-slate-50"
-                                    value={wicketType}
-                                    onChange={(e) => setWicketType(e.target.value)}
-                                    disabled={match.freeHit}
-                                >
-                                    {match.freeHit ? (
-                                        <option value="runout">Run Out (Free Hit)</option>
-                                    ) : (
-                                        <>
-                                            <option value="caught">Caught</option>
-                                            <option value="bowled">Bowled</option>
-                                            <option value="lbw">LBW</option>
-                                            <option value="runout">Run Out</option>
-                                            <option value="stumped">Stumped</option>
-                                            <option value="hitWicket">Hit Wicket</option>
-                                        </>
-                                    )}
-                                </select>
-                            </div>
-
-                            {['caught', 'runout', 'stumped'].includes(wicketType) && (
+                            <div className="p-6 space-y-5">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Fielder</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Who is Out?</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setWhoIsOut('striker')}
+                                            className={`p-4 border rounded-xl font-bold text-sm transition-all ${whoIsOut === 'striker' ? 'bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200' : 'bg-white hover:bg-slate-50 text-slate-600'}`}
+                                        >
+                                            {getPlayerName(selectedStriker) || 'Striker'}
+                                        </button>
+                                        <button
+                                            onClick={() => setWhoIsOut('nonStriker')}
+                                            className={`p-4 border rounded-xl font-bold text-sm transition-all ${whoIsOut === 'nonStriker' ? 'bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200' : 'bg-white hover:bg-slate-50 text-slate-600'}`}
+                                        >
+                                            {getPlayerName(selectedNonStriker) || 'Non-Striker'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Method</label>
                                     <select
-                                        className="w-full form-select rounded-xl border-slate-200 font-semibold"
-                                        value={fielderId}
-                                        onChange={(e) => setFielderId(e.target.value)}
+                                        className="w-full form-select rounded-xl border-slate-200 font-semibold disabled:bg-slate-50"
+                                        value={wicketType}
+                                        onChange={(e) => setWicketType(e.target.value)}
+                                        disabled={match.freeHit}
                                     >
-                                        <option value="">Select Fielder...</option>
-                                        {bowlingPlayingXI.map(p => (
+                                        {match.freeHit ? (
+                                            <option value="runout">Run Out (Free Hit)</option>
+                                        ) : (
+                                            <>
+                                                <option value="caught">Caught</option>
+                                                <option value="bowled">Bowled</option>
+                                                <option value="lbw">LBW</option>
+                                                <option value="runout">Run Out</option>
+                                                <option value="stumped">Stumped</option>
+                                                <option value="hitWicket">Hit Wicket</option>
+                                            </>
+                                        )}
+                                    </select>
+                                </div>
+
+                                {['caught', 'runout', 'stumped'].includes(wicketType) && (
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Fielder</label>
+                                        <select
+                                            className="w-full form-select rounded-xl border-slate-200 font-semibold"
+                                            value={fielderId}
+                                            onChange={(e) => setFielderId(e.target.value)}
+                                        >
+                                            <option value="">Select Fielder...</option>
+                                            {bowlingPlayingXI.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Incoming Batter</label>
+                                    <select
+                                        className="w-full form-select rounded-xl border-blue-200 bg-blue-50 text-blue-900 font-bold"
+                                        value={nextBatterId}
+                                        onChange={(e) => setNextBatterId(e.target.value)}
+                                    >
+                                        <option value="">Select Batter...</option>
+                                        {availableBatters.map(p => (
                                             <option key={p.id} value={p.id}>{p.name}</option>
                                         ))}
                                     </select>
                                 </div>
-                            )}
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Incoming Batter</label>
-                                <select
-                                    className="w-full form-select rounded-xl border-blue-200 bg-blue-50 text-blue-900 font-bold"
-                                    value={nextBatterId}
-                                    onChange={(e) => setNextBatterId(e.target.value)}
-                                >
-                                    <option value="">Select Batter...</option>
-                                    {availableBatters.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    onClick={() => setWicketModalOpen(false)}
-                                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleWicketConfirm}
-                                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/30"
-                                >
-                                    Confirm Wicket
-                                </button>
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        onClick={() => setWicketModalOpen(false)}
+                                        className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleWicketConfirm}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/30"
+                                    >
+                                        Confirm Wicket
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* NEXT BATTER MODAL */}
-            {nextBatterModalOpen && (
-                <div className="fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border-t-4 border-blue-600">
-                        <div className="p-6 space-y-5">
-                            <div className="text-center">
-                                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <UserPlus size={32} />
+            {
+                nextBatterModalOpen && (
+                    <div className="fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border-t-4 border-blue-600">
+                            <div className="p-6 space-y-5">
+                                <div className="text-center">
+                                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <UserPlus size={32} />
+                                    </div>
+                                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">New Batter</h2>
+                                    <p className="text-slate-500 text-sm font-medium">Select the next player to come to the crease</p>
                                 </div>
-                                <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">New Batter</h2>
-                                <p className="text-slate-500 text-sm font-medium">Select the next player to come to the crease</p>
-                            </div>
 
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block text-center">Incoming Batter</label>
-                                <select
-                                    className="w-full form-select h-14 rounded-xl border-blue-200 bg-blue-50 text-blue-900 font-bold text-lg text-center"
-                                    value={nextBatterId}
-                                    onChange={(e) => setNextBatterId(e.target.value)}
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block text-center">Incoming Batter</label>
+                                    <select
+                                        className="w-full form-select h-14 rounded-xl border-blue-200 bg-blue-50 text-blue-900 font-bold text-lg text-center"
+                                        value={nextBatterId}
+                                        onChange={(e) => setNextBatterId(e.target.value)}
+                                    >
+                                        <option value="">Choose Batter...</option>
+                                        {availableBatters.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <button
+                                    onClick={handleNextBatterConfirm}
+                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-95"
                                 >
-                                    <option value="">Choose Batter...</option>
-                                    {availableBatters.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
+                                    Send to Crease
+                                </button>
                             </div>
-
-                            <button
-                                onClick={handleNextBatterConfirm}
-                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-95"
-                            >
-                                Send to Crease
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* FINALIZE MODAL */}
-            {finalizeModalOpen && (
-                <div className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="p-6">
-                            <h2 className="text-2xl font-black text-slate-800 mb-4">Finalize Match?</h2>
-                            <p className="text-slate-600 mb-6">This will end the match permanently and calculate statistics.</p>
+            {
+                finalizeModalOpen && (
+                    <div className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="p-6">
+                                <h2 className="text-2xl font-black text-slate-800 mb-4">Finalize Match?</h2>
+                                <p className="text-slate-600 mb-6">This will end the match permanently and calculate statistics.</p>
 
-                            <label className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors">
-                                <input
-                                    type="checkbox"
-                                    className="mt-1 w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                                    checked={sendMailChecked}
-                                    onChange={(e) => setSendMailChecked(e.target.checked)}
-                                />
-                                <div>
-                                    <span className="font-bold text-slate-800 block">Confirm & Send Mail</span>
-                                    <span className="text-xs text-slate-500 block">Send personalized match reports to all players in Playing XI.</span>
+                                <label className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                                        checked={sendMailChecked}
+                                        onChange={(e) => setSendMailChecked(e.target.checked)}
+                                    />
+                                    <div>
+                                        <span className="font-bold text-slate-800 block">Confirm & Send Mail</span>
+                                        <span className="text-xs text-slate-500 block">Send personalized match reports to all players in Playing XI.</span>
+                                    </div>
+                                </label>
+
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={() => setFinalizeModalOpen(false)}
+                                        className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-700"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleFinalizeConfirm}
+                                        disabled={processing}
+                                        className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 flex justify-center items-center gap-2"
+                                    >
+                                        {processing ? <Loader2 className="animate-spin" /> : 'Finalize Match'}
+                                    </button>
                                 </div>
-                            </label>
-
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    onClick={() => setFinalizeModalOpen(false)}
-                                    className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-700"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleFinalizeConfirm}
-                                    disabled={processing}
-                                    className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 flex justify-center items-center gap-2"
-                                >
-                                    {processing ? <Loader2 className="animate-spin" /> : 'Finalize Match'}
-                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+
+            {/* UNDO CONFIRMATION MODAL */}
+            {
+                undoModalOpen && (
+                    <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="p-6 text-center">
+                                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <RotateCcw size={32} />
+                                </div>
+                                <h2 className="text-xl font-black text-slate-800 mb-2">Undo Last Ball?</h2>
+                                <p className="text-slate-500 text-sm mb-6">
+                                    This will revert the score, player stats, and commentary for the last ball. This action cannot be undone.
+                                </p>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setUndoModalOpen(false)}
+                                        className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-700 hover:bg-slate-200 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setUndoModalOpen(false);
+                                            executeUndo();
+                                        }}
+                                        className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-500/20 transition-colors"
+                                    >
+                                        Yes, Undo It
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 

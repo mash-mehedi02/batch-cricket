@@ -12,6 +12,7 @@ import TournamentPointsTable from '../../pages/TournamentPointsTable'
 import cricketBatIcon from '../../assets/cricket-bat.png'
 
 const CrexLiveSection = ({
+  match,
   striker,
   nonStriker,
   currentBowler,
@@ -54,7 +55,9 @@ const CrexLiveSection = ({
 
     const [ov, b] = (currentOvers || '0.0').toString().split('.');
     const legalBalls = (Number(ov) * 6) + Number(b || 0);
-    const battingTeamSide = currentInnings?.inningId || 'teamA';
+
+    // Robust batting side detection
+    const battingTeamSide = currentInnings?.inningId || (match && match.currentBatting) || 'teamA';
 
     // Extract last ball event for micro-adjustments
     const lastOver = recentOvers?.[recentOvers.length - 1];
@@ -122,6 +125,8 @@ const CrexLiveSection = ({
     const groups = []
     const map = {}
 
+    const ballsProcessed = new Set()
+
     // Commentary arrives in chronological order [oldest -> newest]
     commentary.forEach(item => {
       // Use explicit overNumber if available, otherwise fallback to parsing over string
@@ -147,6 +152,12 @@ const CrexLiveSection = ({
         }
         groups.push(map[key])
       }
+
+      // Deduplicate: If we have multiple entries for the same ball (e.g. ball + milestone), 
+      // only count it once for circles and runs.
+      const ballId = item.ballDocId || `${inningId}-${item.over}-${item.ball}`
+      if (ballsProcessed.has(ballId)) return
+      ballsProcessed.add(ballId)
 
       // Add ball in chronological order (left to right)
       map[key].balls.push(item)
@@ -207,8 +218,8 @@ const CrexLiveSection = ({
                           let dotStyle = "bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800 shadow-sm"
 
                           if (isBoundary) dotStyle = val === '4'
-                            ? "bg-gradient-to-br from-amber-400 to-yellow-500 text-white border-yellow-400 shadow-sm"
-                            : "bg-gradient-to-br from-orange-500 to-amber-500 text-white border-orange-400 shadow-sm";
+                            ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-blue-500 shadow-sm"
+                            : "bg-gradient-to-br from-emerald-500 to-green-600 text-white border-emerald-500 shadow-sm";
 
                           if (isWicket) dotStyle = "bg-rose-600 text-white border-rose-500 shadow-sm";
 
@@ -528,15 +539,65 @@ const CrexLiveSection = ({
 
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
             <div className="max-w-4xl mx-auto py-2">
-              {(() => {
+              {activeCommentaryFilter === 'overs' ? (
+                <div className="space-y-0 bg-white">
+                  {oversGrouped.map((item, idx) => {
+                    if (item.type === 'break') {
+                      return (
+                        <div key={`break-${idx}`} className="py-6 flex items-center gap-4 px-8 bg-[#F8FAFC]">
+                          <div className="h-px flex-1 bg-slate-200" />
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{item.label}</span>
+                          <div className="h-px flex-1 bg-slate-200" />
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={`over-${idx}`} className="px-5 py-4 flex items-center justify-between border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                        <div className="flex items-center gap-6 flex-1 min-w-0">
+                          <span className="text-[11px] font-bold text-slate-400 shrink-0 w-10">Ov {item.overNum}</span>
+                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                            {item.balls.map((b, bIdx) => {
+                              const runs = Number(b.runs || 0);
+                              const isWicket = b.type === 'wicket' || b.isWicket || b.milestone === 'wicket';
+                              const isSix = runs === 6 || b.milestone === '6';
+                              const isFour = runs === 4 || b.milestone === '4';
+                              const upperText = String(b.text || '').toUpperCase();
+                              const isWide = upperText.includes('WIDE');
+                              const isNoBall = upperText.includes('NO BALL') || upperText.includes('NO-BALL');
+
+                              let val = runs.toString();
+                              if (isWicket) val = runs > 0 ? `W+${runs}` : 'W';
+                              else if (isWide) val = runs > 1 ? `${runs}wd` : 'wd';
+                              else if (isNoBall) val = runs > 1 ? `${runs}nb` : 'nb';
+
+                              let badgeStyle = "bg-white text-slate-600 border-slate-200"; // Default (0, 1, 2, 3)
+                              if (isWicket) badgeStyle = "bg-rose-600 text-white border-rose-600";
+                              else if (isSix) badgeStyle = "bg-[#457920] text-white border-[#457920]"; // Dark green from image
+                              else if (isFour) badgeStyle = "bg-[#3B82F6] text-white border-[#3B82F6]"; // Blue from image
+
+                              return (
+                                <div key={bIdx} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border shadow-sm shrink-0 ${badgeStyle}`}>
+                                  {val}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 ml-4 shrink-0">
+                          <span className="text-[13px] font-bold text-slate-700 tabular-nums"> = {item.totalRuns}</span>
+                          <ChevronRight className="w-4 h-4 text-slate-300" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (() => {
                 // Group commentary by overs for better flow
                 const displayItems = [];
                 // Ensure we iterate in perfect chronological order
-                const chronologicalCommentary = [...filteredCommentary].sort((a, b) => {
-                  const [aO, aB] = String(a.over || '0.0').split('.').map(Number);
-                  const [bO, bB] = String(b.over || '0.0').split('.').map(Number);
-                  return (aO * 10 + aB) - (bO * 10 + bB);
-                });
+                // Use the chronological order provided by the subscription (oldest -> newest)
+                const chronologicalCommentary = [...filteredCommentary];
 
                 let runningTotalRuns = 0;
                 let runningTotalWickets = 0;
@@ -728,8 +789,8 @@ const CrexLiveSection = ({
 
                       let badgeColor = "bg-slate-400 text-white border-slate-400"; // Dot ball
                       if (isWicket) badgeColor = "bg-rose-600 text-white border-rose-600";
-                      else if (isSix) badgeColor = "bg-orange-600 text-white border-orange-600";
-                      else if (isFour) badgeColor = "bg-amber-600 text-white border-amber-600";
+                      else if (isSix) badgeColor = "bg-[#457920] text-white border-[#457920]";
+                      else if (isFour) badgeColor = "bg-[#3B82F6] text-white border-[#3B82F6]";
                       else if (isWide || isNoBall) badgeColor = "bg-slate-500 text-white border-slate-500";
                       else if (runs > 0) badgeColor = "bg-amber-500 text-white border-amber-500";
 
@@ -737,8 +798,8 @@ const CrexLiveSection = ({
                         <div key={`ball-${idx}`} className="px-4 py-4 flex gap-4 bg-white border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                           <div className="flex flex-col items-center gap-2 min-w-[40px]">
                             <span className="text-[11px] font-black text-slate-400 tabular-nums">{ballLabel}</span>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black border shadow-sm ${badgeColor}`}>
-                              {isWicket ? 'W' : (isWide ? 'WD' : (isNoBall ? 'NB' : (runs === 0 ? '0' : runs)))}
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border shadow-sm ${badgeColor}`}>
+                              {isWicket ? (runs > 0 ? `W+${runs}` : 'W') : (isWide ? (runs > 1 ? `${runs}wd` : 'wd') : (isNoBall ? (runs > 1 ? `${runs}nb` : 'nb') : (runs === 0 ? '0' : runs)))}
                             </div>
                           </div>
                           <div className="flex-1 pt-0.5">

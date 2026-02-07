@@ -42,9 +42,11 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
     const [timeLeft, setTimeLeft] = useState<string>('')
 
-    const isLive = String(match.status || '').toLowerCase() === 'live'
-    const isFinished = ['finished', 'completed'].includes(String(match.status || '').toLowerCase())
-    const isUpcoming = !isLive && !isFinished
+    const statusLower = String(match.status || '').toLowerCase().trim()
+    const isLive = ['live', 'inningsbreak', 'innings break'].includes(statusLower)
+    const isFinished = ['finished', 'completed', 'result'].includes(statusLower)
+    const isInningsBreak = statusLower === 'inningsbreak' || statusLower === 'innings break'
+    const isUpcoming = !isLive && !isFinished && !isInningsBreak
 
     useEffect(() => {
         // OPTIMIZATION: Only subscribe to live matches. 
@@ -160,6 +162,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     }
 
     const getStatusText = () => {
+        if (isInningsBreak) return 'Innings Break'
         if (isLive) return 'Live'
         if (isFinished) return getResultText() || 'Finished'
         const d = coerceToDate(match.date)
@@ -232,8 +235,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     const getTeamColor = (teamId: 'teamA' | 'teamB') => {
         if (isUpcoming || isFinished) return 'text-black font-bold'
         if (isLive) {
-            const isBreak = match.matchPhase === 'FirstInnings' && isFirstInningsFinished
-            if (isBreak || !match.currentBatting) return 'text-black font-bold'
+            if (isInningsBreak || !match.currentBatting) return 'text-black font-bold'
             // Unmuted: using shadow or border instead of graying out name
             return match.currentBatting === teamId ? 'text-black font-black' : 'text-black font-bold opacity-90'
         }
@@ -299,7 +301,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                             {name}
                                         </span>
                                     </div>
-                                    {(isLive || isFinished) && (
+                                    {(isLive || isFinished || isInningsBreak) && (
                                         <div className="flex items-baseline gap-2">
                                             <span className="text-[10px] font-medium text-slate-400 font-mono">
                                                 ({inn?.overs || '0.0'})
@@ -321,8 +323,10 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                         {isLive ? (
                             <div className="flex flex-col items-center gap-1">
                                 <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
-                                    <span className="text-[11px] font-black text-red-600 dark:text-red-500 uppercase tracking-widest">Live</span>
+                                    <span className={`w-2 h-2 ${isInningsBreak ? 'bg-amber-500' : 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]'} rounded-full`}></span>
+                                    <span className={`text-[11px] font-black ${isInningsBreak ? 'text-amber-600' : 'text-red-600 dark:text-red-500'} uppercase tracking-widest`}>
+                                        {isInningsBreak ? 'Break' : 'Live'}
+                                    </span>
                                 </div>
                             </div>
                         ) : isFinished && parsedResult ? (

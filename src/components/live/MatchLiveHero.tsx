@@ -93,7 +93,6 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     // --- Toss Logic ---
     const m = match as any;
     const tossWinnerId = m?.tossWinner;
-    const electedTo = m?.electedTo || m?.tossDecision;
 
     // Robust Team Detection - Multi-field Matcher
     const aId = String(m.teamAId || m.teamASquadId || m.teamA || '').trim().toLowerCase();
@@ -123,15 +122,29 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         return (o * 6) + (b || 0);
     })();
 
-    let targetScore = Number(match?.target || inn?.target || 0);
-    if (!targetScore) {
-        const i1Score = Number((match as any).innings1Score || 0);
-        if (i1Score > 0) {
-            targetScore = i1Score + 1;
-        } else if (match.currentBatting === 'teamB' && teamAInnings && Number(teamAInnings.totalRuns || 0) > 0) {
-            targetScore = Number(teamAInnings.totalRuns) + 1;
-        } else if (match.currentBatting === 'teamA' && teamBInnings && Number(teamBInnings.totalRuns || 0) > 0) {
-            targetScore = Number(teamBInnings.totalRuns) + 1;
+    // Determine who batted first to know if we should show a target
+    const battedFirst = (match as any).tossWinner && (match as any).electedTo === 'bat'
+        ? (match as any).tossWinner
+        : ((match as any).tossWinner && (match as any).electedTo === 'bowl'
+            ? ((match as any).tossWinner === 'teamA' ? 'teamB' : 'teamA')
+            : 'teamA'); // Default teamA bats first if no toss info
+
+    const isSecondInnings = match.matchPhase === 'SecondInnings' ||
+        (match.matchPhase === 'InningsBreak' && match.currentBatting === battedFirst) ||
+        match.status === 'finished';
+
+    let targetScore = 0;
+    if (isSecondInnings) {
+        targetScore = Number(match?.target || inn?.target || 0);
+        if (!targetScore) {
+            const i1Score = Number((match as any).innings1Score || 0);
+            if (i1Score > 0) {
+                targetScore = i1Score + 1;
+            } else if (match.currentBatting === 'teamB' && teamAInnings && Number(teamAInnings.totalRuns || 0) > 0) {
+                targetScore = Number(teamAInnings.totalRuns) + 1;
+            } else if (match.currentBatting === 'teamA' && teamBInnings && Number(teamBInnings.totalRuns || 0) > 0) {
+                targetScore = Number(teamBInnings.totalRuns) + 1;
+            }
         }
     }
 
@@ -194,14 +207,9 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
 
     const isChasing = targetScore > 0;
-    const isInningsBreakChasing = isChasing || (isInningsBreak && targetScore > 0);
     const runsNeeded = isChasing ? Math.max(0, targetScore - runs) : (targetScore > 0 ? targetScore : 0);
     const matchOvers = match.oversLimit || 20;
     const remainingBalls = Math.max(0, (matchOvers * 6) - totalLegals);
-
-    const reqRunRate = (targetScore > 0)
-        ? (runsNeeded / (matchOvers)) // Simple RRR for start of innings
-        : 0;
 
     const liveReqRunRate = (remainingBalls > 0 && targetScore > 0)
         ? (runsNeeded / remainingBalls) * 6

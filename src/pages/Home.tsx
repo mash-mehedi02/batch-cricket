@@ -60,7 +60,10 @@ export default function Home() {
         }
 
         const statusLower = (m: any) => String(m?.status || '').toLowerCase().trim()
-        const isLive = (m: any) => statusLower(m) === 'live'
+        const isLive = (m: any) => {
+          const s = statusLower(m)
+          return s === 'live' || s === 'inningsbreak' || s === 'innings break'
+        }
         const isFinished = (m: any) => ['finished', 'completed'].includes(statusLower(m))
         const isUpcoming = (m: any) => {
           const s = statusLower(m)

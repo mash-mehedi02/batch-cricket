@@ -60,26 +60,23 @@ export const matchService = {
    */
   async getLiveMatches(adminId?: string, isSuperAdmin: boolean = false): Promise<Match[]> {
     try {
-      // Try both 'live' and 'Live' status
-      let q1 = query(matchesRef, where('status', '==', 'live'))
-      let q2 = query(matchesRef, where('status', '==', 'Live'))
+      // Try all variations of live and innings break statuses
+      const statuses = ['live', 'Live', 'inningsbreak', 'InningsBreak', 'INNINGS BREAK']
+      const queries = statuses.map(s => {
+        let q = query(matchesRef, where('status', '==', s))
+        if (adminId && !isSuperAdmin) {
+          q = query(q, where('adminId', '==', adminId))
+        }
+        return q
+      })
 
-      if (adminId && !isSuperAdmin) {
-        q1 = query(q1, where('adminId', '==', adminId))
-        q2 = query(q2, where('adminId', '==', adminId))
-      }
-
-      const [snapshot1, snapshot2] = await Promise.all([
-        getDocs(q1).catch(() => ({ docs: [] })),
-        getDocs(q2).catch(() => ({ docs: [] }))
-      ])
+      const snapshots = await Promise.all(queries.map(q => getDocs(q).catch(() => ({ docs: [] }))))
 
       const matches = new Map()
-      snapshot1.docs.forEach(doc => {
-        matches.set(doc.id, { id: doc.id, ...doc.data() } as Match)
-      })
-      snapshot2.docs.forEach(doc => {
-        matches.set(doc.id, { id: doc.id, ...doc.data() } as Match)
+      snapshots.forEach(snapshot => {
+        snapshot.docs.forEach((doc: any) => {
+          matches.set(doc.id, { id: doc.id, ...doc.data() } as Match)
+        })
       })
 
       return Array.from(matches.values()).sort((a: any, b: any) => {

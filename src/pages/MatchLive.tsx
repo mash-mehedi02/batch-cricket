@@ -711,6 +711,34 @@ export default function MatchLive() {
     return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match || undefined)
   }, [match, teamAInnings, teamBInnings, teamAName, teamBName])
 
+  // Centralized Target & Chase Info for Win Probability
+  const chaseInfo = useMemo(() => {
+    const isSecondInn = (match as any)?.matchPhase === 'SecondInnings' || (match as any)?.matchPhase === 'InningsBreak' || isFinishedMatch;
+    let targetVal = Number((currentInnings as any)?.target || 0);
+
+    if (!targetVal && isSecondInn) {
+      // Fallback: Check match master doc
+      const mTarget = Number((match as any)?.target || 0);
+      const mInn1 = Number((match as any)?.innings1Score || 0);
+      const mScore1 = Number((match as any)?.score?.[firstSide]?.runs || 0);
+
+      targetVal = mTarget || (mInn1 > 0 ? mInn1 + 1 : (mScore1 > 0 ? mScore1 + 1 : 0));
+
+      // Secondary Fallback: Check opponent innings runs directly from state
+      if (!targetVal) {
+        const firstInn = firstSide === 'teamA' ? teamAInnings : teamBInnings;
+        if (firstInn && Number(firstInn.totalRuns || 0) > 0) {
+          targetVal = Number(firstInn.totalRuns) + 1;
+        }
+      }
+    }
+
+    const runsDone = Number((currentInnings as any)?.totalRuns || 0);
+    const runsNeeded = targetVal > 0 ? Math.max(0, targetVal - runsDone) : null;
+
+    return { target: targetVal || null, runsNeeded };
+  }, [match, currentInnings, teamAInnings, teamBInnings, firstSide, isFinishedMatch]);
+
   // Commentary - lightweight feed used by CrexLiveSection
   useEffect(() => {
     if (!matchId || !match) return
@@ -1205,12 +1233,12 @@ export default function MatchLive() {
   const countdown = useMemo(() => {
     if (!startDate) return null
     const diffMs = Math.max(0, startDate.getTime() - now.getTime())
-    const totalSeconds = Math.floor(diffMs / 1000)
-    const days = Math.floor(totalSeconds / (24 * 3600))
-    const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const seconds = totalSeconds % 60
-    return { days, hours, minutes, seconds, totalSeconds }
+    return {
+      days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((diffMs % (1000 * 60)) / 1000),
+    }
   }, [startDate, now])
 
   // Match tabs (MUST be before early returns) - All tabs in one page
@@ -1219,7 +1247,7 @@ export default function MatchLive() {
       ...(isFinishedMatch ? [{ id: 'summary', label: 'Summary' }] : []),
       { id: 'info', label: 'Info' },
       { id: 'commentary', label: 'Commentary' },
-      { id: 'live', label: 'Live' },
+      { id: 'live', label: 'Live', disabled: !isLiveEffective && !isFinishedMatch },
       { id: 'scorecard', label: 'Scorecard' },
       { id: 'playing-xi', label: 'Playing XI' },
     ]
@@ -1232,13 +1260,13 @@ export default function MatchLive() {
       baseTabs.push({ id: 'points-table', label: 'Points Table' })
     }
 
-    // Add Graphs (maybe only for live/finished?)
+    // Add Graphs
     if (isLiveMatch || isFinishedMatch) {
       baseTabs.push({ id: 'graphs', label: 'Graphs' })
     }
 
     return baseTabs
-  }, [match?.tournamentId, isFinishedMatch, isLiveMatch])
+  }, [match?.tournamentId, isFinishedMatch, isLiveMatch, isLiveEffective, match, tournament])
 
   // Early returns AFTER all hooks
   if (loading) {
@@ -1462,8 +1490,8 @@ export default function MatchLive() {
               currentRuns={(currentInnings as any)?.totalRuns || 0}
               currentOvers={(currentInnings as any)?.overs || '0.0'}
               oversLimit={match.oversLimit || 20}
-              target={(currentInnings as any)?.target || null}
-              runsNeeded={(currentInnings as any)?.target ? Math.max(0, Number((currentInnings as any).target) - Number((currentInnings as any).totalRuns || 0)) : null}
+              target={chaseInfo.target}
+              runsNeeded={chaseInfo.runsNeeded}
               ballsRemaining={(currentInnings as any)?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number((currentInnings as any)?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}
@@ -1535,8 +1563,8 @@ export default function MatchLive() {
               currentRuns={(currentInnings as any)?.totalRuns || 0}
               currentOvers={(currentInnings as any)?.overs || '0.0'}
               oversLimit={match.oversLimit || 20}
-              target={(currentInnings as any)?.target || null}
-              runsNeeded={(currentInnings as any)?.target ? Math.max(0, Number((currentInnings as any).target) - Number((currentInnings as any).totalRuns || 0)) : null}
+              target={chaseInfo.target}
+              runsNeeded={chaseInfo.runsNeeded}
               ballsRemaining={(currentInnings as any)?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number((currentInnings as any)?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}

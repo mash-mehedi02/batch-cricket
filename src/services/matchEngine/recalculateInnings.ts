@@ -818,10 +818,12 @@ export async function recalculateInnings(
     let isMatchNowFinished = false
     let isMatchInBreak = false
 
-    // If this is the second side to bat according to toss logic
-    if (matchData.matchPhase === 'SecondInnings' && inningId === secondSide) {
+    // --- Match Completion Logic ---
+    const isCalculatingSecondSide = (inningId === secondSide)
+
+    if (isCalculatingSecondSide) {
       // Get target from the first batting team's score
-      let firstBatScore = (matchData.score?.[firstSide]?.runs) || 0
+      let firstBatScore = (matchData.score?.[firstSide]?.runs) || (matchData.innings1Score) || 0
 
       // CRITICAL FALLBACK: If master document doesn't have it, try to find it in innings docs
       if (firstBatScore === 0) {
@@ -832,24 +834,23 @@ export async function recalculateInnings(
         }
       }
 
-      target = firstBatScore + 1
-      remainingRuns = target! - totalRuns
-      remainingBalls = Math.max(maxBalls - legalBalls, 0)
+      target = firstBatScore > 0 ? firstBatScore + 1 : (Number(matchData.target) || null)
 
-      const targetAchieved = target ? totalRuns >= target : false
-      // ONLY finish if innings actually ended or target achieved WITH a valid target
-      isMatchNowFinished = Boolean(isInningsEnded || (targetAchieved && target && target > 1))
+      if (target && target > 1) {
+        remainingRuns = target - totalRuns
+        remainingBalls = Math.max(maxBalls - legalBalls, 0)
+        const targetAchieved = totalRuns >= target
+        isMatchNowFinished = Boolean(isInningsEnded || (targetAchieved && legalBalls > 0))
 
-      if (isMatchNowFinished) {
-        remainingBalls = 0
-        requiredRunRate = targetAchieved ? 0 : null
-      } else if (remainingBalls > 0 && (remainingRuns ?? 0) > 0) {
-        requiredRunRate = ((remainingRuns ?? 0) / remainingBalls) * 6
-      } else if ((remainingRuns ?? 0) <= 0) {
-        requiredRunRate = 0
+        if (isMatchNowFinished) {
+          remainingBalls = 0
+          requiredRunRate = targetAchieved ? 0 : null
+        } else if (remainingBalls > 0 && (remainingRuns ?? 0) > 0) {
+          requiredRunRate = ((remainingRuns ?? 0) / remainingBalls) * 6
+        }
       }
-    } else if (matchData.matchPhase === 'FirstInnings' && inningId === firstSide) {
-      // Auto-detect innings break
+    } else {
+      // It's the first innings
       if (isInningsEnded) {
         isMatchInBreak = true
       }
@@ -1006,7 +1007,8 @@ export async function recalculateInnings(
         // Also sync score to master match document for target calculation
         const matchUpdate: any = {
           [`score.${inningId}`]: { runs: totalRuns, wickets: totalWickets, overs: overs },
-          freeHit: nextBallIsFreeHit
+          freeHit: nextBallIsFreeHit,
+          target: target // Sync target to master match doc
         }
         if (isOverComplete) {
           matchUpdate.currentBowlerId = ''
@@ -1014,12 +1016,31 @@ export async function recalculateInnings(
         }
 
         // --- Auto-Transition Logic ---
+        const currentPhase = matchData.matchPhase
+        // Normalize status to lowercase for comparison
+        const currentStatus = String(matchData.status || '').toLowerCase()
+
         if (isMatchNowFinished) {
+          // Match is truly finished
           matchUpdate.status = 'finished'
           matchUpdate.matchPhase = 'finished'
+        } else if (isCalculatingSecondSide) {
+          // If we are currently in the second innings but it's NOT finished 
+          // (e.g. ball undone or target not yet reached), it must be live.
+          matchUpdate.status = 'live'
+          matchUpdate.matchPhase = 'SecondInnings'
         } else if (isMatchInBreak) {
-          matchUpdate.status = 'INNINGS BREAK'
-          matchUpdate.matchPhase = 'InningsBreak'
+          // Only automatically set 'inningsbreak' if we haven't started second innings or finished
+          if (currentPhase !== 'SecondInnings' && currentStatus !== 'finished') {
+            matchUpdate.status = 'inningsbreak'
+            matchUpdate.matchPhase = 'InningsBreak'
+          }
+        } else {
+          // Calculating first innings - only set to live/FirstInnings if second side hasn't started
+          if (currentPhase !== 'SecondInnings' && currentPhase !== 'InningsBreak' && currentStatus !== 'finished') {
+            matchUpdate.status = 'live'
+            matchUpdate.matchPhase = 'FirstInnings'
+          }
         }
 
         transaction.update(doc(db, MATCHES_COLLECTION, matchId), matchUpdate)
@@ -1030,7 +1051,8 @@ export async function recalculateInnings(
       const { updateDoc } = await import('firebase/firestore')
       const matchUpdate: any = {
         [`score.${inningId}`]: { runs: totalRuns, wickets: totalWickets, overs: overs },
-        freeHit: nextBallIsFreeHit
+        freeHit: nextBallIsFreeHit,
+        target: target // Sync target to master match doc
       }
       if (isOverComplete) {
         matchUpdate.currentBowlerId = ''
@@ -1038,12 +1060,25 @@ export async function recalculateInnings(
       }
 
       // --- Auto-Transition Logic ---
+      const currentPhase = matchData.matchPhase
+      const currentStatus = String(matchData.status || '').toLowerCase()
+
       if (isMatchNowFinished) {
         matchUpdate.status = 'finished'
         matchUpdate.matchPhase = 'finished'
+      } else if (isCalculatingSecondSide) {
+        matchUpdate.status = 'live'
+        matchUpdate.matchPhase = 'SecondInnings'
       } else if (isMatchInBreak) {
-        matchUpdate.status = 'INNINGS BREAK'
-        matchUpdate.matchPhase = 'InningsBreak'
+        if (currentPhase !== 'SecondInnings' && currentStatus !== 'finished') {
+          matchUpdate.status = 'inningsbreak'
+          matchUpdate.matchPhase = 'InningsBreak'
+        }
+      } else {
+        if (currentPhase !== 'SecondInnings' && currentPhase !== 'InningsBreak' && currentStatus !== 'finished') {
+          matchUpdate.status = 'live'
+          matchUpdate.matchPhase = 'FirstInnings'
+        }
       }
 
       await updateDoc(doc(db, MATCHES_COLLECTION, matchId), matchUpdate)

@@ -9,85 +9,57 @@ import { matchService } from '@/services/firestore/matches'
 import { useAuthStore } from '@/store/authStore'
 import { Match } from '@/types'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
+import { Calendar, MapPin, Trophy, ArrowRight, Activity, Shield } from 'lucide-react'
+import { format } from 'date-fns'
+
+interface TeamScore {
+  runs: number
+  wickets: number
+  overs: string
+  played: boolean
+}
+
+interface MatchScoreData {
+  teamA: TeamScore
+  teamB: TeamScore
+  currentBatting: 'teamA' | 'teamB' | null
+}
 
 export default function AdminLiveMatches() {
   const { user } = useAuthStore()
   const [liveMatches, setLiveMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
-  const [matchScores, setMatchScores] = useState<Record<string, string>>({})
-  const [scoresLoading, setScoresLoading] = useState<Record<string, boolean>>({})
+  const [scores, setScores] = useState<Record<string, MatchScoreData>>({})
 
-  // Helper function to determine which team is batting based on match state
-  const resolveSideFromValue = (m: Match, v: any): 'teamA' | 'teamB' | null => {
-    if (v === 'teamA' || v === 'teamB') return v;
-    if (typeof v === 'string') {
-      const s = v.trim().toLowerCase();
-      if (s === 'teama' || s === 'team a' || s === 'team_a' || s === 'a') return 'teamA';
-      if (s === 'teamb' || s === 'team b' || s === 'team_b' || s === 'b') return 'teamB';
-
-      const aId = String((m as any).teamAId || (m as any).teamASquadId || (m as any).teamA || '').trim().toLowerCase();
-      const bId = String((m as any).teamBId || (m as any).teamBSquadId || (m as any).teamB || '').trim().toLowerCase();
-      const aName = String(m.teamAName || (m as any).teamA || '').trim().toLowerCase();
-      const bName = String(m.teamBName || (m as any).teamB || '').trim().toLowerCase();
-
-      if (aId && s === aId) return 'teamA';
-      if (bId && s === bId) return 'teamB';
-      if (aName && s === aName) return 'teamA';
-      if (bName && s === bName) return 'teamB';
-    }
-    return null;
-  };
-
-  const normalizeElectedTo = (v: any): 'bat' | 'bowl' | null => {
-    if (v === 'bat' || v === 'bowl') return v;
-    if (typeof v !== 'string') return null;
-    const s = v.trim().toLowerCase();
-    if (s === 'bat' || s === 'batting' || s === 'choose bat' || s === 'chose bat') return 'bat';
-    if (s === 'bowl' || s === 'bowling' || s === 'field' || s === 'fielding' || s === 'choose bowl' || s === 'chose bowl')
-      return 'bowl';
-    return null;
-  };
-
-  const inferFirstInningsBatting = (m: Match): 'teamA' | 'teamB' => {
-    const tw = resolveSideFromValue(m, (m as any).tossWinner);
-    const el = normalizeElectedTo((m as any).electedTo);
-    if (!tw || !el) return 'teamA';
-    if (el === 'bat') return tw;
-    return tw === 'teamA' ? 'teamB' : 'teamA';
-  };
-
-  const otherSide = (s: 'teamA' | 'teamB'): 'teamA' | 'teamB' => (s === 'teamA' ? 'teamB' : 'teamA');
-
-  const getCurrentScore = async (matchId: string, match: Match) => {
-    setScoresLoading(prev => ({ ...prev, [matchId]: true }));
+  const fetchMatchScores = async (match: Match) => {
     try {
-      const first = inferFirstInningsBatting(match);
-      let effectiveCurrentBatting: 'teamA' | 'teamB';
-      if (match.matchPhase === 'SecondInnings') {
-        effectiveCurrentBatting = otherSide(first);
-      } else {
-        effectiveCurrentBatting = first;
-      }
+      const [innA, innB] = await Promise.all([
+        matchService.getInnings(match.id, 'teamA'),
+        matchService.getInnings(match.id, 'teamB')
+      ])
 
-      const currentInnings = await matchService.getInnings(matchId, effectiveCurrentBatting);
-      if (currentInnings) {
-        const runs = currentInnings.totalRuns || 0;
-        const wickets = currentInnings.totalWickets || 0;
-        const overs = currentInnings.overs || '0.0';
-        const battingTeamName = effectiveCurrentBatting === 'teamA' ? (match.teamAName || (match as any).teamA) : (match.teamBName || (match as any).teamB);
-        const score = `${battingTeamName} ${runs}/${wickets} (${overs})`;
-        setMatchScores(prev => ({ ...prev, [matchId]: score }));
-      } else {
-        const battingTeamName = effectiveCurrentBatting === 'teamA' ? (match.teamAName || (match as any).teamA) : (match.teamBName || (match as any).teamB);
-        setMatchScores(prev => ({ ...prev, [matchId]: `${battingTeamName} 0/0 (0.0)` }));
-      }
-    } catch (error) {
-      console.error(`Error getting score for match ${matchId}:`, error);
-      setMatchScores(prev => ({ ...prev, [matchId]: 'Score unavailable' }));
-    } finally {
-      setScoresLoading(prev => ({ ...prev, [matchId]: false }));
+      setScores(prev => ({
+        ...prev,
+        [match.id]: {
+          teamA: {
+            runs: innA?.totalRuns || 0,
+            wickets: innA?.totalWickets || 0,
+            overs: innA?.overs || '0.0',
+            played: !!innA || (match.currentBatting === 'teamA')
+          },
+          teamB: {
+            runs: innB?.totalRuns || 0,
+            wickets: innB?.totalWickets || 0,
+            overs: innB?.overs || '0.0',
+            played: !!innB || (match.currentBatting === 'teamB')
+          },
+          currentBatting: match.currentBatting as 'teamA' | 'teamB'
+        }
+      }))
+    } catch (err) {
+      console.error(err)
     }
-  };
+  }
 
   useEffect(() => {
     const loadLiveMatches = async () => {
@@ -97,9 +69,7 @@ export default function AdminLiveMatches() {
         setLiveMatches(matches)
         setLoading(false)
 
-        for (const match of matches) {
-          await getCurrentScore(match.id, match);
-        }
+        matches.forEach(m => fetchMatchScores(m))
       } catch (error) {
         console.error('Error loading live matches:', error)
         setLoading(false)
@@ -107,7 +77,7 @@ export default function AdminLiveMatches() {
     }
 
     loadLiveMatches()
-    const interval = setInterval(loadLiveMatches, 5000);
+    const interval = setInterval(loadLiveMatches, 10000) // Refresh every 10s
     return () => clearInterval(interval)
   }, [user])
 
@@ -130,92 +100,150 @@ export default function AdminLiveMatches() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 pb-20">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Live Matches</h1>
-          <p className="text-gray-600 mt-1">Monitor and score live matches in real-time</p>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Live Matches</h1>
+          <p className="text-slate-500 mt-1 font-medium">Monitor and score live matches in real-time</p>
         </div>
+        <Link
+          to="/admin/matches/new"
+          className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30"
+        >
+          + Create New Match
+        </Link>
       </div>
 
       {liveMatches.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-12 border border-gray-200 text-center">
-          <div className="text-6xl mb-4">⚽</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Live Matches</h3>
-          <p className="text-gray-600 mb-6">There are no matches currently in progress.</p>
+        <div className="bg-white rounded-2xl shadow-sm p-12 border border-slate-200 text-center max-w-lg mx-auto mt-12">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+            🏏
+          </div>
+          <h3 className="text-xl font-black text-slate-800 mb-2">No Live Matches</h3>
+          <p className="text-slate-500 mb-8 font-medium">There are no matches currently in progress. Start a new match to get the crowd cheering!</p>
           <Link
             to="/admin/matches/new"
-            className="inline-block px-6 py-3 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700"
+            className="inline-block px-8 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-xl"
           >
-            Create New Match
+            Start a Match
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {liveMatches.map((match) => (
-            <div
-              key={match.id}
-              className="bg-white rounded-xl shadow-md p-6 border-2 border-red-200 hover:shadow-lg transition"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-semibold text-red-700 uppercase">LIVE</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {liveMatches.map((match) => {
+            const scoreData = scores[match.id];
+            const isTeamABatting = match.currentBatting === 'teamA';
+            const isTeamBBatting = match.currentBatting === 'teamB';
+
+            // Format Date
+            let dateStr = 'Date TBD';
+            if (match.date) {
+              // Handle Firestore Timestamp or Date string
+              const d = (match.date as any).toDate ? (match.date as any).toDate() : new Date(match.date);
+              if (!isNaN(d.getTime())) {
+                dateStr = format(d, 'MMM dd, yyyy • h:mm a');
+              }
+            }
+
+            return (
+              <div
+                key={match.id}
+                className="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-200 transition-all duration-300 group flex flex-col overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                    </span>
+                    <span className="text-[11px] font-black text-red-600 uppercase tracking-widest">LIVE</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                    <Trophy size={12} className="text-amber-500" />
+                    <span className="truncate max-w-[150px]">{(match as any).tournamentName || 'Friendly Match'}</span>
+                  </div>
                 </div>
-                <span className="text-sm text-gray-600">{match.venue || 'Venue TBD'}</span>
-              </div>
 
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                {match.teamAName || (match as any).teamA} vs {match.teamBName || (match as any).teamB}
-              </h3>
+                {/* Match Content */}
+                <div className="p-5 flex-1 flex flex-col justify-center">
+                  <div className="flex flex-col gap-4">
+                    {/* Team A */}
+                    <div className={`flex justify-between items-center p-3 rounded-xl transition-colors ${isTeamABatting ? 'bg-blue-50/60 border border-blue-100' : 'bg-white'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black ${isTeamABatting ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {match.teamAName?.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className={`font-bold text-sm ${isTeamABatting ? 'text-slate-900' : 'text-slate-600'}`}>{match.teamAName}</div>
+                          {isTeamABatting && <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wide flex items-center gap-1"><Activity size={10} /> Batting</div>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xl font-black tabular-nums ${isTeamABatting ? 'text-slate-900' : 'text-slate-600'}`}>
+                          {scoreData ? scoreData.teamA.runs : 0}/{scoreData ? scoreData.teamA.wickets : 0}
+                        </div>
+                        <div className="text-xs font-bold text-slate-400">
+                          {scoreData ? scoreData.teamA.overs : '0.0'} ov
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600 mb-2">Current Score</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {scoresLoading[match.id] ? (
-                    <span className="text-gray-500">Loading...</span>
-                  ) : (
-                    <>
-                      {(() => {
-                        const currentScoreText = matchScores[match.id] || 'Live Scoring...';
-                        const scorePattern = /(\d+)\/(\d+) \((\d+\.\d+)\)/;
-                        const scoreMatch = currentScoreText.match(scorePattern);
+                    {/* Vs Divider */}
+                    <div className="hidden">VS</div>
 
-                        if (scoreMatch) {
-                          const fullScore = `${scoreMatch[1]}/${scoreMatch[2]} (${scoreMatch[3]})`;
-                          const teamName = currentScoreText.replace(fullScore, '').trim();
+                    {/* Team B */}
+                    <div className={`flex justify-between items-center p-3 rounded-xl transition-colors ${isTeamBBatting ? 'bg-blue-50/60 border border-blue-100' : 'bg-white'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black ${isTeamBBatting ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {match.teamBName?.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className={`font-bold text-sm ${isTeamBBatting ? 'text-slate-900' : 'text-slate-600'}`}>{match.teamBName}</div>
+                          {isTeamBBatting && <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wide flex items-center gap-1"><Activity size={10} /> Batting</div>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xl font-black tabular-nums ${isTeamBBatting ? 'text-slate-900' : 'text-slate-600'}`}>
+                          {scoreData ? scoreData.teamB.runs : 0}/{scoreData ? scoreData.teamB.wickets : 0}
+                        </div>
+                        <div className="text-xs font-bold text-slate-400">
+                          {scoreData ? scoreData.teamB.overs : '0.0'} ov
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                          return (
-                            <>
-                              <span className="text-xs font-medium text-gray-600 truncate max-w-full">{teamName}</span>
-                              <br />
-                              <span className="text-3xl md:text-4xl font-black text-gray-900">{fullScore}</span>
-                            </>
-                          );
-                        }
-                        return currentScoreText;
-                      })()}
-                    </>
-                  )}
+                  <div className="mt-4 flex items-center gap-3 text-xs text-slate-400 font-medium pl-1">
+                    <Calendar size={12} /> {dateStr}
+                    {match.venue && (
+                      <>
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        <MapPin size={12} /> {match.venue}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/30 grid grid-cols-2 gap-3">
+                  <Link
+                    to={`/admin/live/${match.id}/scoring`}
+                    className="flex justify-center items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 active:scale-95"
+                  >
+                    Score Match <ArrowRight size={16} />
+                  </Link>
+                  <Link
+                    to={`/match/${match.id}`}
+                    target="_blank"
+                    className="flex justify-center items-center gap-2 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition hover:border-slate-300 active:scale-95"
+                  >
+                    <Shield size={16} className="text-slate-400" /> View Public
+                  </Link>
                 </div>
               </div>
-
-              <div className="flex gap-2">
-                <Link
-                  to={`/admin/live/${match.id}/scoring`}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 text-center transition"
-                >
-                  Score Match
-                </Link>
-                <Link
-                  to={`/match/${match.id}`}
-                  className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
-                >
-                  View
-                </Link>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -112,53 +112,10 @@ export async function addBall(
       await syncMatchToPlayerProfiles(matchId).catch(err => console.error('Sync error:', err))
     }
 
-    // Automatic Innings End Detection
-    const oversLimit = matchData?.oversLimit || 20
-    const matchPhase = (matchData?.matchPhase || '').toLowerCase()
+    // Status transitions and innings end detection are now handled automatically
+    // inside recalculateInnings() called above.
 
-    // Determine if this is the second innings. 
-    // It's the second innings if:
-    // 1. target is set (>0)
-    // 2. inningId is teamB
-    // 3. innings1Score is already recorded in the match doc
-    // 4. matchPhase is explicitly secondinnings
-    const isSecondInnings = (matchData?.target && Number(matchData.target) > 0) ||
-      (matchData?.innings1Score !== undefined && matchData.innings1Score !== null) ||
-      matchPhase === 'secondinnings' ||
-      inningId === 'teamB';
-
-    const isFirstInnings = !isSecondInnings;
-
-    const isAllOut = inningsData.totalWickets >= 10
-    const isOversFinished = inningsData.legalBalls >= (oversLimit * 6)
-
-    console.log(`[BallUpdateService] Status check: inning=${inningId}, isFirst=${isFirstInnings}, runs=${inningsData.totalRuns}, target=${matchData?.target}`);
-
-    if (isFirstInnings) {
-      if (isAllOut || isOversFinished) {
-        console.log('[BallUpdateService] 1st Innings Ended. Setting status to InningsBreak');
-        const { updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, MATCHES_COLLECTION, matchId), {
-          status: 'InningsBreak',
-          matchPhase: 'InningsBreak',
-          innings1Score: inningsData.totalRuns,
-          innings1Wickets: inningsData.totalWickets,
-          innings1Overs: inningsData.overs
-        });
-      }
-    } else {
-      const targetScore = Number(matchData?.target || 0)
-      const isTargetReached = targetScore > 0 && inningsData.totalRuns >= targetScore
-
-      if (isTargetReached || isAllOut || isOversFinished) {
-        console.log('[BallUpdateService] Match Finished.');
-        const { updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, MATCHES_COLLECTION, matchId), {
-          status: 'finished',
-          matchPhase: 'finished'
-        });
-      }
-    }
+    console.log('[BallUpdateService] Success! Over complete:', overComplete);
 
     console.log('[BallUpdateService] Success! Over complete:', overComplete);
 
