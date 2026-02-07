@@ -67,12 +67,12 @@ class OneSignalService {
     }
 
     async isSubscribed(): Promise<boolean> {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return true; // Mock for local testing
+        }
         try {
             if (!this.initialized) await this.init();
-            if (this.isNative) {
-                // For native, we assume it's working if permission is granted
-                return true;
-            }
+            if (this.isNative) return true;
             return OneSignalWeb.Notifications.permission === true;
         } catch {
             return false;
@@ -80,6 +80,9 @@ class OneSignalService {
     }
 
     async requestPermission(): Promise<boolean> {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return true; // Mock for local testing
+        }
         try {
             if (!this.initialized) await this.init();
 
@@ -105,6 +108,10 @@ class OneSignalService {
     }
 
     async subscribeToMatch(matchId: string, adminId: string): Promise<void> {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log(`[OneSignal Mock] Subscribed to match locally: ${matchId}`);
+            return;
+        }
         try {
             if (!this.initialized) await this.init();
             const tag = `match_${adminId || 'admin'}_${matchId}`;
