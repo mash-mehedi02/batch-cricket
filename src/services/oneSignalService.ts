@@ -33,17 +33,28 @@ class OneSignalService {
                 } else {
                     // Web Initialization
                     console.log('[OneSignal] Initializing Web SDK...');
-                    await OneSignalWeb.init({
-                        appId: ONESIGNAL_APP_ID,
-                        allowLocalhostAsSecureOrigin: true,
-                    });
-                    this.initialized = true;
-                    console.log('[OneSignal] Web Initialized');
+                    try {
+                        await OneSignalWeb.init({
+                            appId: ONESIGNAL_APP_ID,
+                            allowLocalhostAsSecureOrigin: true,
+                        });
+                        this.initialized = true;
+                        console.log('[OneSignal] Web Initialized');
+                    } catch (e: any) {
+                        const msg = e?.toString() || '';
+                        if (msg.includes('already initialized')) {
+                            this.initialized = true;
+                            console.log('[OneSignal] Web SDK was already initialized');
+                        } else {
+                            throw e;
+                        }
+                    }
                 }
             } catch (error: any) {
                 const errMsg = error?.toString() || '';
-                if (errMsg.includes('Can only be used on') && window.location.hostname === 'localhost') {
+                if (errMsg.includes('Can only be used on') && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
                     console.warn('[OneSignal] Skipping web init on localhost due to domain restriction.');
+                    this.initialized = true; // Set to true to prevent infinite retry loops on localhost
                 } else {
                     console.error('[OneSignal] Init error:', error);
                 }
