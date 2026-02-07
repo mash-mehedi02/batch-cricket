@@ -1,52 +1,14 @@
 import * as functions from 'firebase-functions'
 import * as admin from 'firebase-admin'
+import * as https from 'https'
 
 const db = admin.firestore()
-const messaging = admin.messaging()
+
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || "76d0d60c-60ce-4e15-adf7-21166ae3522a";
+const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || "os_v2_app_o3inmddazzhbllpxeelgvy2sfk3rs3ttmjfefyeoq4ooburniofa7fv4hbqr3vzuedr4r7ltrq4exztn7ff2w6vxr5ympi64k3eqddq";
 
 /**
- * Subscribe a user device to a specific topic
- * Topics: match_{matchId}_reminders, match_{matchId}_wickets
- */
-export const subscribeToTopic = functions.https.onCall(async (data, context) => {
-    const { token, topic } = data
-
-    if (!token || !topic) {
-        throw new functions.https.HttpsError('invalid-argument', 'Token and topic are required')
-    }
-
-    try {
-        await messaging.subscribeToTopic(token, topic)
-        console.log(`Subscribed ${token} to ${topic}`)
-        return { success: true, message: `Subscribed to ${topic}` }
-    } catch (error) {
-        console.error('Error subscribing to topic:', error)
-        throw new functions.https.HttpsError('internal', 'Failed to subscribe to topic')
-    }
-})
-
-/**
- * Unsubscribe a user device from a specific topic
- */
-export const unsubscribeFromTopic = functions.https.onCall(async (data, context) => {
-    const { token, topic } = data
-
-    if (!token || !topic) {
-        throw new functions.https.HttpsError('invalid-argument', 'Token and topic are required')
-    }
-
-    try {
-        await messaging.unsubscribeFromTopic(token, topic)
-        console.log(`Unsubscribed ${token} from ${topic}`)
-        return { success: true, message: `Unsubscribed from ${topic}` }
-    } catch (error) {
-        console.error('Error unsubscribing from topic:', error)
-        throw new functions.https.HttpsError('internal', 'Failed to unsubscribe from topic')
-    }
-})
-
-/**
- * Notification Trigger: Match Status Updates (Start, Result, Toss)
+ * Notification Trigger: Match Status Updates (Start, Result, Toss, Innings Changes)
  */
 export const onMatchUpdate = functions.firestore
     .document('matches/{matchId}')
@@ -55,230 +17,148 @@ export const onMatchUpdate = functions.firestore
         const after = change.after.data()
         const matchId = context.params.matchId
 
-        // Get team names for messages
-        const teamAName = after.teamA?.name || 'Team A'
-        const teamBName = after.teamB?.name || 'Team B'
+        const teamAName = after.teamAName || 'Team A'
+        const teamBName = after.teamBName || 'Team B'
         const matchTitle = `${teamAName} vs ${teamBName}`
-
-        // Get adminId for topic
-        const adminId = after.adminId || after.createdBy
-        if (!adminId) {
-            console.warn(`Match ${matchId} has no adminId, skipping notifications`)
-            return
-        }
-
-        const topicBase = `admin_${adminId}_match_${matchId}`
+        const adminId = after.adminId || after.createdBy || 'admin'
+        const tag = `match_${adminId}_${matchId}`
 
         // 1. Toss Update
-        // Check if toss info was added or changed significantly
         if (!before.tossWinner && after.tossWinner) {
             const winnerName = after.tossWinner === 'teamA' ? teamAName : teamBName
-            const decision = after.electedTo // 'bat' or 'bowl'
-
-            await sendNotificationToTopic(`${topicBase}_reminders`, {
-                title: 'Toss Update',
-                body: `${winnerName} won the toss and chose to ${decision}`,
-                data: {
-                    type: 'toss',
-                    matchId: matchId
-                }
-            })
+            const decision = after.electedTo || (after as any).tossDecision || 'bat'
+            await sendOneSignalNotification(tag, 'Toss Update 🎲', `${winnerName} won the toss and chose to ${decision}`, matchId);
         }
 
         // 2. Match Start
         if (before.status !== 'live' && after.status === 'live') {
-            await sendNotificationToTopic(`${topicBase}_reminders`, {
-                title: 'Match Started 🏏',
-                body: matchTitle,
-                data: {
-                    type: 'match_start',
-                    matchId: matchId
-                }
-            })
+            await sendOneSignalNotification(tag, 'Match Started 🏏', `${matchTitle} is now LIVE!`, matchId);
         }
 
-        // 3. Match Result
+        // 3. Innings Break
+        if (before.matchPhase !== 'InningsBreak' && after.matchPhase === 'InningsBreak') {
+            const inningsScore = after.innings1Score || 0;
+            const inningsWickets = after.innings1Wickets || 0;
+            const inningsOvers = after.innings1Overs || '0.0';
+            const battingTeam = after.currentBatting === 'teamA' ? teamAName : teamBName;
+            await sendOneSignalNotification(tag, 'Innings Break ☕', `${battingTeam} finished with ${inningsScore}/${inningsWickets} (${inningsOvers} ov)`, matchId);
+        }
+
+        // 4. Second Innings Start
+        if (before.matchPhase !== 'SecondInnings' && after.matchPhase === 'SecondInnings' || (before.matchPhase === 'InningsBreak' && after.matchPhase === 'SecondInnings')) {
+            const target = after.target || 0;
+            await sendOneSignalNotification(tag, 'Second Innings Started ⚡', `Target: ${target} runs in ${after.oversLimit || 20} overs.`, matchId);
+        }
+
+        // 5. Match Result
         if (before.status !== 'finished' && after.status === 'finished') {
-            let resultText = after.resultSummary || ''
-
-            if (!resultText && after.result?.winner) {
-                const winnerName = after.result.winner === 'teamA' ? teamAName : teamBName
-                const margin = after.result.margin || ''
-                const winType = after.result.winType || '' // runs or wickets
-                resultText = `${winnerName} won by ${margin} ${winType}`
-            } else if (after.result?.draw) {
-                resultText = 'Match Drawn'
-            } else if (after.result?.tie) {
-                resultText = 'Match Tied'
-            }
-
-            if (resultText) {
-                await sendNotificationToTopic(`${topicBase}_reminders`, {
-                    title: 'Match Result 🏆',
-                    body: resultText,
-                    data: {
-                        type: 'match_result',
-                        matchId: matchId
-                    }
-                })
-            }
+            const resultText = after.resultSummary || 'Match Completed!';
+            await sendOneSignalNotification(tag, 'Match Result 🏆', resultText, matchId);
         }
     })
 
-
 /**
- * Notification Trigger: Ball Events (Wickets, Milestones)
- * Listens to new balls
+ * Notification Trigger: Ball Events (Wickets, Milestones, Boundaries)
  */
 export const onBallCreated = functions.firestore
     .document('matches/{matchId}/innings/{inningId}/balls/{ballId}')
     .onCreate(async (snap, context) => {
         const ball = snap.data()
-        const matchId = context.params.matchId
+        const { matchId, inningId } = context.params
 
-        // Fetch match to get adminId
         const matchDoc = await db.collection('matches').doc(matchId).get()
-        if (!matchDoc.exists) {
-            console.warn(`Match ${matchId} not found for ball notification`)
-            return
-        }
-
+        if (!matchDoc.exists) return;
         const match = matchDoc.data()!
-        const adminId = match.adminId || match.createdBy
-        if (!adminId) {
-            console.warn(`Match ${matchId} has no adminId, skipping ball notifications`)
-            return
-        }
+        const adminId = match.adminId || match.createdBy || 'admin'
+        const tag = `match_${adminId}_${matchId}`
 
-        const topicBase = `admin_${adminId}_match_${matchId}`
-
-        // 1. Wicket
-        if (ball.wicket || ball.isWicket) {
+        // 1. Wicket Notification
+        if (ball.isWicket || ball.wicket) {
+            const batterName = ball.batsmanName || ball.batsman || 'Batter'
             const wicketType = ball.wicket?.type || ball.wicketType || 'out'
-            const batterName = ball.batter?.name || ball.batterName || 'Batter'
-            const bowlerName = ball.bowler?.name || ball.bowlerName || 'Bowler'
+            const score = `${ball.runsHistory?.totalRuns || match.innings1Score || 'Score'} / ${ball.runsHistory?.totalWickets || match.innings1Wickets || 'W'}`
 
-            // Construct message
-            const body = `${batterName} ${getWicketDescription(wicketType, bowlerName)}`
-
-            await sendNotificationToTopic(`${topicBase}_wickets`, {
-                title: 'Wicket! 🔴',
-                body: body,
-                data: {
-                    type: 'wicket',
-                    matchId: matchId,
-                    ballId: context.params.ballId
-                }
-            })
+            await sendOneSignalNotification(tag, 'Wicket! 🔴', `${batterName} is OUT (${wicketType})! Current Score: ${score}`, matchId);
         }
 
-        // 50s and 100s - requiring stats calculation or simple milestone check
-        // For now, if ball.isMilestone is present (if engine adds it) we could use it.
-    })
+        // 3. Milestone Notifications (50/100)
+        try {
+            const inningDoc = await db.collection('matches').doc(matchId).collection('innings').doc(inningId).get();
+            if (inningDoc.exists) {
+                const inningData = inningDoc.data()!;
+                const batsmanId = ball.batsmanId;
+                const stats = inningData.batsmanStats?.find((s: any) => s.batsmanId === batsmanId);
 
-/**
- * Scheduled Task: Check for upcoming matches (15 mins before)
- * Runs every 15 minutes
- */
-export const checkMatchReminders = functions.pubsub.schedule('every 15 minutes').onRun(async (context) => {
-    const now = admin.firestore.Timestamp.now()
+                if (stats) {
+                    const currentRuns = stats.runs || 0;
+                    const ballRuns = ball.runs || 0;
 
-    // Query matches starting in near future
-    const matchesSnap = await db.collection('matches')
-        .where('status', 'in', ['upcoming', 'scheduled'])
-        .get()
-
-    for (const doc of matchesSnap.docs) {
-        const match = doc.data()
-        if (match.reminderSent) continue // Already sent
-
-        // Get adminId
-        const adminId = match.adminId || match.createdBy
-        if (!adminId) {
-            console.warn(`Match ${doc.id} has no adminId, skipping reminder`)
-            continue
-        }
-
-        // Calculate start time
-        let startTime: Date | null = null
-        if (match.date) {
-            let dStr = match.date
-            if (typeof dStr !== 'string') {
-                // handle timestamp
-                dStr = dStr.toDate().toISOString().split('T')[0]
-            }
-            const d = new Date(dStr)
-
-            if (match.time) {
-                const [h, m] = match.time.split(':').map(Number)
-                d.setHours(h, m)
-            }
-            startTime = d
-        }
-
-        if (!startTime) continue
-
-        const diff = startTime.getTime() - now.toDate().getTime()
-        const diffMins = diff / (60 * 1000)
-
-        // If between 10 and 25 minutes (targeting 15 min mark)
-        if (diffMins >= 10 && diffMins <= 25) {
-            // Send Reminder
-            const topic = `admin_${adminId}_match_${doc.id}_reminders`
-            const title = `${match.teamAName || 'Team A'} vs ${match.teamBName || 'Team B'}`
-
-            await sendNotificationToTopic(topic, {
-                title: title,
-                body: 'Match starts in 15 minutes',
-                data: { type: 'reminder', matchId: doc.id }
-            })
-
-            // Mark as sent
-            await doc.ref.update({ reminderSent: true })
-        }
-    }
-})
-
-
-// Helper to send FCM
-async function sendNotificationToTopic(topic: string, message: { title: string, body: string, data?: any }) {
-    try {
-        const payload: admin.messaging.Message = {
-            topic: topic,
-            notification: {
-                title: message.title,
-                body: message.body,
-            },
-            data: message.data || {},
-            android: {
-                notification: {
-                    icon: 'stock_ticker_update', // standard icon, customizable
-                    color: '#ffffff',
-                    clickAction: 'FLUTTER_NOTIFICATION_CLICK', // or PWA equivalent
-                }
-            },
-            apns: {
-                payload: {
-                    aps: {
-                        sound: 'default'
+                    if (currentRuns >= 100 && currentRuns - ballRuns < 100) {
+                        await sendOneSignalNotification(tag, 'CENTURY! 💯🏏', `${stats.batsmanName} scored a MASSIVE 100! 🌟`, matchId);
+                    } else if (currentRuns >= 50 && currentRuns - ballRuns < 50) {
+                        await sendOneSignalNotification(tag, 'Milestone! 🏏✨', `${stats.batsmanName} reached 50 runs! 🔥`, matchId);
                     }
                 }
             }
+        } catch (err) {
+            console.error("Error checking milestones:", err);
+        }
+    })
+
+/**
+ * OneSignal Helper Function using native HTTPS module
+ */
+function sendOneSignalNotification(tag: string, title: string, body: string, matchId: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+        if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
+            console.warn("OneSignal credentials missing, skipping notification");
+            return resolve(false);
         }
 
-        await messaging.send(payload)
-        console.log(`Sent notification to ${topic}: ${message.title}`)
-    } catch (error) {
-        console.error(`Error sending notification to ${topic}:`, error)
-    }
-}
+        const data = JSON.stringify({
+            app_id: ONESIGNAL_APP_ID,
+            filters: [
+                { field: "tag", key: tag, relation: "=", value: "subscribed" }
+            ],
+            headings: { en: title },
+            contents: { en: body },
+            android_accent_color: "FF0000",
+            small_icon: "ic_stat_onesignal_default",
+            url: `https://sma-cricket-league.firebaseapp.com/match/${matchId}`
+        });
 
-function getWicketDescription(type: string, bowler: string): string {
-    if (!type) return `b ${bowler}`
-    switch (type.toLowerCase()) {
-        case 'bowled': return `b ${bowler}`
-        case 'caught': return `c & b ${bowler}`
-        case 'lbw': return `lbw ${bowler}`
-        default: return `OUT (${type}) b ${bowler}`
-    }
+        const options = {
+            hostname: 'onesignal.com',
+            port: 443,
+            path: '/api/v1/notifications',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`,
+                'Content-Length': data.length
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let resData = '';
+            res.on('data', (chunk) => { resData += chunk; });
+            res.on('end', () => {
+                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                    console.log(`Successfully sent OneSignal notification: ${title}`);
+                    resolve(true);
+                } else {
+                    console.error(`OneSignal API error (${res.statusCode}): ${resData}`);
+                    resolve(false);
+                }
+            });
+        });
+
+        req.on('error', (e) => {
+            console.error("Error calling OneSignal API:", e);
+            reject(e);
+        });
+
+        req.write(data);
+        req.end();
+    });
 }

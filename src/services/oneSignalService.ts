@@ -41,7 +41,12 @@ class OneSignalService {
                     console.log('[OneSignal] Web Initialized');
                 }
             } catch (error: any) {
-                console.error('[OneSignal] Init error:', error);
+                const errMsg = error?.toString() || '';
+                if (errMsg.includes('Can only be used on') && window.location.hostname === 'localhost') {
+                    console.warn('[OneSignal] Skipping web init on localhost due to domain restriction.');
+                } else {
+                    console.error('[OneSignal] Init error:', error);
+                }
             } finally {
                 this.initPromise = null;
             }

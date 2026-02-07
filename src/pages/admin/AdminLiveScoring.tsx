@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db, functions } from '@/config/firebase';
@@ -46,6 +46,7 @@ const AdminLiveScoring = () => {
 
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+    const processingRef = useRef(false);
 
     // Selection Inputs
     const [selectedStriker, setSelectedStriker] = useState<string>('');
@@ -211,6 +212,21 @@ const AdminLiveScoring = () => {
         return battingPlayingXI.filter(p => !atCrease.includes(p.id!) && !dismissedIds.includes(p.id));
     }, [currentInnings, battingPlayingXI, match, dismissedIds]);
 
+    const isAllOut = useMemo(() => {
+        if (!currentInnings || !battingPlayingXI.length) return false;
+        return (currentInnings.totalWickets || 0) >= (battingPlayingXI.length - 1);
+    }, [currentInnings, battingPlayingXI]);
+
+    const isFinished = match?.status?.toLowerCase() === 'finished';
+
+    const isInningsComplete = useMemo(() => {
+        if (!match || !currentInnings) return false;
+        if (isFinished) return true;
+        if (isAllOut) return true;
+        const maxOvers = match.oversLimit || 5; // Use 5 as a sensible default if oversLimit is missing
+        return (currentInnings.legalBalls || 0) >= (maxOvers * 6);
+    }, [match, currentInnings, isFinished, isAllOut]);
+
     const getPlayerName = (id: string) => {
         const p = [...teamAPlayers, ...teamBPlayers].find(x => x.id === id);
         return p?.name || 'Unknown';
@@ -218,10 +234,20 @@ const AdminLiveScoring = () => {
 
     // --- Handlers ---
     const handlePlayerAssign = async (field: 'currentStrikerId' | 'currentNonStrikerId' | 'currentBowlerId', value: string) => {
-        if (!matchId) return;
+        if (!matchId || !value) return;
+
+        // Prevent same batter at both ends
+        if (field === 'currentStrikerId' && value === match?.currentNonStrikerId) {
+            toast.error('Player already at non-striker end!');
+            return;
+        }
+        if (field === 'currentNonStrikerId' && value === match?.currentStrikerId) {
+            toast.error('Player already at striker end!');
+            return;
+        }
 
         // ICC Rule: Same bowler cannot bowl consecutive overs
-        if (field === 'currentBowlerId' && value && match?.lastOverBowlerId === value) {
+        if (field === 'currentBowlerId' && match?.lastOverBowlerId === value) {
             toast.error('Same bowler cannot bowl consecutive overs!');
             return;
         }
@@ -291,41 +317,21 @@ const AdminLiveScoring = () => {
             console.log("[AdminLiveScoring] Ball to undo:", ballToUndo.id, "at", ballToUndo.timestamp);
 
             // --- Revert State Logic ---
-            let nextStriker = selectedStriker;
-            let nextNonStriker = selectedNonStriker;
-            let nextBowler = selectedBowler;
-
-            // 1. Check if the ball being undone completed an over
             const legalBalls = balls.filter(b => b.isLegal !== false);
             const isLastBallOfOver = legalBalls.length % 6 === 0 && ballToUndo.isLegal !== false;
 
-            if (isLastBallOfOver) {
-                // Was an end of over => ends were swapped. Swap them back.
-                [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
-                // Restore the bowler (it was cleared on over end)
-                nextBowler = ballToUndo.bowlerId;
-            }
+            // Directly use the players from the ball being undone. This is much safer than manual swapping.
+            let nextStriker = ballToUndo.batsmanId;
+            let nextNonStriker = ballToUndo.nonStrikerId;
+            let nextBowler = ballToUndo.bowlerId;
 
-            // 2. Was it an odd run rotation?
-            let rotationRuns = ballToUndo.runsOffBat || 0;
-            const bExtras = ballToUndo.extras || {};
+            // 1. Was it a wicket? If so, the out player is already captured in ballToUndo.batsmanId/nonStrikerId
+            // No extra logic needed for wicket restoration if we use the ball's original data.
 
-            if ((ballToUndo.extras?.wides || 0) > 0) {
-                rotationRuns = (bExtras.wides || 0) - 1;
-            } else if (bExtras.byes || bExtras.legByes) {
-                rotationRuns = (bExtras.byes || 0) + (bExtras.legByes || 0);
-            }
-
-            const isBoundary = (ballToUndo.runsOffBat === 4 || ballToUndo.runsOffBat === 6);
-            if (!isBoundary && Math.abs(rotationRuns) % 2 !== 0) {
-                [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
-            }
-
-            // 3. Was it a wicket? Restore the out batter
-            if (ballToUndo.wicket) {
-                const outId = ballToUndo.wicket.dismissedPlayerId;
-                if (outId === ballToUndo.batsmanId) nextStriker = outId;
-                else nextNonStriker = outId;
+            // 2. Special case: If striker and non-striker are somehow the same in the database (bug safety)
+            if (nextStriker === nextNonStriker) {
+                // Try to find if one of them should be a new player or just leave it for manual fix
+                console.warn("[AdminLiveScoring] Undo detected identical player IDs in ball record.");
             }
 
             // --- Database Sync ---
@@ -420,6 +426,14 @@ const AdminLiveScoring = () => {
 
     const submitBall = async (wicketData?: any) => {
         if (!match || !matchId) return;
+        if (processingRef.current) return;
+
+        if (isInningsComplete) {
+            toast.error("Innings or match is complete");
+            return;
+        }
+
+        processingRef.current = true;
         setProcessing(true);
 
         const inningKv = match.currentBatting || 'teamA';
@@ -508,32 +522,51 @@ const AdminLiveScoring = () => {
                     }
                 });
 
-                // OneSignal Notifications
+                // Notifications (Frontend fallback since Cloud Functions require paid plan)
                 const mAdminId = match.adminId || match.createdBy || 'admin';
+                const inningData = result.inningsData;
+
+                // 1. Wicket Notification
                 if (wicketData) {
                     oneSignalService.sendToMatch(
                         matchId,
                         mAdminId,
                         "WICKET! 🔴",
-                        `${strikerObj?.name || 'Batter'} is OUT! ${ballInnings?.totalRuns}/${ballInnings?.totalWickets} (${ballInnings?.overs} ov)`
-                    );
-                } else if (batRuns === 6) {
-                    oneSignalService.sendToMatch(
-                        matchId,
-                        mAdminId,
-                        "SIXER! ⚾🔥",
-                        `${strikerObj?.name || 'Batter'} hits a MASSIVE SIX! (${ballInnings?.overs} ov)`
-                    );
-                } else if (batRuns === 4) {
-                    oneSignalService.sendToMatch(
-                        matchId,
-                        mAdminId,
-                        "FOUR! 🏏💨",
-                        `${strikerObj?.name || 'Batter'} finds the boundary! (4 Runs)`
+                        `${strikerObj?.name || 'Batter'} is OUT! Score: ${inningData?.totalRuns || 0}/${inningData?.totalWickets || 0} (${inningData?.overs || '0.0'} ov)`
                     );
                 }
+
+                // 2. Milestones (50/100)
+                const batsmanStats = inningData?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
+                if (batsmanStats) {
+                    const currentRuns = batsmanStats.runs || 0;
+                    const preRuns = currentRuns - batRuns;
+                    if (currentRuns >= 100 && preRuns < 100) {
+                        oneSignalService.sendToMatch(matchId, mAdminId, "CENTURY! 💯🏏", `${batsmanStats.batsmanName} scored a MASSIVE 100! 🌟`);
+                    } else if (currentRuns >= 50 && preRuns < 50) {
+                        oneSignalService.sendToMatch(matchId, mAdminId, "Milestone! 🏏✨", `${batsmanStats.batsmanName} reached 50 runs! 🔥`);
+                    }
+                }
             } catch (commErr) {
-                console.error("[AdminLiveScoring] Commentary generation failed:", commErr);
+                console.error("[AdminLiveScoring] Notification/Commentary failed:", commErr);
+            }
+
+            // Innings Completion Notification
+            const overLimit = (match?.overs || 5) * 6;
+            const legalBallsAfter = result.inningsData?.legalBalls || 0;
+            const wicketsAfter = result.inningsData?.totalWickets || 0;
+            const isFinalBall = legalBallsAfter >= overLimit;
+            const isFinalWicket = wicketsAfter >= (battingPlayingXI.length - 1);
+
+            if (isFinalBall || isFinalWicket) {
+                const teamName = match.currentBatting === 'teamA' ? match.teamAName : match.teamBName;
+                const mAdminId = match.adminId || match.createdBy || 'admin';
+                oneSignalService.sendToMatch(
+                    matchId,
+                    mAdminId,
+                    "Innings Finished! ☕",
+                    `${teamName} finished at ${result.inningsData?.totalRuns}/${result.inningsData?.totalWickets} (${result.inningsData?.overs} ov)`
+                );
             }
 
             // Strike Rotation & State Logic
@@ -548,8 +581,10 @@ const AdminLiveScoring = () => {
                 if (outId === selectedStriker) nextStriker = '';
                 else nextNonStriker = '';
 
-                // Trigger the next batter modal after a short delay
-                setTimeout(() => setNextBatterModalOpen(true), 500);
+                // Only show next batter modal if not all out and not end of innings
+                if (!isFinalBall && !isFinalWicket) {
+                    setTimeout(() => setNextBatterModalOpen(true), 500);
+                }
             } else {
                 const physicalRuns = runs;
                 const isBoundary = (physicalRuns === 4 || physicalRuns === 6);
@@ -585,12 +620,19 @@ const AdminLiveScoring = () => {
             console.error(err);
             toast.error(err.message || 'Failed to update score');
         } finally {
+            processingRef.current = false;
             setProcessing(false);
             setWicketModalOpen(false);
         }
     };
 
     const handleWicketConfirm = () => {
+        if (processingRef.current) return;
+        if (isInningsComplete) {
+            toast.error("Innings or match is already complete");
+            setWicketModalOpen(false);
+            return;
+        }
         if (!wicketType || !whoIsOut) {
             toast.error("Please select the dismissal method.");
             return;
@@ -608,6 +650,12 @@ const AdminLiveScoring = () => {
     const handleNextBatterConfirm = async () => {
         if (!nextBatterId || !matchId) {
             toast.error("Please select the next batter.");
+            return;
+        }
+
+        const otherBatterId = !selectedStriker ? selectedNonStriker : selectedStriker;
+        if (nextBatterId === otherBatterId) {
+            toast.error("Player already at crease!");
             return;
         }
 
@@ -660,7 +708,12 @@ const AdminLiveScoring = () => {
                 matchPhase: 'finished'
             });
 
-            // 2. Send Emails if requested
+            // 2. Send Push Notification for Match Result
+            const resultStr = getMatchResultString(match.teamAName, match.teamBName, inningsA || null, inningsB || null, match);
+            const mAdminId = match.adminId || match.createdBy || 'admin';
+            oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🏆", resultStr);
+
+            // 3. Send Emails if requested
             if (sendMailChecked) {
                 const emailToastId = toast.loading("Sending personalized scores to Playing XI...");
                 const emailResult = await emailService.sendMatchEndEmails(matchId, resultSummary);
@@ -801,15 +854,25 @@ const AdminLiveScoring = () => {
                                             if (confirm("Start 2nd Innings?")) {
                                                 const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
                                                 const currentScore = (match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0;
+                                                const target = Number(currentScore) + 1;
                                                 matchService.update(matchId!, {
                                                     status: 'live',
                                                     matchPhase: 'SecondInnings',
                                                     currentBatting: newBatting,
-                                                    target: Number(currentScore) + 1,
+                                                    target: target,
                                                     currentStrikerId: '',
                                                     currentNonStrikerId: '',
                                                     currentBowlerId: ''
                                                 });
+
+                                                const mAdminId = match.adminId || match.createdBy || 'admin';
+                                                oneSignalService.sendToMatch(
+                                                    matchId!,
+                                                    mAdminId,
+                                                    "Second Innings Started ⚡",
+                                                    `Target: ${target} runs in ${match.overs || 20} overs.`
+                                                );
+
                                                 toast.success("Second Innings Started!");
                                             }
                                         }}
@@ -928,10 +991,15 @@ const AdminLiveScoring = () => {
                                     ))}
                                     <button
                                         onClick={() => {
+                                            if (isInningsComplete) return;
                                             if (match.freeHit) setWicketType('runout');
                                             setWicketModalOpen(true);
                                         }}
-                                        className="h-20 sm:h-24 rounded-2xl font-black text-2xl sm:text-3xl shadow-sm border border-b-4 bg-red-500 border-red-700 text-white hover:bg-red-600 active:scale-95 active:border-b-0 active:translate-y-1 flex flex-col items-center justify-center gap-1"
+                                        disabled={isInningsComplete || processing}
+                                        className={`h-20 sm:h-24 rounded-2xl font-black text-2xl sm:text-3xl shadow-sm border border-b-4 text-white flex flex-col items-center justify-center gap-1 transition-all active:scale-95
+                                            ${(isInningsComplete || processing)
+                                                ? 'bg-slate-300 border-slate-400 cursor-not-allowed opacity-50'
+                                                : 'bg-red-500 border-red-700 hover:bg-red-600 active:border-b-0 active:translate-y-1'}`}
                                     >
                                         <span>OUT</span>
                                         <ShieldAlert size={16} className="opacity-80" />

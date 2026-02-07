@@ -294,13 +294,24 @@ const CrexLiveSection = ({
               <div className="space-y-3">
                 {(() => {
                   const battersList = [striker, nonStriker].filter(Boolean);
-                  // Sort by ID to keep positions stable during strike rotation
-                  const stableBatters = [...battersList].sort((a, b) =>
+                  // Deduplicate by ID to prevent rendering same person multiple times if DB is glitched
+                  const uniqueBatters = [];
+                  const seenIds = new Set();
+                  for (const b of battersList) {
+                    const bid = b.id || b.playerId || b.batsmanId;
+                    if (!seenIds.has(bid)) {
+                      seenIds.add(bid);
+                      uniqueBatters.push(b);
+                    }
+                  }
+
+                  // Sort by ID to keep positions stable
+                  const stableBatters = [...uniqueBatters].sort((a, b) =>
                     String(a.id || a.playerId || a.batsmanId || '').localeCompare(String(b.id || b.playerId || b.batsmanId || ''))
                   );
 
                   return stableBatters.map((p, i) => (
-                    <div key={p.id || i} className="flex items-center justify-between">
+                    <div key={`${p.id || p.playerId || 'p'}-${i}`} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {(p.id || p.playerId || p.batsmanId) && String(p.id || p.playerId || p.batsmanId) !== 'undefined' ? (
                           <Link to={`/players/${p.id || p.playerId || p.batsmanId}`} className="text-sm font-medium text-slate-800 hover:text-blue-600 transition-colors">

@@ -294,9 +294,9 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                 <div className="flex items-center gap-1">
                                                     {(over.balls || []).map((ball: any, bi: number) => (
                                                         <div key={bi} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
-                                                                ball.value === '6' ? 'bg-orange-500 text-white border-orange-500' :
-                                                                    ball.value === '4' ? 'bg-amber-400 text-white border-amber-400' :
-                                                                        'bg-white text-slate-700 border-slate-200'
+                                                            ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                                                ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
+                                                                    'bg-white text-slate-700 border-slate-200'
                                                             }`}>
                                                             {ball.value === '·' ? '0' : ball.value}
                                                         </div>
@@ -316,9 +316,9 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                 <div className="flex items-center gap-1">
                                                     {timelineInns.currentOverBalls.map((ball: any, bi: number) => (
                                                         <div key={bi} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
-                                                                ball.value === '6' ? 'bg-orange-500 text-white border-orange-500' :
-                                                                    ball.value === '4' ? 'bg-amber-400 text-white border-amber-400' :
-                                                                        'bg-white text-slate-700 border-slate-200'
+                                                            ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                                                ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
+                                                                    'bg-white text-slate-700 border-slate-200'
                                                             }`}>
                                                             {ball.value === '·' ? '0' : ball.value}
                                                         </div>
