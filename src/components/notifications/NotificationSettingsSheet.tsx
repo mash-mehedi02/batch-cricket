@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
-import { notificationService } from '../../services/notificationService'
+import { oneSignalService } from '../../services/oneSignalService'
+import toast from 'react-hot-toast'
 
 interface Props {
     isOpen: boolean
@@ -13,6 +14,8 @@ interface Props {
     tournamentId?: string
 }
 
+const STORAGE_KEY = 'batchcrick_onesignal_notifications'
+
 export const NotificationSettingsSheet: React.FC<Props> = ({
     isOpen,
     onClose,
@@ -22,69 +25,136 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     tournamentId
 }) => {
     const [settings, setSettings] = useState({
-        all: false,
-        wickets: false,
-        reminders: false,
+        enabled: false,
         tournament: false
     })
+    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
         if (isOpen) {
-            const current = notificationService.getSettings(matchId)
-            const tournamentEnabled = tournamentId ? notificationService.getTournamentSettings(tournamentId) : false
-            setSettings({
-                ...current,
-                tournament: tournamentEnabled
-            })
+            loadSettings()
         }
     }, [isOpen, matchId, tournamentId])
 
-    const handleToggle = async (key: keyof typeof settings) => {
-        const newSettings = { ...settings }
-
-        if (key === 'all') {
-            const newValue = !settings.all
-            newSettings.all = newValue
-            newSettings.wickets = newValue
-            newSettings.reminders = newValue
-            if (newValue && tournamentId) {
-                newSettings.tournament = true
-                await notificationService.updateTournamentSubscription(tournamentId, adminId, true)
-            }
-        } else if (key === 'tournament') {
-            newSettings.tournament = !settings.tournament
-            if (tournamentId) {
-                await notificationService.updateTournamentSubscription(tournamentId, adminId, newSettings.tournament)
-            }
-        } else {
-            newSettings[key] = !settings[key]
-            if (!newSettings[key]) {
-                newSettings.all = false
-            } else if (newSettings.wickets && newSettings.reminders) {
-                newSettings.all = true
+    const loadSettings = () => {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+            try {
+                const data = JSON.parse(stored)
+                const matchEnabled = data.matches?.[matchId] || false
+                const tournamentEnabled = tournamentId ? (data.tournaments?.[tournamentId] || false) : false
+                setSettings({
+                    enabled: matchEnabled,
+                    tournament: tournamentEnabled
+                })
+            } catch {
+                setSettings({ enabled: false, tournament: false })
             }
         }
-        setSettings(newSettings)
+    }
 
-        if (key === 'tournament') return
+    const saveSettings = (matchEnabled: boolean, tournamentEnabled: boolean) => {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        let data: any = {}
+        if (stored) {
+            try {
+                data = JSON.parse(stored)
+            } catch {
+                data = {}
+            }
+        }
 
-        await notificationService.updateMatchSubscription(matchId, adminId, {
-            all: newSettings.all,
-            wickets: newSettings.wickets,
-            reminders: newSettings.reminders
-        })
+        if (!data.matches) data.matches = {}
+        if (!data.tournaments) data.tournaments = {}
+
+        data.matches[matchId] = matchEnabled
+        if (tournamentId) {
+            data.tournaments[tournamentId] = tournamentEnabled
+        }
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    }
+
+    const handleToggleMatch = async () => {
+        setLoading(true)
+        try {
+            const newValue = !settings.enabled
+
+            if (newValue) {
+                // Enable notifications
+                const subscribed = await oneSignalService.isSubscribed()
+                if (!subscribed) {
+                    const permitted = await oneSignalService.requestPermission()
+                    if (!permitted) {
+                        toast.error('Please allow notifications in your browser')
+                        setLoading(false)
+                        return
+                    }
+                }
+                await oneSignalService.subscribeToMatch(matchId, adminId)
+                toast.success('Match notifications enabled')
+            } else {
+                // Disable notifications
+                await oneSignalService.unsubscribeFromMatch(matchId, adminId)
+                toast.success('Match notifications disabled')
+            }
+
+            setSettings(prev => ({ ...prev, enabled: newValue }))
+            saveSettings(newValue, settings.tournament)
+        } catch (error) {
+            console.error('Failed to toggle match notifications:', error)
+            toast.error('Failed to update notifications')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleToggleTournament = async () => {
+        if (!tournamentId) return
+
+        setLoading(true)
+        try {
+            const newValue = !settings.tournament
+
+            if (newValue) {
+                const subscribed = await oneSignalService.isSubscribed()
+                if (!subscribed) {
+                    const permitted = await oneSignalService.requestPermission()
+                    if (!permitted) {
+                        toast.error('Please allow notifications in your browser')
+                        setLoading(false)
+                        return
+                    }
+                }
+                await oneSignalService.subscribeToTournament(tournamentId, adminId)
+                toast.success('Tournament notifications enabled')
+            } else {
+                await oneSignalService.unsubscribeFromTournament(tournamentId, adminId)
+                toast.success('Tournament notifications disabled')
+            }
+
+            setSettings(prev => ({ ...prev, tournament: newValue }))
+            saveSettings(settings.enabled, newValue)
+        } catch (error) {
+            console.error('Failed to toggle tournament notifications:', error)
+            toast.error('Failed to update notifications')
+        } finally {
+            setLoading(false)
+        }
     }
 
     const Toggle = ({
         label,
         subtitle,
         checked,
-        onChange
+        onChange,
+        disabled
     }: {
         label: string,
         subtitle: string,
         checked: boolean,
-        onChange: () => void
+        onChange: () => void,
+        disabled?: boolean
     }) => (
         <div className="flex items-center justify-between py-4 border-b border-gray-100 last:border-0">
             <div className="flex flex-col">
@@ -94,9 +164,10 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
             <button
                 onClick={(e) => {
                     e.stopPropagation();
-                    onChange();
+                    if (!disabled) onChange();
                 }}
-                className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
+                disabled={disabled}
+                className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative ${checked ? 'bg-blue-600' : 'bg-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
                 <div className={`w-5 h-5 bg-white rounded-full shadow-sm absolute top-1 transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
@@ -151,29 +222,19 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                         {/* Content */}
                         <div className="px-6 py-2 pb-10">
                             <Toggle
-                                label="All Notifications"
-                                subtitle="Wickets, 50s, 100s & Match Reminders"
-                                checked={settings.all}
-                                onChange={() => handleToggle('all')}
-                            />
-                            <Toggle
-                                label="Wicket Notifications"
-                                subtitle="All wicket updates for this Match"
-                                checked={settings.wickets}
-                                onChange={() => handleToggle('wickets')}
-                            />
-                            <Toggle
-                                label="Match Reminders"
-                                subtitle="Toss, Innings Start & Match Result"
-                                checked={settings.reminders}
-                                onChange={() => handleToggle('reminders')}
+                                label="Match Notifications"
+                                subtitle="Get notified about wickets, milestones & match updates"
+                                checked={settings.enabled}
+                                onChange={handleToggleMatch}
+                                disabled={loading}
                             />
                             {tournamentId && (
                                 <Toggle
                                     label="Tournament Notifications"
                                     subtitle="All matches in this entire tournament"
                                     checked={settings.tournament}
-                                    onChange={() => handleToggle('tournament')}
+                                    onChange={handleToggleTournament}
+                                    disabled={loading}
                                 />
                             )}
 

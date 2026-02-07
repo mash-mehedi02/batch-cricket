@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, BellRing } from 'lucide-react'
 import { NotificationSettingsSheet } from './NotificationSettingsSheet'
-import { notificationService } from '../../services/notificationService'
 
 interface Props {
     matchId: string
@@ -10,6 +9,8 @@ interface Props {
     tournamentId?: string
     color?: string
 }
+
+const STORAGE_KEY = 'batchcrick_onesignal_notifications'
 
 export const NotificationBell: React.FC<Props> = ({
     matchId,
@@ -22,22 +23,37 @@ export const NotificationBell: React.FC<Props> = ({
     const [isActive, setIsActive] = useState(false)
 
     const checkStatus = () => {
-        const settings = notificationService.getSettings(matchId)
-        // Active if any notification is enabled
-        setIsActive(settings.all || settings.wickets || settings.reminders)
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) {
+            try {
+                const data = JSON.parse(stored)
+                const matchEnabled = data.matches?.[matchId] || false
+                setIsActive(matchEnabled)
+            } catch {
+                setIsActive(false)
+            }
+        } else {
+            setIsActive(false)
+        }
     }
 
     useEffect(() => {
         checkStatus()
 
-        // Listen for changes from other components (e.g. settings sheet)
-        const unsubscribe = notificationService.addChangeListener((id, settings) => {
-            if (id === matchId) {
-                setIsActive(settings.all || settings.wickets || settings.reminders)
-            }
-        })
+        // Listen for storage changes (from settings sheet)
+        const handleStorageChange = () => {
+            checkStatus()
+        }
 
-        return () => unsubscribe()
+        window.addEventListener('storage', handleStorageChange)
+
+        // Also check when sheet closes
+        const interval = setInterval(checkStatus, 1000)
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange)
+            clearInterval(interval)
+        }
     }, [matchId])
 
     return (
