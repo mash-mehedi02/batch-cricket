@@ -509,18 +509,25 @@ const AdminLiveScoring = () => {
                 });
 
                 // OneSignal Notifications
+                const mAdminId = match.adminId || match.createdBy || 'admin';
                 if (wicketData) {
-                    oneSignalService.sendBroadcast(
+                    oneSignalService.sendToMatch(
+                        matchId,
+                        mAdminId,
                         "WICKET! 🔴",
                         `${strikerObj?.name || 'Batter'} is OUT! ${ballInnings?.totalRuns}/${ballInnings?.totalWickets} (${ballInnings?.overs} ov)`
                     );
                 } else if (batRuns === 6) {
-                    oneSignalService.sendBroadcast(
+                    oneSignalService.sendToMatch(
+                        matchId,
+                        mAdminId,
                         "SIXER! ⚾🔥",
                         `${strikerObj?.name || 'Batter'} hits a MASSIVE SIX! (${ballInnings?.overs} ov)`
                     );
                 } else if (batRuns === 4) {
-                    oneSignalService.sendBroadcast(
+                    oneSignalService.sendToMatch(
+                        matchId,
+                        mAdminId,
                         "FOUR! 🏏💨",
                         `${strikerObj?.name || 'Batter'} finds the boundary! (4 Runs)`
                     );
@@ -630,7 +637,8 @@ const AdminLiveScoring = () => {
             );
 
             // Send Push Notification for manual highlight
-            oneSignalService.sendBroadcast("Live Update 📢", manualCommentary);
+            const mAdminId = match.adminId || match.createdBy || 'admin';
+            oneSignalService.sendToMatch(matchId, mAdminId, "Live Update 📢", manualCommentary);
 
             setManualCommentary('');
             toast.success("Commentary added!");

@@ -1,4 +1,5 @@
-import OneSignal from 'react-onesignal';
+import OneSignalWeb from 'react-onesignal';
+import { Capacitor } from '@capacitor/core';
 import toast from 'react-hot-toast';
 
 const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID;
@@ -6,140 +7,152 @@ const ONESIGNAL_REST_API_KEY = import.meta.env.VITE_ONESIGNAL_REST_API_KEY;
 
 class OneSignalService {
     private initialized = false;
+    private isNative = Capacitor.isNativePlatform();
+    private initPromise: Promise<void> | null = null;
 
-    /**
-     * Initialize OneSignal
-     */
     async init() {
-        if (!ONESIGNAL_APP_ID) {
-            console.warn('[OneSignal] Missing VITE_ONESIGNAL_APP_ID in .env');
-            return;
-        }
+        if (!ONESIGNAL_APP_ID) return;
+        if (this.initialized) return;
+        if (this.initPromise) return this.initPromise;
 
-        if (this.initialized) {
-            console.log('[OneSignal] Already initialized');
-            return;
-        }
+        this.initPromise = (async () => {
+            try {
+                if (this.isNative) {
+                    // Native Android/iOS Initialization
+                    console.log('[OneSignal] Initializing Native SDK...');
+                    const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                    OneSignalNative.initialize(ONESIGNAL_APP_ID);
 
-        try {
-            await OneSignal.init({
-                appId: ONESIGNAL_APP_ID,
-                allowLocalhostAsSecureOrigin: true,
-                notifyButton: {
-                    enable: false // We'll use our own UI
+                    // Request permission on native
+                    OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
+                        console.log('[OneSignal] Native permission:', accepted);
+                    });
+
+                    this.initialized = true;
+                    console.log('[OneSignal] Native Initialized');
+                } else {
+                    // Web Initialization
+                    console.log('[OneSignal] Initializing Web SDK...');
+                    await OneSignalWeb.init({
+                        appId: ONESIGNAL_APP_ID,
+                        allowLocalhostAsSecureOrigin: true,
+                    });
+                    this.initialized = true;
+                    console.log('[OneSignal] Web Initialized');
                 }
-            });
-            this.initialized = true;
-            console.log('[OneSignal] Initialized successfully');
-        } catch (error) {
-            console.error('[OneSignal] Init failed:', error);
-        }
+            } catch (error: any) {
+                console.error('[OneSignal] Init error:', error);
+            } finally {
+                this.initPromise = null;
+            }
+        })();
+
+        return this.initPromise;
     }
 
-    /**
-     * Check if user is subscribed to push notifications
-     */
     async isSubscribed(): Promise<boolean> {
-        if (!this.initialized) return false;
         try {
-            return await OneSignal.isPushNotificationsEnabled();
+            if (!this.initialized) await this.init();
+            if (this.isNative) {
+                // For native, we assume it's working if permission is granted
+                return true;
+            }
+            return OneSignalWeb.Notifications.permission === true;
         } catch {
             return false;
         }
     }
 
-    /**
-     * Request notification permission
-     */
     async requestPermission(): Promise<boolean> {
-        if (!this.initialized) {
-            await this.init();
-        }
-
         try {
-            await OneSignal.showNativePrompt();
-            const subscribed = await OneSignal.isPushNotificationsEnabled();
-            if (subscribed) {
-                toast.success('Notifications enabled!');
+            if (!this.initialized) await this.init();
+
+            if (this.isNative) {
+                const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                return new Promise((resolve) => {
+                    OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
+                        resolve(accepted);
+                    });
+                });
+            } else {
+                if (Notification.permission === 'denied') {
+                    toast.error('Notifications blocked in browser settings');
+                    return false;
+                }
+                const result = await OneSignalWeb.Notifications.requestPermission();
+                return result === true;
             }
-            return subscribed;
         } catch (error) {
             console.error('[OneSignal] Permission request failed:', error);
-            toast.error('Failed to enable notifications');
             return false;
         }
     }
 
-    /**
-     * Subscribe to a specific match
-     */
     async subscribeToMatch(matchId: string, adminId: string): Promise<void> {
-        if (!this.initialized) {
-            await this.init();
-        }
-
         try {
-            const tag = `match_${adminId}_${matchId}`;
-            await OneSignal.sendTag(tag, 'subscribed');
-            console.log(`[OneSignal] Subscribed to ${tag}`);
+            if (!this.initialized) await this.init();
+            const tag = `match_${adminId || 'admin'}_${matchId}`;
+
+            if (this.isNative) {
+                const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                OneSignalNative.User.addTag(tag, 'subscribed');
+            } else {
+                await OneSignalWeb.User.addTag(tag, 'subscribed');
+            }
+            console.log(`[OneSignal] Subscribed to match: ${tag}`);
         } catch (error) {
-            console.error('[OneSignal] Failed to subscribe to match:', error);
-            throw error;
+            console.error('[OneSignal] Match tag failed:', error);
         }
     }
 
-    /**
-     * Unsubscribe from a specific match
-     */
     async unsubscribeFromMatch(matchId: string, adminId: string): Promise<void> {
-        if (!this.initialized) return;
-
         try {
-            const tag = `match_${adminId}_${matchId}`;
-            await OneSignal.deleteTag(tag);
-            console.log(`[OneSignal] Unsubscribed from ${tag}`);
+            if (!this.initialized) await this.init();
+            const tag = `match_${adminId || 'admin'}_${matchId}`;
+
+            if (this.isNative) {
+                const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                OneSignalNative.User.removeTag(tag);
+            } else {
+                await OneSignalWeb.User.removeTag(tag);
+            }
         } catch (error) {
-            console.error('[OneSignal] Failed to unsubscribe from match:', error);
+            console.error('[OneSignal] Match untag failed:', error);
         }
     }
 
-    /**
-     * Subscribe to tournament notifications
-     */
     async subscribeToTournament(tournamentId: string, adminId: string): Promise<void> {
-        if (!this.initialized) {
-            await this.init();
-        }
-
         try {
-            const tag = `tournament_${adminId}_${tournamentId}`;
-            await OneSignal.sendTag(tag, 'subscribed');
-            console.log(`[OneSignal] Subscribed to ${tag}`);
+            if (!this.initialized) await this.init();
+            const tag = `tournament_${adminId || 'admin'}_${tournamentId}`;
+
+            if (this.isNative) {
+                const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                OneSignalNative.User.addTag(tag, 'subscribed');
+            } else {
+                await OneSignalWeb.User.addTag(tag, 'subscribed');
+            }
         } catch (error) {
-            console.error('[OneSignal] Failed to subscribe to tournament:', error);
-            throw error;
+            console.error('[OneSignal] Tournament tag failed:', error);
         }
     }
 
-    /**
-     * Unsubscribe from tournament notifications
-     */
     async unsubscribeFromTournament(tournamentId: string, adminId: string): Promise<void> {
-        if (!this.initialized) return;
-
         try {
-            const tag = `tournament_${adminId}_${tournamentId}`;
-            await OneSignal.deleteTag(tag);
-            console.log(`[OneSignal] Unsubscribed from ${tag}`);
+            if (!this.initialized) await this.init();
+            const tag = `tournament_${adminId || 'admin'}_${tournamentId}`;
+
+            if (this.isNative) {
+                const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                OneSignalNative.User.removeTag(tag);
+            } else {
+                await OneSignalWeb.User.removeTag(tag);
+            }
         } catch (error) {
-            console.error('[OneSignal] Failed to unsubscribe from tournament:', error);
+            console.error('[OneSignal] Tournament untag failed:', error);
         }
     }
 
-    /**
-     * Send notification to specific match subscribers (from backend/admin)
-     * This should ideally be called from backend, but can work from frontend with REST API key
-     */
     async sendToMatch(
         matchId: string,
         adminId: string,
@@ -147,13 +160,10 @@ class OneSignalService {
         message: string,
         url?: string
     ): Promise<boolean> {
-        if (!ONESIGNAL_REST_API_KEY || !ONESIGNAL_APP_ID) {
-            console.error('[OneSignal] Missing API credentials');
-            return false;
-        }
+        if (!ONESIGNAL_REST_API_KEY || !ONESIGNAL_APP_ID) return false;
 
         try {
-            const tag = `match_${adminId}_${matchId}`;
+            const tag = `match_${adminId || 'admin'}_${matchId}`;
             const response = await fetch('https://onesignal.com/api/v1/notifications', {
                 method: 'POST',
                 headers: {
@@ -171,30 +181,20 @@ class OneSignalService {
                 })
             });
 
-            const data = await response.json();
-            if (data.errors) {
-                console.error('[OneSignal] Send failed:', data.errors);
-                return false;
-            }
-            console.log('[OneSignal] Notification sent:', data);
-            return true;
+            return response.ok;
         } catch (error) {
-            console.error('[OneSignal] Send failed:', error);
+            console.error('[OneSignal] Notification send failed:', error);
             return false;
         }
     }
 
-    /**
-     * Get user's OneSignal Player ID
-     */
     async getPlayerId(): Promise<string | null> {
         if (!this.initialized) return null;
-        try {
-            const userId = await OneSignal.getUserId();
-            return userId;
-        } catch {
-            return null;
+        if (this.isNative) {
+            // Native player ID tracking is slightly different
+            return 'native-user';
         }
+        return OneSignalWeb.User.onesignalId || null;
     }
 }
 

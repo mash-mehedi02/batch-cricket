@@ -76,6 +76,7 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     }
 
     const handleToggleMatch = async () => {
+        console.log('[NotificationSettingsSheet] Toggling match:', matchId, 'Current state:', settings.enabled);
         setLoading(true)
         try {
             const newValue = !settings.enabled
@@ -83,18 +84,25 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
             if (newValue) {
                 // Enable notifications
                 const subscribed = await oneSignalService.isSubscribed()
+                console.log('[NotificationSettingsSheet] isSubscribed:', subscribed);
+
                 if (!subscribed) {
                     const permitted = await oneSignalService.requestPermission()
+                    console.log('[NotificationSettingsSheet] Permission granted:', permitted);
+
                     if (!permitted) {
-                        toast.error('Please allow notifications in your browser')
+                        toast.error('Notification permission denied or blocked')
                         setLoading(false)
                         return
                     }
                 }
+
+                console.log('[NotificationSettingsSheet] Subscribing to match...');
                 await oneSignalService.subscribeToMatch(matchId, adminId)
                 toast.success('Match notifications enabled')
             } else {
                 // Disable notifications
+                console.log('[NotificationSettingsSheet] Unsubscribing from match...');
                 await oneSignalService.unsubscribeFromMatch(matchId, adminId)
                 toast.success('Match notifications disabled')
             }
@@ -102,7 +110,7 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
             setSettings(prev => ({ ...prev, enabled: newValue }))
             saveSettings(newValue, settings.tournament)
         } catch (error) {
-            console.error('Failed to toggle match notifications:', error)
+            console.error('[NotificationSettingsSheet] Failed to toggle match notifications:', error)
             toast.error('Failed to update notifications')
         } finally {
             setLoading(false)
@@ -111,6 +119,7 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
 
     const handleToggleTournament = async () => {
         if (!tournamentId) return
+        console.log('[NotificationSettingsSheet] Toggling tournament:', tournamentId, 'Current state:', settings.tournament);
 
         setLoading(true)
         try {
@@ -121,14 +130,17 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                 if (!subscribed) {
                     const permitted = await oneSignalService.requestPermission()
                     if (!permitted) {
-                        toast.error('Please allow notifications in your browser')
+                        toast.error('Notification permission denied or blocked')
                         setLoading(false)
                         return
                     }
                 }
+
+                console.log('[NotificationSettingsSheet] Subscribing to tournament...');
                 await oneSignalService.subscribeToTournament(tournamentId, adminId)
                 toast.success('Tournament notifications enabled')
             } else {
+                console.log('[NotificationSettingsSheet] Unsubscribing from tournament...');
                 await oneSignalService.unsubscribeFromTournament(tournamentId, adminId)
                 toast.success('Tournament notifications disabled')
             }
@@ -136,7 +148,7 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
             setSettings(prev => ({ ...prev, tournament: newValue }))
             saveSettings(settings.enabled, newValue)
         } catch (error) {
-            console.error('Failed to toggle tournament notifications:', error)
+            console.error('[NotificationSettingsSheet] Failed to toggle tournament notifications:', error)
             toast.error('Failed to update notifications')
         } finally {
             setLoading(false)

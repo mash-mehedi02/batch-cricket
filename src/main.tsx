@@ -4,15 +4,10 @@ import App from './App'
 import './index.css'
 import { useAuthStore } from './store/authStore'
 import { oneSignalService } from './services/oneSignalService'
-import { notificationService } from './services/notificationService'
 
 // Initialize OneSignal
 oneSignalService.init()
 
-// Initialize FCM notifications (request permission)
-if ('Notification' in window && Notification.permission === 'default') {
-  notificationService.requestPermission().catch(console.error)
-}
 
 // Suppress harmless browser extension errors
 if (typeof window !== 'undefined') {
@@ -24,9 +19,10 @@ if (typeof window !== 'undefined') {
       message.includes('runtime.lastError') ||
       message.includes('message port closed') ||
       message.includes('Could not establish connection') ||
-      message.includes('Receiving end does not exist')
+      message.includes('Receiving end does not exist') ||
+      message.includes('ERR_BLOCKED_BY_CLIENT')
     ) {
-      // Silently ignore browser extension errors
+      // Silently ignore browser extension and block errors
       return
     }
     originalError.apply(console, args)
