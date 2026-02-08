@@ -126,20 +126,25 @@ class OneSignalService {
             return;
         }
         try {
-            if (!this.initialized) await this.init();
             const tag = `match_${matchId}`;
+            console.log(`[OneSignal] Subscribing to: ${tag}`);
 
             if (this.isNative) {
+                if (!this.initialized) await this.init();
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+
+                // Native v5 Tagging
                 OneSignalNative.User.addTag(tag, 'subscribed');
-                console.log(`[OneSignal Native] Added tag: ${tag}`);
+                console.log(`[OneSignal Native] Tag added: ${tag}`);
                 toast.success('Match notifications enabled! 🏏');
             } else {
+                if (!this.initialized) await this.init();
                 await OneSignalWeb.User.addTag(tag, 'subscribed');
+                toast.success('Notifications enabled! 🔔');
             }
-            console.log(`[OneSignal] Subscribed to match: ${tag}`);
         } catch (error) {
             console.error('[OneSignal] Match tag failed:', error);
+            toast.error('Failed to enable notifications');
         }
     }
 
