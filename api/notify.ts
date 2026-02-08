@@ -36,7 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             body: JSON.stringify({
                 app_id: appId,
                 filters: [
-                    { field: 'tag', key: tag, relation: '=', value: 'subscribed' }
+                    { field: 'tag', key: tag, relation: '=', value: 'subscribed' },
+                    { field: 'tag', key: 'all_matches', relation: '=', value: 'active' }
                 ],
                 headings: { en: title },
                 contents: { en: message },
