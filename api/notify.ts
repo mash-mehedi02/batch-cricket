@@ -37,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 app_id: appId,
                 filters: [
                     { field: 'tag', key: tag, relation: '=', value: 'subscribed' },
+                    { operator: 'OR' },
                     { field: 'tag', key: 'all_matches', relation: '=', value: 'active' }
                 ],
                 headings: { en: title },

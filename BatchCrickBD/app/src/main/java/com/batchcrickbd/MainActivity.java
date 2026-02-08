@@ -16,7 +16,8 @@ public class MainActivity extends BridgeActivity {
 
             // Set global tags for production analytics
             com.onesignal.OneSignal.getUser().addTag("platform", "android");
-            com.onesignal.OneSignal.getUser().addTag("app_version", "1.0.0");
+            com.onesignal.OneSignal.getUser().addTag("all_matches", "active");
+            com.onesignal.OneSignal.getUser().addTag("app_version", "1.0.1");
 
             // Request permission (Crucial for Android 13+)
             com.onesignal.OneSignal.getNotifications().requestPermission(true, com.onesignal.Continue.with(r -> {
