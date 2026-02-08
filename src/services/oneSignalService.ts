@@ -10,61 +10,57 @@ class OneSignalService {
     private initPromise: Promise<void> | null = null;
 
     async init() {
-        if (!ONESIGNAL_APP_ID) return;
+        if (!ONESIGNAL_APP_ID) {
+            console.error('[OneSignal] Missing App ID');
+            return;
+        }
         if (this.initialized) return;
         if (this.initPromise) return this.initPromise;
 
         this.initPromise = (async () => {
             try {
                 if (this.isNative) {
-                    // Native Android/iOS Initialization
                     console.log('[OneSignal] Initializing Native SDK...');
-                    const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+                    // toast('OneSignal Starting...', { id: 'os-init' });
 
-                    // Set logging for debugging
-                    OneSignalNative.Debug.setLogLevel(6); // Verbose logging
+                    try {
+                        const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
 
-                    OneSignalNative.initialize(ONESIGNAL_APP_ID);
-                    console.log('[OneSignal] Native SDK initialized with App ID:', ONESIGNAL_APP_ID);
+                        // Verbose logging for debugging
+                        OneSignalNative.Debug.setLogLevel(6);
 
-                    // Request permission on native
-                    OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
-                        console.log('[OneSignal] Native permission result:', accepted);
-                        if (accepted) {
-                            toast.success('Notifications enabled! 🔔');
-                        }
-                    });
+                        OneSignalNative.initialize(ONESIGNAL_APP_ID);
+                        console.log('[OneSignal] Native SDK initialized');
 
-                    this.initialized = true;
-                    console.log('[OneSignal] Native Initialized Successfully');
+                        // Request permission with a slight delay to ensure UI is ready
+                        setTimeout(() => {
+                            // toast('Requesting Permission...', { icon: '🔔' });
+                            OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
+                                console.log('[OneSignal] Permission result:', accepted);
+                                if (accepted) {
+                                    // toast.success('Notifications Enabled! ✅');
+                                } else {
+                                    console.warn('[OneSignal] Permission Denied');
+                                    // toast.error('Notifications Denied ❌');
+                                }
+                            });
+                        }, 2000);
+
+                        this.initialized = true;
+                    } catch (nativeError) {
+                        console.error('[OneSignal] Native Init Failed:', nativeError);
+                        toast.error('Push Init Failed: ' + nativeError);
+                    }
                 } else {
                     // Web Initialization
-                    console.log('[OneSignal] Initializing Web SDK...');
-                    try {
-                        await OneSignalWeb.init({
-                            appId: ONESIGNAL_APP_ID,
-                            allowLocalhostAsSecureOrigin: true,
-                        });
-                        this.initialized = true;
-                        console.log('[OneSignal] Web Initialized');
-                    } catch (e: any) {
-                        const msg = e?.toString() || '';
-                        if (msg.includes('already initialized')) {
-                            this.initialized = true;
-                            console.log('[OneSignal] Web SDK was already initialized');
-                        } else {
-                            throw e;
-                        }
-                    }
+                    await OneSignalWeb.init({
+                        appId: ONESIGNAL_APP_ID,
+                        allowLocalhostAsSecureOrigin: true,
+                    });
+                    this.initialized = true;
                 }
-            } catch (error: any) {
-                const errMsg = error?.toString() || '';
-                if (errMsg.includes('Can only be used on') && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-                    console.warn('[OneSignal] Skipping web init on localhost due to domain restriction.');
-                    this.initialized = true; // Set to true to prevent infinite retry loops on localhost
-                } else {
-                    console.error('[OneSignal] Init error:', error);
-                }
+            } catch (error) {
+                console.error('[OneSignal] Global Init Error:', error);
             } finally {
                 this.initPromise = null;
             }
@@ -92,7 +88,7 @@ class OneSignalService {
 
     async requestPermission(): Promise<boolean> {
         if (!this.isNative && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-            return true; // Mock for local testing
+            return true;
         }
         try {
             if (!this.initialized) await this.init();
@@ -101,10 +97,11 @@ class OneSignalService {
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
                 console.log('[OneSignal] Requesting native permission explicitly...');
 
-                // OneSignal's prompt for push notifications
                 return new Promise((resolve) => {
                     OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
                         console.log('[OneSignal] Native permission decision:', accepted);
+                        if (accepted) toast.success('Notifications Enabled! ✅');
+                        else toast.error('Permission Denied ❌');
                         resolve(accepted);
                     });
                 });

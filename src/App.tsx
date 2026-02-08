@@ -48,12 +48,17 @@ function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
   return <Navigate to={`/tournaments/${tournamentId}?tab=${tab}`} replace />
 }
 
+import { oneSignalService } from './services/oneSignalService';
+
 function App() {
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     // Hide the native splash immediately so our custom React splash can show
     NativeSplash.hide().catch(() => { });
+
+    // Initialize OneSignal
+    oneSignalService.init();
   }, []);
 
   const handleSplashFinish = () => {
