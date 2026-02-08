@@ -133,14 +133,24 @@ class OneSignalService {
                 if (!this.initialized) await this.init();
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
 
-                // Native v5 Tagging
-                OneSignalNative.User.addTag(tag, 'subscribed');
-                console.log(`[OneSignal Native] Tag added: ${tag}`);
-                toast.success('Match notifications enabled! 🏏');
+                // Explicitly request notification permission from system when bell is clicked
+                console.log('[OneSignal Native] Requesting permission on trigger...');
+                const accepted = await OneSignalNative.Notifications.requestPermission(true);
+
+                if (accepted) {
+                    OneSignalNative.User.addTag(tag, 'subscribed');
+                    console.log(`[OneSignal Native] Tag added: ${tag}`);
+                    toast.success('Notifications enabled! 🔔');
+                } else {
+                    toast.error('Notification permission denied ❌');
+                }
             } else {
                 if (!this.initialized) await this.init();
-                await OneSignalWeb.User.addTag(tag, 'subscribed');
-                toast.success('Notifications enabled! 🔔');
+                const accepted = await OneSignalWeb.Notifications.requestPermission();
+                if (accepted) {
+                    await OneSignalWeb.User.addTag(tag, 'subscribed');
+                    toast.success('Notifications enabled! 🔔');
+                }
             }
         } catch (error) {
             console.error('[OneSignal] Match tag failed:', error);

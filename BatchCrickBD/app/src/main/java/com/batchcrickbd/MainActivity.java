@@ -19,10 +19,8 @@ public class MainActivity extends BridgeActivity {
             com.onesignal.OneSignal.getUser().addTag("all_matches", "active");
             com.onesignal.OneSignal.getUser().addTag("app_version", "1.0.1");
 
-            // Request permission (Crucial for Android 13+)
-            com.onesignal.OneSignal.getNotifications().requestPermission(true, com.onesignal.Continue.with(r -> {
-                // Silently handle
-            }));
+            // DO NOT request permission here anymore.
+            // It will be requested from JS when user clicks notification bell.
         } catch (Exception e) {
             android.util.Log.e("OneSignal", "Init Error: " + e.getMessage());
         }
