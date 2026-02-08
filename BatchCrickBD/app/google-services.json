@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "899272110972",
+    "firebase_url": "https://sma-cricket-league-default-rtdb.firebaseio.com",
+    "project_id": "sma-cricket-league",
+    "storage_bucket": "sma-cricket-league.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:899272110972:android:b4b165e477894f997e6af9",
+        "android_client_info": {
+          "package_name": "com.batchcrickbd"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "899272110972-86gs1ml0chigmi4shhibbfncch12uokn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.batchcrickbd",
+            "certificate_hash": "0ee34baa5f5a844a76eecb6b10cfefaafa746193"
+          }
+        },
+        {
+          "client_id": "899272110972-pjfti5ug438ubliit4ri5civ6nuhkftv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcJdfqiAP1npWlTlr87In-DhdzVlDvCs0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "899272110972-pjfti5ug438ubliit4ri5civ6nuhkftv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

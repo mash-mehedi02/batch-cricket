@@ -40,6 +40,13 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- OneSignal Configuration -->
+        <meta-data android:name="onesignal_app_id"
+            android:value="76d0d60c-60ce-4e15-adf7-21166ae3522a" />
+        
+        <meta-data android:name="com.onesignal.NotificationServiceExtension"
+            android:value="com.onesignal.NotificationExtensionService" />
+
     </application>
 
     <!-- Permissions -->

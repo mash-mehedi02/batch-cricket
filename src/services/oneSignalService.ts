@@ -20,15 +20,23 @@ class OneSignalService {
                     // Native Android/iOS Initialization
                     console.log('[OneSignal] Initializing Native SDK...');
                     const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
+
+                    // Set logging for debugging
+                    OneSignalNative.Debug.setLogLevel(6); // Verbose logging
+
                     OneSignalNative.initialize(ONESIGNAL_APP_ID);
+                    console.log('[OneSignal] Native SDK initialized with App ID:', ONESIGNAL_APP_ID);
 
                     // Request permission on native
                     OneSignalNative.Notifications.requestPermission(true).then((accepted: boolean) => {
-                        console.log('[OneSignal] Native permission:', accepted);
+                        console.log('[OneSignal] Native permission result:', accepted);
+                        if (accepted) {
+                            toast.success('Notifications enabled! 🔔');
+                        }
                     });
 
                     this.initialized = true;
-                    console.log('[OneSignal] Native Initialized');
+                    console.log('[OneSignal] Native Initialized Successfully');
                 } else {
                     // Web Initialization
                     console.log('[OneSignal] Initializing Web SDK...');
@@ -127,6 +135,8 @@ class OneSignalService {
             if (this.isNative) {
                 const OneSignalNative = (await import('onesignal-cordova-plugin')).default;
                 OneSignalNative.User.addTag(tag, 'subscribed');
+                console.log(`[OneSignal Native] Added tag: ${tag}`);
+                toast.success('Match notifications enabled! 🏏');
             } else {
                 await OneSignalWeb.User.addTag(tag, 'subscribed');
             }
