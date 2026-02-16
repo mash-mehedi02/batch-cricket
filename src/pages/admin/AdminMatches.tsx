@@ -97,6 +97,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterTournament, setFilterTournament] = useState<string>('')
 
   // Tournament → Groups → Allowed squads (for tournament-based fixtures)
   const selectedTournament = useMemo(() => {
@@ -146,6 +147,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   useEffect(() => {
     if (mode === 'list') {
       loadMatches()
+      loadTournaments()
       if (user?.role === 'super_admin') {
         loadAdmins()
       }
@@ -479,6 +481,113 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
     return false
   }, [formData.status, matchView])
+
+  // ── Derived match data (must be hooks, declared before any early returns) ──
+  const activeLiveMatches = useMemo(() =>
+    matches.filter(m => String((m as any).status || '').toLowerCase() === 'live'),
+    [matches]
+  )
+
+  const filteredMatches = useMemo(() => {
+    return matches.filter(match => {
+      const rawStatus = String((match as any).status || 'upcoming').toLowerCase();
+      const searchLower = searchTerm.toLowerCase();
+      const matchTerms = [
+        match.teamAName, (match as any).teamA,
+        match.teamBName, (match as any).teamB,
+        match.venue,
+        match.id,
+        (match as any).matchNo,
+        tournaments.find(t => t.id === match.tournamentId)?.name
+      ].map(t => String(t || '').toLowerCase());
+
+      const matchesSearch = !searchTerm || matchTerms.some(t => t.includes(searchLower));
+
+      let matchesStatus = true;
+      if (filterStatus === 'live') matchesStatus = rawStatus === 'live';
+      else if (filterStatus === 'completed') matchesStatus = ['completed', 'finished', 'abandoned'].includes(rawStatus);
+      else if (filterStatus === 'upcoming') matchesStatus = rawStatus === 'upcoming';
+
+      // Admin Filter Logic
+      let matchesAdmin = true;
+      if (user?.role === 'super_admin' && selectedAdminFilter) {
+        matchesAdmin = (match as any).adminId === selectedAdminFilter || (match as any).createdBy === selectedAdminFilter;
+      }
+
+      // Tournament Filter Logic
+      let matchesTournament = true;
+      if (filterTournament) {
+        matchesTournament = match.tournamentId === filterTournament;
+      }
+
+      return matchesSearch && matchesStatus && matchesAdmin && matchesTournament;
+    }).sort((a, b) => {
+      const da = coerceToDate((a as any).date) || new Date(0)
+      const db = coerceToDate((b as any).date) || new Date(0)
+      return db.getTime() - da.getTime()
+    })
+  }, [matches, searchTerm, filterStatus, selectedAdminFilter, filterTournament, tournaments, user?.role])
+
+  // Group matches by status, then by tournament
+  const groupedByStatusAndTournament = useMemo(() => {
+    const statusOrder = ['live', 'upcoming', 'completed'] as const;
+    const statusLabels: Record<string, string> = {
+      live: '🔴 Live Matches',
+      upcoming: '📅 Upcoming Matches',
+      completed: '✅ Finished Matches',
+    };
+    const statusColors: Record<string, string> = {
+      live: 'bg-rose-50 border-rose-200 text-rose-700',
+      upcoming: 'bg-blue-50 border-blue-200 text-blue-700',
+      completed: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    };
+
+    const normalizeStatus = (s: string) => {
+      const lower = s.toLowerCase();
+      if (lower === 'live') return 'live';
+      if (lower === 'upcoming') return 'upcoming';
+      return 'completed';
+    };
+
+    const sections: Array<{
+      statusKey: string;
+      statusLabel: string;
+      statusColor: string;
+      tournamentGroups: Array<{
+        tournamentId: string;
+        tournamentName: string;
+        matches: typeof filteredMatches;
+      }>;
+    }> = [];
+
+    for (const statusKey of statusOrder) {
+      const matchesForStatus = filteredMatches.filter(m => normalizeStatus(String((m as any).status || 'upcoming')) === statusKey);
+      if (matchesForStatus.length === 0) continue;
+
+      // Group by tournament
+      const tournamentMap = new Map<string, typeof filteredMatches>();
+      for (const m of matchesForStatus) {
+        const tId = m.tournamentId || '__none__';
+        if (!tournamentMap.has(tId)) tournamentMap.set(tId, []);
+        tournamentMap.get(tId)!.push(m);
+      }
+
+      const tournamentGroups = Array.from(tournamentMap.entries()).map(([tId, tMatches]) => ({
+        tournamentId: tId,
+        tournamentName: tId === '__none__' ? 'Friendly Matches' : (tournaments.find(t => t.id === tId)?.name || 'Unknown Tournament'),
+        matches: tMatches,
+      }));
+
+      sections.push({
+        statusKey,
+        statusLabel: statusLabels[statusKey] || statusKey,
+        statusColor: statusColors[statusKey] || 'bg-slate-50 border-slate-200 text-slate-700',
+        tournamentGroups,
+      });
+    }
+
+    return sections;
+  }, [filteredMatches, tournaments])
 
   const handleSaveToss = async () => {
     if (!id) return
@@ -819,7 +928,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       } as any)
 
       toast.success(`Match started! ${currentBatting === 'teamA' ? matchData.teamAName : matchData.teamBName} will bat first.`)
-      loadMatches()
+      // Navigate to scoring page
+      navigate(`/admin/live/${matchId}/scoring`)
     } catch (error: any) {
       console.error('Error starting match:', error)
       if (error.code === 'permission-denied' || error.message?.includes('permission')) {
@@ -1211,6 +1321,18 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
             <Link to="/admin/matches" className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors mb-3 text-sm font-medium">
               <ArrowLeft size={16} /> Back to Matches
             </Link>
+            <div className="flex items-center gap-3 mb-1">
+              {(matchView as any).matchNo && (
+                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg font-mono text-sm font-bold tracking-wide">
+                  {(matchView as any).matchNo}
+                </span>
+              )}
+              {matchView.tournamentId && (
+                <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-xs font-bold uppercase tracking-wide">
+                  {tournaments.find(t => t.id === matchView.tournamentId)?.name || 'Tournament'}
+                </span>
+              )}
+            </div>
             <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
               {teamAName} <span className="text-slate-300 mx-2">vs</span> {teamBName}
             </h1>
@@ -1600,39 +1722,6 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     )
   }
 
-  const activeLiveMatches = matches.filter(m => String((m as any).status || '').toLowerCase() === 'live')
-
-  const filteredMatches = matches.filter(match => {
-    const rawStatus = String((match as any).status || 'upcoming').toLowerCase();
-    const searchLower = searchTerm.toLowerCase();
-    const matchTerms = [
-      match.teamAName, (match as any).teamA,
-      match.teamBName, (match as any).teamB,
-      match.venue,
-      match.id,
-      (match as any).matchNo,
-      tournaments.find(t => t.id === match.tournamentId)?.name
-    ].map(t => String(t || '').toLowerCase());
-
-    const matchesSearch = !searchTerm || matchTerms.some(t => t.includes(searchLower));
-
-    let matchesStatus = true;
-    if (filterStatus === 'live') matchesStatus = rawStatus === 'live';
-    else if (filterStatus === 'completed') matchesStatus = ['completed', 'finished', 'abandoned'].includes(rawStatus);
-    else if (filterStatus === 'upcoming') matchesStatus = rawStatus === 'upcoming';
-
-    // Admin Filter Logic
-    let matchesAdmin = true;
-    if (user?.role === 'super_admin' && selectedAdminFilter) {
-      matchesAdmin = (match as any).adminId === selectedAdminFilter || (match as any).createdBy === selectedAdminFilter;
-    }
-
-    return matchesSearch && matchesStatus && matchesAdmin;
-  }).sort((a, b) => {
-    const da = coerceToDate((a as any).date) || new Date(0)
-    const db = coerceToDate((b as any).date) || new Date(0)
-    return db.getTime() - da.getTime()
-  })
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto">
@@ -1723,6 +1812,23 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
               </select>
             </div>
 
+            {/* Tournament Filter */}
+            <div className="flex items-center gap-2">
+              <Trophy size={16} className="text-slate-400" />
+              <select
+                value={filterTournament}
+                onChange={(e) => setFilterTournament(e.target.value)}
+                className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-blue-400 focus:outline-none cursor-pointer min-w-[180px]"
+              >
+                <option value="">All Tournaments</option>
+                {tournaments.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.year})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Admin Filter for Super Admins */}
             {user?.role === 'super_admin' && (
               <div className="flex items-center gap-2">
@@ -1759,7 +1865,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
             <tbody className="divide-y divide-slate-100">
               {filteredMatches.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400">
                       <Calendar className="mb-4 text-slate-200" size={48} strokeWidth={1} />
                       <p className="text-lg font-medium text-slate-900">No matches found</p>
@@ -1768,95 +1874,122 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                   </td>
                 </tr>
               ) : (
-                filteredMatches.map(match => {
-                  const matchDate = coerceToDate((match as any).date) || new Date();
-                  const statusRaw = String((match as any).status || '').toLowerCase();
-                  const isLive = statusRaw === 'live';
-                  const isUpcoming = statusRaw === 'upcoming';
-                  const tourneyName = tournaments.find(t => t.id === match.tournamentId)?.name || 'Friendly Match';
-
-                  return (
-                    <tr key={match.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded font-mono text-xs font-bold ${(match as any).matchNo ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
-                            {(match as any).matchNo ? (match as any).matchNo : `#${match.id.slice(0, 6).toUpperCase()}`}
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-blue-600 uppercase tracking-tight">{tourneyName}</div>
-                            <div className="text-xs text-slate-400 capitalize">{match.groupName ? `${match.groupName} Group` : 'Match'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-slate-900 text-sm">
-                          <div className="mb-1">{match.teamAName || 'Team A'}</div>
-                          <div className="text-slate-400 text-xs font-normal mb-1">vs</div>
-                          <div>{match.teamBName || 'Team B'}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col text-slate-600">
-                          <span className="flex items-center gap-1.5 font-medium text-slate-900">
-                            <Calendar size={14} className="text-slate-400" />
-                            {formatDateLabel(matchDate)}
-                          </span>
-                          <span className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
-                            <Clock size={14} className="text-slate-400" />
-                            {(match as any).time || matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={statusRaw} />
-                      </td>
-                      {user?.role === 'super_admin' && (
-                        <td className="px-6 py-4">
-                          <span className="text-xs text-slate-500 truncate block max-w-[80px]" title={(match as any).adminId || (match as any).createdBy || 'System'}>
-                            {((match as any).adminEmail || (match as any).createdBy || 'System').split('@')[0]}
-                          </span>
-                        </td>
-                      )}
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {isUpcoming && (
-                            <button
-                              onClick={() => handleStartMatch(match.id)}
-                              className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-bold hover:bg-emerald-700 transition"
-                            >
-                              Start
-                            </button>
-                          )}
-                          {isLive && (
-                            <Link
-                              to={`/admin/live/${match.id}/scoring`}
-                              className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 transition"
-                            >
-                              Score
-                            </Link>
-                          )}
-
-                          <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                            {isUpcoming && (
-                              <button onClick={() => handleOpenReschedule(match)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition" title="Reschedule">
-                                <CalendarClock size={16} />
-                              </button>
-                            )}
-                            <Link to={`/admin/matches/${match.id}/edit`} className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-white rounded-md transition" title="Edit">
-                              <Edit2 size={16} />
-                            </Link>
-                            <Link to={`/admin/matches/${match.id}`} className="p-1.5 text-slate-900 bg-white shadow-sm rounded-md transition" title="View Full Control">
-                              <Eye size={16} />
-                            </Link>
-                            <button onClick={() => handleDeleteClick(match)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md transition" title="Delete">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
+                groupedByStatusAndTournament.map(section => (
+                  <>
+                    {/* Status Section Header */}
+                    <tr key={`status-${section.statusKey}`}>
+                      <td colSpan={user?.role === 'super_admin' ? 6 : 5} className={`px-6 py-3 border-l-4 ${section.statusColor} font-bold text-sm tracking-wide`}>
+                        {section.statusLabel}
+                        <span className="ml-2 text-xs font-normal opacity-70">
+                          ({section.tournamentGroups.reduce((sum, g) => sum + g.matches.length, 0)} matches)
+                        </span>
                       </td>
                     </tr>
-                  )
-                })
+                    {section.tournamentGroups.map(tGroup => (
+                      <>
+                        {/* Tournament Sub-header */}
+                        <tr key={`${section.statusKey}-t-${tGroup.tournamentId}`}>
+                          <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-2 bg-slate-50/80">
+                            <div className="flex items-center gap-2">
+                              <Trophy size={14} className="text-amber-500" />
+                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{tGroup.tournamentName}</span>
+                              <span className="text-[10px] text-slate-400 font-medium ml-1">({tGroup.matches.length})</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {tGroup.matches.map(match => {
+                          const matchDate = coerceToDate((match as any).date) || new Date();
+                          const statusRaw = String((match as any).status || '').toLowerCase();
+                          const isLive = statusRaw === 'live';
+                          const isUpcoming = statusRaw === 'upcoming';
+                          const tourneyName = tournaments.find(t => t.id === match.tournamentId)?.name || 'Friendly Match';
+
+                          return (
+                            <tr key={match.id} className="hover:bg-slate-50/50 transition-colors group">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 rounded font-mono text-xs font-bold ${(match as any).matchNo ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
+                                    {(match as any).matchNo ? (match as any).matchNo : `#${match.id.slice(0, 6).toUpperCase()}`}
+                                  </div>
+                                  <div>
+                                    <div className="text-xs font-bold text-blue-600 uppercase tracking-tight">{tourneyName}</div>
+                                    <div className="text-xs text-slate-400 capitalize">{match.groupName ? `${match.groupName} Group` : 'Match'}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="font-bold text-slate-900 text-sm">
+                                  <div className="mb-1">{match.teamAName || 'Team A'}</div>
+                                  <div className="text-slate-400 text-xs font-normal mb-1">vs</div>
+                                  <div>{match.teamBName || 'Team B'}</div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col text-slate-600">
+                                  <span className="flex items-center gap-1.5 font-medium text-slate-900">
+                                    <Calendar size={14} className="text-slate-400" />
+                                    {formatDateLabel(matchDate)}
+                                  </span>
+                                  <span className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+                                    <Clock size={14} className="text-slate-400" />
+                                    {(match as any).time || matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <StatusBadge status={statusRaw} />
+                              </td>
+                              {user?.role === 'super_admin' && (
+                                <td className="px-6 py-4">
+                                  <span className="text-xs text-slate-500 truncate block max-w-[80px]" title={(match as any).adminId || (match as any).createdBy || 'System'}>
+                                    {((match as any).adminEmail || (match as any).createdBy || 'System').split('@')[0]}
+                                  </span>
+                                </td>
+                              )}
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {isUpcoming && (
+                                    <button
+                                      onClick={() => handleStartMatch(match.id)}
+                                      className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-bold hover:bg-emerald-700 transition"
+                                    >
+                                      Start
+                                    </button>
+                                  )}
+                                  {isLive && (
+                                    <Link
+                                      to={`/admin/live/${match.id}/scoring`}
+                                      className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 transition"
+                                    >
+                                      Score
+                                    </Link>
+                                  )}
+
+                                  <div className="flex items-center bg-slate-100 rounded-lg p-1">
+                                    {isUpcoming && (
+                                      <button onClick={() => handleOpenReschedule(match)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition" title="Reschedule">
+                                        <CalendarClock size={16} />
+                                      </button>
+                                    )}
+                                    <Link to={`/admin/matches/${match.id}/edit`} className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-white rounded-md transition" title="Edit">
+                                      <Edit2 size={16} />
+                                    </Link>
+                                    <Link to={`/admin/matches/${match.id}`} className="p-1.5 text-slate-900 bg-white shadow-sm rounded-md transition" title="View Full Control">
+                                      <Eye size={16} />
+                                    </Link>
+                                    <button onClick={() => handleDeleteClick(match)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md transition" title="Delete">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </>
+                    ))}
+                  </>
+                ))
               )}
             </tbody>
           </table>
