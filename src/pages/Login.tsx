@@ -79,16 +79,24 @@ export default function Login() {
           navigate(from, { replace: true })
         }
       } else {
-        // Profile missing AND not an admin, show setup
-        console.log("[Login] Profile missing or incomplete. Showing Setup.");
-        toast("Please complete your profile details.", { icon: '📝', id: 'profile-hint' });
+        // Profile missing AND not an admin
+        console.log("[Login] Profile missing or incomplete. Checking for pending request...");
         if (user.displayName) setName(user.displayName)
 
-        // Check for existing pending request to avoid re-submitting
+        // Check for existing pending request BEFORE showing setup form
         playerRequestService.getUserRequest(user.uid).then(req => {
           if (req && req.status === 'pending') {
+            console.log("[Login] Found pending request. Showing pending UI.");
             setIsPendingApproval(true)
+          } else {
+            console.log("[Login] No pending request. Showing Setup.");
+            toast("Please complete your profile details.", { icon: '📝', id: 'profile-hint' });
+            setShowProfileSetup(true)
           }
+        }).catch(() => {
+          // If check fails, still show setup
+          toast("Please complete your profile details.", { icon: '📝', id: 'profile-hint' });
+          setShowProfileSetup(true)
         })
 
         const autoFill = (user as any).autoFillProfile;
@@ -103,8 +111,6 @@ export default function Login() {
           if (autoFill.address) setAddress(autoFill.address);
           if (autoFill.photoUrl) setPhotoUrl(autoFill.photoUrl);
         }
-
-        setShowProfileSetup(true)
       }
     }
   }, [user, loading, navigate, location, isLoading, params.get('setup')])
@@ -314,30 +320,30 @@ export default function Login() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-slate-900 py-8 px-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none sm:rounded-3xl border border-slate-100 dark:border-slate-800">
 
-          {!showProfileSetup ? (
+          {isPendingApproval ? (
+            <div className="text-center py-8 space-y-6">
+              <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto text-amber-600 animate-pulse">
+                <Shield className="w-10 h-10" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic">Request Pending</h3>
+                <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                  Your player registration has been submitted to the admin for review.
+                </p>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl text-sm text-slate-600 dark:text-slate-400 font-bold border border-slate-100 dark:border-slate-800">
+                You can still use the app as a viewer while you wait.
+              </div>
+              <button
+                onClick={() => navigate('/')}
+                className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white font-black rounded-xl hover:bg-slate-800 transition-all uppercase tracking-widest text-sm"
+              >
+                Go to Home
+              </button>
+            </div>
+          ) : !showProfileSetup ? (
             <>
-              {isPendingApproval ? (
-                <div className="text-center py-8 space-y-6">
-                  <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto text-amber-600 animate-pulse">
-                    <Shield className="w-10 h-10" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic">Request Pending</h3>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">
-                      Your player registration has been submitted to the admin for review.
-                    </p>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl text-sm text-slate-600 dark:text-slate-400 font-bold border border-slate-100 dark:border-slate-800">
-                    You can still use the app as a viewer while you wait.
-                  </div>
-                  <button
-                    onClick={() => navigate('/')}
-                    className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white font-black rounded-xl hover:bg-slate-800 transition-all uppercase tracking-widest text-sm"
-                  >
-                    Go to Home
-                  </button>
-                </div>
-              ) : isAdminLogin ? (
+              {isAdminLogin ? (
                 /* ADMIN EMAIL LOGIN FORM */
                 <form onSubmit={handleAdminLogin} className="space-y-6">
                   <div className="text-center mb-6">
@@ -542,7 +548,6 @@ export default function Login() {
                 <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Full Name</label>
                 <input
                   type="text"
-                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white placeholder-slate-400 transition-all"
@@ -585,7 +590,6 @@ export default function Login() {
                   <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Batch</label>
                   <input
                     type="text"
-                    required
                     value={batch}
                     onChange={(e) => setBatch(e.target.value)}
                     className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white placeholder-slate-400"
@@ -618,7 +622,6 @@ export default function Login() {
                   <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Date of Birth</label>
                   <input
                     type="date"
-                    required
                     value={dob}
                     onChange={(e) => setDob(e.target.value)}
                     className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white placeholder-slate-400"

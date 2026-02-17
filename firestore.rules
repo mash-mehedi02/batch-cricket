@@ -172,6 +172,26 @@ service cloud.firestore {
       allow write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
     }
 
+    // ======================================================
+    // PLAYER REGISTRATION SYSTEM
+    // ======================================================
+
+    match /player_requests/{requestId} {
+      // Allow user to create their own request
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      
+      // Single doc read: user owns it, or is admin
+      allow get: if isAuthenticated() && (request.auth.uid == resource.data.uid || isAdmin());
+      
+      // List/query: user must filter by their own uid, or be admin
+      allow list: if isAuthenticated() && (
+        resource.data.uid == request.auth.uid || isAdmin()
+      );
+      
+      // Only admins can update (approve/reject) or delete requests
+      allow update, delete: if isAdmin();
+    }
+
     match /permitted_admins/{email} {
       allow read: if isAuthenticated() && (isAnyAdmin() || request.auth.token.email.lower() == email.lower());
       allow write: if isSuperAdmin();
