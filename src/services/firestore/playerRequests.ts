@@ -66,28 +66,51 @@ export const playerRequestService = {
      * Get request for a specific user
      */
     async getUserRequest(uid: string): Promise<PlayerRegistrationRequest | null> {
-        const q = query(
-            collection(db, 'player_requests'),
-            where('uid', '==', uid),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-        )
-        const snap = await getDocs(q)
-        if (snap.empty) return null
-        return { id: snap.docs[0].id, ...snap.docs[0].data() } as PlayerRegistrationRequest
+        try {
+            const q = query(
+                collection(db, 'player_requests'),
+                where('uid', '==', uid),
+                orderBy('createdAt', 'desc'),
+                limit(1)
+            )
+            const snap = await getDocs(q)
+            if (snap.empty) return null
+            return { id: snap.docs[0].id, ...snap.docs[0].data() } as PlayerRegistrationRequest
+        } catch (error: any) {
+            console.warn('[playerRequestService] getUserRequest: Index missing, falling back to client-side sort', error);
+            const q = query(
+                collection(db, 'player_requests'),
+                where('uid', '==', uid)
+            )
+            const snap = await getDocs(q)
+            if (snap.empty) return null
+            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+            return list.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0]
+        }
     },
 
     /**
      * Admin: Get all pending requests
      */
     async getPendingRequests(): Promise<PlayerRegistrationRequest[]> {
-        const q = query(
-            collection(db, 'player_requests'),
-            where('status', '==', 'pending'),
-            orderBy('createdAt', 'desc')
-        )
-        const snap = await getDocs(q)
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+        try {
+            const q = query(
+                collection(db, 'player_requests'),
+                where('status', '==', 'pending'),
+                orderBy('createdAt', 'desc')
+            )
+            const snap = await getDocs(q)
+            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+        } catch (error: any) {
+            console.warn('[playerRequestService] getPendingRequests: Index missing, falling back to client-side sort', error);
+            const q = query(
+                collection(db, 'player_requests'),
+                where('status', '==', 'pending')
+            )
+            const snap = await getDocs(q)
+            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+                .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+        }
     },
 
     /**

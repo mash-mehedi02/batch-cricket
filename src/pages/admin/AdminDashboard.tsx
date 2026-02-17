@@ -37,14 +37,33 @@ export default function AdminDashboard() {
     const loadStats = async () => {
       if (!user) return
       const isSuperAdmin = user.role === 'super_admin'
+
       try {
         const [tournaments, squads, players, matches, admins, requests] = await Promise.all([
-          tournamentService.getByAdmin(user.uid, isSuperAdmin),
-          squadService.getByAdmin(user.uid, isSuperAdmin),
-          playerService.getByAdmin(user.uid, isSuperAdmin),
-          matchService.getByAdmin(user.uid, isSuperAdmin),
-          isSuperAdmin ? adminService.getAll() : Promise.resolve([]),
-          playerRequestService.getPendingRequests()
+          tournamentService.getByAdmin(user.uid, isSuperAdmin).catch(err => {
+            console.error('[Dashboard] Tournaments load failed:', err);
+            return [];
+          }),
+          squadService.getByAdmin(user.uid, isSuperAdmin).catch(err => {
+            console.error('[Dashboard] Squads load failed:', err);
+            return [];
+          }),
+          playerService.getByAdmin(user.uid, isSuperAdmin).catch(err => {
+            console.error('[Dashboard] Players load failed:', err);
+            return [];
+          }),
+          matchService.getByAdmin(user.uid, isSuperAdmin).catch(err => {
+            console.error('[Dashboard] Matches load failed:', err);
+            return [];
+          }),
+          isSuperAdmin ? adminService.getAll().catch(err => {
+            console.error('[Dashboard] Admins load failed:', err);
+            return [];
+          }) : Promise.resolve([]),
+          playerRequestService.getPendingRequests().catch(err => {
+            console.error('[Dashboard] PlayerRequests load failed:', err);
+            return [];
+          })
         ])
 
         const liveMatches = matches.filter((m: any) => m.status?.toLowerCase() === 'live')
@@ -67,9 +86,9 @@ export default function AdminDashboard() {
           return tB - tA
         })
         setRecentMatches(sorted.slice(0, 5))
-        setLoading(false)
       } catch (error) {
-        console.error('Error loading dashboard stats:', error)
+        console.error('Fatal error loading dashboard stats:', error)
+      } finally {
         setLoading(false)
       }
     }
