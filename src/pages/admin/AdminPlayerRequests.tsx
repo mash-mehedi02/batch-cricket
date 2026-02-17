@@ -123,16 +123,24 @@ export default function AdminPlayerRequests() {
                                         <div className="flex items-center gap-2">
                                             <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-lg"><School size={14} /></div>
                                             <div className="min-w-0">
-                                                <div className="text-[9px] text-slate-400 font-black uppercase">Batch</div>
+                                                <div className="text-[9px] text-slate-400 font-black uppercase">School</div>
                                                 <div className="text-xs font-bold truncate dark:text-slate-200">{request.school}</div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-lg"><Trophy size={14} /></div>
+                                            <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-lg"><Clock size={14} /></div>
                                             <div className="min-w-0">
-                                                <div className="text-[9px] text-slate-400 font-black uppercase">Squad</div>
-                                                <div className="text-xs font-bold truncate dark:text-slate-200">{request.squadName}</div>
+                                                <div className="text-[9px] text-slate-400 font-black uppercase">Batch</div>
+                                                <div className="text-xs font-bold truncate dark:text-slate-200">{request.batch || 'None'}</div>
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-lg"><Trophy size={14} /></div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-[9px] text-slate-400 font-black uppercase">Requested Squad</div>
+                                            <div className="text-xs font-bold truncate dark:text-slate-200">{request.squadName}</div>
                                         </div>
                                     </div>
 

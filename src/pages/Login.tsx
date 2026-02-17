@@ -13,6 +13,9 @@ import { User, Shield, ChevronRight, Lock, Mail, Camera, X, Upload } from 'lucid
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
 import { uploadImage } from '@/services/cloudinary/uploader'
+import { squadService } from '@/services/firestore/squads'
+import { playerRequestService } from '@/services/firestore/playerRequests'
+import { Squad } from '@/types'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -20,6 +23,8 @@ export default function Login() {
   const { user, googleLogin, login, signup, resetPassword, updatePlayerProfile, loading } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
+  const [isPendingApproval, setIsPendingApproval] = useState(false)
+  const [squads, setSquads] = useState<Squad[]>([])
 
   const handlePasswordReset = async () => {
     if (!email) {
@@ -79,6 +84,13 @@ export default function Login() {
         toast("Please complete your profile details.", { icon: '📝', id: 'profile-hint' });
         if (user.displayName) setName(user.displayName)
 
+        // Check for existing pending request to avoid re-submitting
+        playerRequestService.getUserRequest(user.uid).then(req => {
+          if (req && req.status === 'pending') {
+            setIsPendingApproval(true)
+          }
+        })
+
         const autoFill = (user as any).autoFillProfile;
         if (autoFill) {
           console.log("[Login] Auto-filling from linked profile:", autoFill.name);
@@ -97,6 +109,13 @@ export default function Login() {
     }
   }, [user, loading, navigate, location, isLoading, params.get('setup')])
 
+  // Fetch Squads for Registration
+  useEffect(() => {
+    if (showProfileSetup) {
+      squadService.getAll().then(setSquads).catch(console.error)
+    }
+  }, [showProfileSetup])
+
   // Profile Form State
   const [name, setName] = useState('')
   const [role, setRole] = useState('All Rounder')
@@ -104,6 +123,8 @@ export default function Login() {
   const [bowlingStyle, setBowlingStyle] = useState('Right Arm Fast')
   const [dob, setDob] = useState('')
   const [school, setSchool] = useState('')
+  const [batch, setBatch] = useState('')
+  const [squadId, setSquadId] = useState('')
   const [address, setAddress] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
 
@@ -225,23 +246,38 @@ export default function Login() {
     e.preventDefault()
     if (!user) return
 
+    if (!squadId) {
+      toast.error('Please select a squad!')
+      return
+    }
+
     setIsLoading(true)
     try {
-      await updatePlayerProfile(user.uid, {
-        displayName: name,
-        role,
-        battingStyle,
-        bowlingStyle,
-        dateOfBirth: dob,
-        school,
-        address,
-        photoUrl
+      const selectedSquad = squads.find(s => s.id === squadId)
+
+      // 1. Submit Player Request
+      await playerRequestService.submitRequest({
+        uid: user.uid,
+        email: user.email || '',
+        name: name,
+        school: school,
+        squadId: squadId,
+        squadName: selectedSquad?.name || 'Unknown',
+        batch: batch,
+        role: role as any,
+        battingStyle: battingStyle as any,
+        bowlingStyle: bowlingStyle as any,
+        photoUrl: photoUrl
       })
-      toast.success('Profile setup complete!')
-      navigate('/', { replace: true })
+
+      // 2. We don't call updatePlayerProfile yet (which sets isRegisteredPlayer: true)
+      // because we want the admin to approve it first.
+
+      toast.success('Registration request submitted!')
+      setIsPendingApproval(true)
     } catch (error: any) {
       console.error('[Login] Profile Update Error:', error);
-      toast.error('Failed to save profile: ' + error.message)
+      toast.error('Failed to submit: ' + error.message)
     } finally {
       setIsLoading(false)
     }
@@ -280,7 +316,28 @@ export default function Login() {
 
           {!showProfileSetup ? (
             <>
-              {isAdminLogin ? (
+              {isPendingApproval ? (
+                <div className="text-center py-8 space-y-6">
+                  <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto text-amber-600 animate-pulse">
+                    <Shield className="w-10 h-10" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic">Request Pending</h3>
+                    <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                      Your player registration has been submitted to the admin for review.
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl text-sm text-slate-600 dark:text-slate-400 font-bold border border-slate-100 dark:border-slate-800">
+                    You can still use the app as a viewer while you wait.
+                  </div>
+                  <button
+                    onClick={() => navigate('/')}
+                    className="w-full py-4 bg-slate-900 dark:bg-slate-700 text-white font-black rounded-xl hover:bg-slate-800 transition-all uppercase tracking-widest text-sm"
+                  >
+                    Go to Home
+                  </button>
+                </div>
+              ) : isAdminLogin ? (
                 /* ADMIN EMAIL LOGIN FORM */
                 <form onSubmit={handleAdminLogin} className="space-y-6">
                   <div className="text-center mb-6">
@@ -502,6 +559,39 @@ export default function Login() {
                   className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white placeholder-slate-400 transition-all"
                   placeholder="e.g. BatchCrick High"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Squad</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={squadId}
+                      onChange={(e) => setSquadId(e.target.value)}
+                      className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white appearance-none cursor-pointer"
+                    >
+                      <option value="">Select Squad</option>
+                      {squads.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.batch})</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ChevronRight size={16} className="rotate-90" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">Batch</label>
+                  <input
+                    type="text"
+                    required
+                    value={batch}
+                    onChange={(e) => setBatch(e.target.value)}
+                    className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white placeholder-slate-400"
+                    placeholder="e.g. 2006"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

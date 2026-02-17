@@ -36,6 +36,7 @@ export interface PlayerRegistrationRequest {
     reviewedBy?: string
     reviewedAt?: Timestamp
     playerId?: string
+    batch?: string
 }
 
 export const playerRequestService = {
@@ -160,6 +161,7 @@ export const playerRequestService = {
             ownerUid: request.uid,
             email: request.email,
             maskedEmail: request.email.replace(/(..)(.*)(@.*)/, '$1****$3'),
+            batch: request.batch,
             createdAt: serverTimestamp() as Timestamp,
             updatedAt: serverTimestamp() as Timestamp,
             createdBy: auth.currentUser.uid,
