@@ -242,6 +242,28 @@ export default function EditProfilePage() {
                 }).catch(err => console.warn('Player sync failed:', err));
             }
 
+            // Check for pending player request and update it if exists (so Admin sees new name)
+            try {
+                // Import this locally or ensure it's imported at top
+                const { playerRequestService } = await import('@/services/firestore/playerRequests');
+                const pendingReq = await playerRequestService.getUserRequest(user.uid);
+
+                if (pendingReq && pendingReq.status === 'pending' && pendingReq.id) {
+                    const reqRef = doc(db, 'player_requests', pendingReq.id);
+                    await updateDoc(reqRef, {
+                        name: form.displayName.trim(),
+                        photoUrl: form.photoURL || null,
+                        role: form.role,
+                        battingStyle: form.battingStyle,
+                        bowlingStyle: form.bowlingStyle,
+                        updatedAt: serverTimestamp()
+                    });
+                    console.log("Updated pending player request with new profile data");
+                }
+            } catch (err) {
+                console.warn("Failed to update pending request:", err);
+            }
+
             // Update local state
             useAuthStore.setState((state) => ({
                 user: state.user ? {

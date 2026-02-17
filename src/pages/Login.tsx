@@ -283,7 +283,12 @@ export default function Login() {
       setIsPendingApproval(true)
     } catch (error: any) {
       console.error('[Login] Profile Update Error:', error);
-      toast.error('Failed to submit: ' + error.message)
+      if (error.message && error.message.includes('already have a pending')) {
+        toast('Request already pending.', { icon: '⏳' });
+        setIsPendingApproval(true);
+      } else {
+        toast.error('Failed to submit: ' + error.message)
+      }
     } finally {
       setIsLoading(false)
     }

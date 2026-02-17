@@ -122,16 +122,10 @@ service cloud.firestore {
       allow delete: if isAdmin() && isOwner(resource.data);
       
       allow update: if (isAdmin() && isOwner(resource.data)) || (
-        // Player self-update (claim logic) - MUST NOT allow changing adminId
         isAuthenticated() && (
-          (request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastVerifiedAt']) &&
-           request.resource.data.claimed == true && 
-           request.resource.data.ownerUid == request.auth.uid &&
-           request.auth.token.email.lower() == get(/databases/$(database)/documents/player_secrets/$(playerId)).data.email.lower() &&
-           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'ownerUid', 'lastVerifiedAt', 'updatedAt'])) ||
+          // Allow owner to update their profile (excluding sensitive admin fields)
           (resource.data.ownerUid == request.auth.uid && 
-           request.time < resource.data.lastVerifiedAt + duration.value(1, 'h') &&
-           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'squadId', 'batch', 'school', 'claimed', 'ownerUid', 'lastVerifiedAt', 'email', 'maskedEmail', 'createdAt', 'createdBy', 'adminId']))
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'squadId', 'claimed', 'ownerUid', 'createdAt', 'createdBy', 'adminId']))
         )
       );
     }
@@ -188,8 +182,14 @@ service cloud.firestore {
         resource.data.uid == request.auth.uid || isAdmin()
       );
       
-      // Only admins can update (approve/reject) or delete requests
-      allow update, delete: if isAdmin();
+      // Allow admins OR the owner (if pending) to update
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        resource.data.uid == request.auth.uid && 
+        resource.data.status == 'pending'
+      );
+      
+      allow delete: if isAdmin();
     }
 
     match /permitted_admins/{email} {

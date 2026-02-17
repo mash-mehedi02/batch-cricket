@@ -156,7 +156,7 @@ export const playerRequestService = {
             squadId: request.squadId,
             battingStyle: request.battingStyle,
             bowlingStyle: request.bowlingStyle,
-            photoUrl: request.photoUrl || undefined,
+            photoUrl: request.photoUrl || '',
             claimed: true,
             ownerUid: request.uid,
             email: request.email,
