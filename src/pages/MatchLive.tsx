@@ -31,9 +31,12 @@ import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import { MapPin, Info, Users, Hash, ChevronDown, Pin, PinOff } from 'lucide-react'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
+import { useTranslation } from '@/hooks/useTranslation'
+
 export default function MatchLive() {
   const { matchId } = useParams<{ matchId: string }>()
   const { user } = useAuthStore()
+  const { t } = useTranslation()
   const [match, setMatch] = useState<Match | null>(null)
   const [currentInnings, setCurrentInnings] = useState<InningsStats | null>(null)
   const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
@@ -1244,12 +1247,12 @@ export default function MatchLive() {
   // Match tabs (MUST be before early returns) - All tabs in one page
   const matchTabs = useMemo(() => {
     const baseTabs: { id: string; label: string; disabled?: boolean }[] = [
-      ...(isFinishedMatch ? [{ id: 'summary', label: 'Summary' }] : []),
-      { id: 'info', label: 'Info' },
-      { id: 'commentary', label: 'Commentary' },
-      { id: 'live', label: 'Live', disabled: !isLiveEffective && !isFinishedMatch },
-      { id: 'scorecard', label: 'Scorecard' },
-      { id: 'playing-xi', label: 'Playing XI' },
+      ...(isFinishedMatch ? [{ id: 'summary', label: t('tab_summary') }] : []),
+      { id: 'info', label: t('tab_info') },
+      { id: 'commentary', label: t('tab_commentary') },
+      { id: 'live', label: t('tab_live'), disabled: !isLiveEffective && !isFinishedMatch },
+      { id: 'scorecard', label: t('tab_scorecard') },
+      { id: 'playing-xi', label: t('tab_playing_xi') },
     ]
 
     // Add Points Table if match has group (groupName or groupId) or tournament has groups
@@ -1257,16 +1260,16 @@ export default function MatchLive() {
     const tournamentHasGroups = Boolean(tournament?.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0)
 
     if (match?.tournamentId && (hasGroup || tournamentHasGroups)) {
-      baseTabs.push({ id: 'points-table', label: 'Points Table' })
+      baseTabs.push({ id: 'points-table', label: t('tab_point_table') })
     }
 
     // Add Graphs
     if (isLiveMatch || isFinishedMatch) {
-      baseTabs.push({ id: 'graphs', label: 'Graphs' })
+      baseTabs.push({ id: 'graphs', label: t('tab_graphs') })
     }
 
     return baseTabs
-  }, [match?.tournamentId, isFinishedMatch, isLiveMatch, isLiveEffective, match, tournament])
+  }, [match?.tournamentId, isFinishedMatch, isLiveMatch, isLiveEffective, match, tournament, t])
 
   // Early returns AFTER all hooks
   if (loading) {
@@ -1324,8 +1327,14 @@ export default function MatchLive() {
                   <div className="flex flex-col items-center gap-3 sm:gap-4 group flex-1">
                     <div className="relative">
                       <div className="absolute -inset-1 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-[1.5rem] sm:rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition-opacity"></div>
-                      <div className="relative w-16 h-16 sm:w-28 sm:h-28 rounded-[1.5rem] sm:rounded-[2rem] bg-[#1a2332] border border-white/10 flex items-center justify-center p-2 sm:p-4 shadow-2xl overflow-hidden">
-                        {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" alt="" /> : <span className="text-xl font-black text-white/5">{teamAName[0]}</span>}
+                      <div className="relative w-16 h-16 sm:w-28 sm:h-28 rounded-[1.5rem] sm:rounded-[2rem] bg-[#1a2332] border border-white/10 flex items-center justify-center shadow-2xl overflow-hidden">
+                        {teamASquad?.logoUrl ? (
+                          <img src={teamASquad.logoUrl} className="w-full h-full object-contain p-2 sm:p-4" alt="" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-3xl sm:text-5xl font-black uppercase">
+                            {teamAName.charAt(0)}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <h2 className="text-xs sm:text-2xl font-black tracking-tightest uppercase text-center line-clamp-2 max-w-[100px] sm:max-w-[180px]">
@@ -1341,8 +1350,14 @@ export default function MatchLive() {
                   <div className="flex flex-col items-center gap-3 sm:gap-4 group flex-1">
                     <div className="relative">
                       <div className="absolute -inset-1 bg-gradient-to-tr from-rose-600 to-pink-600 rounded-[1.5rem] sm:rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition-opacity"></div>
-                      <div className="relative w-16 h-16 sm:w-28 sm:h-28 rounded-[1.5rem] sm:rounded-[2rem] bg-[#1a2332] border border-white/10 flex items-center justify-center p-2 sm:p-4 shadow-2xl overflow-hidden">
-                        {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" alt="" /> : <span className="text-xl font-black text-white/5">{secondName[0]}</span>}
+                      <div className="relative w-16 h-16 sm:w-28 sm:h-28 rounded-[1.5rem] sm:rounded-[2rem] bg-[#1a2332] border border-white/10 flex items-center justify-center shadow-2xl overflow-hidden">
+                        {teamBSquad?.logoUrl ? (
+                          <img src={teamBSquad.logoUrl} className="w-full h-full object-contain p-2 sm:p-4" alt="" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-500 to-pink-600 text-white text-3xl sm:text-5xl font-black uppercase">
+                            {secondName.charAt(0)}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <h2 className="text-xs sm:text-2xl font-black tracking-tightest uppercase text-center line-clamp-2 max-w-[100px] sm:max-w-[180px]">

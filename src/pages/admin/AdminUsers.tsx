@@ -9,7 +9,6 @@ import {
     X,
     ShieldAlert,
     CheckCircle2,
-    XCircle,
     MoreVertical,
     Trash2,
     Lock,
@@ -18,27 +17,37 @@ import {
 } from 'lucide-react'
 import { adminService, AdminUser } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
-import { Player } from '@/types'
+import { User, Squad } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import PlayerLink from '@/components/PlayerLink'
 import toast from 'react-hot-toast'
+import { userService } from '@/services/firestore/users'
+import { squadService } from '@/services/firestore/squads'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { db } from '@/config/firebase'
+import { COLLECTIONS } from '@/services/firestore/collections'
 
 export default function AdminUsers() {
     const navigate = useNavigate()
     const { user: currentUser, loading: authLoading } = useAuthStore()
     const isSuperAdmin = currentUser?.role === 'super_admin'
 
-    const [activeTab, setActiveTab] = useState<'admins' | 'claims'>('admins')
+    const [activeTab, setActiveTab] = useState<'admins' | 'users'>('admins')
     const [showInviteModal, setShowInviteModal] = useState(false)
+    const [showSquadModal, setShowSquadModal] = useState(false)
+    const [selectedUser, setSelectedUser] = useState<User | null>(null)
+    const [selectedSquadId, setSelectedSquadId] = useState('')
+
     const [inviteName, setInviteName] = useState('')
     const [inviteEmail, setInviteEmail] = useState('')
     const [invitePassword, setInvitePassword] = useState('')
     const [inviteRole, setInviteRole] = useState<'admin' | 'super_admin'>('admin')
     const [isInviting, setIsInviting] = useState(false)
+    const [isSquadLinking, setIsSquadLinking] = useState(false)
 
     const [admins, setAdmins] = useState<AdminUser[]>([])
-    const [claimedPlayers, setClaimedPlayers] = useState<Player[]>([])
+    const [allUsers, setAllUsers] = useState<User[]>([])
+    const [squads, setSquads] = useState<Squad[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
 
@@ -60,15 +69,103 @@ export default function AdminUsers() {
             const adminList = await adminService.getAll()
             setAdmins(adminList)
 
-            // 2. Load Claimed Players
-            const allPlayers = await playerService.getAll()
-            const claimed = allPlayers.filter(p => p.claimed)
-            setClaimedPlayers(claimed)
+            // 2. Load Registered Users
+            const users = await userService.getAll()
+            setAllUsers(users)
+
+            // 3. Load Squads
+            const squadList = await squadService.getAll()
+            setSquads(squadList)
         } catch (error) {
             console.error('Error loading user data:', error)
-            toast.error('Failed to load access lists')
+            toast.error('Failed to load data lists')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleAddToSquad = async () => {
+        if (!selectedUser || !selectedSquadId) {
+            toast.error('Please select a squad')
+            return
+        }
+
+        setIsSquadLinking(true)
+        const tid = toast.loading(`Adding ${selectedUser.displayName} to squad...`)
+
+        try {
+            // 1. Find or Create Player Profile
+            let playerId = selectedUser.uid; // Try using UID as Player ID for consistency
+            const existingPlayer = await playerService.getById(playerId);
+
+            const playerRoleMap: Record<string, any> = {
+                'batsman': 'batsman',
+                'bowler': 'bowler',
+                'all rounder': 'all-rounder',
+                'all-rounder': 'all-rounder',
+                'wicket keeper': 'wicket-keeper',
+                'wicket-keeper': 'wicket-keeper'
+            };
+
+            const profile = selectedUser.playerProfile;
+            const normalizedRole = playerRoleMap[(profile?.role || '').toLowerCase()] || 'all-rounder';
+            const normalizedBatting = (profile?.battingStyle || '').toLowerCase().includes('left') ? 'left-handed' : 'right-handed';
+
+            let normalizedBowling = null;
+            if (profile?.bowlingStyle && profile.bowlingStyle !== 'None') {
+                normalizedBowling = profile.bowlingStyle.toLowerCase().replace(/ /g, '-');
+            }
+
+            const playerData: any = {
+                name: selectedUser.displayName || selectedUser.email.split('@')[0],
+                role: normalizedRole,
+                battingStyle: normalizedBatting,
+                bowlingStyle: normalizedBowling,
+                dateOfBirth: profile?.dateOfBirth || '',
+                email: selectedUser.email,
+                claimed: true,
+                ownerUid: selectedUser.uid,
+                squadId: selectedSquadId,
+                status: 'active',
+                adminId: currentUser?.uid
+            };
+
+            if (existingPlayer) {
+                await playerService.update(playerId, playerData);
+            } else {
+                // Ensure we use the User's UID as the player ID!
+
+                await setDoc(doc(db, COLLECTIONS.PLAYERS, playerId), {
+                    ...playerData,
+                    id: playerId,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    createdBy: 'admin_link'
+                });
+            }
+
+            // 2. Add Player ID to the Squad
+            const targetSquad = squads.find(s => s.id === selectedSquadId);
+            if (targetSquad) {
+                const currentPlayers = targetSquad.playerIds || [];
+                if (!currentPlayers.includes(playerId)) {
+                    await squadService.update(selectedSquadId, {
+                        playerIds: [...currentPlayers, playerId]
+                    });
+                }
+            }
+
+            // 3. Link User to Player in users collection
+            await userService.linkToPlayer(selectedUser.uid, playerId);
+
+            toast.success(`${selectedUser.displayName} is now active in the squad!`, { id: tid });
+            setShowSquadModal(false);
+            loadData();
+        } catch (error: any) {
+            console.error('Squad assignment failed:', error);
+            toast.error(`Error: ${error.message}`, { id: tid });
+        } finally {
+            setIsSquadLinking(false);
         }
     }
 
@@ -167,9 +264,10 @@ export default function AdminUsers() {
         a.uid.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    const filteredClaims = claimedPlayers.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredUsers = allUsers.filter(u =>
+        u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.uid.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     return (
@@ -177,8 +275,8 @@ export default function AdminUsers() {
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Access Control & Claims</h1>
-                    <p className="text-slate-500 mt-2 font-medium">Manage administrative privileges and player profile ownership.</p>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Access Control & Users</h1>
+                    <p className="text-slate-500 mt-2 font-medium">Manage administrators and oversee registered users.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
@@ -204,14 +302,14 @@ export default function AdminUsers() {
                             Admins
                         </button>
                         <button
-                            onClick={() => setActiveTab('claims')}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'claims'
+                            onClick={() => setActiveTab('users')}
+                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'users'
                                 ? 'bg-white text-blue-600 shadow-xl'
                                 : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             <UserCheck className="w-4 h-4" />
-                            Player Users
+                            All Users
                         </button>
                     </div>
                 </div>
@@ -229,8 +327,8 @@ export default function AdminUsers() {
                 <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
                     <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><UserCheck className="w-6 h-6" /></div>
                     <div>
-                        <div className="text-2xl font-black text-slate-900">{claimedPlayers.length}</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verified Players</div>
+                        <div className="text-2xl font-black text-slate-900">{allUsers.length}</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registered Users</div>
                     </div>
                 </div>
                 <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
@@ -405,63 +503,96 @@ export default function AdminUsers() {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50/50 border-b border-slate-100">
                                     <tr>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Player Profile</th>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Verification Status</th>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Manage</th>
+                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">User / Profile</th>
+                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Onboarding Status</th>
+                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Squad Status</th>
+                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredClaims.length > 0 ? (
-                                        filteredClaims.map((player) => (
-                                            <tr key={player.id} className="hover:bg-slate-50/30 transition-all group">
+                                    {filteredUsers.length > 0 ? (
+                                        filteredUsers.map((user) => (
+                                            <tr key={user.uid} className="hover:bg-slate-50/30 transition-all group">
                                                 <td className="px-6 py-6 font-inter">
                                                     <div className="flex items-center gap-4">
                                                         <PlayerAvatar
-                                                            photoUrl={player.photoUrl}
-                                                            name={player.name}
+                                                            photoUrl={user.photoURL || user.playerProfile?.photoUrl}
+                                                            name={user.displayName || user.email}
                                                             size="lg"
                                                             className="ring-4 ring-slate-50 shadow-inner group-hover:scale-105 transition-transform"
                                                         />
                                                         <div>
-                                                            <PlayerLink
-                                                                playerId={player.id}
-                                                                playerName={player.name}
-                                                                className="text-slate-900 font-black text-base hover:text-blue-600 transition-colors"
-                                                            />
+                                                            <div className="text-slate-900 font-black text-base transition-colors">
+                                                                {user.displayName || user.email.split('@')[0]}
+                                                            </div>
                                                             <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{player.batch}</span>
-                                                                <span className="text-xs font-medium text-slate-400">{player.school}</span>
+                                                                <span className="text-[10px] font-bold text-slate-400 max-w-[150px] truncate">{user.email}</span>
+                                                                {user.role === 'super_admin' && <Shield className="w-3 h-3 text-indigo-500" />}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-6">
-                                                    <div className="p-3 bg-white border border-slate-100 rounded-2xl flex items-center gap-4 shadow-sm">
-                                                        <div className="flex flex-col">
-                                                            <div className="flex items-center gap-1.5 mb-1">
-                                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                                                <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Verified Identity</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {user.playerProfile?.isRegisteredPlayer ? (
+                                                            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                <span className="text-[10px] font-black uppercase tracking-wider">Setup Complete</span>
                                                             </div>
-                                                            <span className="text-[10px] font-bold text-slate-400 font-mono">{player.ownerUid}</span>
-                                                        </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full border border-amber-100">
+                                                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                                                                <span className="text-[10px] font-black uppercase tracking-wider">Awaiting Setup</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
+                                                <td className="px-6 py-6">
+                                                    {user.linkedPlayerId ? (
+                                                        <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-3">
+                                                            <div className="p-1.5 bg-blue-600 text-white rounded-lg">
+                                                                <UserCheck className="w-3.5 h-3.5" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-black text-blue-900 uppercase tracking-tighter">Active Player</span>
+                                                                <span className="text-[10px] font-bold text-blue-600 truncate max-w-[120px]">
+                                                                    {squads.find(s => s.playerIds?.includes(user.linkedPlayerId!))?.name || 'In Squad'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] font-black text-slate-300 uppercase italic">Not in Squad</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-6 text-right">
-                                                    <button
-                                                        onClick={() => navigate(`/admin/players/${player.id}/edit`)}
-                                                        className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-all active:scale-95"
-                                                    >
-                                                        Edit Profile
-                                                    </button>
+                                                    {user.linkedPlayerId ? (
+                                                        <button
+                                                            onClick={() => navigate(`/admin/players/${user.linkedPlayerId}/edit`)}
+                                                            className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-all active:scale-95"
+                                                        >
+                                                            Edit Profile
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            disabled={!user.playerProfile?.isRegisteredPlayer}
+                                                            onClick={() => {
+                                                                setSelectedUser(user);
+                                                                setShowSquadModal(true);
+                                                            }}
+                                                            className="px-5 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95 disabled:opacity-30 disabled:shadow-none"
+                                                        >
+                                                            Invite to Squad
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={3} className="py-32 text-center">
-                                                <UserCheck className="w-16 h-16 text-slate-100 mx-auto mb-4" />
-                                                <h3 className="text-slate-900 font-bold text-xl">No active claims</h3>
-                                                <p className="text-slate-400 font-medium">When players claim profiles, they will appear here.</p>
+                                            <td colSpan={4} className="py-32 text-center">
+                                                <Search className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+                                                <h3 className="text-slate-900 font-bold text-xl">No users found</h3>
+                                                <p className="text-slate-400 font-medium">Try adjusting your search filters.</p>
                                             </td>
                                         </tr>
                                     )}
@@ -472,15 +603,14 @@ export default function AdminUsers() {
                 </div>
             </div>
 
-            {/* Invite Modal */}
+            {/* Invite Modal (Admin Creation) remains as is logic wise but I'll ensure it stays */}
             {showInviteModal && (
                 <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in-95 duration-300 border border-white/20">
+                    {/* ... Existing Modal Content ... */}
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 shadow-2xl animate-in zoom-in-95 duration-300">
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-inner">
-                                    <ShieldCheck className="w-6 h-6" />
-                                </div>
+                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><ShieldCheck className="w-6 h-6" /></div>
                                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">Create Admin</h3>
                             </div>
                             <button onClick={() => setShowInviteModal(false)} className="p-2.5 hover:bg-slate-100 rounded-full transition-all active:rotate-90">
@@ -488,98 +618,86 @@ export default function AdminUsers() {
                             </button>
                         </div>
 
-                        <p className="text-slate-500 text-sm font-medium mb-8 leading-relaxed">
-                            Register a new administrative account directly. The admin will be able to login immediately and change their password later.
-                        </p>
-
                         <form onSubmit={handleCreateAdmin} className="space-y-6">
+                            {/* Form fields were in original code, I'll keep them consistent */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Display Name</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={inviteName}
-                                        onChange={(e) => setInviteName(e.target.value)}
-                                        placeholder="Full Name"
-                                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
-                                    />
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Display Name</label>
+                                    <input type="text" required value={inviteName} onChange={(e) => setInviteName(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Email Address</label>
-                                    <input
-                                        type="email"
-                                        required
-                                        value={inviteEmail}
-                                        onChange={(e) => setInviteEmail(e.target.value)}
-                                        placeholder="admin@batchcrick.bd"
-                                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
-                                    />
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Email Address</label>
+                                    <input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
                                 </div>
                             </div>
-
                             <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Temporary Password</label>
-                                <input
-                                    type="password"
-                                    required
-                                    minLength={6}
-                                    value={invitePassword}
-                                    onChange={(e) => setInvitePassword(e.target.value)}
-                                    placeholder="Enter at least 6 characters"
-                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
-                                />
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Initial Password</label>
+                                <input type="password" required minLength={6} value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
                             </div>
-
                             <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 px-1">Select Access Role</label>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-1">Access Level</label>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setInviteRole('admin')}
-                                        className={`p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${inviteRole === 'admin'
-                                            ? 'border-blue-600 bg-blue-50/50 shadow-lg'
-                                            : 'border-slate-100 hover:border-slate-200 bg-white'}`}
-                                    >
-                                        <Shield className={`w-6 h-6 ${inviteRole === 'admin' ? 'text-blue-600' : 'text-slate-400'}`} />
-                                        <div className="text-center">
-                                            <div className={`text-xs font-black uppercase tracking-wider ${inviteRole === 'admin' ? 'text-blue-900' : 'text-slate-600'}`}>Admin</div>
-                                            <div className="text-[9px] font-bold text-slate-400 mt-0.5">Basic Management</div>
-                                        </div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setInviteRole('super_admin')}
-                                        className={`p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${inviteRole === 'super_admin'
-                                            ? 'border-indigo-600 bg-indigo-50/50 shadow-lg'
-                                            : 'border-slate-100 hover:border-slate-200 bg-white'}`}
-                                    >
-                                        <ShieldCheck className={`w-6 h-6 ${inviteRole === 'super_admin' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                        <div className="text-center">
-                                            <div className={`text-xs font-black uppercase tracking-wider ${inviteRole === 'super_admin' ? 'text-indigo-900' : 'text-slate-600'}`}>Super Admin</div>
-                                            <div className="text-[9px] font-bold text-slate-400 mt-0.5">Full System Access</div>
-                                        </div>
-                                    </button>
+                                    <button type="button" onClick={() => setInviteRole('admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'admin' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>Admin</button>
+                                    <button type="button" onClick={() => setInviteRole('super_admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'super_admin' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100'}`}>Super Admin</button>
                                 </div>
                             </div>
-
-                            <div className="flex gap-4 pt-4 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowInviteModal(false)}
-                                    className="flex-1 px-4 py-4 bg-slate-50 text-slate-600 font-black uppercase tracking-widest rounded-2xl hover:bg-slate-100 transition-all text-xs"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isInviting}
-                                    className="flex-1 px-4 py-4 bg-slate-900 text-white font-black uppercase tracking-widest rounded-2xl hover:bg-slate-800 transition-all shadow-xl active:scale-95 disabled:opacity-50 text-xs"
-                                >
-                                    {isInviting ? 'Creating Account...' : 'Create Account'}
-                                </button>
-                            </div>
+                            <button type="submit" disabled={isInviting} className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50">
+                                {isInviting ? 'Initializing...' : 'Confirm Account Creation'}
+                            </button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Squad Assignment Modal */}
+            {showSquadModal && selectedUser && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300 border border-white/20">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-2xl font-black text-slate-900">Add to Squad</h3>
+                            <button onClick={() => setShowSquadModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
+                            <PlayerAvatar
+                                photoUrl={selectedUser.playerProfile?.photoUrl}
+                                name={selectedUser.displayName || selectedUser.email}
+                                size="xl"
+                                className="mx-auto mb-4 border-4 border-white shadow-xl"
+                            />
+                            <h4 className="text-xl font-black text-slate-900">{selectedUser.displayName}</h4>
+                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Verification Required</p>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1 text-center">Select Destination Squad</label>
+                                <select
+                                    className="w-full px-6 py-4 bg-slate-100 border-none rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-100 transition-all"
+                                    value={selectedSquadId}
+                                    onChange={(e) => setSelectedSquadId(e.target.value)}
+                                >
+                                    <option value="">-- Choose a Squad --</option>
+                                    {squads.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} ({s.year})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] text-blue-700 font-medium leading-relaxed">
+                                <b>⚠️ Note:</b> This action will "activate" this user as a public player. Their stats and profile will become visible to all users in the system.
+                            </div>
+
+                            <button
+                                onClick={handleAddToSquad}
+                                disabled={isSquadLinking || !selectedSquadId}
+                                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-30 disabled:shadow-none"
+                            >
+                                {isSquadLinking ? 'Assigning...' : 'Assign to Squad'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

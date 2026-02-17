@@ -1,15 +1,11 @@
 
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Calendar, Trophy, Users, Menu } from 'lucide-react';
-import { useThemeStore } from '@/store/themeStore';
+import { useTranslation } from '@/hooks/useTranslation';
 
-interface BottomNavProps {
-    onMenuClick: () => void;
-}
-
-export default function BottomNav({ onMenuClick }: BottomNavProps) {
+export default function BottomNav() {
     const location = useLocation();
-    const { isDarkMode } = useThemeStore();
+    const { t } = useTranslation();
     const isActive = (path: string) => location.pathname === path;
 
     // Paths to hide bottom nav
@@ -17,10 +13,10 @@ export default function BottomNav({ onMenuClick }: BottomNavProps) {
     if (hideOnPaths.some(p => location.pathname.startsWith(p))) return null;
 
     const navItems = [
-        { path: '/', label: 'Home', icon: <Home size={20} /> },
-        { path: '/schedule', label: 'Matches', icon: <Calendar size={20} /> },
-        { path: '/tournaments', label: 'Series', icon: <Trophy size={20} /> },
-        { path: '/players', label: 'Stats', icon: <Users size={20} /> },
+        { path: '/', label: t('nav_home'), icon: <Home size={20} /> },
+        { path: '/schedule', label: t('nav_matches'), icon: <Calendar size={20} /> },
+        { path: '/tournaments', label: t('nav_series'), icon: <Trophy size={20} /> },
+        { path: '/players', label: t('nav_stats'), icon: <Users size={20} /> },
     ];
 
     return (
@@ -42,13 +38,18 @@ export default function BottomNav({ onMenuClick }: BottomNavProps) {
                     </Link>
                 ))}
 
-                <button
-                    onClick={onMenuClick}
-                    className="flex flex-col items-center justify-center gap-1 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all"
+                <Link
+                    to="/menu"
+                    className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 ${isActive('/menu')
+                        ? 'text-teal-600 dark:text-teal-400 scale-110'
+                        : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        }`}
                 >
-                    <Menu size={20} />
-                    <span className="text-[10px] font-black uppercase tracking-tighter">More</span>
-                </button>
+                    <div className={`${isActive('/menu') ? 'animate-bounce-short' : ''}`}>
+                        <Menu size={20} />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-tighter">{t('nav_more')}</span>
+                </Link>
             </div>
         </div>
     );

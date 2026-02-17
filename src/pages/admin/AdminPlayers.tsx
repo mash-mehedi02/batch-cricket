@@ -450,13 +450,14 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               </label>
               <select
                 required
+                disabled={mode === 'edit'}
                 value={formData.squadId}
                 onChange={(e) => {
                   setFormData({ ...formData, squadId: e.target.value });
                   if (errors.squadId) setErrors(prev => ({ ...prev, squadId: '' }));
                 }}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.squadId ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  } ${mode === 'edit' ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`}
               >
                 <option value="">Select Squad</option>
                 {squads.map((squad) => (
@@ -465,6 +466,11 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   </option>
                 ))}
               </select>
+              {mode === 'edit' && (
+                <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase tracking-tight">
+                  ℹ️ Squad selection is permanent after registration.
+                </p>
+              )}
               {errors.squadId && <p className="text-red-500 text-sm mt-1">{errors.squadId}</p>}
             </div>
 

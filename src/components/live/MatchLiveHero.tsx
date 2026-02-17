@@ -3,6 +3,7 @@ import { Match, InningsStats } from '@/types'
 import fourIcon from '../../assets/four.png'
 import sixIcon from '../../assets/six.png'
 import { Link } from 'react-router-dom'
+import { useTranslation } from '@/hooks/useTranslation'
 
 interface MatchLiveHeroProps {
     match: Match
@@ -40,6 +41,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     showBoundaryAnim,
     showAnimation = false,
 }) => {
+    const { t } = useTranslation()
     const scrollRef = useRef<HTMLDivElement>(null)
 
     // Auto-scroll timeline
@@ -149,11 +151,14 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     }
 
     // --- Event Label Logic ---
-    let displayEvent = isFinishedMatch ? (resultSummary || 'MATCH COMPLETED') : (isInningsBreak ? 'INNINGS BREAK' : (centerEventText || '—'))
+    const isPlayerEntering = !isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0
+    let displayEvent = isFinishedMatch
+        ? (resultSummary || t('match_completed').toUpperCase())
+        : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—'))
 
     // Special Case: 2nd Innings Start (Player Entering)
-    if (!isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0) {
-        displayEvent = 'PLAYER ENTERING';
+    if (isPlayerEntering) {
+        displayEvent = t('player_entering').toUpperCase();
     }
 
     const isWicket = !isFinishedMatch && !isInningsBreak && (displayEvent.toLowerCase().includes('out') || displayEvent.toLowerCase().includes('wick') || displayEvent === 'W' || displayEvent === 'WICKET')
@@ -166,7 +171,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
     // Determine the color class based on event type
     let eventColorClass = 'text-slate-200'; // Default color
-    if (isFinishedMatch || isInningsBreak || displayEvent === 'PLAYER ENTERING') {
+    if (isFinishedMatch || isInningsBreak || isPlayerEntering) {
         eventColorClass = 'text-amber-400 text-center px-4 leading-tight';
     } else if (isRun || isWideOrNoBall || isBye) {
         eventColorClass = 'text-amber-400';
@@ -234,11 +239,13 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                             if (isValidSquadId) {
                                 return (
                                     <Link to={`/squads/${squadId}`} className="block shrink-0">
-                                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a2333] border border-white/5 p-1 flex items-center justify-center shadow-lg overflow-hidden hover:scale-105 transition-transform">
+                                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a2333] border border-white/5 flex items-center justify-center shadow-lg overflow-hidden hover:scale-105 transition-transform relative">
                                             {logoUrl ? (
-                                                <img src={logoUrl} className="w-full min-w-full min-h-full object-cover" alt="" />
+                                                <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1" alt="" />
                                             ) : (
-                                                <span className="text-xl font-black uppercase">{currentTeamAbbr[0]}</span>
+                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl font-black uppercase">
+                                                    {currentTeamName.charAt(0)}
+                                                </div>
                                             )}
                                         </div>
                                     </Link>
@@ -246,11 +253,13 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                             }
 
                             return (
-                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a2333] border border-white/5 p-1 flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
+                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a2333] border border-white/5 flex items-center justify-center shadow-lg shrink-0 overflow-hidden relative">
                                     {logoUrl ? (
-                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover" alt="" />
+                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1" alt="" />
                                     ) : (
-                                        <span className="text-xl font-black uppercase">{currentTeamAbbr[0]}</span>
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl font-black uppercase">
+                                            {currentTeamName.charAt(0)}
+                                        </div>
                                     )}
                                 </div>
                             );
@@ -299,12 +308,12 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                         {/* LEFT SIDE Stats */}
                         <div className="flex items-center gap-5">
                             <div className="flex items-center gap-2">
-                                <span className="font-medium text-slate-400 uppercase tracking-widest text-xs">CRR:</span>
+                                <span className="font-medium text-slate-400 uppercase tracking-widest text-xs">{t('run_rate')}:</span>
                                 <span className="font-medium text-slate-100 text-xs">{crr.toFixed(2)}</span>
                             </div>
                             {targetScore > 0 && (
                                 <div className="flex items-center gap-2">
-                                    <span className="font-medium text-slate-400 uppercase tracking-widest text-xs">RRR:</span>
+                                    <span className="font-medium text-slate-400 uppercase tracking-widest text-xs">{t('req_rate')}:</span>
                                     <span className="font-medium text-slate-100 text-xs">{displayRRR.toFixed(2)}</span>
                                 </div>
                             )}
@@ -314,14 +323,14 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                         <div className="flex items-center gap-4">
                             {targetScore > 0 && (
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">Target:</span>
+                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">{t('target')}:</span>
                                     <span className="text-xs font-medium text-slate-100 leading-none">{targetScore}</span>
                                 </div>
                             )}
 
                             {(!targetScore || targetScore === 0) && !isInningsBreak && (
                                 <div className={`flex items-center gap-2 ${targetScore > 0 ? 'pl-4 border-l border-white/10' : ''}`}>
-                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">Toss:</span>
+                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">{t('toss')}:</span>
                                     <span className="text-xs font-medium text-slate-200 uppercase leading-none">
                                         {tossText || (twid ? (twid === 'teama' ? 'T-A' : (twid === 'teamb' ? 'T-B' : twid.toUpperCase().substring(0, 6))) : '-')}
                                     </span>
@@ -337,9 +346,9 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                 <div className="bg-[#0f172a] py-2 border-t border-white/5 text-center shadow-lg relative z-0">
                     <span className="text-[11px] sm:text-xs font-bold text-amber-500 tracking-wider">
                         {isInningsBreak ? (
-                            `${opponentTeamAbbr} need ${targetScore} runs in ${matchOvers * 6} balls`
+                            `${opponentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(targetScore)).replace('${balls}', String(matchOvers * 6))}`
                         ) : (
-                            `${currentTeamAbbr} need ${runsNeeded} runs in ${remainingBalls} balls`
+                            `${currentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(runsNeeded)).replace('${balls}', String(remainingBalls))}`
                         )}
                     </span>
                 </div>

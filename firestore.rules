@@ -12,15 +12,17 @@ service cloud.firestore {
 
     // Check if user is an active admin in the new system
     function isAdmin() {
-      return isAuthenticated() && 
+      return isSuperAdmin() || (
+        isAuthenticated() && 
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true;
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true
+      );
     }
 
     // Check if user is a super admin
     function isSuperAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == 'batchcrick@gmail.com' || (
+        request.auth.token.email in ['batchcrick@gmail.com', 'mehedihasan110571@gmail.com', 'faysalmia4125@gmail.com'] || (
           exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super_admin'
         )
@@ -52,8 +54,13 @@ service cloud.firestore {
     // ======================================================
 
     match /admins/{adminId} {
-      // Admins can read their own profile, Super Admins can read all
-      allow read: if isAuthenticated() && (request.auth.uid == adminId || isSuperAdmin());
+      // Admins can read their own profile, Super Admins can read all, 
+      // or if searching specifically for their own email (for promotion)
+      allow read: if isAuthenticated() && (
+        request.auth.uid == adminId || 
+        isSuperAdmin() || 
+        (resource != null && resource.data.email.lower() == request.auth.token.email.lower())
+      );
       
       // Allow Super Admin to create any admin (including themselves)
       allow create: if isSuperAdmin();

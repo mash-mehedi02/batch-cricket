@@ -242,6 +242,18 @@ export async function finalizeClaim(playerId: string, user: any) {
         updatedAt: serverTimestamp()
     })
 
+    // 4. Sync User Profile in 'users' collection for persistent session state
+    const userRef = doc(db, 'users', uid)
+    const playerData = playerSnap.data()
+    await updateDoc(userRef, {
+        role: 'player',
+        playerId: playerId,
+        isRegisteredPlayer: true,
+        displayName: playerData.name || user.displayName,
+        photoURL: playerData.photoUrl || user.photoURL,
+        updatedAt: serverTimestamp()
+    }).catch(e => console.error('[Claim] User profile sync failed:', e))
+
     return { success: true, email: googleEmail }
 }
 
@@ -249,15 +261,34 @@ export async function finalizeClaim(playerId: string, user: any) {
  * Verify access based on current Auth state and 1-hour session
  */
 export async function verifyPlayerAccess(player: any): Promise<{ hasAccess: boolean; isExpired: boolean }> {
-    if (!auth.currentUser || !player || !player.claimed || player.ownerUid !== auth.currentUser.uid) {
+    if (!auth.currentUser || !player) {
         return { hasAccess: false, isExpired: false }
     }
 
+    // 1. Check direct UID binding
+    const isOwnerByUid = player.claimed && player.ownerUid === auth.currentUser.uid;
+
+    // 2. Fallback: Check if email matches (for immediate access after auto-link)
+    // We get the secret email from the player doc if it's there (admin sets it)
+    const normalizedUserEmail = auth.currentUser.email?.toLowerCase().trim();
+    const normalizedPlayerEmail = player.email?.toLowerCase().trim();
+    const isOwnerByEmail = normalizedUserEmail && normalizedPlayerEmail && normalizedUserEmail === normalizedPlayerEmail;
+
+    if (!isOwnerByUid && !isOwnerByEmail) {
+        return { hasAccess: false, isExpired: false }
+    }
+
+    // If ownerUid matches current user, access is granted persistently
+    if (isOwnerByUid) {
+        return { hasAccess: true, isExpired: false }
+    }
+
+    // Sessions for email fallback (if needed)
+    if (isOwnerByEmail && !player.lastVerifiedAt) return { hasAccess: true, isExpired: false }
     if (!player.lastVerifiedAt) return { hasAccess: false, isExpired: true }
 
-    // Check if 1 hour (3600000 ms) has passed since last verification
     const lastVerified = player.lastVerifiedAt.toMillis ? player.lastVerifiedAt.toMillis() : player.lastVerifiedAt
-    const isExpired = (Date.now() - lastVerified) > 3600000
+    const isExpired = (Date.now() - lastVerified) > 72 * 3600000 // Fallback session length (3 days)
 
     return { hasAccess: !isExpired, isExpired }
 }
@@ -278,6 +309,7 @@ export async function updatePlayerPersonalInfo(
         battingStyle?: string
         bowlingStyle?: string
         address?: string
+        school?: string
     }
 ) {
     if (!auth.currentUser) {

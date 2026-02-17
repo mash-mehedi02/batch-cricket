@@ -12,6 +12,7 @@ import { Player, Squad } from '@/types'
 import cricketBatIcon from '@/assets/cricket-bat.png'
 import cricketBallIcon from '@/assets/cricket-ball.png'
 import { UserCircle } from 'lucide-react'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function Players() {
   const [players, setPlayers] = useState<Player[]>([])
@@ -19,6 +20,7 @@ export default function Players() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState<string>('all')
+  const { t } = useTranslation()
 
   useEffect(() => {
     const loadData = async () => {
@@ -49,10 +51,10 @@ export default function Players() {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const categories = [
-    { id: 'all', label: 'All', icon: null },
-    { id: 'batsman', label: 'Batsman', icon: cricketBatIcon },
-    { id: 'bowler', label: 'Bowler', icon: cricketBallIcon },
-    { id: 'all-rounder', label: 'All Rounder', icon: null },
+    { id: 'all', label: t('filter_all'), icon: null },
+    { id: 'batsman', label: t('batsman'), icon: cricketBatIcon },
+    { id: 'bowler', label: t('bowler'), icon: cricketBallIcon },
+    { id: 'all-rounder', label: t('all_rounder'), icon: null },
   ]
 
   const filteredPlayers = useMemo(() => {
@@ -103,12 +105,12 @@ export default function Players() {
           {/* Top Header Area */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic">
-              Players
+              {t('nav_players')}
             </h1>
             <div className="relative w-full md:max-w-md group">
               <input
                 type="text"
-                placeholder="Search elite players..."
+                placeholder={t('search_players')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-6 py-4 pl-14 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all shadow-sm placeholder:text-slate-400 font-bold text-slate-800 dark:text-white"
@@ -154,14 +156,19 @@ export default function Players() {
         ) : filteredPlayers.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-20 text-center shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-white/5">
             <div className="text-8xl mb-8 animate-bounce">🏏</div>
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-3 uppercase italic tracking-tighter">No Players Found</h3>
-            <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Adjust your search or category filters</p>
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-3 uppercase italic tracking-tighter">{t('no_players_found')}</h3>
+            <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">{t('adjust_filters')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
             {filteredPlayers.map((player) => {
               const hasPhoto = !!(player.photoUrl || (player as any).photo)
               const squadName = squads[player.squadId] || 'Unassigned'
+              // Translate Role
+              let roleText = t('all_rounder')
+              if (player.role === 'wicket-keeper') roleText = t('wicket_keeper')
+              else if (player.role === 'batsman') roleText = t('batsman')
+              else if (player.role === 'bowler') roleText = t('bowler')
 
               return (
                 <Link
@@ -186,7 +193,7 @@ export default function Players() {
                       </div>
 
                       <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.2em] ml-3.5">
-                        {player.role === 'wicket-keeper' ? 'Wicketkeeper' : player.role === 'batsman' ? 'Batter' : player.role === 'bowler' ? 'Bowler' : 'All Rounder'}
+                        {roleText}
                       </p>
                     </div>
                   </div>

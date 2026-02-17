@@ -1,78 +1,184 @@
 /**
- * Tournaments Redirect Page
- * Automatically redirects to the most relevant tournament details page.
- * Keeps the "Tournaments" route valid but skips the listing view per user request.
+ * All Series (Tournaments) Page
+ * Displays a professional list of all tournaments grouped by month/year.
  */
 
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { tournamentService } from '@/services/firestore/tournaments'
-
+import { Tournament } from '@/types'
+import { Calendar, ChevronRight, Trophy, Filter, ArrowRight } from 'lucide-react'
+import { format } from 'date-fns'
+import { bn as bnLocale } from 'date-fns/locale'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function Tournaments() {
-  const [targetId, setTargetId] = useState<string | null>(null)
+  const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | 'men' | 't20' | 'odi' | 'international'>('all')
+  const { t, language } = useTranslation()
 
   useEffect(() => {
-    const findRedirectTarget = async () => {
+    const loadTournaments = async () => {
       try {
-        const all = await tournamentService.getAll()
-
-        if (!all || all.length === 0) {
-          setLoading(false)
-          return
-        }
-
-        // Logic to find the "best" tournament to show
-        // 1. First "ongoing" tournament
-        // 2. Or, first "upcoming" tournament
-        // 3. Or, most recent "completed" tournament by end date or year
-
-        const ongoing = all.find(t => t.status === 'ongoing')
-        if (ongoing) {
-          setTargetId(ongoing.id)
-          setLoading(false)
-          return
-        }
-
-        const upcoming = all.find(t => t.status === 'upcoming')
-        if (upcoming) {
-          setTargetId(upcoming.id)
-          setLoading(false)
-          return
-        }
-
-        // Sort by year desc, then ID as fallback
-        const sorted = [...all].sort((a, b) => (b.year || 0) - (a.year || 0))
-        setTargetId(sorted[0].id)
-      } catch (e) {
-        console.error("Failed to load tournaments for redirect", e)
+        const data = await tournamentService.getAll()
+        // Sort by start date descending (newest first)
+        const sorted = data.sort((a, b) => {
+          const dateA = new Date(a.startDate || 0)
+          const dateB = new Date(b.startDate || 0)
+          return dateB.getTime() - dateA.getTime()
+        })
+        setTournaments(sorted)
+      } catch (error) {
+        console.error('Error loading tournaments:', error)
       } finally {
         setLoading(false)
       }
     }
-
-    findRedirectTarget()
+    loadTournaments()
   }, [])
+
+  // Filter logic
+  const filteredTournaments = tournaments.filter(t => {
+    if (filter === 'all') return true
+    if (filter === 't20') return t.format === 'T20' || t.name.toLowerCase().includes('t20')
+    if (filter === 'odi') return t.format === 'ODI' || t.name.toLowerCase().includes('odi')
+    if (filter === 'men') return true // Assuming all are men's for now unless specific field exists
+    if (filter === 'international') return t.name.toLowerCase().includes('intl') || t.name.toLowerCase().includes('world')
+    return true
+  })
+
+  // Group tournaments by "Month Year" (e.g., "January 2026")
+  const groupedTournaments = filteredTournaments.reduce((groups, tournament) => {
+    const date = tournament.startDate ? new Date(tournament.startDate) : new Date()
+    // Localize month name? Use date-fns here too for the key?
+    // If I translate key, grouping might break if not careful, but key is just for display?
+    // Wait, the key is used for sorting in lines 60-64: new Date(a).
+    // If key is "জানুয়ারি ২০২৬", new Date() might fail.
+    // So I should keeping Key as English or parseable date string, but Display differently.
+
+    // I will use English key for grouping and sorting, but translate strictly for display.
+    // But lines 49-57 groups by readable string.
+    // I'll stick to English grouping key for now to avoid sorting issues, and just translate only if needed or keep Month names in English for technical reasons?
+    // Actually, line 61: new Date("January 2026") works. new Date("জানুয়ারি ২০২৬") fails.
+    // So grouping KEY must be English.
+
+    const key = date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+    if (!groups[key]) {
+      groups[key] = []
+    }
+    groups[key].push(tournament)
+    return groups
+  }, {} as Record<string, Tournament[]>)
+
+  // Sort groups by date (converting key back to date for sorting)
+  const sortedGroupKeys = Object.keys(groupedTournaments).sort((a, b) => {
+    const dateA = new Date(a)
+    const dateB = new Date(b)
+    return dateB.getTime() - dateA.getTime() // Descending
+  })
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-slate-950 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-teal-600 rounded-full animate-spin" />
       </div>
     )
   }
 
-  if (targetId) {
-    return <Navigate to={`/tournaments/${targetId}`} replace />
-  }
-
-  // Fallback if no tournaments exist
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col items-center justify-center p-4">
-      <div className="text-4xl mb-4">🏆</div>
-      <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Series Available</h2>
-      <p className="text-slate-500 text-sm">Check back later for cricket series updates.</p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 md:pb-8">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center h-14 gap-4">
+            <Link to="/" className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </Link>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white">{t('nav_series')}</h1>
+          </div>
+
+          {/* Filters - Horizontal Scroll */}
+          <div className="flex items-center gap-2 pb-3 overflow-x-auto no-scrollbar">
+            {['all', 'men', 't20', 'odi', 'international'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f as any)}
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all border ${filter === f
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                  }`}
+              >
+                {t(`filter_${f}` as any)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+        {tournaments.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trophy className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('no_series_found')}</h3>
+            <p className="text-slate-500">{t('check_back_later')}</p>
+          </div>
+        ) : (
+          sortedGroupKeys.map(groupKey => {
+            // Translate the Group Header (Month Year)
+            // groupKey is "January 2026" (English)
+            const groupDate = new Date(groupKey);
+            const displayDate = !isNaN(groupDate.getTime())
+              ? format(groupDate, 'MMMM yyyy', { locale: language === 'bn' ? bnLocale : undefined })
+              : groupKey;
+
+            return (
+              <div key={groupKey} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4 px-1">
+                  {displayDate}
+                </h2>
+
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                  {groupedTournaments[groupKey].map(tournament => (
+                    <Link
+                      key={tournament.id}
+                      to={`/tournaments/${tournament.id}`}
+                      className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+                    >
+                      {/* Series Logo */}
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 p-2 flex-shrink-0 border border-slate-200 dark:border-slate-700">
+                        {tournament.logo ? (
+                          <img src={tournament.logo} alt={tournament.name} className="w-full h-full object-contain" />
+                        ) : (
+                          <Trophy className="w-full h-full text-slate-300 p-1" />
+                        )}
+                      </div>
+
+                      {/* Series Info */}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                          {tournament.name}
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
+                          <span className="truncate">
+                            {tournament.startDate && format(new Date(tournament.startDate), 'd MMM', { locale: language === 'bn' ? bnLocale : undefined })}
+                            {' - '}
+                            {tournament.endDate && format(new Date(tournament.endDate), 'd MMM yyyy', { locale: language === 'bn' ? bnLocale : undefined })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-teal-500 transition-colors" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
     </div>
   )
 }

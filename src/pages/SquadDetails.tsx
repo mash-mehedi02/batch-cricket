@@ -249,11 +249,13 @@ export default function SquadDetails() {
             <div className="flex-1 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-[10px] font-black text-emerald-600 shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform relative">
                     {tALogo && !brokenImages[tALogo] ? (
                       <img src={tALogo} onError={() => handleImgError(tALogo)} className="w-full h-full object-contain p-1" alt="" />
                     ) : (
-                      <span className="uppercase text-lg">{(match.teamAName || 'T')[0]}</span>
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-base font-black uppercase">
+                        {(match.teamAName || 'T')[0]}
+                      </div>
                     )}
                   </div>
                   <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortName(match.teamAName)}</span>
@@ -268,11 +270,13 @@ export default function SquadDetails() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
+                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform relative">
                     {tBLogo && !brokenImages[tBLogo] ? (
                       <img src={tBLogo} onError={() => handleImgError(tBLogo)} className="w-full h-full object-contain p-1" alt="" />
                     ) : (
-                      <span className="uppercase text-lg">{(match.teamBName || 'T')[0]}</span>
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-500 to-pink-600 text-white text-base font-black uppercase">
+                        {(match.teamBName || 'T')[0]}
+                      </div>
                     )}
                   </div>
                   <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortName(match.teamBName)}</span>
@@ -360,11 +364,13 @@ export default function SquadDetails() {
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4 mb-3">
             {/* Compact Logo */}
-            <div className="w-12 h-12 bg-white rounded-2xl border-2 border-white shadow-lg overflow-hidden flex items-center justify-center p-1 shrink-0">
+            <div className="w-12 h-12 bg-white rounded-2xl border-2 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0 relative">
               {squad.logoUrl && !brokenImages[squad.logoUrl] ? (
-                <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain" />
+                <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain p-1" />
               ) : (
-                <span className="text-xl font-black text-emerald-600 uppercase">{squad.name[0]}</span>
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 text-white text-xl font-black uppercase">
+                  {squad.name[0]}
+                </div>
               )}
             </div>
 

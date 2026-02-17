@@ -210,7 +210,7 @@ export default function TournamentDashboard() {
                     )}
 
                     {activeTab === 'knockout' && (
-                        <BracketManager tournament={tournament} squads={squads} onUpdate={handleUpdate} />
+                        <BracketManager tournament={tournament} squads={squads} matches={matches} inningsMap={inningsMap} onUpdate={handleUpdate} />
                     )}
 
                     {activeTab === 'champions' && (

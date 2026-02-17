@@ -1229,6 +1229,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           return {
             id: squadId,
             name: squad?.name || squadId,
+            logoUrl: squad?.logoUrl,
             played: 0,
             won: 0,
             lost: 0,
@@ -1342,7 +1343,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                           L
                         </th>
                         <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                          T
+                          D
                         </th>
                         <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
                           Pts
@@ -1365,8 +1366,19 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                               {team.position}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                              {team.name}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center overflow-hidden bg-white shrink-0 shadow-sm">
+                                  {team.logoUrl ? (
+                                    <img src={team.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-400 to-slate-600 text-white text-[12px] font-black uppercase">
+                                      {team.name.charAt(0)}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-sm font-semibold text-gray-900">{team.name}</span>
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
                               {team.played}
@@ -1378,7 +1390,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                               {team.lost}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700">
-                              {team.tied}
+                              {(team.tied || 0) + (team.noResult || 0)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold text-gray-900">
                               {team.points}

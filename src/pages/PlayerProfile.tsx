@@ -5,8 +5,8 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { clsx } from 'clsx'
-import { useParams, Link } from 'react-router-dom'
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore'
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom'
+import { doc, onSnapshot, collection, query, where, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db, auth } from '@/config/firebase'
 import { signOut } from 'firebase/auth'
 import { squadService } from '@/services/firestore/squads'
@@ -17,9 +17,11 @@ import PageHeader from '@/components/common/PageHeader'
 import cricketBatIcon from '@/assets/cricket-bat.png'
 import cricketBallIcon from '@/assets/cricket-ball.png'
 import { useAuthStore } from '@/store/authStore'
-import { claimPlayerWithGoogle, updatePlayerPersonalInfo, verifyPlayerAccess, handleGoogleRedirectResult, finalizeClaim } from '@/services/firestore/playerClaim'
+import { verifyPlayerAccess, handleGoogleRedirectResult, finalizeClaim } from '@/services/firestore/playerClaim'
 import toast from 'react-hot-toast'
-import { ShieldCheck, Edit, X, Facebook, Instagram, Twitter, Linkedin, Globe, Camera, ChevronDown } from 'lucide-react'
+import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload } from 'lucide-react'
+import Cropper from 'react-easy-crop'
+import { getCroppedImg } from '@/utils/cropImage'
 import { motion, AnimatePresence } from 'framer-motion'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
@@ -77,6 +79,7 @@ const INITIAL_EDIT_FORM_STATE = {
   dateOfBirth: '',
   socialLinks: [],
   address: '',
+  school: '',
   role: 'batsman' as PlayerRole,
   battingStyle: 'right-handed' as BattingStyle,
   bowlingStyle: 'right-arm-medium' as BowlingStyle
@@ -84,43 +87,13 @@ const INITIAL_EDIT_FORM_STATE = {
 
 export default function PlayerProfile() {
   const { playerId } = useParams<{ playerId: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [player, setPlayer] = useState<Player | null>(null)
   const [squadName, setSquadName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   // Claim & Edit Handlers
-  const handleClaim = async () => {
-    setClaiming(true);
-    try {
-      const res = await claimPlayerWithGoogle(playerId!);
 
-      if (res && res.success) {
-        setShowClaimModal(false);
-        toast.success('Profile claimed successfully!');
-
-        // Success - Enter edit mode immediately
-        if (player) {
-          setEditForm({
-            name: player.name || '',
-            username: (player as any).username || player.name || '',
-            bio: player.bio || '',
-            photoUrl: player.photoUrl || (player as any).photo || '',
-            dateOfBirth: player.dateOfBirth || '',
-            socialLinks: player.socialLinks || [],
-            address: player.address || '',
-            role: player.role || 'batsman',
-            battingStyle: player.battingStyle || 'right-handed',
-            bowlingStyle: player.bowlingStyle || 'right-arm-medium'
-          })
-          setIsEditing(true)
-        }
-      }
-    } catch (error: any) {
-      console.error('Claim failed:', error);
-      toast.error(error.message || 'Verification failed.');
-    } finally {
-      setClaiming(false);
-    }
-  }
 
   const handleAddLink = () => {
     if (!newLinkUrl) return
@@ -160,6 +133,7 @@ export default function PlayerProfile() {
         dateOfBirth: editForm.dateOfBirth,
         socialLinks: editForm.socialLinks,
         address: editForm.address,
+        school: editForm.school,
         role: editForm.role,
         battingStyle: editForm.battingStyle,
         bowlingStyle: editForm.bowlingStyle
@@ -180,8 +154,7 @@ export default function PlayerProfile() {
 
   // Claim & Edit States
   const { user } = useAuthStore()
-  const [showClaimModal, setShowClaimModal] = useState(false)
-  const [claiming, setClaiming] = useState(false)
+
 
   // Edit Form State
   const [editForm, setEditForm] = useState<{
@@ -192,13 +165,58 @@ export default function PlayerProfile() {
     dateOfBirth: string
     socialLinks: SocialLink[]
     address: string
-    role: PlayerRole
-    battingStyle: BattingStyle
+    school: string
+    role: PlayerRole,
+    battingStyle: BattingStyle,
     bowlingStyle: BowlingStyle
   }>(INITIAL_EDIT_FORM_STATE)
   const [newLinkUrl, setNewLinkUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  // Cropper State
+  const [imageFile, setImageFile] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
+  const [isCropping, setIsCropping] = useState(false)
+
+  const onCropComplete = (_croppedArea: any, pixelCrop: any) => {
+    setCroppedAreaPixels(pixelCrop)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        setImageFile(reader.result as string)
+        setIsCropping(true)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleCropSave = async () => {
+    if (!imageFile || !croppedAreaPixels) return
+    setUploadingPhoto(true)
+    try {
+      const croppedImageBlob = await getCroppedImg(imageFile, croppedAreaPixels)
+      if (croppedImageBlob) {
+        const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' })
+        const url = await uploadImage(file, (p) => console.log(`Upload: ${p}%`))
+        setEditForm(prev => ({ ...prev, photoUrl: url }))
+        toast.success('Photo updated!')
+      }
+    } catch (err) {
+      console.error('Crop save error:', err)
+      toast.error('Failed to process image')
+    } finally {
+      setUploadingPhoto(false)
+      setIsCropping(false)
+      setImageFile(null)
+    }
+  }
   const [hasActiveSession, setHasActiveSession] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
 
@@ -238,28 +256,71 @@ export default function PlayerProfile() {
         if (isEditing) setIsEditing(false)
         return
       }
+
       const { hasAccess } = await verifyPlayerAccess(player)
       setHasActiveSession(hasAccess)
 
-      // Automatic edit mode if session is active but not yet editing
-      if (hasAccess && !isEditing) {
-        setEditForm({
-          name: player.name || '',
-          username: (player as any).username || player.name || '',
-          bio: player.bio || '',
-          photoUrl: player.photoUrl || (player as any).photo || '',
-          dateOfBirth: player.dateOfBirth || '',
-          socialLinks: player.socialLinks || [],
-          address: player.address || '',
-          role: player.role || 'batsman',
-          battingStyle: player.battingStyle || 'right-handed',
-          bowlingStyle: player.bowlingStyle || 'right-arm-medium'
-        })
-        setIsEditing(true)
+      // CRITICAL: Proactively sync name and photo if they differ from the official player doc
+      // This fixes the "Mehedi Hasan Sourav" vs "Mehedi Hasan" discrepancy instantly
+      if (hasAccess && player && user) {
+        const officialName = player.name;
+        const officialPhoto = player.photoUrl || (player as any).photo;
+
+        if (officialName && (user.displayName !== officialName || (officialPhoto && user.photoURL !== officialPhoto))) {
+          console.log("[Profile] Syncing account details with official player data...");
+          const userRef = doc(db, 'users', user.uid);
+          updateDoc(userRef, {
+            displayName: officialName,
+            photoURL: officialPhoto || user.photoURL || null,
+            updatedAt: serverTimestamp()
+          }).then(() => {
+            // Update local state in store for immediate feedback
+            useAuthStore.setState((state) => ({
+              user: state.user ? {
+                ...state.user,
+                displayName: officialName,
+                photoURL: officialPhoto || state.user.photoURL
+              } : null
+            }));
+          }).catch(e => console.warn("[Profile] Auto-sync failed:", e));
+        }
+
       }
     }
     checkAuth()
   }, [user, player])
+
+  // Split effect for Edit Mode activation - much more responsive
+  useEffect(() => {
+    if (!player || !hasActiveSession) return;
+
+    const urlParams = new URLSearchParams(location.search);
+    const shouldEdit = urlParams.get('edit') === 'true';
+
+    if (shouldEdit && !isEditing) {
+      console.log('[Profile] Activating Edit Mode via URL param');
+      setEditForm({
+        name: player.name || '',
+        username: (player as any).username || player.name || '',
+        bio: player.bio || '',
+        photoUrl: player.photoUrl || (player as any).photo || '',
+        dateOfBirth: player.dateOfBirth || '',
+        socialLinks: player.socialLinks || [],
+        address: player.address || '',
+        school: player.school || '',
+        role: player.role || 'batsman',
+        battingStyle: player.battingStyle || 'right-handed',
+        bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+      });
+      setIsEditing(true);
+
+      // Clean URL after a short delay to ensure state has settled
+      const timer = setTimeout(() => {
+        navigate(location.pathname, { replace: true });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [location.search, player, hasActiveSession, isEditing, navigate, location.pathname])
 
   // Reset date picker visibility when edit mode changes
   useEffect(() => {
@@ -644,18 +705,30 @@ export default function PlayerProfile() {
 
   // Internal component for career grid cells
   const StatCell = ({ label, value, highlight, labelSmall, matchId }: { label: string, value: any, highlight?: boolean, labelSmall?: boolean, matchId?: string }) => {
-    const Container = matchId ? Link : 'div'
-    const props = matchId ? { to: `/match/${matchId}` } : {}
-
-    return (
-      <Container {...props} className={clsx("flex flex-col items-center justify-center py-7 px-1 text-center transition-all", matchId && "hover:bg-slate-50 cursor-pointer group")}>
+    const className = clsx("flex flex-col items-center justify-center py-7 px-1 text-center transition-all", matchId && "hover:bg-slate-50 cursor-pointer group")
+    const content = (
+      <>
         <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600 group-hover:text-sky-700' : 'text-slate-800'}`}>
           {value}
         </div>
         <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 uppercase tracking-tight`}>
           {label}
         </div>
-      </Container>
+      </>
+    )
+
+    if (matchId) {
+      return (
+        <Link to={`/match/${matchId}`} className={className}>
+          {content}
+        </Link>
+      )
+    }
+
+    return (
+      <div className={className}>
+        {content}
+      </div>
     )
   }
 
@@ -694,9 +767,40 @@ export default function PlayerProfile() {
               </div>
 
               <div className="flex-1 text-left min-w-0">
-                <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white tracking-tighter mb-2 md:mb-4 leading-none truncate">
-                  {player.name}
-                </h1>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                  <h1 className="text-2xl sm:text-4xl md:text-6xl font-black text-white tracking-tighter leading-none truncate">
+                    {player.name}
+                  </h1>
+
+                  {/* HEADER ACTIONS - Edit Button for Owner */}
+                  {hasActiveSession && !isEditing && (
+                    <div className="flex gap-2 animate-in fade-in zoom-in duration-500">
+                      <button
+                        onClick={() => {
+                          setEditForm({
+                            name: player.name || '',
+                            username: (player as any).username || player.name || '',
+                            bio: player.bio || '',
+                            photoUrl: player.photoUrl || (player as any).photo || '',
+                            dateOfBirth: player.dateOfBirth || '',
+                            socialLinks: player.socialLinks || [],
+                            address: player.address || '',
+                            school: player.school || '',
+                            role: player.role || 'batsman',
+                            battingStyle: player.battingStyle || 'right-handed',
+                            bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+                          })
+                          setIsEditing(true)
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-3 bg-white text-slate-950 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all hover:bg-emerald-50"
+                      >
+                        <Edit className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-600" />
+                        Edit Profile
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2 md:gap-6 text-slate-400 font-medium">
                   {player.batch && (
                     <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-100">
@@ -1016,24 +1120,63 @@ export default function PlayerProfile() {
                       type="file"
                       className="hidden"
                       accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          setUploadingPhoto(true)
-                          try {
-                            const url = await uploadImage(file, (p) => console.log(`Uploading: ${p}%`))
-                            setEditForm(prev => ({ ...prev, photoUrl: url }))
-                          } catch (error) {
-                            toast.error("Photo upload failed")
-                          } finally {
-                            setUploadingPhoto(false)
-                          }
-                        }
-                      }}
+                      onChange={handleFileChange}
                     />
                   </label>
                 </div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">Profile Photo</p>
+              </div>
+            )}
+
+            {/* PLAYER PROFILE CROPPER MODAL */}
+            {isCropping && (
+              <div className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+                <div className="relative w-full aspect-square max-w-sm bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                  <Cropper
+                    image={imageFile || ''}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={1}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                    cropShape="round"
+                    showGrid={false}
+                  />
+                </div>
+
+                <div className="mt-8 w-full max-w-sm space-y-6 px-4">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] text-center">Zoom & Position</p>
+                    <input
+                      type="range"
+                      value={zoom}
+                      min={1}
+                      max={3}
+                      step={0.1}
+                      onChange={(e) => setZoom(Number(e.target.value))}
+                      className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsCropping(false)}
+                      className="flex-1 py-4 bg-white/5 text-white font-bold rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest text-xs border border-white/5"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCropSave}
+                      disabled={uploadingPhoto}
+                      className="flex-[2] py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-500 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-600/20 disabled:opacity-50"
+                    >
+                      {uploadingPhoto ? 'Processing...' : 'Save Photo'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1148,6 +1291,19 @@ export default function PlayerProfile() {
                       <span className="text-sm font-bold text-slate-800">
                         {player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
                       </span>
+                    )}
+                  </div>
+                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">School:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editForm.school}
+                        onChange={(e) => setEditForm({ ...editForm, school: e.target.value })}
+                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold text-slate-800">{player.school || 'N/A'}</span>
                     )}
                   </div>
                   <div className="flex py-5 border-b border-slate-50 items-center justify-between">
@@ -1273,49 +1429,32 @@ export default function PlayerProfile() {
               </div>
             )}
 
-            {/* Inline Action Section (Claim / Toggle Edit) - MOVED TO BOTTOM */}
-            {!isEditing && (
+            {/* Inline Action Section (Toggle Edit) - MOVED TO BOTTOM */}
+            {!isEditing && hasActiveSession && (
               <div className="flex justify-center px-2 pt-4">
-                {!hasActiveSession ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowClaimModal(true);
-                      if (player.claimed) {
-                        toast('Login to edit this profile', { icon: '🔐' });
-                      }
-                    }}
-                    className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all active:scale-95 hover:shadow-emerald-500/30"
-                  >
-                    <ShieldCheck className="w-5 h-5" />
-                    Is it You? Claim Profile
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditForm({
-                        name: player.name || '',
-                        username: player.username || player.name || '',
-                        bio: player.bio || '',
-                        photoUrl: player.photoUrl || '',
-                        dateOfBirth: player.dateOfBirth || '',
-                        socialLinks: player.socialLinks || [],
-                        address: player.address || '',
-                        role: player.role || 'batsman',
-                        battingStyle: player.battingStyle || 'right-handed',
-                        bowlingStyle: player.bowlingStyle || 'right-arm-medium'
-                      })
-                      setIsEditing(true)
-                    }}
-                    className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 transition-all active:scale-95 hover:bg-slate-800"
-                  >
-                    <Edit className="w-4 h-4 text-sky-400" />
-                    Edit My Profile
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditForm({
+                      name: player.name || '',
+                      username: (player as any).username || player.name || '',
+                      bio: player.bio || '',
+                      photoUrl: player.photoUrl || (player as any).photo || '',
+                      dateOfBirth: player.dateOfBirth || '',
+                      socialLinks: player.socialLinks || [],
+                      address: player.address || '',
+                      school: player.school || '',
+                      role: player.role || 'batsman',
+                      battingStyle: player.battingStyle || 'right-handed',
+                      bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+                    })
+                    setIsEditing(true)
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 transition-all active:scale-95 hover:bg-slate-800"
+                >
+                  <Edit className="w-4 h-4 text-sky-400" />
+                  Edit My Profile
+                </button>
               </div>
             )}
 
@@ -1369,68 +1508,7 @@ export default function PlayerProfile() {
         </button>
       </div>
 
-      {/* CLAIM PROFILE MODAL */}
-      {showClaimModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowClaimModal(false)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-8 text-white text-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-md shadow-inner border border-white/20">
-                <ShieldCheck className="w-8 h-8 text-white drop-shadow-md" />
-              </div>
-              <h3 className="text-2xl font-black tracking-tight">Is this You?</h3>
-              <p className="opacity-90 text-sm mt-1 font-medium">Verify your identity to customize your profile</p>
-            </div>
 
-            <div className="p-6 space-y-6">
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-center space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Registered To</p>
-                  <p className="font-mono text-base font-bold text-slate-700 bg-white py-2 px-4 rounded-xl border border-slate-200 inline-block">{player.maskedEmail || 'Unset Email'}</p>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Verification requires signing in with the <b className="text-slate-700">exact Google account</b> listed above.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={handleClaim}
-                  disabled={claiming}
-                  className="w-full py-4 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-md active:scale-95"
-                >
-                  {claiming ? (
-                    <>
-                      <span className="w-5 h-5 border-2 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
-                      Verifying Google Identity...
-                    </>
-                  ) : (
-                    <>
-                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                      Confirm with Google
-                    </>
-                  )}
-                </button>
-                <p className="text-[10px] text-center text-slate-400 font-medium">
-                  Profile ownership is securely verified via Firebase Auth.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setShowClaimModal(false)}
-                className="w-full py-3 text-slate-400 hover:text-slate-600 font-bold text-xs uppercase tracking-widest transition-colors"
-              >
-                Go Back
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

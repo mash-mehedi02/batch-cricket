@@ -425,11 +425,13 @@ const CrexLiveSection = ({
                     <div className="flex flex-col items-center gap-2 flex-1">
                       {squad?.id ? (
                         <Link to={`/squads/${squad.id}`}>
-                          <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm overflow-hidden hover:scale-105 transition-transform">
+                          <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm overflow-hidden hover:scale-105 transition-transform relative">
                             {logo ? (
-                              <img src={logo} className="w-full h-full object-contain" alt="" />
+                              <img src={logo} className="w-full h-full object-contain p-1" alt="" />
                             ) : (
-                              <span className="text-lg font-black text-slate-300">{name[0]}</span>
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-base font-black uppercase">
+                                {name.charAt(0)}
+                              </div>
                             )}
                           </div>
                         </Link>
@@ -497,11 +499,13 @@ const CrexLiveSection = ({
                     <div className="flex flex-col items-center gap-2 flex-1">
                       {defendingSquad?.id ? (
                         <Link to={`/squads/${defendingSquad.id}`}>
-                          <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm overflow-hidden hover:scale-105 transition-transform">
+                          <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm overflow-hidden hover:scale-105 transition-transform relative">
                             {defendingLogo ? (
-                              <img src={defendingLogo} className="w-full h-full object-contain" alt="" />
+                              <img src={defendingLogo} className="w-full h-full object-contain p-1" alt="" />
                             ) : (
-                              <span className="text-lg font-black text-slate-300">{defendingName[0]}</span>
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-500 to-pink-600 text-white text-base font-black uppercase">
+                                {defendingName.charAt(0)}
+                              </div>
                             )}
                           </div>
                         </Link>

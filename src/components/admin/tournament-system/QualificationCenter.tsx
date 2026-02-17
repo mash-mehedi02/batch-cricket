@@ -79,20 +79,17 @@ export default function QualificationCenter({ tournament, squads, matches, innin
             const groupStat = standings.find(s => s.groupId === g.id);
             const confirmed = tournament.confirmedQualifiers?.[g.id] || [];
 
-            const pool = (g.squadIds || []).map((sid: string) => {
-                const squad = squads.find(s => s.id === sid);
-                const row = groupStat?.rows.find(r => r.squadId === sid);
+            // Use the engine's pre-calculated and sorted rows to ensure consistency
+            const pool = (groupStat?.rows || []).map((row, idx) => {
+                const squad = squads.find(s => s.id === row.squadId);
                 return {
                     squad: squad!,
-                    points: row?.points || 0,
-                    nrr: row?.nrr || 0,
-                    rank: 0, // Assigned later
-                    played: row?.played || 0
+                    points: row.points || 0,
+                    nrr: row.nrr || 0,
+                    rank: idx + 1,
+                    played: row.played || 0
                 };
-            }).sort((a, b) => (b.points - a.points) || (b.nrr - a.nrr));
-
-            // Assign ranks
-            pool.forEach((item, idx) => item.rank = idx + 1);
+            });
 
             return {
                 id: g.id,
@@ -206,10 +203,10 @@ export default function QualificationCenter({ tournament, squads, matches, innin
                                                 confirmQualifiers(g.id, next);
                                             }}
                                             className={`group relative p-5 rounded-[2rem] border transition-all duration-300 text-left overflow-hidden ${isConfirmed
-                                                    ? 'bg-indigo-600 border-indigo-700 text-white shadow-xl shadow-indigo-100'
-                                                    : inQualifyingZone
-                                                        ? 'bg-white border-indigo-100 shadow-sm border-dashed'
-                                                        : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                                                ? 'bg-indigo-600 border-indigo-700 text-white shadow-xl shadow-indigo-100'
+                                                : inQualifyingZone
+                                                    ? 'bg-white border-indigo-100 shadow-sm border-dashed'
+                                                    : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
                                                 }`}
                                         >
                                             <div className="flex justify-between items-start mb-4">

@@ -6,10 +6,8 @@
 import React, { ReactNode } from 'react'
 import BottomNav from './common/BottomNav'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/authStore'
 import schoolConfig from '@/config/school'
-import { useThemeStore } from '@/store/themeStore'
-import { Search, Command, Home, Calendar, Trophy, Users, User as UserIcon, Zap, Moon, Sun, X } from 'lucide-react'
+import { Search, Command } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
 
 interface LayoutProps {
@@ -19,9 +17,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
-  const { isDarkMode, toggleDarkMode } = useThemeStore()
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
+  // Layout logic
 
   // Handle keyboard shortcut for search
   React.useEffect(() => {
@@ -38,13 +34,14 @@ export default function Layout({ children }: LayoutProps) {
   const isActive = (path: string) => location.pathname === path
   // Hide main navbar on detail pages where we show a custom PageHeader
   const isDetailPage = /^\/(match|squads|players|tournaments)\/.+/.test(location.pathname)
+  const isMenuPage = location.pathname === '/menu' || location.pathname === '/account'
   const isHome = location.pathname === '/'
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDetailPage ? 'bg-[#050B18]' : 'bg-slate-50 dark:bg-slate-950'}`}>
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
-      {/* Navigation - Professional Header - Hidden on Detail Pages */}
-      {!isDetailPage && (
+      {/* Navigation - Professional Header - Hidden on Detail Pages & Menu Page */}
+      {!isDetailPage && !isMenuPage && (
         <nav className={`z-50 backdrop-blur-xl border-b sticky top-0 transition-colors duration-300 ${isHome
           ? 'bg-[#0f172a] text-white border-[#0f172a]'
           : 'bg-white/80 dark:bg-slate-950/80 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
@@ -146,21 +143,15 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
 
 
-                {/* Mobile Menu Button */}
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                {/* Mobile Menu Button - Navigates to dedicated page */}
+                <Link
+                  to="/menu"
                   className="md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
                 >
-                  {isMobileMenuOpen ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                  )}
-                </button>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </Link>
               </div>
             </div>
           </div>
@@ -168,157 +159,64 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
       )}
 
-      {/* Clean Modern Mobile Side-Drawer (Moved Outside Nav for Stacking Safety) */}
-      <div
-        className={`fixed inset-0 z-[100] md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-      >
-        {/* Backdrop */}
-        <div
-          className="absolute inset-0 bg-black/60 backdrop-blur-[4px] transition-opacity duration-500"
-          onClick={() => setIsMobileMenuOpen(false)}
-        ></div>
-
-        {/* Side Drawer */}
-        <div
-          className={`absolute inset-y-0 left-0 w-[300px] shadow-2xl transform transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col rounded-r-[2rem] overflow-hidden ${isDarkMode ? 'bg-slate-900 border-r border-slate-800' : 'bg-white'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
-        >
-          {/* Header Controls (Moon/Sun & Close) */}
-          <div className="absolute top-7 right-6 flex items-center gap-3 z-30">
-            <button
-              onClick={toggleDarkMode}
-              className={`p-2 rounded-xl transition-all ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
-            >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            <button
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={`p-2 rounded-xl transition-all ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
-            >
-              <X size={24} />
-            </button>
-          </div>
-
-          {/* 1. BRANDING (Top Section) */}
-          <div className="pt-12 px-10 pb-8 flex flex-col items-center text-center sm:items-start sm:text-left h-fit shrink-0">
-            <div className="relative mb-4">
-              <div className={`w-24 h-24 rounded-full p-1.5 shadow-xl flex items-center justify-center ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-2 border-slate-50'}`}>
-                <img src={schoolConfig.logo} alt="Logo" className="w-full h-full object-contain" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <h3 className={`text-2xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                {schoolConfig.appName}
-              </h3>
-              <p className={`text-sm font-bold opacity-60 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                {schoolConfig.name}
-              </p>
-            </div>
-          </div>
-
-          {/* 2. NAVIGATION (Scrollable Body) */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 no-scrollbar">
-            <p className={`px-4 text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-40 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              Main Menu
-            </p>
-
-            <div className="space-y-1">
-              {[
-                { p: '/', n: 'Home', i: <Home size={20} /> },
-                { p: '/schedule', n: 'Schedule', i: <Calendar size={20} /> },
-                { p: '/tournaments', n: 'Tournaments', i: <Trophy size={20} /> },
-                { p: '/squads', n: 'Squads', i: <Users size={20} /> },
-                { p: '/players', n: 'Players', i: <UserIcon size={20} /> },
-                { p: '/champions', n: 'Champions', i: <Zap size={20} /> }
-              ].map((link) => (
-                <Link
-                  key={link.p}
-                  to={link.p}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold transition-all duration-300 group ${isActive(link.p)
-                    ? (isDarkMode ? 'bg-white text-slate-900' : 'bg-slate-900 text-white shadow-xl shadow-slate-200/50')
-                    : (isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
-                    }`}
-                >
-                  <span className={`${isActive(link.p) ? '' : 'opacity-50 group-hover:opacity-100 transition-opacity'}`}>
-                    {link.i}
-                  </span>
-                  <span className="text-base tracking-tight">{link.n}</span>
-                </Link>
-              ))}
-            </div>
-
-          </div>
-
-          {/* 3. FOOTER (Bottom Section) */}
-          <div className="p-10 pt-6 mt-auto shrink-0 flex flex-col items-center">
-            <div className="flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-opacity group">
-              <span className={`text-[9px] font-black uppercase tracking-[0.3em] ${isDarkMode ? 'text-slate-500' : 'text-slate-300'}`}>
-                Developed By
-              </span>
-              <p className={`text-xs font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                Mehedi Hasan
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
       <main className="min-h-[calc(100vh-8rem)] pb-16 md:pb-0">{children}</main>
 
       {/* Mobile Bottom Navigation */}
-      <BottomNav onMenuClick={() => setIsMobileMenuOpen(true)} />
+      <BottomNav />
 
       {/* Footer - Professional - Only on Homepage */}
-      {isActive('/') && (
-        <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700 pb-14 md:pb-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
-              <div className="col-span-2 md:col-span-1">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 object-contain" /> {schoolConfig.appName}
-                </h3>
-                <p className="text-slate-400 text-sm mb-2">
-                  {schoolConfig.footer.description}
-                </p>
-                <p className="text-slate-500 text-xs italic">
-                  {schoolConfig.footer.dedication}
-                </p>
-              </div>
-              <div className="col-span-1">
-                <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Quick Links</h4>
-                <div className="space-y-2">
-                  <Link to="/" className="block text-slate-400 hover:text-teal-400 text-sm transition">Home</Link>
-                  <Link to="/tournaments" className="block text-slate-400 hover:text-teal-400 text-sm transition">Tournaments</Link>
-                  <Link to="/players" className="block text-slate-400 hover:text-teal-400 text-sm transition">Players</Link>
+      {
+        isActive('/') && (
+          <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700 pb-14 md:pb-0">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
+                <div className="col-span-2 md:col-span-1">
+                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 object-contain" /> {schoolConfig.appName}
+                  </h3>
+                  <p className="text-slate-400 text-sm mb-2">
+                    {schoolConfig.footer.description}
+                  </p>
+                  <p className="text-slate-500 text-xs italic">
+                    {schoolConfig.footer.dedication}
+                  </p>
+                </div>
+                <div className="col-span-1">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Quick Links</h4>
+                  <div className="space-y-2">
+                    <Link to="/" className="block text-slate-400 hover:text-teal-400 text-sm transition">Home</Link>
+                    <Link to="/tournaments" className="block text-slate-400 hover:text-teal-400 text-sm transition">Tournaments</Link>
+                    <Link to="/players" className="block text-slate-400 hover:text-teal-400 text-sm transition">Players</Link>
+                  </div>
+                </div>
+                <div className="col-span-1">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Platform</h4>
+                  <div className="space-y-2">
+                    <Link to="/champions" className="block text-slate-400 hover:text-teal-400 text-sm transition">Champions</Link>
+                    <Link to="/squads" className="block text-slate-400 hover:text-teal-400 text-sm transition">Squads</Link>
+                  </div>
                 </div>
               </div>
-              <div className="col-span-1">
-                <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Platform</h4>
-                <div className="space-y-2">
-                  <Link to="/champions" className="block text-slate-400 hover:text-teal-400 text-sm transition">Champions</Link>
-                  <Link to="/squads" className="block text-slate-400 hover:text-teal-400 text-sm transition">Squads</Link>
+              <div className="border-t border-slate-700 pt-6 text-center">
+                <p className="text-slate-400 text-sm mb-1">
+                  © {new Date().getFullYear()} {schoolConfig.appFullName}. All rights reserved.
+                </p>
+                <div className="mt-2">
+                  <a
+                    href="https://www.facebook.com/mehedihasan110571"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-500 text-xs hover:text-teal-500 transition-colors inline-flex items-center gap-1"
+                  >
+                    Developed by <span className="font-bold text-slate-400">Mehedi Hasan</span>
+                  </a>
                 </div>
               </div>
             </div>
-            <div className="border-t border-slate-700 pt-6 text-center">
-              <p className="text-slate-400 text-sm mb-1">
-                © {new Date().getFullYear()} {schoolConfig.appFullName}. All rights reserved.
-              </p>
-              <div className="mt-2">
-                <a
-                  href="https://www.facebook.com/mehedihasan110571"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-slate-500 text-xs hover:text-teal-500 transition-colors inline-flex items-center gap-1"
-                >
-                  Developed by <span className="font-bold text-slate-400">Mehedi Hasan</span>
-                </a>
-              </div>
-            </div>
-          </div>
-        </footer>
-      )}
-    </div>
+          </footer>
+        )
+      }
+    </div >
   )
 }

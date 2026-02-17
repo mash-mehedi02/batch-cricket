@@ -16,12 +16,15 @@ import {
     Loader2,
     Hexagon,
     Lock,
-    Mail
+    Mail,
+    ShieldAlert,
+    ArrowLeftRight,
+    Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, limit, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 const AdminLayout = () => {
     const { user, loading, logout } = useAuthStore();
@@ -31,6 +34,91 @@ const AdminLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [verifyingRole, setVerifyingRole] = useState(true);
+    const [isPlayerRestricted, setIsPlayerRestricted] = useState(false);
+    const [isPromoting, setIsPromoting] = useState(false);
+
+    // Cleanse Workspace Helper (Fresh Start for Admin)
+    const cleanseAdminWorkspace = () => {
+        console.log("[AdminLayout] Initiating Secure Session Reset...");
+        const adminKeys = ['admin_unlocked', 'master_pin_attempts'];
+        Object.keys(sessionStorage).forEach(key => {
+            if (!adminKeys.includes(key)) sessionStorage.removeItem(key);
+        });
+    };
+
+    // Helper to promote user and sync records
+    const promoteUser = async (newUid: string, email: string, role: string, name: string, oldUid?: string) => {
+        if (!user) return;
+        console.log("[AdminLayout] Promoting User:", { email, role, newUid });
+
+        // 1. Update Auth Store
+        useAuthStore.setState({ user: { ...user, role: role as any } });
+
+        // 2. Sync to 'users' collection
+        const userRef = doc(db, 'users', newUid);
+        await updateDoc(userRef, { role }).catch(() => { });
+
+        // 3. Create/Move 'admins' record
+        const newAdminRef = doc(db, 'admins', newUid);
+        await setDoc(newAdminRef, {
+            uid: newUid,
+            email,
+            name,
+            role,
+            isActive: true,
+            organizationName: 'BatchCrick',
+            updatedAt: new Date()
+        }, { merge: true });
+
+        if (oldUid && oldUid !== newUid) {
+            console.log("[AdminLayout] Cleaning up old admin record:", oldUid);
+            await deleteDoc(doc(db, 'admins', oldUid)).catch(() => { });
+        }
+
+        toast.success(`Admin access restored: ${role.replace('_', ' ')}`);
+        setIsPlayerRestricted(false);
+    };
+
+    // Explicit Manual Promotion Check
+    const handleAdminPromotion = async () => {
+        if (!user || isPromoting) return;
+        setIsPromoting(true);
+        const email = user.email;
+        if (!email) {
+            toast.error("User email missing for verification.");
+            setIsPromoting(false);
+            return;
+        }
+
+        try {
+            const emailLower = email.toLowerCase().trim();
+
+            // 1. Direct Lookup in invited_admins
+            const inviteRef = doc(db, 'invited_admins', emailLower);
+            const inviteSnap = await getDoc(inviteRef);
+            if (inviteSnap.exists()) {
+                await promoteUser(user.uid, emailLower, inviteSnap.data().role || 'admin', user.displayName || inviteSnap.data().name);
+                return;
+            }
+
+            // 2. Query in admins collection
+            const adminsRef = collection(db, 'admins');
+            const q = query(adminsRef, where('email', '==', emailLower), limit(1));
+            const querySnap = await getDocs(q);
+            if (!querySnap.empty && querySnap.docs[0].data().isActive) {
+                const adminDoc = querySnap.docs[0];
+                await promoteUser(user.uid, emailLower, adminDoc.data().role || 'admin', adminDoc.data().name, adminDoc.id);
+                return;
+            }
+
+            toast.error("No Admin record found for this email.");
+        } catch (err: any) {
+            console.error("Manual promotion failed:", err);
+            toast.error("Verification error: " + (err.message || "Permissions denied"));
+        } finally {
+            setIsPromoting(false);
+        }
+    };
 
     // Protection: Redirect to login if not authenticated or not an admin
     useEffect(() => {
@@ -41,13 +129,14 @@ const AdminLayout = () => {
             try {
                 const adminRef = doc(db, 'admins', user.uid);
                 const snap = await getDoc(adminRef);
+
                 if (!snap.exists() || !snap.data().isActive) {
                     toast.error('Account Disabled: Please contact super admin.');
                     await logout();
                     navigate('/login');
                     return;
                 }
-                const role = snap.data().role;
+                const role = snap.data()?.role;
                 if (role !== 'admin' && role !== 'super_admin') {
                     toast.error('Access Denied: Invalid Privileges.');
                     navigate('/');
@@ -61,9 +150,9 @@ const AdminLayout = () => {
 
         const resetTimer = () => {
             if (inactivityTimer) clearTimeout(inactivityTimer);
-            // Auto logout after 15 minutes of inactivity (900000ms)
             inactivityTimer = setTimeout(async () => {
-                if (user && (user.role === 'admin' || user.role === 'super_admin')) {
+                const currentRole = user?.role as string;
+                if (user && (currentRole === 'admin' || currentRole === 'super_admin')) {
                     toast('Session expired due to inactivity.', { icon: '⏳' });
                     await logout();
                     navigate('/login');
@@ -75,18 +164,21 @@ const AdminLayout = () => {
 
         if (!loading) {
             if (!user) {
-                navigate('/login?redirect=' + encodeURIComponent(location.pathname));
-            } else if ((user.role as string) !== 'admin' && (user.role as string) !== 'super_admin') {
-                toast.error('Access Denied: Admin privileges required.');
-                navigate('/login?redirect=' + encodeURIComponent(location.pathname));
+                navigate('/login?admin=true&redirect=' + encodeURIComponent(location.pathname));
             } else {
-                verifyRole();
-                // Initialize inactivity monitor for admins
-                window.addEventListener('mousemove', handleActivity);
-                window.addEventListener('keydown', handleActivity);
-                window.addEventListener('scroll', handleActivity);
-                window.addEventListener('click', handleActivity);
-                resetTimer();
+                const role = user.role as string;
+                if (role === 'admin' || role === 'super_admin') {
+                    cleanseAdminWorkspace();
+                    verifyRole();
+                    window.addEventListener('mousemove', handleActivity);
+                    window.addEventListener('keydown', handleActivity);
+                    window.addEventListener('scroll', handleActivity);
+                    window.addEventListener('click', handleActivity);
+                    resetTimer();
+                } else {
+                    setIsPlayerRestricted(true);
+                    setVerifyingRole(false);
+                }
             }
         }
 
@@ -111,6 +203,7 @@ const AdminLayout = () => {
         }
     };
 
+    // Navigation configuration for the admin sidebar
     const navigation = useMemo(() => [
         { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
         { name: 'Live Matches', href: '/admin/live', icon: Radio },
@@ -119,7 +212,7 @@ const AdminLayout = () => {
         { name: 'Squads', href: '/admin/squads', icon: Users },
         { name: 'Players', href: '/admin/players', icon: UserPlus },
         { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-        ...((user?.role as string) === 'super_admin' ? [
+        ...(user?.role === 'super_admin' ? [
             { name: 'Users & Claims', href: '/admin/users', icon: ShieldCheck },
             { name: 'Email Broadcast', href: '/admin/broadcast', icon: Mail }
         ] : []),
@@ -150,6 +243,56 @@ const AdminLayout = () => {
 
     if (!user) return null;
 
+    if (isPlayerRestricted) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-slate-950 px-4">
+                <div className="max-w-md w-full bg-slate-900 rounded-[2.5rem] border border-white/5 shadow-2xl p-8 sm:p-12 text-center relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+                    <div className="w-20 h-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                        <ShieldAlert className="w-10 h-10 text-rose-500" />
+                    </div>
+
+                    <h2 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter">Access Restricted</h2>
+                    <p className="text-slate-400 text-sm font-medium mb-8 leading-relaxed">
+                        You are logged in with a <span className="text-rose-400 font-bold">Player Account</span>. Admin data is isolated for your security.
+                    </p>
+
+                    <div className="space-y-4">
+                        <button
+                            onClick={async () => {
+                                await logout();
+                                navigate('/login?admin=true');
+                            }}
+                            className="w-full bg-white hover:bg-slate-200 text-slate-950 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <ArrowLeftRight size={16} />
+                            Login with Email & Password
+                        </button>
+
+                        <button
+                            disabled={isPromoting}
+                            onClick={handleAdminPromotion}
+                            className="w-full bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 border border-white/5 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isPromoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles size={16} />}
+                            Verify Admin Status
+                        </button>
+                    </div>
+
+                    <div className="mt-8 pt-8 border-t border-white/5">
+                        <button
+                            onClick={() => navigate('/')}
+                            className="text-slate-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors"
+                        >
+                            Return to Public App
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!isUnlocked) {
         return (
             <div className="h-screen w-screen flex items-center justify-center bg-slate-950 px-4">
@@ -160,9 +303,9 @@ const AdminLayout = () => {
                         <Lock className="w-10 h-10 text-blue-500" />
                     </div>
 
-                    <h2 className="text-2xl font-black text-white mb-2">Workspace Locked</h2>
+                    <h2 className="text-2xl font-black text-white mb-2 tracking-tighter">Workspace Locked</h2>
                     <p className="text-slate-400 text-sm font-medium mb-8 leading-relaxed">
-                        This is a secure area. Please enter your <span className="text-blue-400">Master PIN</span> to proceed.
+                        This is a secure area. Please enter your <span className="text-blue-400 font-bold">Master PIN</span> to proceed.
                     </p>
 
                     <form onSubmit={handleUnlock} className="space-y-6">
@@ -195,7 +338,6 @@ const AdminLayout = () => {
 
     return (
         <div className="flex h-screen bg-slate-50 text-slate-900 font-inter overflow-hidden">
-            {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div
                     className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"
@@ -203,13 +345,11 @@ const AdminLayout = () => {
                 />
             )}
 
-            {/* Sidebar */}
             <aside className={`
                 fixed lg:static inset-y-0 left-0 z-50 w-72 bg-slate-950 text-white transform transition-transform duration-300 ease-in-out border-r border-white/5
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
                 <div className="h-full flex flex-col">
-                    {/* Brand */}
                     <div className="p-6 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-900/20">
@@ -225,7 +365,6 @@ const AdminLayout = () => {
                         </button>
                     </div>
 
-                    {/* Navigation */}
                     <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
                         <div className="px-3 mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Main Menu</div>
                         {navigation.map((item) => {
@@ -251,7 +390,6 @@ const AdminLayout = () => {
                         })}
                     </nav>
 
-                    {/* Footer / User Profile */}
                     <div className="p-4 border-t border-white/5 bg-slate-900/30">
                         <div className="flex items-center gap-3 mb-4 px-2">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white uppercase">
@@ -273,9 +411,7 @@ const AdminLayout = () => {
                 </div>
             </aside>
 
-            {/* Main Content */}
             <div className="flex-1 flex flex-col h-full w-full">
-                {/* Mobile Header */}
                 <header className="bg-white border-b border-slate-200 lg:hidden flex items-center justify-between pt-[var(--status-bar-height)] pb-3 px-4 sticky top-0 z-30">
                     <div className="font-bold text-slate-900 flex items-center gap-2">
                         <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white">
@@ -288,7 +424,6 @@ const AdminLayout = () => {
                     </button>
                 </header>
 
-                {/* Page Content */}
                 <main className="flex-1 overflow-y-auto bg-slate-50/50 p-4 sm:p-6 lg:p-8 w-full">
                     <Outlet />
                 </main>

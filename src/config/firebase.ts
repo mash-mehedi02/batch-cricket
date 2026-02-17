@@ -29,10 +29,8 @@ const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
 export const auth = getAuth(app)
 
-// Set persistence for Capacitor/Hybrid app stability
-setPersistence(auth, indexedDBLocalPersistence).catch(err => {
-  console.error('[Firebase] Persistence setup failed:', err)
-})
+// We set persistence in the authStore to ensure consistency during redirect results.
+// No extra setup needed here.
 
 export const storage = getStorage(app)
 export const functions = getFunctions(app)

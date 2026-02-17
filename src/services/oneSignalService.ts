@@ -53,11 +53,20 @@ class OneSignalService {
                     }
                 } else {
                     // Web Initialization
-                    await OneSignalWeb.init({
-                        appId: ONESIGNAL_APP_ID,
-                        allowLocalhostAsSecureOrigin: true,
-                    });
-                    this.initialized = true;
+                    try {
+                        await OneSignalWeb.init({
+                            appId: ONESIGNAL_APP_ID,
+                            allowLocalhostAsSecureOrigin: true,
+                        });
+                        this.initialized = true;
+                    } catch (webError: any) {
+                        // Suppress domain mismatch error for smoother local/preview dev
+                        if (webError?.message?.includes('Can only be used on')) {
+                            console.warn('[OneSignal] Domain mismatch (likely local/preview). Notification features disabled.');
+                        } else {
+                            throw webError;
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('[OneSignal] Global Init Error:', error);

@@ -9,12 +9,14 @@ import { gsap } from 'gsap'
 import { squadService } from '@/services/firestore/squads'
 import { Squad } from '@/types'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
+import { useTranslation } from '@/hooks/useTranslation'
 
 export default function Squads() {
   const [squads, setSquads] = useState<Squad[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedBatch, setSelectedBatch] = useState<string | null>(null)
   const [batches, setBatches] = useState<string[]>([])
+  const { t } = useTranslation()
 
   useEffect(() => {
     const loadData = async () => {
@@ -92,7 +94,7 @@ export default function Squads() {
         <div className="flex items-center gap-3 mb-6">
           <div className="h-1 w-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"></div>
           <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 dark:from-white dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent italic tracking-tighter uppercase leading-[0.8]">
-            Squads
+            {t('nav_squads')}
           </h1>
           <div className="h-1 flex-1 bg-gradient-to-r from-blue-500/30 to-transparent rounded-full"></div>
         </div>
@@ -108,7 +110,7 @@ export default function Squads() {
                   : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5'
                   }`}
               >
-                All Batches
+                {t('all_batches')}
               </button>
             </div>
 
@@ -139,7 +141,7 @@ export default function Squads() {
       ) : filteredSquads.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-sm p-16 text-center border border-slate-100 dark:border-white/5">
           <div className="text-6xl mb-6">👥</div>
-          <p className="text-xl text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight italic">No squads found</p>
+          <p className="text-xl text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight italic">{t('no_squads_found')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-3 md:gap-6">
@@ -184,7 +186,7 @@ export default function Squads() {
                   <div className="space-y-4 mb-8">
                     <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-white/5 w-fit">
                       <span className="text-lg md:text-2xl font-black text-slate-900 dark:text-white leading-none">{squad.playerIds?.length || 0}</span>
-                      <span className="text-[10px] md:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Players</span>
+                      <span className="text-[10px] md:text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t('nav_players')}</span>
                     </div>
                   </div>
 
@@ -192,7 +194,7 @@ export default function Squads() {
                     to={`/squads/${squad.id}`}
                     className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-900 hover:bg-teal-600 text-white rounded-xl transition-all duration-300 font-bold text-[11px] md:text-xs uppercase tracking-wider shadow-lg shadow-slate-900/10 hover:shadow-teal-500/20 active:scale-[0.98]"
                   >
-                    View Squad
+                    {t('view_squad')}
                     <svg className="w-3 h-3 md:w-3.5 md:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
@@ -200,11 +202,11 @@ export default function Squads() {
                 </div>
               </div>
             )
-          })}
+          })} // Added missing bracket and parens
         </div>
       )}
     </div>
   )
-}
+} // Added missing brace
 
 

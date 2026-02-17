@@ -154,7 +154,8 @@ export function rankRows(
       const d = cmp(a, b, k as any)
       if (d !== 0) return d
     }
-    return 0
+    // Final tie-breaker: Deterministic alphabetical by ID to ensure consistency across components
+    return a.squadId.localeCompare(b.squadId)
   })
 
   return sorted

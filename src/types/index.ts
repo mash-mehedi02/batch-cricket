@@ -7,15 +7,30 @@ import { Timestamp } from 'firebase/firestore'
 
 // ==================== AUTH ====================
 
-export type UserRole = 'super_admin' | 'admin' | 'scorer' | 'viewer'
+export type UserRole = 'super_admin' | 'admin' | 'scorer' | 'player' | 'viewer'
 
 export interface User {
   uid: string
   email: string
   displayName?: string
+  photoURL?: string
   role: UserRole
   createdAt: Timestamp
   lastLogin?: Timestamp
+  playerId?: string
+  isRegisteredPlayer?: boolean
+  linkedPlayerId?: string
+  playerProfile?: {
+    displayName?: string
+    role?: string
+    battingStyle?: string
+    bowlingStyle?: string
+    dateOfBirth?: string
+    photoUrl?: string
+    isRegisteredPlayer?: boolean
+    bio?: string
+    socialLinks?: SocialLink[]
+  }
 }
 
 // ==================== TOURNAMENT ====================
@@ -45,6 +60,9 @@ export interface Tournament {
   description?: string
   logoUrl?: string
   bannerUrl?: string
+  host?: string
+  broadcaster?: string
+  totalMatches?: number
 
   // High-fidelity structure
   stages: TournamentStageInfo[]
@@ -106,7 +124,7 @@ export interface Player {
   bowlingStyle?: BowlingStyle
   dateOfBirth?: string
   photoUrl?: string // Cloudinary URL
-  squadId: string // MANDATORY - player must belong to a squad
+  squadId?: string // Optional for new registrations
   batch?: string // Batch year/name
   stats?: {
     matches?: number
@@ -149,6 +167,8 @@ export interface Player {
   school?: string // Fixed school name
   socialLinks?: SocialLink[]
   address?: string
+  adminId?: string
+  adminEmail?: string
 }
 
 export interface SocialLink {

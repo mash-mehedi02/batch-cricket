@@ -83,21 +83,22 @@ export default function Home() {
         setFinishedMatches(finished)
         setUpcomingMatches(upcoming)
 
-        // FEATURED LOGIC
-        // 1 live, 1 most recent upcoming, 1 most recent finished
-        // if no live: 2 upcoming, 1 finished
-        // if no upcoming: 3 finished
+        // FEATURED LOGIC: 2 Live + 1 Upcoming + 1 Finished
         let featured: Match[] = []
-        if (live.length > 0) {
-          featured.push(live[0])
-          if (upcoming.length > 0) featured.push(upcoming[0])
-          if (finished.length > 0) featured.push(finished[0])
-        } else if (upcoming.length > 0) {
-          featured.push(...upcoming.slice(0, 2))
-          if (finished.length > 0) featured.push(finished[0])
-        } else {
-          featured.push(...finished.slice(0, 3))
+
+        // 1. Up to 2 Live matches
+        featured.push(...live.slice(0, 2))
+
+        // 2. 1 Most recent upcoming match
+        if (upcoming.length > 0) {
+          featured.push(upcoming[0])
         }
+
+        // 3. 1 Most recent finished match
+        if (finished.length > 0) {
+          featured.push(finished[0])
+        }
+
         setFeaturedMatches(featured)
 
       } catch (error) {
@@ -195,18 +196,17 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Participating Teams</p>
 
-          {squads.length > 0 ? (
+          {squads.filter(s => s.logoUrl).length > 0 ? (
             <div className="relative w-full overflow-hidden">
               <div className="flex w-max animate-marquee hover:pause gap-8">
-                {/* Show only teams with logos for a premium brand feel */}
-                {[...squads, ...squads]
-                  .filter(s => s && s.logoUrl && s.name)
-                  .map((squad, index) => {
+                {/* Auto-moving list of squads WITH logos */}
+                {(() => {
+                  const filtered = squads.filter(s => s && s.name && s.logoUrl)
+                  return [...filtered, ...filtered].map((squad, index) => {
                     const formatHomeName = (name: string) => {
                       if (!name) return '???'
                       const parts = name.split(/[- ]+/).filter(Boolean)
                       const label = (parts[0] || '').substring(0, 3).toUpperCase()
-                      // Extract batch from squad object or name
                       const batch = squad.batch || parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
                       return batch ? `${label}-${batch}` : label
                     }
@@ -215,13 +215,13 @@ export default function Home() {
                       <Link
                         to={`/squads/${squad.id}`}
                         key={`${squad.id}-${index}`}
-                        className="flex flex-col items-center gap-2 min-w-[70px] group"
+                        className="flex flex-col items-center gap-2 min-w-[70px] group hover:scale-105 transition-transform"
                       >
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 overflow-hidden bg-white dark:bg-slate-800 shadow-sm relative">
                           <img
                             src={squad.logoUrl}
                             alt={squad.name}
-                            className="w-full h-full object-contain"
+                            className="w-full h-full object-contain p-1"
                           />
                         </div>
                         <span className="text-[9px] font-black text-slate-700 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
@@ -229,11 +229,12 @@ export default function Home() {
                         </span>
                       </Link>
                     )
-                  })}
+                  })
+                })()}
               </div>
             </div>
           ) : (
-            <div className="text-xs text-slate-400 italic px-4">No squads loaded</div>
+            <div className="text-xs text-slate-400 italic px-4">No team logos available</div>
           )}
         </div>
       </div>

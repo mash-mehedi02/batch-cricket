@@ -10,6 +10,7 @@ import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import { matchService } from '@/services/firestore/matches'
 import { adminService } from '@/services/firestore/admins'
+import { playerRequestService } from '@/services/firestore/playerRequests'
 import { useAuthStore } from '@/store/authStore'
 import AdminDashboardSkeleton from '@/components/skeletons/AdminDashboardSkeleton'
 import {
@@ -26,6 +27,7 @@ export default function AdminDashboard() {
     squads: 0,
     players: 0,
     admins: 0,
+    newRegistrations: 0,
     ballsToday: 0,
   })
   const [loading, setLoading] = useState(true)
@@ -36,12 +38,13 @@ export default function AdminDashboard() {
       if (!user) return
       const isSuperAdmin = user.role === 'super_admin'
       try {
-        const [tournaments, squads, players, matches, admins] = await Promise.all([
+        const [tournaments, squads, players, matches, admins, requests] = await Promise.all([
           tournamentService.getByAdmin(user.uid, isSuperAdmin),
           squadService.getByAdmin(user.uid, isSuperAdmin),
           playerService.getByAdmin(user.uid, isSuperAdmin),
           matchService.getByAdmin(user.uid, isSuperAdmin),
-          isSuperAdmin ? adminService.getAll() : Promise.resolve([])
+          isSuperAdmin ? adminService.getAll() : Promise.resolve([]),
+          playerRequestService.getPendingRequests()
         ])
 
         const liveMatches = matches.filter((m: any) => m.status?.toLowerCase() === 'live')
@@ -53,6 +56,7 @@ export default function AdminDashboard() {
           squads: squads.length,
           players: players.length,
           admins: admins.length,
+          newRegistrations: requests.length,
           ballsToday: 0
         })
 
@@ -143,6 +147,15 @@ export default function AdminDashboard() {
           iconColor="text-orange-600"
           bgIcon="text-orange-500/10"
           link="/admin/tournaments"
+        />
+        <StatCard
+          title="Player Requests"
+          value={stats.newRegistrations}
+          icon={<UserPlus size={20} />}
+          trend="Pending Approval"
+          iconColor="text-pink-600"
+          bgIcon="text-pink-500/10"
+          link="/admin/player-approvals"
         />
         {(user?.role === 'super_admin') && (
           <StatCard
@@ -240,11 +253,11 @@ export default function AdminDashboard() {
                 icon={<BarChart3 size={18} />}
               />
               <QuickLink
-                to="/admin/users"
-                title="Pending Claims"
-                subtitle="Review player identity claims"
+                to="/admin/player-approvals"
+                title="Player Approvals"
+                subtitle="Review new registrations"
                 icon={<Zap size={18} />}
-                badge="3"
+                badge={stats.newRegistrations > 0 ? stats.newRegistrations.toString() : null}
               />
             </div>
           </div>

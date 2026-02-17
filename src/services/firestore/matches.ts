@@ -56,6 +56,38 @@ export const matchService = {
   },
 
   /**
+   * Subscribe to matches by tournament (Real-time)
+   */
+  subscribeByTournament(tournamentId: string, callback: (matches: Match[]) => void): () => void {
+    const q = query(
+      matchesRef,
+      where('tournamentId', '==', tournamentId)
+    )
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
+        // Sort identically to getByTournament
+        callback(list.sort((a: any, b: any) => {
+          const dateA = String(a.date || '')
+          const dateB = String(b.date || '')
+          if (dateA !== dateB) return dateB.localeCompare(dateA)
+          const timeA = String(a.time || '')
+          const timeB = String(b.time || '')
+          if (timeA !== timeB) return timeB.localeCompare(timeA)
+          const tsA = (a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0) as number
+          const tsB = (b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0) as number
+          return tsB - tsA
+        }))
+      },
+      (error) => {
+        console.error('[MatchService] subscribeByTournament failed:', error)
+        callback([])
+      }
+    )
+  },
+
+  /**
    * Get live matches
    */
   async getLiveMatches(adminId?: string, isSuperAdmin: boolean = false): Promise<Match[]> {

@@ -6,12 +6,16 @@ import AdminLayout from './components/admin/AdminLayout'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Tournaments from './pages/Tournaments'
+import TermsPage from './pages/Terms';
 import TournamentDetails from './pages/TournamentDetails'
 import Squads from './pages/Squads'
 import SquadDetails from './pages/SquadDetails'
 import Players from './pages/Players'
 import PlayerProfile from './pages/PlayerProfile'
 import Champions from './pages/Champions'
+import Menu from './pages/Menu'
+import Account from './pages/Account'
+import EditProfile from './pages/EditProfile'
 import MatchLive from './pages/MatchLive'
 import MatchInfo from './pages/MatchInfo'
 import MatchScorecard from './pages/MatchScorecard'
@@ -31,6 +35,8 @@ import AdminAnalytics from './pages/admin/AdminAnalytics'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminEmailBroadcast from './pages/admin/AdminEmailBroadcast'
 import AdminSettings from './pages/admin/AdminSettings'
+import RegisterPlayer from './pages/RegisterPlayer'
+import AdminPlayerRequests from './pages/admin/AdminPlayerRequests'
 import SplashScreen from './components/common/SplashScreen'
 import ScrollToTop from './components/common/ScrollToTop'
 import NativeAppWrapper from './components/common/NativeAppWrapper'
@@ -85,12 +91,17 @@ function App() {
           <Route path="/tournaments/:tournamentId" element={<TournamentDetails />} />
           <Route path="/tournaments/:tournamentId/points" element={<TournamentTabRedirect tab="points" />} />
           <Route path="/tournaments/:tournamentId/stats" element={<TournamentTabRedirect tab="stats" />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/squads" element={<Squads />} />
           <Route path="/squads/:squadId" element={<SquadDetails />} />
           <Route path="/players" element={<Players />} />
           <Route path="/players/:playerId" element={<PlayerProfile />} />
           <Route path="/champions" element={<Champions />} />
           <Route path="/schedule" element={<Schedule />} />
+          <Route path="/menu" element={<Menu />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/edit-profile" element={<EditProfile />} />
+          <Route path="/register-player" element={<RegisterPlayer />} />
 
           {/* Match Routes */}
           <Route path="/match/:matchId" element={<MatchLive />} />
@@ -127,6 +138,7 @@ function App() {
           <Route path="/admin/live/:matchId/scoring" element={<AdminLiveScoring />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/player-approvals" element={<AdminPlayerRequests />} />
           <Route path="/admin/broadcast" element={<AdminEmailBroadcast />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
         </Route>

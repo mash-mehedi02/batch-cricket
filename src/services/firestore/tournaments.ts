@@ -3,7 +3,7 @@
  * Firestore operations for tournaments
  */
 
-import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
 import { db, auth } from '@/config/firebase'
 import { Tournament } from '@/types'
 import { COLLECTIONS } from './collections'
@@ -97,5 +97,26 @@ export const tournamentService = {
       console.error('Error loading tournament:', error)
       return null
     }
+  },
+
+  /**
+   * Subscribe to tournament by ID (Real-time)
+   */
+  subscribeToTournament(id: string, callback: (tournament: Tournament | null) => void): () => void {
+    const docRef = doc(db, COLLECTIONS.TOURNAMENTS, id)
+    return onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          callback(null)
+          return
+        }
+        callback({ id: snapshot.id, ...snapshot.data() } as Tournament)
+      },
+      (error) => {
+        console.error(`[TournamentService] subscribeToTournament error for ${id}:`, error)
+        callback(null)
+      }
+    )
   },
 }

@@ -16,7 +16,11 @@ interface MatchCardProps {
     tournamentName?: string
 }
 
+import { useTranslation } from '@/hooks/useTranslation'
+
 const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName }) => {
+    const { t, language } = useTranslation() // Hook used here
+
     // OPTIMIZATION: Initialize with data from match object if available (Instant Load)
     const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(() => {
         if (match.score?.teamA) {
@@ -130,9 +134,10 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     const getTossText = () => {
         if (!match.tossWinner || !match.electedTo) return null
         const winnerName = match.tossWinner === 'teamA' ? teamAName : teamBName
-        const decision = match.electedTo === 'bat' ? 'bat' : 'bowl'
-        // Removed "Toss: " prefix
-        return `${winnerName} won & elected to ${decision}`
+        const decision = match.electedTo === 'bat' ? t('bat') : t('bowl')
+        // En: Team A won the toss and elected to bat
+        // Bn: Team A টসে জিতে ব্যাটিং করার সিদ্ধান্ত নিয়েছে (my translation for "won_toss" was "won the toss and elected to")
+        return `${winnerName} ${t('won_toss')} ${decision}`
     }
 
     const getResultText = () => {
@@ -151,27 +156,46 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
             if (firstInnings.totalRuns > secondInnings.totalRuns) {
                 const diff = firstInnings.totalRuns - secondInnings.totalRuns
-                return `${firstTeamName} won by ${diff} runs`
+                // En: Team A won by 10 runs
+                // Bn: Team A ১০ রানে জয়ী (Team A won by 10 runs)
+                // My structure: won_by = "won by" / "জয়ী" ... runs = "runs" / "রানে"
+                // Bn: Team A [won_by] 10 [by_runs] -> Team A জয়ী ১০ রানে. (Grammatically weird in BN)
+                // Better Bn structure: Team A ১০ রানে জয়ী.
+
+                // I'll use a simple concatenation for now, assuming En structure is dominant OR use interpolation.
+                // Localization libraries usually support interpolation. Here I built a simple key-value store.
+                // I will assume English word order primarily but for Bangla it might be slightly off.
+                // "won by 10 runs" -> "১০ রানে জয়ী"
+
+                if (language === 'bn') {
+                    // Custom handling for Bangla word order
+                    return `${firstTeamName} ${diff} ${t('by_runs')} ${t('won_by')}`
+                }
+                return `${firstTeamName} ${t('won_by')} ${diff} ${t('by_runs')}`
+
             } else if (secondInnings.totalRuns > firstInnings.totalRuns) {
                 const diff = 10 - secondInnings.totalWickets
-                return `${secondTeamName} won by ${diff} wickets`
+                if (language === 'bn') {
+                    return `${secondTeamName} ${diff} ${t('by_wickets')} ${t('won_by')}`
+                }
+                return `${secondTeamName} ${t('won_by')} ${diff} ${t('by_wickets')}`
             }
-            return 'Match Tied'
+            return t('match_tied')
         }
-        return 'Match Finished'
+        return t('completed')
     }
 
     const getStatusText = () => {
-        if (isInningsBreak) return 'Innings Break'
-        if (isLive) return 'Live'
-        if (isFinished) return getResultText() || 'Finished'
+        if (isInningsBreak) return 'Innings Break' // I need a key, default to English literal if missing or I'll add 'Innings Break'
+        if (isLive) return t('live')
+        if (isFinished) return getResultText() || t('completed')
         const d = coerceToDate(match.date)
         if (d) {
-            const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+            const dateStr = d.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
             const timeStr = match.time ? formatTimeHMTo12h(match.time) : ''
             return `${dateStr}, ${timeStr}`
         }
-        return 'Upcoming'
+        return t('upcoming')
     }
 
     const getRunsNeeded = () => {
@@ -198,7 +222,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
         const ballsRemaining = totalBalls - ballsPlayed
 
         if (runsNeeded <= 0) return null
-        return `${chasingTeam === 'teamA' ? teamAName : teamBName} need ${runsNeeded} runs in ${ballsRemaining} balls`
+
+        const teamName = chasingTeam === 'teamA' ? teamAName : teamBName
+        // En: Team A need 10 runs in 5 balls
+        // Bn: Team A ৫ বলে ১০ রান প্রয়োজন
+        if (language === 'bn') {
+            return `${teamName} ${ballsRemaining} বলে ${runsNeeded} রান প্রয়োজন`
+        }
+        return `${teamName} need ${runsNeeded} runs in ${ballsRemaining} balls`
     }
 
     const runsNeededText = getRunsNeeded()
@@ -290,11 +321,13 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             return (
                                 <div key={side} className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                        <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative">
                                             {logo ? (
-                                                <img src={logo} alt={name} className="w-full h-full object-contain" />
+                                                <img src={logo} alt={name} className="w-full h-full object-contain p-1" />
                                             ) : (
-                                                <span className="text-[9px] font-bold text-slate-400">{name.substring(0, 2).toUpperCase()}</span>
+                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-[10px] font-black uppercase">
+                                                    {name.charAt(0)}
+                                                </div>
                                             )}
                                         </div>
                                         <span className={`text-[12px] truncate max-w-[120px] transition-all dark:text-slate-200 ${getTeamColor(side)}`}>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tournament, TournamentStageInfo, TournamentStageStatus } from '@/types';
-import { Plus, Trash2, GripVertical, CheckCircle2, Circle, PlayCircle, PauseCircle } from 'lucide-react';
+import { Plus, Trash2, GripVertical, CheckCircle2, Circle, PlayCircle, PauseCircle, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface StructureBuilderProps {
