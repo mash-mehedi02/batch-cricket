@@ -207,12 +207,12 @@ export default function EditProfilePage() {
             // Prepare Firestore updates
             const profileData = {
                 displayName: form.displayName.trim(),
-                bio: form.bio?.trim() || undefined,
+                bio: form.bio?.trim() || '',
                 role: form.role,
                 battingStyle: form.battingStyle,
                 bowlingStyle: form.bowlingStyle,
-                dateOfBirth: form.dateOfBirth || undefined,
-                photoUrl: form.photoURL || undefined,
+                dateOfBirth: form.dateOfBirth || '',
+                photoUrl: form.photoURL || '',
                 socialLinks: form.socialLinks,
                 isRegisteredPlayer: user.playerProfile?.isRegisteredPlayer || false,
             };
