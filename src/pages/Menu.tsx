@@ -16,7 +16,8 @@ import {
     AlertCircle,
     ShieldCheck,
     Handshake,
-    UserPlus
+    UserPlus,
+    LayoutDashboard
 } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 import schoolConfig from '@/config/school';
@@ -142,8 +143,27 @@ export default function MenuPage() {
                         <ChevronRight size={18} className="text-slate-400" />
                     </Link>
 
+                    {/* Admin Dashboard (Conditional) */}
+                    {user && (user.role === 'admin' || user.role === 'super_admin') && (
+                        <Link
+                            to="/admin"
+                            className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 flex items-center justify-center text-rose-500">
+                                    <LayoutDashboard size={22} />
+                                </div>
+                                <span className="font-semibold text-[15px]">Admin Dashboard</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest px-2 py-0.5 bg-rose-50 dark:bg-rose-900/20 rounded">Panel</span>
+                                <ChevronRight size={18} className="text-slate-400" />
+                            </div>
+                        </Link>
+                    )}
+
                     {/* Player Registration (Conditional) */}
-                    {user && !user.isRegisteredPlayer && (
+                    {user && !user.isRegisteredPlayer && user.role !== 'admin' && user.role !== 'super_admin' && (
                         <Link
                             to="/register-player"
                             className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}

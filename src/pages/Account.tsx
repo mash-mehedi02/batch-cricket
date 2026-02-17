@@ -9,7 +9,9 @@ import {
     UserPlus,
     Edit,
     LogOut,
-    ArrowLeft
+    ArrowLeft,
+    LayoutDashboard,
+    Shield
 } from 'lucide-react';
 
 export default function AccountPage() {
@@ -113,8 +115,27 @@ export default function AccountPage() {
                         <ChevronRight size={18} className="text-slate-400" />
                     </button>
 
+                    {/* Admin Dashboard (Conditional) */}
+                    {(user.role === 'admin' || user.role === 'super_admin') && (
+                        <button
+                            onClick={() => navigate('/admin')}
+                            className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 flex items-center justify-center text-rose-500">
+                                    <LayoutDashboard size={20} />
+                                </div>
+                                <span className="font-semibold text-[15px]">Admin Console</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest px-2 py-0.5 bg-rose-50 dark:bg-rose-900/20 rounded">Secure</span>
+                                <ChevronRight size={18} className="text-slate-400" />
+                            </div>
+                        </button>
+                    )}
+
                     {/* Register as Player */}
-                    {!user.isRegisteredPlayer && (
+                    {!user.isRegisteredPlayer && user.role !== 'admin' && user.role !== 'super_admin' && (
                         <button
                             onClick={() => navigate('/register-player')}
                             className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
