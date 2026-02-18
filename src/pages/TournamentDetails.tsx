@@ -12,11 +12,12 @@ import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import type { Match, Tournament, Squad, Player, InningsStats } from '@/types'
 import { coerceToDate } from '@/utils/date.ts'
+import { formatShortTeamName } from '@/utils/teamName'
 import { getMatchResultString } from '@/utils/matchWinner'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { ArrowLeft, Bell, ChevronDown, Share2, ChevronRight, ChevronRight as ChevronRightIcon } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, Share2, ChevronRight } from 'lucide-react'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 
 type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats' | 'bracket'
@@ -75,7 +76,7 @@ export default function TournamentDetails() {
       // Fetch innings for relevant matches
       const relevantMatches = ms.filter(m => {
         const s = String(m.status || '').toLowerCase()
-        return s === 'live' || s === 'finished' || s === 'completed'
+        return s === 'live' || s === 'finished' || s === 'completed' || s === 'inningsbreak' || s === 'innings break'
       })
 
       if (relevantMatches.length > 0) {
@@ -255,15 +256,35 @@ export default function TournamentDetails() {
 function OverviewTab({ tournament, matches, squads, players, inningsMap, setActiveTab }: { tournament: Tournament, matches: Match[], squads: Squad[], players: Player[], inningsMap: Map<string, any>, setActiveTab: (t: Tab) => void }) {
 
   const featuredMatches = useMemo(() => {
-    return [...matches].sort((a, b) => {
-      const getScore = (m: Match) => {
-        const s = String(m.status || '').toLowerCase()
-        if (s === 'live') return 3
-        if (s === 'upcoming') return 2
-        return 1
-      }
-      return getScore(b) - getScore(a)
-    }).slice(0, 3)
+    const statusLower = (m: Match) => String(m.status || '').toLowerCase().trim()
+    const now = Date.now()
+
+    // 1. Most recent Live/InningsBreak match
+    const live = matches.filter(m => {
+      const s = statusLower(m)
+      return s === 'live' || s === 'inningsbreak' || s === 'innings break'
+    }).sort((a, b) => (coerceToDate(b.date)?.getTime() || 0) - (coerceToDate(a.date)?.getTime() || 0))
+
+    // 2. Soonest Upcoming match (must be in the future)
+    const upcoming = matches.filter(m => {
+      const s = statusLower(m)
+      const isStatusUpcoming = s === 'upcoming' || s === '' || !m.status
+      const isDateFuture = (coerceToDate(m.date)?.getTime() || 0) > now
+      return isStatusUpcoming && isDateFuture
+    }).sort((a, b) => (coerceToDate(a.date)?.getTime() || 0) - (coerceToDate(b.date)?.getTime() || 0))
+
+    // 3. Most recent Finished match
+    const finished = matches.filter(m => {
+      const s = statusLower(m)
+      return s === 'finished' || s === 'completed'
+    }).sort((a, b) => (coerceToDate(b.date)?.getTime() || 0) - (coerceToDate(a.date)?.getTime() || 0))
+
+    const result: Match[] = []
+    if (live.length > 0) result.push(live[0])
+    if (upcoming.length > 0) result.push(upcoming[0])
+    if (finished.length > 0) result.push(finished[0])
+
+    return result
   }, [matches])
 
   const statsSummary = useMemo(() => {
@@ -367,7 +388,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
                 <PlayerAvatar photoUrl={statsSummary.mostWkts.photo} name={statsSummary.mostWkts.name} size="sm" />
                 <div className="min-w-0">
                   <div className="text-[11px] font-bold text-slate-800 dark:text-white truncate">{statsSummary.mostWkts.name}</div>
-                  <div className="text-[9px] text-slate-400 font-bold uppercase truncate">{statsSummary.mostWkts.team.substring(0, 3)}</div>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase truncate">{formatShortTeamName(statsSummary.mostWkts.team)}</div>
                 </div>
               </div>
               <div className="flex items-baseline gap-1">
@@ -381,7 +402,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
                 <PlayerAvatar photoUrl={statsSummary.bestFig.photo} name={statsSummary.bestFig.name} size="sm" />
                 <div className="min-w-0">
                   <div className="text-[11px] font-bold text-slate-800 dark:text-white truncate">{statsSummary.bestFig.name}</div>
-                  <div className="text-[9px] text-slate-400 font-bold uppercase truncate">{statsSummary.bestFig.team.substring(0, 3)}</div>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase truncate">{formatShortTeamName(statsSummary.bestFig.team)}</div>
                 </div>
               </div>
               <div className="text-2xl font-black text-slate-900 dark:text-white">{statsSummary.bestFig.val}</div>
@@ -396,7 +417,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Highest Score</span>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs font-bold text-slate-800 dark:text-white">{statsSummary.highestScore.name}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">({statsSummary.highestScore.team.substring(0, 3)})</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">({formatShortTeamName(statsSummary.highestScore.team)})</span>
                 </div>
               </div>
               <div className="flex items-baseline gap-1">
@@ -409,7 +430,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Most Sixes</span>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs font-bold text-slate-800 dark:text-white">{statsSummary.mostSixes.name}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">({statsSummary.mostSixes.team.substring(0, 3)})</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">({formatShortTeamName(statsSummary.mostSixes.team)})</span>
                 </div>
               </div>
               <div className="flex items-baseline gap-1">
@@ -492,7 +513,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
 function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null } }) {
   const status = String(match.status || '').toLowerCase()
   const isFin = status === 'finished' || status === 'completed'
-  const isLive = status === 'live'
+  const isLive = status === 'live' || status === 'inningsbreak' || status === 'innings break'
 
   const squadA = squads.find(s => s.id === match.teamAId)
   const squadB = squads.find(s => s.id === match.teamBId)
@@ -512,29 +533,58 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
               </div>
             )}
           </div>
-          <span className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate">{(squadA as any)?.shortName || match.teamAName?.substring(0, 3)}</span>
+          <span className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate">
+            {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
+          </span>
         </div>
 
         <div className="flex-1 text-center">
           {isLive ? (
             <div className="flex flex-col items-center">
-              <span className="text-[10px] font-black text-red-600 uppercase tracking-widest animate-pulse">Innings Break</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'inningsbreak' || status === 'innings break' ? 'text-amber-500' : 'text-red-600 animate-pulse'}`}>
+                {status === 'inningsbreak' || status === 'innings break' ? 'Innings Break' : 'Live'}
+              </span>
+              <div className="mt-1 flex flex-col items-center">
+                {innings?.teamA && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamA.totalRuns}/{innings.teamA.totalWickets}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">({innings.teamA.overs})</span>
+                  </div>
+                )}
+                {innings?.teamB && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamB.totalRuns}/{innings.teamB.totalWickets}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">({innings.teamB.overs})</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : isFin ? (
             <div className="flex flex-col items-center">
-              <span className="text-[11px] font-bold text-slate-800 dark:text-white uppercase leading-tight">{match.winnerId === match.teamAId ? (squadA as any)?.shortName : (squadB as any)?.shortName} Won</span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">by {resultStr.split('by')[1]?.trim() || '24 runs'}</span>
+              <span className="text-[11px] font-bold text-slate-800 dark:text-white uppercase leading-tight">
+                {match.winnerId === match.teamAId
+                  ? (squadA ? formatShortTeamName(squadA.name, squadA.batch) : match.teamAName)
+                  : (squadB ? formatShortTeamName(squadB.name, squadB.batch) : match.teamBName)} Won
+              </span>
+              <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{resultStr.includes('by') ? `by ${resultStr.split('by')[1]?.trim()}` : resultStr}</span>
+              <div className="mt-1 flex flex-col items-center opacity-60">
+                <div className="text-[9px] font-bold text-slate-500">
+                  {innings?.teamA?.totalRuns}-{innings?.teamA?.totalWickets} & {innings?.teamB?.totalRuns}-{innings?.teamB?.totalWickets}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center">
               <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{match.time || '11:30 AM'}</span>
-              <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase mt-0.5">Tomorrow</span>
+              <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase mt-0.5">Upcoming</span>
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-3 w-1/3 justify-end">
-          <span className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right truncate">{(squadB as any)?.shortName || match.teamBName?.substring(0, 3)}</span>
+          <span className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right truncate">
+            {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
+          </span>
           <div className="w-10 h-10 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0 relative">
             {squadB?.logoUrl ? (
               <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
@@ -563,6 +613,7 @@ function InfoRow({ label, value }: { label: string, value: string }) {
 function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null } }) {
   const status = String(match.status || '').toLowerCase()
   const isFin = status === 'finished' || status === 'completed'
+  const isLive = status === 'live' || status === 'inningsbreak' || status === 'innings break'
 
   const squadA = squads.find(s => s.id === match.teamAId)
   const squadB = squads.find(s => s.id === match.teamBId)
@@ -582,11 +633,30 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
               </div>
             )}
           </div>
-          <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">{(squadA as any)?.shortName || match.teamAName?.substring(0, 3)}</span>
+          <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+            {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
+          </span>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center text-center">
-          {isFin ? (
-            <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight leading-tight">{resultStr}</span>
+          {isLive ? (
+            <div className="flex flex-col items-center">
+              <span className="text-[9px] font-black text-red-600 uppercase tracking-widest animate-pulse mb-1">Live</span>
+              <div className="flex flex-col items-center gap-0.5">
+                <div className="text-[11px] font-black text-slate-900 dark:text-white whitespace-nowrap">
+                  {innings?.teamA ? `${innings.teamA.totalRuns}/${innings.teamA.totalWickets}` : '0/0'} - {innings?.teamB ? `${innings.teamB.totalRuns}/${innings.teamB.totalWickets}` : '0/0'}
+                </div>
+                <div className="text-[8px] text-slate-400 font-bold">
+                  {innings?.teamA?.overs || '0.0'} & {innings?.teamB?.overs || '0.0'} ov
+                </div>
+              </div>
+            </div>
+          ) : isFin ? (
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight leading-tight">{resultStr}</span>
+              <div className="text-[8px] text-slate-400 font-bold mt-1">
+                {innings?.teamA ? `${innings.teamA.totalRuns}-${innings.teamA.totalWickets}` : '0-0'} & {innings?.teamB ? `${innings.teamB.totalRuns}-${innings.teamB.totalWickets}` : '0-0'}
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center">
               <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{match.time || 'TBD'}</span>
@@ -595,7 +665,9 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
           )}
         </div>
         <div className="flex items-center gap-3 w-[120px] justify-end">
-          <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right">{(squadB as any)?.shortName || match.teamBName?.substring(0, 3)}</span>
+          <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right">
+            {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
+          </span>
           <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative">
             {squadB?.logoUrl ? (
               <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
@@ -615,7 +687,10 @@ function TournamentMatchesTab({ matches, squads, inningsMap }: { matches: Match[
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'finished'>('all')
   const filtered = useMemo(() => {
     let f = matches
-    if (filter === 'live') f = matches.filter(m => m.status?.toLowerCase() === 'live')
+    if (filter === 'live') f = matches.filter(m => {
+      const s = String(m.status || '').toLowerCase()
+      return s === 'live' || s === 'inningsbreak' || s === 'innings break'
+    })
     else if (filter === 'upcoming') f = matches.filter(m => (m.status?.toLowerCase() === 'upcoming' || !m.status) && coerceToDate(m.date)?.getTime()! > Date.now())
     else if (filter === 'finished') f = matches.filter(m => m.status?.toLowerCase() === 'finished' || m.status?.toLowerCase() === 'completed')
     return f.sort((a, b) => (coerceToDate(b.date)?.getTime() || 0) - (coerceToDate(a.date)?.getTime() || 0))

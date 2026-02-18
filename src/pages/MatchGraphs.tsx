@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
-import { Ball, Match, InningsStats } from '@/types'
+import { Match, InningsStats } from '@/types'
+import { formatShortTeamName } from '@/utils/teamName'
 import MatchLiveSkeleton from '@/components/skeletons/MatchLiveSkeleton'
 
 export default function MatchGraphs({ compact = false }: { compact?: boolean }) {
@@ -154,7 +155,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{firstName[0]}</div>
                 <div>
-                  <div className="text-sm font-black uppercase tracking-tight">{firstName}</div>
+                  <div className="text-sm font-black uppercase tracking-tight">{formatShortTeamName(firstName)}</div>
                   <div className="text-xs text-slate-400 font-bold">{firstInns?.totalRuns || 0}-{firstInns?.totalWickets || 0} <span className="opacity-50">({firstInns?.overs || '0.0'})</span></div>
                 </div>
               </div>
@@ -162,7 +163,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">{secondName[0]}</div>
                 <div>
-                  <div className="text-sm font-black uppercase tracking-tight">{secondName}</div>
+                  <div className="text-sm font-black uppercase tracking-tight">{formatShortTeamName(secondName)}</div>
                   <div className="text-xs text-slate-400 font-bold">{secondInns?.totalRuns || 0}-{secondInns?.totalWickets || 0} <span className="opacity-50">({secondInns?.overs || '0.0'})</span></div>
                 </div>
               </div>
@@ -293,7 +294,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
                   <circle
                     key={`wkA-${i}`}
                     cx={getX(overFraction)}
-                    cy={getY(fow.score)}
+                    cy={getY(fow.runs)}
                     r="4"
                     fill="#ef4444"
                     stroke="white"
@@ -310,7 +311,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
                   <circle
                     key={`wkB-${i}`}
                     cx={getX(overFraction)}
-                    cy={getY(fow.score)}
+                    cy={getY(fow.runs)}
                     r="4"
                     fill="#ef4444"
                     stroke="white"

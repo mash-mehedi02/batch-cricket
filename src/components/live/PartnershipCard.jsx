@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 /**
  * Partnership Card Component
  * Shows current partnership stats
@@ -38,7 +40,17 @@ const PartnershipCard = ({ partnership, lastWicket }) => {
         <div className="mt-4 pt-4 border-t-2 border-emerald-200 bg-white/40 rounded-lg p-3">
           <div className="text-xs text-emerald-700 font-semibold uppercase tracking-wide mb-1">Last Wicket</div>
           <div className="text-sm font-bold text-slate-800">
-            {lastWicket.batsman || 'Unknown'} <span className="text-slate-600 font-normal">{lastWicket.runs || 0} ({lastWicket.balls || 0})</span>
+            {lastWicket.batsmanId ? (
+              <Link to={`/players/${lastWicket.batsmanId}`} className="hover:text-blue-600 transition-colors">
+                {lastWicket.batsman || 'Unknown'}
+              </Link>
+            ) : (
+              <span>{lastWicket.batsman || 'Unknown'}</span>
+            )}
+            {' '}
+            <span className="text-slate-600 font-normal">
+              {lastWicket.runs || 0} ({lastWicket.balls || 0})
+            </span>
           </div>
         </div>
       )}

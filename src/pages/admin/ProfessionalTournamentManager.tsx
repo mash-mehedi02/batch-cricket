@@ -14,6 +14,7 @@ import { Timestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { Calendar } from 'lucide-react';
 import { formatDateLabel } from '@/utils/date';
+import { formatShortTeamName } from '@/utils/teamName';
 import { generateGroupFixtures } from '@/engine/tournament/fixtures';
 import { generateKnockoutFixtures } from '@/engine/tournament/knockout';
 import { generateMatchNumber } from '@/utils/matchNumber';
@@ -325,8 +326,8 @@ export default function ProfessionalTournamentManager({ mode = 'dashboard' }: Pr
           teamAId: fixture.home,
           teamBId: fixture.away,
           // Find team names from squads
-          teamAName: squads.find((s: any) => s.id === fixture.home)?.name || `Team ${fixture.home.substring(0, 8)}`,
-          teamBName: squads.find((s: any) => s.id === fixture.away)?.name || `Team ${fixture.away.substring(0, 8)}`,
+          teamAName: squads.find((s: any) => s.id === fixture.home)?.name || formatShortTeamName(`Team ${fixture.home}`),
+          teamBName: squads.find((s: any) => s.id === fixture.away)?.name || formatShortTeamName(`Team ${fixture.away}`),
           venue: '',
           date: '',
           time: '',

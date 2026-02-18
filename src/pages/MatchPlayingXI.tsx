@@ -4,6 +4,7 @@ import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { Match } from '@/types'
+import { formatShortTeamName } from '@/utils/teamName'
 import { SkeletonText } from '@/components/skeletons/SkeletonCard'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
@@ -308,7 +309,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
               className={`flex-1 py-3 px-4 rounded-[1.2rem] text-xs font-medium uppercase tracking-widest transition-all duration-300 ${selectedTeam === t.side ? 'bg-white shadow-lg text-slate-900 ring-1 ring-slate-100' : 'text-slate-400 hover:text-slate-600'
                 }`}
             >
-              {t.name}
+              {formatShortTeamName(t.name)}
             </button>
           ))}
         </div>

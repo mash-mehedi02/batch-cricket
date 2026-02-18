@@ -6,6 +6,7 @@ import { squadService } from '@/services/firestore/squads'
 import type { Match, Tournament, InningsStats } from '@/types'
 import type { MatchResult } from '@/engine/tournament'
 import { computeGroupStandings, validateTournamentConfig } from '@/engine/tournament'
+import { formatShortTeamName } from '@/utils/teamName'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 
 type Row = {
@@ -47,12 +48,18 @@ export default function TournamentPointsTable({
   embedded = false,
   tournamentId: tournamentIdProp,
   matches: matchesProp,
-  inningsMap: inningsMapProp
+  inningsMap: inningsMapProp,
+  highlightMatch,
+  filterSquadIds,
+  hideQualification = false
 }: {
   embedded?: boolean
   tournamentId?: string
   matches?: Match[]
   inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>
+  highlightMatch?: Match
+  filterSquadIds?: string[]
+  hideQualification?: boolean
 } = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
@@ -70,6 +77,12 @@ export default function TournamentPointsTable({
     if (matchesProp) setMatches(matchesProp)
     if (inningsMapProp) setInningsMap(inningsMapProp)
   }, [matchesProp, inningsMapProp])
+
+  useEffect(() => {
+    if (highlightMatch?.groupId) {
+      setActiveGroupId(highlightMatch.groupId)
+    }
+  }, [highlightMatch])
 
   useEffect(() => {
     const run = async () => {
@@ -261,7 +274,13 @@ export default function TournamentPointsTable({
 
       const sortFn = (a: Row, b: Row) => (b.points - a.points) || (b.nrr - a.nrr)
       groupsList.forEach(g => {
-        const groupRows = (g.squadIds || []).map((sid: string) => rowsMap.get(sid)).filter(Boolean).sort(sortFn)
+        let groupRows = (g.squadIds || []).map((sid: string) => rowsMap.get(sid)).filter(Boolean).sort(sortFn)
+
+        // Apply filter if specified
+        if (filterSquadIds && filterSquadIds.length > 0) {
+          groupRows = groupRows.filter((r: Row) => filterSquadIds.includes(r.squadId))
+        }
+
         standingsData.set(g.id, groupRows.map((r: any) => ({ ...r })))
       })
     }
@@ -272,8 +291,8 @@ export default function TournamentPointsTable({
       if (Array.isArray(sIds)) sIds.forEach(id => confirmedQualifiedIds.add(id))
     })
 
-    return { groups: groupsList, standingsByGroup: standingsData, confirmedQualifiedIds: Array.from(confirmedQualifiedIds) }
-  }, [inningsMap, matches, squadIdByName, squadsById, tournament, tournamentId])
+    return { groups: groupsList, standingsByGroup: standingsData, confirmedQualifiedIds: hideQualification ? [] : Array.from(confirmedQualifiedIds) }
+  }, [inningsMap, matches, squadIdByName, squadsById, tournament, tournamentId, filterSquadIds, hideQualification])
 
   useEffect(() => {
     if (groups.length > 0 && !activeGroupId) setActiveGroupId(groups[0].id)
@@ -336,13 +355,27 @@ export default function TournamentPointsTable({
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {rows.map((r, idx) => {
                 const isConfirmed = confirmedQualifiedIds.includes(r.squadId)
-                const isInQualZone = idx < 2 // Dummy threshold for visual
+                const isInQualZone = !hideQualification && idx < 2 // Dummy threshold for visual
                 const squad = squadsById.get(r.squadId)
+                const isHighlighted = highlightMatch && (
+                  r.squadId === highlightMatch.teamAId ||
+                  r.squadId === highlightMatch.teamBId ||
+                  r.squadId === (highlightMatch as any).teamASquadId ||
+                  r.squadId === (highlightMatch as any).teamBSquadId ||
+                  (r.squadName && (r.squadName === highlightMatch.teamAName || r.squadName === highlightMatch.teamBName))
+                )
 
                 return (
-                  <tr key={r.squadId} className={`${isInQualZone ? 'bg-amber-50/20 dark:bg-amber-500/5' : ''}`}>
+                  <tr
+                    key={r.squadId}
+                    className={`
+                      ${isInQualZone ? 'bg-amber-50/20 dark:bg-amber-500/5' : ''} 
+                      ${isHighlighted ? 'animate-pulse bg-blue-50/50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-500/30' : ''}
+                      transition-all duration-500
+                    `}
+                  >
                     <td className="py-4 px-4">
-                      <div className="flex items-center gap-3">
+                      <Link to={`/squads/${r.squadId}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                         <div className="relative">
                           {isConfirmed && (
                             <div className="absolute -top-1 -left-1 w-3.5 h-3.5 bg-yellow-400 text-black text-[7px] font-black flex items-center justify-center rounded-sm shadow-sm z-10">Q</div>
@@ -357,8 +390,10 @@ export default function TournamentPointsTable({
                             )}
                           </div>
                         </div>
-                        <div className="font-bold text-slate-900 dark:text-white uppercase truncate max-w-[100px]">{r.squadName}</div>
-                      </div>
+                        <div className="font-bold text-slate-900 dark:text-white uppercase truncate max-w-[100px]">
+                          {squad ? formatShortTeamName(squad.name, squad.batch) : r.squadName}
+                        </div>
+                      </Link>
                     </td>
                     <td className="text-center tabular-nums text-slate-600 dark:text-slate-400">{r.played}</td>
                     <td className="text-center tabular-nums text-slate-600 dark:text-slate-400">{r.won}</td>
@@ -374,10 +409,12 @@ export default function TournamentPointsTable({
         </div>
 
         {/* Legend */}
-        <div className="px-5 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-slate-900/20 flex items-center gap-2">
-          <div className="w-3.5 h-3.5 bg-yellow-400 text-black text-[7px] font-black flex items-center justify-center rounded-sm">Q</div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qualified</span>
-        </div>
+        {!hideQualification && (
+          <div className="px-5 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-slate-900/20 flex items-center gap-2">
+            <div className="w-3.5 h-3.5 bg-yellow-400 text-black text-[7px] font-black flex items-center justify-center rounded-sm">Q</div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qualified</span>
+          </div>
+        )}
       </div>
 
       {/* Playoff Bracket Section (Dynamic) */}

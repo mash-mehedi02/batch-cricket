@@ -15,6 +15,7 @@ import MatchCardSkeleton from '@/components/skeletons/MatchCardSkeleton'
 import MatchCard from '@/components/match/MatchCard'
 import { PinnedScoreWidget } from '@/components/match/PinnedScoreWidget'
 import { coerceToDate } from '@/utils/date'
+import { formatShortTeamName } from '@/utils/teamName'
 import schoolConfig from '@/config/school'
 import heroStumps from '@/assets/hero_stumps.png'
 
@@ -202,34 +203,24 @@ export default function Home() {
                 {/* Auto-moving list of squads WITH logos */}
                 {(() => {
                   const filtered = squads.filter(s => s && s.name && s.logoUrl)
-                  return [...filtered, ...filtered].map((squad, index) => {
-                    const formatHomeName = (name: string) => {
-                      if (!name) return '???'
-                      const parts = name.split(/[- ]+/).filter(Boolean)
-                      const label = (parts[0] || '').substring(0, 3).toUpperCase()
-                      const batch = squad.batch || parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
-                      return batch ? `${label}-${batch}` : label
-                    }
-
-                    return (
-                      <Link
-                        to={`/squads/${squad.id}`}
-                        key={`${squad.id}-${index}`}
-                        className="flex flex-col items-center gap-2 min-w-[70px] group hover:scale-105 transition-transform"
-                      >
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 overflow-hidden bg-white dark:bg-slate-800 shadow-sm relative">
-                          <img
-                            src={squad.logoUrl}
-                            alt={squad.name}
-                            className="w-full h-full object-contain p-1"
-                          />
-                        </div>
-                        <span className="text-[9px] font-black text-slate-700 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
-                          {formatHomeName(squad.name)}
-                        </span>
-                      </Link>
-                    )
-                  })
+                  return [...filtered, ...filtered].map((squad, index) => (
+                    <Link
+                      to={`/squads/${squad.id}`}
+                      key={`${squad.id}-${index}`}
+                      className="flex flex-col items-center gap-2 min-w-[70px] group hover:scale-105 transition-transform"
+                    >
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 overflow-hidden bg-white dark:bg-slate-800 shadow-sm relative">
+                        <img
+                          src={squad.logoUrl}
+                          alt={squad.name}
+                          className="w-full h-full object-contain p-1"
+                        />
+                      </div>
+                      <span className="text-[9px] font-black text-slate-700 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
+                        {formatShortTeamName(squad.name, squad.batch)}
+                      </span>
+                    </Link>
+                  ))
                 })()}
               </div>
             </div>

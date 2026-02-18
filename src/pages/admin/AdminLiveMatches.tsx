@@ -11,6 +11,7 @@ import { Match } from '@/types'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { Calendar, MapPin, Trophy, ArrowRight, Activity, Shield } from 'lucide-react'
 import { format } from 'date-fns'
+import { formatShortTeamName } from '@/utils/teamName'
 
 interface TeamScore {
   runs: number
@@ -171,8 +172,8 @@ export default function AdminLiveMatches() {
                     {/* Team A */}
                     <div className={`flex justify-between items-center p-3 rounded-xl transition-colors ${isTeamABatting ? 'bg-blue-50/60 border border-blue-100' : 'bg-white'}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black ${isTeamABatting ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {match.teamAName?.substring(0, 2).toUpperCase()}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black ${isTeamABatting ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {formatShortTeamName(match.teamAName)}
                         </div>
                         <div>
                           <div className={`font-bold text-sm ${isTeamABatting ? 'text-slate-900' : 'text-slate-600'}`}>{match.teamAName}</div>
@@ -195,8 +196,8 @@ export default function AdminLiveMatches() {
                     {/* Team B */}
                     <div className={`flex justify-between items-center p-3 rounded-xl transition-colors ${isTeamBBatting ? 'bg-blue-50/60 border border-blue-100' : 'bg-white'}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black ${isTeamBBatting ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {match.teamBName?.substring(0, 2).toUpperCase()}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black ${isTeamBBatting ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {formatShortTeamName(match.teamBName)}
                         </div>
                         <div>
                           <div className={`font-bold text-sm ${isTeamBBatting ? 'text-slate-900' : 'text-slate-600'}`}>{match.teamBName}</div>

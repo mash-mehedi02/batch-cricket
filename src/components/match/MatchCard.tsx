@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { Match, Squad, InningsStats } from '@/types'
 import { matchService } from '@/services/firestore/matches'
 import { coerceToDate, formatTimeHMTo12h } from '@/utils/date'
+import { formatShortTeamName } from '@/utils/teamName'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 interface MatchCardProps {
@@ -118,16 +119,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     const teamA = squadsMap[match.teamAId || (match as any).teamASquadId]
     const teamB = squadsMap[match.teamBId || (match as any).teamBSquadId]
 
-    const formatTeamName = (s: Squad | undefined, fallback: string) => {
-        if (!s?.name) return fallback
-        const parts = s.name.split(/[- ]+/).filter(Boolean)
-        const label = (parts[0] || '').substring(0, 3).toUpperCase()
-        const batch = s.batch || parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
-        return batch ? `${label}-${batch}` : label
-    }
-
-    const teamAName = formatTeamName(teamA, match.teamAName || 'Team A')
-    const teamBName = formatTeamName(teamB, match.teamBName || 'Team B')
+    const teamAName = teamA ? formatShortTeamName(teamA.name, teamA.batch) : formatShortTeamName(match.teamAName || 'Team A')
+    const teamBName = teamB ? formatShortTeamName(teamB.name, teamB.batch) : formatShortTeamName(match.teamBName || 'Team B')
     const teamALogo = teamA?.logoUrl || (match as any).teamALogoUrl || null
     const teamBLogo = teamB?.logoUrl || (match as any).teamBLogoUrl || null
 

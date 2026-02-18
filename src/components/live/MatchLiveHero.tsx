@@ -4,6 +4,7 @@ import fourIcon from '../../assets/four.png'
 import sixIcon from '../../assets/six.png'
 import { Link } from 'react-router-dom'
 import { useTranslation } from '@/hooks/useTranslation'
+import { formatShortTeamName } from '@/utils/teamName'
 
 interface MatchLiveHeroProps {
     match: Match
@@ -61,36 +62,8 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const currentSquad = match.currentBatting === 'teamB' ? teamBSquad : teamASquad
     const logoUrl = currentSquad?.logoUrl || (match as any)[match.currentBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
 
-    // --- Improved Team Abbreviation Helper ---
-    // Rule: "first 3 latter ba each word er first latter - integer"
-    const getAbbreviation = (name: string) => {
-        if (!name) return '';
-        const nameStr = name.trim();
-
-        // Pattern: [Team Name] [Optional Divider] [Integer]
-        // Example: "RANGERS - 19", "NIGHT OWLS-22", "SMA 2024"
-        const bits = nameStr.split(/\s+-\s+|-\s+|\s+-|\s+/).filter(Boolean);
-        if (bits.length === 0) return '';
-
-        const lastBit = bits[bits.length - 1];
-        const hasInteger = /^\d+$/.test(lastBit);
-
-        let teamPartWords = hasInteger ? bits.slice(0, bits.length - 1) : bits;
-        if (teamPartWords.length === 0 && hasInteger) teamPartWords = [lastBit];
-
-        let abbr = '';
-        if (teamPartWords.length > 1) {
-            abbr = teamPartWords.map(w => w[0]).join('').toUpperCase();
-        } else if (teamPartWords.length === 1) {
-            const word = teamPartWords[0];
-            abbr = word.length > 3 ? word.substring(0, 3).toUpperCase() : word.toUpperCase();
-        }
-
-        return hasInteger ? `${abbr}-${lastBit}` : abbr;
-    }
-
-    const currentTeamAbbr = getAbbreviation(currentTeamName);
-    const opponentTeamAbbr = getAbbreviation(match.currentBatting === 'teamA' ? teamBName : teamAName);
+    const currentTeamAbbr = formatShortTeamName(currentTeamName, currentSquad?.batch)
+    const opponentTeamAbbr = formatShortTeamName(match.currentBatting === 'teamA' ? teamBName : teamAName, match.currentBatting === 'teamA' ? teamBSquad?.batch : teamASquad?.batch)
 
     // --- Toss Logic ---
     const m = match as any;
@@ -112,8 +85,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         }
     }
 
-    const tossAbbr = getAbbreviation(tossWinnerName);
-    const tossText = tossAbbr ? tossAbbr : '';
+    const tossText = tossWinnerName ? formatShortTeamName(tossWinnerName) : '';
 
     const isInningsBreak = match.status === 'InningsBreak';
 
@@ -267,7 +239,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
                         <div className="min-w-0 flex flex-col justify-center">
                             <div className="text-[13px] sm:text-[14px] font-semibold text-slate-200 uppercase tracking-wide truncate mb-1">
-                                {currentTeamName}
+                                {currentTeamAbbr}
                             </div>
                             <div className="flex items-baseline gap-2">
                                 <span className={`text-5xl sm:text-6xl font-medium tabular-nums tracking-tighter leading-none transition-colors duration-300 ${textGlowClass}`}>
@@ -332,7 +304,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 <div className={`flex items-center gap-2 ${targetScore > 0 ? 'pl-4 border-l border-white/10' : ''}`}>
                                     <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">{t('toss')}:</span>
                                     <span className="text-xs font-medium text-slate-200 uppercase leading-none">
-                                        {tossText || (twid ? (twid === 'teama' ? 'T-A' : (twid === 'teamb' ? 'T-B' : twid.toUpperCase().substring(0, 6))) : '-')}
+                                        {tossText || (twid ? formatShortTeamName(twid) : '-')}
                                     </span>
                                 </div>
                             )}

@@ -1472,6 +1472,7 @@ export default function MatchLive() {
                         String(resolveMatchSideRef(match as any, 'A') || ''),
                         String(resolveMatchSideRef(match as any, 'B') || '')
                       ].filter(Boolean)}
+                      highlightMatch={match as any}
                     />
                   </div>
                 </div>
@@ -1554,7 +1555,7 @@ export default function MatchLive() {
       case 'points-table':
         return match?.tournamentId ? (
           <div className="bg-gray-50 min-h-screen py-6">
-            <TournamentPointsTable embedded={true} tournamentId={match.tournamentId} />
+            <TournamentPointsTable embedded={true} tournamentId={match.tournamentId} highlightMatch={match as any} />
           </div>
         ) : null
       default:

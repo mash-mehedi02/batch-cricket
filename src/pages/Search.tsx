@@ -7,6 +7,7 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { matchService } from '@/services/firestore/matches'
 import { Player, Squad, Tournament, Match } from '@/types'
 import { useThemeStore } from '@/store/themeStore'
+import { formatShortTeamName } from '@/utils/teamName'
 
 interface SearchHistoryItem {
     id: string
@@ -112,7 +113,7 @@ export default function Search() {
             ...allData.squads.map(s => ({ ...s, type: 'squad', icon: <Users size={20} />, score: getScore(s.name) })),
             ...allData.tournaments.map(t => ({ ...t, type: 'tournament', icon: <Trophy size={20} />, score: getScore(t.name) })),
             ...allData.matches.map(m => {
-                const matchName = `${m.teamAName} vs ${m.teamBName}`
+                const matchName = `${formatShortTeamName(m.teamAName)} vs ${formatShortTeamName(m.teamBName)}`
                 const score = Math.max(getScore(m.teamAName || ''), getScore(m.teamBName || ''), getScore(m.venue || ''), getScore(matchName))
                 return { ...m, name: matchName, type: 'match', icon: <Zap size={20} />, score }
             })

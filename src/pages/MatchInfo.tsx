@@ -9,6 +9,7 @@ import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { Match, Tournament } from '@/types'
+import { formatShortTeamName } from '@/utils/teamName'
 import { coerceToDate, formatTimeLabel, formatTimeHMTo12h } from '@/utils/date'
 import { Calendar, MapPin, ChevronRight, ChevronDown, Info } from 'lucide-react'
 
@@ -398,7 +399,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                             <div className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
                                 {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{teamAName[0]}</span>}
                             </div>
-                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{teamAName}</span>
+                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{formatShortTeamName(teamAName)}</span>
                         </div>
                         <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -407,7 +408,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                             <div className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
                                 {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{teamBName[0]}</span>}
                             </div>
-                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{teamBName}</span>
+                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{formatShortTeamName(teamBName)}</span>
                         </div>
                         <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -419,8 +420,8 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                 <h3 className="text-[13px] font-black text-slate-800 px-1 uppercase tracking-wide">Team form <span className="text-[11px] font-bold text-slate-400 normal-case">(Last 5 matches)</span></h3>
                 <div className="bg-white rounded-2xl p-2 sm:p-5 border border-slate-100 shadow-sm space-y-2 sm:space-y-4">
                     {[
-                        { name: teamAName, short: (match as any).teamAShort || teamAName.substring(0, 3), squad: teamASquad, form: teamAForm },
-                        { name: teamBName, short: (match as any).teamBShort || teamBName.substring(0, 3), squad: teamBSquad, form: teamBForm }
+                        { name: teamAName, short: (match as any).teamAShort || formatShortTeamName(teamAName), squad: teamASquad, form: teamAForm },
+                        { name: teamBName, short: (match as any).teamBShort || formatShortTeamName(teamBName), squad: teamBSquad, form: teamBForm }
                     ].map((row, idx) => {
                         const isExpanded = expandedTeamIdx === idx;
 
@@ -436,7 +437,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                     </div>
 
                                     {/* Name */}
-                                    <span className="text-sm font-black text-slate-800 uppercase truncate tracking-tight flex-1 min-w-0">{row.name}</span>
+                                    <span className="text-sm font-black text-slate-800 uppercase truncate tracking-tight flex-1 min-w-0">{formatShortTeamName(row.name)}</span>
 
                                     {/* Badges + Chevron */}
                                     <div className="flex items-center gap-2">
@@ -553,7 +554,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                             <div className="w-20 h-20 rounded-full bg-white border border-slate-100 flex items-center justify-center p-4 mx-auto shadow-md">
                                 {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-black text-slate-100">{teamAName[0]}</span>}
                             </div>
-                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{(match as any).teamAShort || teamAName.substring(0, 3)}</div>
+                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{(match as any).teamAShort || formatShortTeamName(teamAName)}</div>
                         </div>
 
                         <div className="flex flex-col items-center">
@@ -569,7 +570,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                             <div className="w-20 h-20 rounded-full bg-white border border-slate-100 flex items-center justify-center p-4 mx-auto shadow-md">
                                 {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-black text-slate-100">{teamBName[0]}</span>}
                             </div>
-                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{(match as any).teamBShort || teamBName.substring(0, 3)}</div>
+                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{(match as any).teamBShort || formatShortTeamName(teamBName)}</div>
                         </div>
                     </div>
 

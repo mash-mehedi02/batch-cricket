@@ -15,6 +15,7 @@ import { Timestamp } from 'firebase/firestore'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 import PageHeader from '@/components/common/PageHeader'
 import { getMatchResultString } from '@/utils/matchWinner'
+import { formatShortTeamName } from '@/utils/teamName'
 import { schoolConfig } from '@/config/school'
 import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
 
@@ -150,13 +151,6 @@ export default function SquadDetails() {
     return val
   }
 
-  const formatShortName = (name: string) => {
-    if (!name) return '???'
-    const parts = name.split(/[- ]+/).filter(Boolean)
-    const label = parts[0]?.substring(0, 3).toUpperCase() || '???'
-    const batch = parts[parts.length - 1]?.match(/\d+/) ? parts[parts.length - 1] : ''
-    return batch ? `${label}-${batch}` : label
-  }
 
   const handleImgError = (url: string) => {
     setBrokenImages(prev => ({ ...prev, [url]: true }))
@@ -258,7 +252,7 @@ export default function SquadDetails() {
                       </div>
                     )}
                   </div>
-                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortName(match.teamAName)}</span>
+                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamAName)}</span>
                 </div>
                 {(isLive || isFin) && (
                   <div className="flex flex-col items-end tabular-nums">
@@ -279,7 +273,7 @@ export default function SquadDetails() {
                       </div>
                     )}
                   </div>
-                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortName(match.teamBName)}</span>
+                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamBName)}</span>
                 </div>
                 {(isLive || isFin) ? (
                   <div className="flex flex-col items-end tabular-nums">

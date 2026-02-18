@@ -11,6 +11,7 @@ import { Match, InningsStats } from '@/types'
 import ScorecardSkeleton from '@/components/skeletons/ScorecardSkeleton'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import { formatShortTeamName } from '@/utils/teamName'
 
 // Format overs helper
 const formatOversDisplay = (legalBalls: number): string => {
@@ -365,7 +366,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
             const inn = side === 'teamA' ? teamAInnings : teamBInnings;
             const isActive = selectedInning === tab.id;
             const name = side === 'teamA' ? teamAName : teamBName;
-            const shortName = name.substring(0, 3).toUpperCase();
+            const shortName = formatShortTeamName(name);
             const overs = formatOversDisplay(inn?.legalBalls || 0);
 
             return (

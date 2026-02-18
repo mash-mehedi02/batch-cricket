@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { getMatchResultString } from '@/utils/matchWinner'
+import { formatShortTeamName } from '@/utils/teamName'
 import { Zap, Trophy, Edit3, Calendar, Users, MapPin, ChevronRight, Bell, Settings, BarChart2, Table } from 'lucide-react'
 
 interface MatchSummaryProps {
@@ -55,25 +56,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
         return teamBLogo || (match as any).teamBLogoUrl
     }
 
-    // --- Abbreviation Helper ---
-    const getAbbr = (name: string) => {
-        if (!name) return '';
-        const nameStr = name.trim();
-        const bits = nameStr.split(/\s+-\s+|-\s+|\s+-|\s+/).filter(Boolean);
-        if (bits.length === 0) return '';
-        const lastBit = bits[bits.length - 1];
-        const hasInteger = /^\d+$/.test(lastBit);
-        let teamPartWords = hasInteger ? bits.slice(0, bits.length - 1) : bits;
-        if (teamPartWords.length === 0 && hasInteger) teamPartWords = [lastBit];
-        let abbr = '';
-        if (teamPartWords.length > 1) {
-            abbr = teamPartWords.map(w => w[0]).join('').toUpperCase();
-        } else if (teamPartWords.length === 1) {
-            const word = teamPartWords[0];
-            abbr = word.length > 3 ? word.substring(0, 3).toUpperCase() : word.toUpperCase();
-        }
-        return hasInteger ? `${abbr}-${lastBit}` : abbr;
-    }
+    const getAbbr = (name: string) => formatShortTeamName(name)
 
     // --- Result Logic ---
     const resultText = useMemo(() => {

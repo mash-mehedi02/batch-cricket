@@ -14,6 +14,8 @@ import { useAuthStore } from '@/store/authStore'
 import { generateMatchNumber } from '@/utils/matchNumber'
 
 import toast from 'react-hot-toast'
+import { format } from 'date-fns'
+import { formatShortTeamName } from '@/utils/teamName'
 import { Timestamp } from 'firebase/firestore'
 import { generateGroupFixtures } from '@/engine/tournament/fixtures'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
@@ -449,8 +451,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           teamAId: fixture.home,
           teamBId: fixture.away,
           // Find team names from squads
-          teamAName: squads.find((s: any) => s.id === fixture.home)?.name || `Team ${fixture.home.substring(0, 8)}`,
-          teamBName: squads.find((s: any) => s.id === fixture.away)?.name || `Team ${fixture.away.substring(0, 8)}`,
+          teamAName: squads.find((s: any) => s.id === fixture.home)?.name || formatShortTeamName(`Team ${fixture.home}`),
+          teamBName: squads.find((s: any) => s.id === fixture.away)?.name || formatShortTeamName(`Team ${fixture.away}`),
           venue: '',
           date: '',
           time: '',

@@ -10,7 +10,8 @@ import { doc, onSnapshot, collection, query, where, updateDoc, serverTimestamp }
 import { db, auth } from '@/config/firebase'
 import { signOut } from 'firebase/auth'
 import { squadService } from '@/services/firestore/squads'
-import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle } from '@/types'
+import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle, Squad } from '@/types'
+import { formatShortTeamName } from '@/utils/teamName'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 import PageHeader from '@/components/common/PageHeader'
@@ -48,28 +49,6 @@ const extractUsername = (url: string) => {
 
 
 
-// Helper to format opponent name
-function formatOpponentName(rawName: string): string {
-  if (!rawName || rawName === 'Opponent' || rawName === 'Unknown') return 'OPP'
-
-  const parts = rawName.split('-')
-  const teamPart = parts[0].trim()
-  const suffix = parts.length > 1 ? ` - ${parts.slice(1).join('-').trim()}` : ''
-
-  // Clean up common prefixes/suffixes
-  const cleanName = teamPart.replace(/(Academy|Cricket Club|School|High School|XI)/gi, '').trim() || teamPart
-
-  const words = cleanName.split(/\s+/)
-  let shortName = ''
-
-  if (words.length === 1) {
-    shortName = words[0].substring(0, 3).toUpperCase()
-  } else {
-    shortName = words.slice(0, 3).map(w => w[0]).join('').toUpperCase()
-  }
-
-  return `${shortName}${suffix}`
-}
 
 const INITIAL_EDIT_FORM_STATE = {
   name: '',
@@ -581,7 +560,7 @@ export default function PlayerProfile() {
       const t = m?.tournamentId ? tournaments[m.tournamentId] : null
       return {
         ...s,
-        opponentName: s.opponentName || (m ? (m.teamAId === player.squadId ? (m.teamBName || m.teamB) : (m.teamAName || m.teamA)) : 'Opponent'),
+        opponentName: s.opponentName || (m ? (m.teamAId === player.squadId ? formatShortTeamName(m.teamBName || m.teamB) : formatShortTeamName(m.teamAName || m.teamA)) : 'Opponent'),
         date: s.date || m?.date,
         result: s.result || m?.result || '',
         tournamentName: t?.name || m?.tournamentName || m?.series || 'BatchCrick League',
@@ -897,7 +876,7 @@ export default function PlayerProfile() {
                         )}
                       </div>
                       <div className="text-slate-600 text-[11px] font-bold uppercase tracking-tight truncate w-full px-1">
-                        {formatOpponentName(form.opponent)}
+                        {formatShortTeamName(form.opponent)}
                       </div>
                     </Link>
                   ))}
