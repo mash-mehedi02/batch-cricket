@@ -1,6 +1,6 @@
 
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Calendar, Trophy, Users, Menu } from 'lucide-react';
+import { Home, Calendar, Trophy, Menu } from 'lucide-react';
 import { useTranslation } from '@/hooks/useTranslation';
 
 export default function BottomNav() {
@@ -16,7 +16,7 @@ export default function BottomNav() {
         { path: '/', label: t('nav_home'), icon: <Home size={20} /> },
         { path: '/schedule', label: t('nav_matches'), icon: <Calendar size={20} /> },
         { path: '/tournaments', label: t('nav_series'), icon: <Trophy size={20} /> },
-        { path: '/players', label: t('nav_stats'), icon: <Users size={20} /> },
+        { path: '/champions', label: t('nav_champions'), icon: <Trophy size={20} className="fill-current/20" /> },
     ];
 
     return (

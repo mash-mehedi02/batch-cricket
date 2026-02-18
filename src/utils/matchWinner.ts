@@ -7,14 +7,16 @@ export interface MatchWinnerResult {
 }
 
 /**
- * Calculate match winner with proper cricket rules
+ * Calculate match winner with proper cricket rules, supporting Super Overs
  */
 export function calculateMatchWinner(
   teamAName: string,
   teamBName: string,
   teamAInnings: InningsStats | null,
   teamBInnings: InningsStats | null,
-  match?: Match
+  match?: Match,
+  teamASuperInnings?: InningsStats | null,
+  teamBSuperInnings?: InningsStats | null
 ): MatchWinnerResult {
   const defaultResult: MatchWinnerResult = {
     winner: '',
@@ -31,7 +33,30 @@ export function calculateMatchWinner(
   const aRuns = Number(teamAInnings.totalRuns || 0)
   const bRuns = Number(teamBInnings.totalRuns || 0)
 
-  if (aRuns === bRuns) {
+  // --- Super Over Logic ---
+  const isMainTied = aRuns === bRuns
+  const hasSOData = (teamASuperInnings && (teamASuperInnings.totalRuns || 0) > 0) || (teamBSuperInnings && (teamBSuperInnings.totalRuns || 0) > 0)
+
+  if (isMainTied && hasSOData) {
+    const soARuns = Number(teamASuperInnings?.totalRuns || 0)
+    const soBRuns = Number(teamBSuperInnings?.totalRuns || 0)
+
+    if (soARuns === soBRuns) {
+      return { winner: 'Match Tied', winMargin: '(After Super Over)', isTied: true }
+    }
+
+    const winnerSide = soARuns > soBRuns ? 'teamA' : 'teamB'
+    const winnerName = winnerSide === 'teamA' ? teamAName : teamBName
+    const runDiff = Math.abs(soARuns - soBRuns)
+
+    return {
+      winner: winnerName,
+      winMargin: `won Super Over by ${runDiff} run${runDiff !== 1 ? 's' : ''}`,
+      isTied: false
+    }
+  }
+
+  if (isMainTied) {
     return { winner: 'Match Tied', winMargin: '', isTied: true }
   }
 
@@ -89,10 +114,12 @@ export function getMatchResultString(
   teamBName: string,
   teamAInnings: InningsStats | null,
   teamBInnings: InningsStats | null,
-  match?: Match
+  match?: Match,
+  teamASuperInnings?: InningsStats | null,
+  teamBSuperInnings?: InningsStats | null
 ): string {
-  const result = calculateMatchWinner(teamAName, teamBName, teamAInnings, teamBInnings, match)
+  const result = calculateMatchWinner(teamAName, teamBName, teamAInnings, teamBInnings, match, teamASuperInnings, teamBSuperInnings)
   if (!result.winner) return ''
-  if (result.isTied) return 'Match Tied'
+  if (result.isTied) return result.winner + (result.winMargin ? ` ${result.winMargin}` : '')
   return `${result.winner} ${result.winMargin}`
 }

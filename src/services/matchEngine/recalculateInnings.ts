@@ -68,15 +68,17 @@ export interface RecentOver {
   extras?: Array<{ badge: string; runs: number }> // Wides/no-balls that don't count as balls
   totalRuns: number // Total runs scored in this over
   isLocked: boolean // Whether over is complete (6 legal balls)
-  innings: 'teamA' | 'teamB'
+  innings: InningId
 }
+
+export type InningId = 'teamA' | 'teamB' | 'teamA_super' | 'teamB_super' | 'teamA_super2' | 'teamB_super2'
 
 /**
  * Innings Statistics Interface
  */
 export interface InningsStats {
   matchId: string
-  inningId: 'teamA' | 'teamB'
+  inningId: InningId
   totalRuns: number
   totalWickets: number
   legalBalls: number
@@ -303,7 +305,7 @@ function ballToBadge(ball: ReturnType<typeof parseBallEvent>): { value: string; 
  */
 export async function recalculateInnings(
   matchId: string,
-  inningId: 'teamA' | 'teamB',
+  inningId: InningId,
   options?: {
     useTransaction?: boolean;
     balls?: ReturnType<typeof parseBallEvent>[];
@@ -819,18 +821,46 @@ export async function recalculateInnings(
     let isMatchInBreak = false
 
     // --- Match Completion Logic ---
-    const isCalculatingSecondSide = (inningId === secondSide)
+    // For Super Overs: determine if this is the 2nd SO innings
+    const isSuperOverInning = String(inningId).includes('super')
+    let isCalculatingSecondSide = (inningId === secondSide)
+
+    if (isSuperOverInning) {
+      // In Super Over, the second innings is determined by match phase
+      // If matchPhase === 'SecondInnings' and we're in a super inning, this IS the second SO innings
+      const phase = String(matchData.matchPhase || '').toLowerCase()
+      isCalculatingSecondSide = (phase === 'secondinnings')
+    }
 
     if (isCalculatingSecondSide) {
       // Get target from the first batting team's score
-      let firstBatScore = (matchData.score?.[firstSide]?.runs) || (matchData.innings1Score) || 0
+      let firstBatScore = 0;
 
-      // CRITICAL FALLBACK: If master document doesn't have it, try to find it in innings docs
-      if (firstBatScore === 0) {
-        const firstInningsRef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, firstSide)
-        const firstInningsSnap = await getDoc(firstInningsRef)
-        if (firstInningsSnap.exists()) {
-          firstBatScore = Number(firstInningsSnap.data().totalRuns || 0)
+      if (isSuperOverInning) {
+        // For Super Over: get the other SO team's score
+        const baseSide = String(inningId).replace('_super', '').replace('_super2', '') as 'teamA' | 'teamB'
+        const otherSide = baseSide === 'teamA' ? 'teamB' : 'teamA'
+        const otherSOInningId = `${otherSide}_super`
+
+        // Try to get from score map or from innings document
+        firstBatScore = Number(matchData.score?.[otherSOInningId]?.runs || 0)
+        if (firstBatScore === 0) {
+          const firstSORef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, otherSOInningId)
+          const firstSOSnap = await getDoc(firstSORef)
+          if (firstSOSnap.exists()) {
+            firstBatScore = Number(firstSOSnap.data().totalRuns || 0)
+          }
+        }
+      } else {
+        firstBatScore = (matchData.score?.[firstSide]?.runs) || (matchData.innings1Score) || 0;
+
+        // CRITICAL FALLBACK: If master document doesn't have it, try to find it in innings docs
+        if (firstBatScore === 0) {
+          const firstInningsRef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, firstSide)
+          const firstInningsSnap = await getDoc(firstInningsRef)
+          if (firstInningsSnap.exists()) {
+            firstBatScore = Number(firstInningsSnap.data().totalRuns || 0)
+          }
         }
       }
 
@@ -1021,9 +1051,16 @@ export async function recalculateInnings(
         const currentStatus = String(matchData.status || '').toLowerCase()
 
         if (isMatchNowFinished) {
-          // Match is truly finished
-          matchUpdate.status = 'finished'
-          matchUpdate.matchPhase = 'finished'
+          // CHECK IF TIED: If second innings finished and scores are level
+          const isTied = isCalculatingSecondSide && totalRuns === (target !== null ? target - 1 : -1) && isInningsEnded;
+
+          if (isTied) {
+            matchUpdate.status = 'live'; // Keep live for Super Over option
+            matchUpdate.matchPhase = 'Tied';
+          } else {
+            matchUpdate.status = 'finished'
+            matchUpdate.matchPhase = 'finished'
+          }
         } else if (isCalculatingSecondSide) {
           // If we are currently in the second innings but it's NOT finished 
           // (e.g. ball undone or target not yet reached), it must be live.
@@ -1064,8 +1101,14 @@ export async function recalculateInnings(
       const currentStatus = String(matchData.status || '').toLowerCase()
 
       if (isMatchNowFinished) {
-        matchUpdate.status = 'finished'
-        matchUpdate.matchPhase = 'finished'
+        const isTied = isCalculatingSecondSide && totalRuns === (target !== null ? target - 1 : -1) && isInningsEnded;
+        if (isTied) {
+          matchUpdate.status = 'live';
+          matchUpdate.matchPhase = 'Tied';
+        } else {
+          matchUpdate.status = 'finished'
+          matchUpdate.matchPhase = 'finished'
+        }
       } else if (isCalculatingSecondSide) {
         matchUpdate.status = 'live'
         matchUpdate.matchPhase = 'SecondInnings'
@@ -1109,7 +1152,7 @@ export async function recalculateInnings(
 /**
  * Get innings document
  */
-export async function getInnings(matchId: string, inningId: 'teamA' | 'teamB'): Promise<InningsStats | null> {
+export async function getInnings(matchId: string, inningId: InningId): Promise<InningsStats | null> {
   try {
     const inningsRef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, inningId)
     const inningsDoc = await getDoc(inningsRef)
@@ -1128,7 +1171,7 @@ export async function getInnings(matchId: string, inningId: 'teamA' | 'teamB'): 
  */
 export function subscribeToInnings(
   matchId: string,
-  inningId: 'teamA' | 'teamB',
+  inningId: InningId,
   callback: (innings: InningsStats | null) => void
 ) {
   const inningsRef = doc(db, MATCHES_COLLECTION, matchId, INNINGS_SUBCOLLECTION, inningId)

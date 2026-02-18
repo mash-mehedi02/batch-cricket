@@ -51,12 +51,12 @@ export default function TournamentKeyStats({
   embedded?: boolean
   tournamentId?: string
   matches?: Match[]
-  inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>
+  inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>
 } = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
   const [tournament, setTournament] = useState<Tournament | null>(null)
-  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>>(new Map())
+  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
   const [playersById, setPlayersById] = useState<Map<string, any>>(new Map())
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -105,14 +105,16 @@ export default function TournamentKeyStats({
 
           const entries = await Promise.all(
             msProp.map(async (m) => {
-              const [a, b] = await Promise.all([
+              const [a, b, aso, bso] = await Promise.all([
                 matchService.getInnings(m.id, 'teamA'),
                 matchService.getInnings(m.id, 'teamB'),
+                matchService.getInnings(m.id, 'teamA_super').catch(() => null),
+                matchService.getInnings(m.id, 'teamB_super').catch(() => null),
               ])
-              return [m.id, { teamA: a, teamB: b }] as const
+              return [m.id, { teamA: a, teamB: b, aso, bso }] as const
             })
           )
-          const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
+          const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>()
           entries.forEach(([id, v]) => im.set(id, v))
           setInningsMap(im)
         }

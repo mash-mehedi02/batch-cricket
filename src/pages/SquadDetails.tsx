@@ -18,6 +18,7 @@ import { getMatchResultString } from '@/utils/matchWinner'
 import { formatShortTeamName } from '@/utils/teamName'
 import { schoolConfig } from '@/config/school'
 import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
+import { Trophy, Medal, ChevronRight } from 'lucide-react'
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
@@ -31,6 +32,8 @@ export default function SquadDetails() {
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [squadsMap, setSquadsMap] = useState<Record<string, Squad>>({})
   const [activeTab, setActiveTab] = useState<Tab>('squad')
+  const [achievements, setAchievements] = useState<Array<{ type: 'winner' | 'runner-up'; tournament: Tournament }>>([])
+  const [loadingAchievements, setLoadingAchievements] = useState(false)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
   const liveMatchRef = useRef<HTMLDivElement>(null)
 
@@ -60,7 +63,21 @@ export default function SquadDetails() {
           loadedPlayers = all.filter((p) => p.squadId === squadData.id)
         }
 
-        loadedPlayers.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        const roleOrder: Record<string, number> = {
+          'batsman': 1,
+          'batter': 1,
+          'all-rounder': 2,
+          'wicket-keeper': 3,
+          'bowler': 4,
+          'all-rounder (captain)': 2, // backup for some data formats
+        }
+
+        loadedPlayers.sort((a, b) => {
+          const rA = roleOrder[(a.role || '').toLowerCase()] || 99
+          const rB = roleOrder[(b.role || '').toLowerCase()] || 99
+          if (rA !== rB) return rA - rB
+          return (a.name || '').localeCompare(b.name || '')
+        })
         setPlayers(loadedPlayers)
 
         // End loading state here - page can now display!
@@ -108,6 +125,29 @@ export default function SquadDetails() {
               setSquadsMap(sMap)
             } catch (err) {
               console.error('Error loading squads map:', err)
+            }
+          })(),
+
+          // Achievements (Tournaments where squad won or was runner-up)
+          (async () => {
+            setLoadingAchievements(true)
+            try {
+              const allTournaments = await tournamentService.getAll()
+              const squadAchievements: Array<{ type: 'winner' | 'runner-up'; tournament: Tournament }> = []
+
+              allTournaments.forEach(t => {
+                if (t.winnerSquadId === squadId) {
+                  squadAchievements.push({ type: 'winner', tournament: t })
+                } else if (t.runnerUpSquadId === squadId) {
+                  squadAchievements.push({ type: 'runner-up', tournament: t })
+                }
+              })
+
+              setAchievements(squadAchievements.sort((a, b) => (b.tournament.year || 0) - (a.tournament.year || 0)))
+            } catch (err) {
+              console.error('Error loading achievements:', err)
+            } finally {
+              setLoadingAchievements(false)
             }
           })()
         ])
@@ -160,6 +200,8 @@ export default function SquadDetails() {
     const [match, setMatch] = useState<Match>(initialMatch)
     const [scoreA, setScoreA] = useState<InningsStats | null>(null)
     const [scoreB, setScoreB] = useState<InningsStats | null>(null)
+    const [scoreASO, setScoreASO] = useState<InningsStats | null>(null)
+    const [scoreBSO, setScoreBSO] = useState<InningsStats | null>(null)
 
     const status = String(match.status || '').toLowerCase()
     const isLive = status === 'live'
@@ -183,11 +225,15 @@ export default function SquadDetails() {
       const unsubB = matchService.subscribeToInnings(initialMatch.id, 'teamB', (data) => {
         if (data) setScoreB(data)
       })
+      const unsubASO = matchService.subscribeToInnings(initialMatch.id, 'teamA_super', (data) => {
+        if (data) setScoreASO(data)
+      })
+      const unsubBSO = matchService.subscribeToInnings(initialMatch.id, 'teamB_super', (data) => {
+        if (data) setScoreBSO(data)
+      })
 
       return () => {
-        unsubMatch()
-        unsubA()
-        unsubB()
+        unsubMatch(); unsubA(); unsubB(); unsubASO(); unsubBSO();
       }
     }, [initialMatch.id, isLive, isFin])
 
@@ -252,12 +298,19 @@ export default function SquadDetails() {
                       </div>
                     )}
                   </div>
-                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamAName)}</span>
+                  <span className="text-[18px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamAName)}</span>
                 </div>
                 {(isLive || isFin) && (
-                  <div className="flex flex-col items-end tabular-nums">
-                    <span className="text-[17px] font-black text-slate-900 leading-none">{sA.r}/{sA.w}</span>
-                    <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sA.o} Ov</span>
+                  <div className="flex flex-col items-end">
+                    <div className="flex flex-col items-end tabular-nums">
+                      <span className="text-[17px] font-black text-slate-900 leading-none">{sA.r}/{sA.w}</span>
+                      <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sA.o} Ov</span>
+                    </div>
+                    {scoreASO && (Number(scoreASO.totalRuns || 0) > 0 || Number(scoreASO.totalWickets || 0) > 0) && (
+                      <div className="text-[9px] font-black text-amber-600 bg-amber-50 px-1 rounded-sm border border-amber-100 -mt-0.5">
+                        S.O: {scoreASO.totalRuns}/{scoreASO.totalWickets}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -273,12 +326,19 @@ export default function SquadDetails() {
                       </div>
                     )}
                   </div>
-                  <span className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamBName)}</span>
+                  <span className="text-[18px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamBName)}</span>
                 </div>
                 {(isLive || isFin) ? (
-                  <div className="flex flex-col items-end tabular-nums">
-                    <span className="text-[17px] font-black text-slate-900 leading-none">{sB.r}/{sB.w}</span>
-                    <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sB.o} Ov</span>
+                  <div className="flex flex-col items-end">
+                    <div className="flex flex-col items-end tabular-nums">
+                      <span className="text-[17px] font-black text-slate-900 leading-none">{sB.r}/{sB.w}</span>
+                      <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sB.o} Ov</span>
+                    </div>
+                    {scoreBSO && (Number(scoreBSO.totalRuns || 0) > 0 || Number(scoreBSO.totalWickets || 0) > 0) && (
+                      <div className="text-[9px] font-black text-amber-600 bg-amber-50 px-1 rounded-sm border border-amber-100 -mt-0.5">
+                        S.O: {scoreBSO.totalRuns}/{scoreBSO.totalWickets}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100 uppercase tracking-tighter">Scheduled</span>
@@ -299,18 +359,16 @@ export default function SquadDetails() {
                 <div className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
                 <span className={`text-[11px] font-black uppercase tracking-wider ${isLive ? 'text-slate-700' : 'text-amber-500'}`}>
                   {isLive ? 'Match in progress' : (() => {
-                    // 1. Prefer explicit result summary if available
                     if (match.resultSummary) return match.resultSummary.toUpperCase();
-
-                    // 2. Exact match winner utility (Mirroring MatchLive)
                     const result = getMatchResultString(
                       match.teamAName,
                       match.teamBName,
                       scoreA,
                       scoreB,
-                      match
+                      match,
+                      scoreASO,
+                      scoreBSO
                     );
-
                     return result ? result.toUpperCase() : 'MATCH COMPLETED';
                   })()}
                 </span>
@@ -341,24 +399,24 @@ export default function SquadDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 pb-20">
+    <div className="min-h-screen bg-white dark:bg-[#050B18] text-slate-900 dark:text-white pb-20 transition-colors duration-300">
       <PageHeader title={squad.name} subtitle={`Batch ${squad.batch || squad.year}`} />
 
-      <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-100">
+      <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-100 dark:bg-slate-900">
         {squad.bannerUrl && !brokenImages[squad.bannerUrl] ? (
           <img src={squad.bannerUrl} onError={() => handleImgError(squad.bannerUrl || '')} alt={squad.name} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-slate-200 via-emerald-50 to-slate-100" />
+          <div className="w-full h-full bg-gradient-to-br from-slate-200 dark:from-slate-800 via-emerald-50 dark:via-emerald-900/10 to-slate-100 dark:to-slate-900" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-[#050B18] via-white/50 dark:via-[#050B18]/50 to-transparent" />
       </div>
 
       {/* Sticky Header Section */}
-      <div className="sticky top-[var(--status-bar-height)] z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
+      <div className="sticky top-[var(--status-bar-height)] z-40 bg-white/95 dark:bg-[#050B18]/95 backdrop-blur-md border-b border-slate-100 dark:border-white/5 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4 mb-3">
             {/* Compact Logo */}
-            <div className="w-12 h-12 bg-white rounded-2xl border-2 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0 relative">
+            <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl border-2 border-white dark:border-slate-800 shadow-lg overflow-hidden flex items-center justify-center shrink-0 relative">
               {squad.logoUrl && !brokenImages[squad.logoUrl] ? (
                 <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain p-1" />
               ) : (
@@ -370,11 +428,11 @@ export default function SquadDetails() {
 
             {/* Squad Info */}
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight leading-none mb-1 truncate">
+              <h1 className="text-lg md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1 truncate">
                 {squad.name}
               </h1>
               <div className="flex items-center gap-2">
-                <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
                   Batch {safeRender(squad.batch || squad.year)}
                 </span>
               </div>
@@ -382,12 +440,12 @@ export default function SquadDetails() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 p-1 bg-slate-50 border border-slate-200 rounded-xl w-fit">
+          <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl w-fit">
             {(['squad', 'matches', 'achievement'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}
               >
                 {tab}
               </button>
@@ -403,25 +461,25 @@ export default function SquadDetails() {
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3">
               {players.map(p => (
-                <Link key={p.id} to={`/players/${p.id}`} className="flex items-center gap-2 sm:gap-4 bg-slate-50/50 p-2 sm:p-3 rounded-2xl border border-slate-100 hover:bg-white hover:border-emerald-200 transition-all hover:shadow-md group relative">
+                <Link key={p.id} to={`/players/${p.id}`} className="flex items-center gap-2 sm:gap-4 bg-slate-50/50 dark:bg-slate-900/40 p-2 sm:p-3 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-white dark:hover:bg-slate-800 hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-all hover:shadow-md group relative">
                   <PlayerAvatar photoUrl={p.photoUrl || (p as any).photo} name={p.name} size="sm" className="shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-slate-900 group-hover:text-emerald-600 truncate text-[10px] sm:text-base">
+                      <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 truncate text-[10px] sm:text-base">
                         {p.name}
                       </span>
                       {squad.captainId === p.id && (
-                        <span className="bg-amber-100 text-amber-700 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
+                        <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
                           C
                         </span>
                       )}
                       {squad.wicketKeeperId === p.id && (
-                        <span className="bg-blue-100 text-blue-700 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
+                        <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
                           WK
                         </span>
                       )}
                     </div>
-                    <div className="text-[7px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{p.role}</div>
+                    <div className="text-[7px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{p.role}</div>
                   </div>
                 </Link>
               ))}
@@ -500,9 +558,83 @@ export default function SquadDetails() {
         )}
 
         {activeTab === 'achievement' && (
-          <div className="bg-slate-50 rounded-2xl p-8 text-center border border-slate-100 animate-in fade-in duration-500">
-            <div className="text-5xl mb-4">🏆</div>
-            <div className="font-bold text-slate-400 uppercase tracking-widest text-xs">Achievement History Coming Soon</div>
+          <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+            {loadingAchievements ? (
+              <div className="text-center py-20">
+                <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-amber-500 rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Polishing trophies...</p>
+              </div>
+            ) : achievements.length === 0 ? (
+              <div className="bg-slate-50 dark:bg-white/[0.03] rounded-3xl p-16 text-center border border-slate-100 dark:border-white/5 shadow-sm">
+                <div className="text-5xl mb-6 grayscale opacity-30">🏆</div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">The quest for glory...</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs mx-auto uppercase tracking-widest font-black text-[10px]">No historical achievements recorded for this squad yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {achievements.map((ach, idx) => (
+                  <Link
+                    key={ach.tournament.id + idx}
+                    to={`/tournaments/${ach.tournament.id}`}
+                    className={`relative overflow-hidden group p-6 rounded-[2rem] border transition-all duration-300 shadow-lg hover:shadow-2xl ${ach.type === 'winner'
+                      ? 'bg-gradient-to-br from-amber-500 to-amber-600 border-amber-400 text-white'
+                      : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/10 text-slate-900 dark:text-white'
+                      }`}
+                  >
+                    {/* Background Icon Decoration */}
+                    {ach.type === 'winner' ? (
+                      <Trophy size={100} className="absolute -bottom-6 -right-6 opacity-10 -rotate-12 group-hover:scale-110 transition-transform" />
+                    ) : (
+                      <Medal size={100} className="absolute -bottom-6 -right-6 opacity-[0.03] dark:opacity-[0.05] -rotate-12 group-hover:scale-110 transition-transform" />
+                    )}
+
+                    <div className="relative flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${ach.type === 'winner'
+                            ? 'bg-white/20 text-white'
+                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-500'
+                            }`}>
+                            {ach.tournament.year}
+                          </span>
+                          <span className={`${ach.type === 'winner' ? 'text-white/80' : 'text-slate-400'}`}>
+                            <Trophy size={14} className={ach.type === 'winner' ? 'fill-white' : 'fill-amber-500'} />
+                          </span>
+                        </div>
+
+                        <h3 className="text-xl font-black tracking-tight mb-1">{ach.tournament.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-1.5 h-1.5 rounded-full ${ach.type === 'winner' ? 'bg-white' : 'bg-amber-500'}`} />
+                          <p className={`text-[11px] font-black uppercase tracking-[0.2em] ${ach.type === 'winner' ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'}`}>
+                            {ach.type === 'winner' ? 'Tournament Champions' : 'Runners Up'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 w-16 h-16 bg-white rounded-2xl p-1 shadow-inner relative overflow-hidden group-hover:scale-110 transition-transform">
+                        <img
+                          src={ach.tournament.logoUrl || '/placeholder-tournament.png'}
+                          alt=""
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    </div>
+
+                    <div className={`mt-6 pt-4 border-t flex items-center justify-between ${ach.type === 'winner' ? 'border-white/20' : 'border-slate-100 dark:border-white/5'}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${ach.type === 'winner' ? 'text-white/70' : 'text-slate-400'}`}>
+                        Hall of Fame Member
+                      </span>
+                      <div className="flex items-center gap-1 group-hover:gap-2 transition-all">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${ach.type === 'winner' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          View Series
+                        </span>
+                        <ChevronRight size={14} className={ach.type === 'winner' ? 'text-white' : 'text-emerald-600'} />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

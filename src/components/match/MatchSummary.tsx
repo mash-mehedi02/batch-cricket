@@ -19,6 +19,8 @@ interface MatchSummaryProps {
     teamBName: string
     teamALogo?: string
     teamBLogo?: string
+    teamASuperInnings?: InningsStats | null
+    teamBSuperInnings?: InningsStats | null
 }
 
 const MatchSummary: React.FC<MatchSummaryProps> = ({
@@ -30,6 +32,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     teamBName,
     teamALogo,
     teamBLogo,
+    teamASuperInnings,
+    teamBSuperInnings,
 }) => {
     const { user } = useAuthStore()
     const [isEditingPom, setIsEditingPom] = useState(false)
@@ -61,8 +65,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     // --- Result Logic ---
     const resultText = useMemo(() => {
         if ((match as any).resultSummary) return (match as any).resultSummary
-        return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match)
-    }, [match, teamAInnings, teamBInnings, teamAName, teamBName])
+        return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match, teamASuperInnings, teamBSuperInnings)
+    }, [match, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, teamAName, teamBName])
 
     const winnerSide = useMemo(() => {
         const winnerId = (match as any).winnerId;

@@ -4,11 +4,11 @@
  */
 
 import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
   query, where, orderBy, onSnapshot, Timestamp
 } from 'firebase/firestore'
 import { db, auth } from '@/config/firebase'
-import { Match, Ball, InningsStats } from '@/types'
+import { Match, Ball, InningsStats, InningId } from '@/types'
 import { COLLECTIONS, SUBCOLLECTIONS } from './collections'
 
 const matchesRef = collection(db, COLLECTIONS.MATCHES)
@@ -234,7 +234,7 @@ export const matchService = {
   /**
    * Get innings data
    */
-  async getInnings(matchId: string, inningId: 'teamA' | 'teamB'): Promise<InningsStats | null> {
+  async getInnings(matchId: string, inningId: InningId): Promise<InningsStats | null> {
     try {
       const docRef = doc(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS, inningId)
       const docSnap = await getDoc(docRef)
@@ -251,7 +251,7 @@ export const matchService = {
    */
   subscribeToInnings(
     matchId: string,
-    inningId: 'teamA' | 'teamB',
+    inningId: InningId,
     callback: (innings: InningsStats | null) => void
   ): () => void {
     const docRef = doc(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS, inningId)
@@ -510,5 +510,56 @@ export const matchService = {
 
     await Promise.all(updatePromises)
   },
+
+  /**
+   * Initialize Super Over innings without deleting original data
+   */
+  async setupSuperOver(matchId: string, inningId: string): Promise<void> {
+    const inningsRef = doc(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS, inningId)
+    await setDoc(inningsRef, {
+      matchId,
+      inningId,
+      totalRuns: 0,
+      totalWickets: 0,
+      legalBalls: 0,
+      overs: "0.0",
+      batsmanStats: [],
+      bowlerStats: [],
+      fallOfWickets: [],
+      recentOvers: [],
+      partnership: { runs: 0, balls: 0, overs: "0.0" },
+      updatedAt: Timestamp.now()
+    }, { merge: true })
+  },
+
+  /**
+   * Reset innings and balls for match restart (CAUTION: Deletes balls)
+   */
+  async resetInnings(matchId: string): Promise<void> {
+    const inningsRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS)
+    const snapshot = await getDocs(inningsRef)
+
+    for (const inningDoc of snapshot.docs) {
+      const inningId = inningDoc.id as 'teamA' | 'teamB'
+      const ballsRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS, inningId, SUBCOLLECTIONS.BALLS)
+      const ballsSnapshot = await getDocs(ballsRef)
+      const deletePromises = ballsSnapshot.docs.map(d => deleteDoc(d.ref))
+      await Promise.all(deletePromises)
+
+      // Reset the innings document itself
+      await updateDoc(inningDoc.ref, {
+        totalRuns: 0,
+        totalWickets: 0,
+        legalBalls: 0,
+        overs: "0.0",
+        batsmanStats: [],
+        bowlerStats: [],
+        fallOfWickets: [],
+        recentOvers: [],
+        partnership: { runs: 0, balls: 0, overs: "0.0" },
+        updatedAt: Timestamp.now()
+      })
+    }
+  }
 }
 

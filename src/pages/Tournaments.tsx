@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { Tournament } from '@/types'
-import { Calendar, ChevronRight, Trophy, Filter, ArrowRight } from 'lucide-react'
+import { ChevronRight, Trophy } from 'lucide-react'
 import { format } from 'date-fns'
 import { bn as bnLocale } from 'date-fns/locale'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -15,7 +15,6 @@ import { useTranslation } from '@/hooks/useTranslation'
 export default function Tournaments() {
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'men' | 't20' | 'odi' | 'international'>('all')
   const { t, language } = useTranslation()
 
   useEffect(() => {
@@ -38,18 +37,8 @@ export default function Tournaments() {
     loadTournaments()
   }, [])
 
-  // Filter logic
-  const filteredTournaments = tournaments.filter(t => {
-    if (filter === 'all') return true
-    if (filter === 't20') return t.format === 'T20' || t.name.toLowerCase().includes('t20')
-    if (filter === 'odi') return t.format === 'ODI' || t.name.toLowerCase().includes('odi')
-    if (filter === 'men') return true // Assuming all are men's for now unless specific field exists
-    if (filter === 'international') return t.name.toLowerCase().includes('intl') || t.name.toLowerCase().includes('world')
-    return true
-  })
-
   // Group tournaments by "Month Year" (e.g., "January 2026")
-  const groupedTournaments = filteredTournaments.reduce((groups, tournament) => {
+  const groupedTournaments = tournaments.reduce((groups, tournament) => {
     const date = tournament.startDate ? new Date(tournament.startDate) : new Date()
     // Localize month name? Use date-fns here too for the key?
     // If I translate key, grouping might break if not careful, but key is just for display?
@@ -97,22 +86,6 @@ export default function Tournaments() {
             </Link>
             <h1 className="text-lg font-bold text-slate-900 dark:text-white">{t('nav_series')}</h1>
           </div>
-
-          {/* Filters - Horizontal Scroll */}
-          <div className="flex items-center gap-2 pb-3 overflow-x-auto no-scrollbar">
-            {['all', 'men', 't20', 'odi', 'international'].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f as any)}
-                className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all border ${filter === f
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                  }`}
-              >
-                {t(`filter_${f}` as any)}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -149,8 +122,8 @@ export default function Tournaments() {
                     >
                       {/* Series Logo */}
                       <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 p-2 flex-shrink-0 border border-slate-200 dark:border-slate-700">
-                        {tournament.logo ? (
-                          <img src={tournament.logo} alt={tournament.name} className="w-full h-full object-contain" />
+                        {tournament.logoUrl ? (
+                          <img src={tournament.logoUrl} alt={tournament.name} className="w-full h-full object-contain" />
                         ) : (
                           <Trophy className="w-full h-full text-slate-300 p-1" />
                         )}

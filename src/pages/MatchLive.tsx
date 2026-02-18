@@ -41,6 +41,8 @@ export default function MatchLive() {
   const [currentInnings, setCurrentInnings] = useState<InningsStats | null>(null)
   const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
   const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(null)
+  const [teamASuperInnings, setTeamASuperInnings] = useState<InningsStats | null>(null)
+  const [teamBSuperInnings, setTeamBSuperInnings] = useState<InningsStats | null>(null)
   const [balls, setBalls] = useState<Ball[]>([])
   const [playersMap, setPlayersMap] = useState<Map<string, any>>(new Map())
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
@@ -188,9 +190,19 @@ export default function MatchLive() {
       if (innings) setTeamBInnings(innings)
     })
 
+    const unsubASO = matchService.subscribeToInnings(matchId, 'teamA_super', (innings) => {
+      if (innings) setTeamASuperInnings(innings)
+    })
+
+    const unsubBSO = matchService.subscribeToInnings(matchId, 'teamB_super', (innings) => {
+      if (innings) setTeamBSuperInnings(innings)
+    })
+
     return () => {
       unsubA()
       unsubB()
+      unsubASO()
+      unsubBSO()
     }
   }, [matchId])
 
@@ -207,9 +219,13 @@ export default function MatchLive() {
   // Set current innings based on match status
   useEffect(() => {
     if (!match) return
-    const currentBatting = match.currentBatting || 'teamA'
-    setCurrentInnings(currentBatting === 'teamA' ? teamAInnings : teamBInnings)
-  }, [match, teamAInnings, teamBInnings])
+    const cb = match.currentBatting || 'teamA'
+    if (cb === 'teamA') setCurrentInnings(teamAInnings)
+    else if (cb === 'teamB') setCurrentInnings(teamBInnings)
+    else if (cb === 'teamA_super') setCurrentInnings(teamASuperInnings)
+    else if (cb === 'teamB_super') setCurrentInnings(teamBSuperInnings)
+    else setCurrentInnings(teamAInnings)
+  }, [match, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings])
 
   // Load balls for commentary
   useEffect(() => {
@@ -711,27 +727,47 @@ export default function MatchLive() {
 
   const resultSummary = useMemo(() => {
     if ((match as any)?.resultSummary) return (match as any).resultSummary
-    return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match || undefined)
-  }, [match, teamAInnings, teamBInnings, teamAName, teamBName])
+    return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match || undefined, teamASuperInnings, teamBSuperInnings)
+  }, [match, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, teamAName, teamBName])
 
   // Centralized Target & Chase Info for Win Probability
   const chaseInfo = useMemo(() => {
-    const isSecondInn = (match as any)?.matchPhase === 'SecondInnings' || (match as any)?.matchPhase === 'InningsBreak' || isFinishedMatch;
+    const isMainSecondInn = (match as any)?.matchPhase === 'SecondInnings' || (match as any)?.matchPhase === 'InningsBreak' || isFinishedMatch;
+    const isSO = (match as any)?.matchPhase === 'superover' || (match as any)?.isSuperOver;
+
+    // In Super Over, we are in "second innings" mode if the current innings is the second one chronologically
+    const isSOSecondInn = isSO && currentInnings?.inningId?.includes('super') && (
+      (firstSide === 'teamA' && currentInnings.inningId === 'teamA_super') ||
+      (firstSide === 'teamB' && currentInnings.inningId === 'teamB_super')
+    );
+    // Note: In Super Over, the order is reversed. If Team A batted first in main match, Team B bats first in SO.
+    // So if current is "teamA_super" and Team A was firstSide, then it IS the second SO innings.
+
+    const isSecondInn = isMainSecondInn || isSOSecondInn;
+
     let targetVal = Number((currentInnings as any)?.target || 0);
 
     if (!targetVal && isSecondInn) {
-      // Fallback: Check match master doc
-      const mTarget = Number((match as any)?.target || 0);
-      const mInn1 = Number((match as any)?.innings1Score || 0);
-      const mScore1 = Number((match as any)?.score?.[firstSide]?.runs || 0);
+      if (isSOSecondInn) {
+        // Target for SO second innings comes from SO first innings
+        const soFirstInn = firstSide === 'teamA' ? teamBSuperInnings : teamASuperInnings;
+        if (soFirstInn && Number(soFirstInn.totalRuns || 0) > 0) {
+          targetVal = Number(soFirstInn.totalRuns) + 1;
+        }
+      } else {
+        // Fallback: Check match master doc
+        const mTarget = Number((match as any)?.target || 0);
+        const mInn1 = Number((match as any)?.innings1Score || 0);
+        const mScore1 = Number((match as any)?.score?.[firstSide]?.runs || 0);
 
-      targetVal = mTarget || (mInn1 > 0 ? mInn1 + 1 : (mScore1 > 0 ? mScore1 + 1 : 0));
+        targetVal = mTarget || (mInn1 > 0 ? mInn1 + 1 : (mScore1 > 0 ? mScore1 + 1 : 0));
 
-      // Secondary Fallback: Check opponent innings runs directly from state
-      if (!targetVal) {
-        const firstInn = firstSide === 'teamA' ? teamAInnings : teamBInnings;
-        if (firstInn && Number(firstInn.totalRuns || 0) > 0) {
-          targetVal = Number(firstInn.totalRuns) + 1;
+        // Secondary Fallback: Check opponent innings runs directly from state
+        if (!targetVal) {
+          const firstInn = firstSide === 'teamA' ? teamAInnings : teamBInnings;
+          if (firstInn && Number(firstInn.totalRuns || 0) > 0) {
+            targetVal = Number(firstInn.totalRuns) + 1;
+          }
         }
       }
     }
@@ -740,7 +776,7 @@ export default function MatchLive() {
     const runsNeeded = targetVal > 0 ? Math.max(0, targetVal - runsDone) : null;
 
     return { target: targetVal || null, runsNeeded };
-  }, [match, currentInnings, teamAInnings, teamBInnings, firstSide, isFinishedMatch]);
+  }, [match, currentInnings, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, firstSide, isFinishedMatch]);
 
   // Commentary - lightweight feed used by CrexLiveSection
   useEffect(() => {
@@ -1560,6 +1596,8 @@ export default function MatchLive() {
             teamBName={teamBName}
             teamALogo={teamASquad?.logoUrl}
             teamBLogo={teamBSquad?.logoUrl}
+            teamASuperInnings={teamASuperInnings}
+            teamBSuperInnings={teamBSuperInnings}
           />
         )
       case 'points-table':

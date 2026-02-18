@@ -10,6 +10,7 @@ export const en = {
     nav_matches: 'Matches',
     nav_more: 'More',
     nav_rankings: 'Rankings',
+    nav_champions: 'Champions',
 
     // Menu
     menu_title: 'Menu',

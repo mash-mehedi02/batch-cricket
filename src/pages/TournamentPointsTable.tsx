@@ -56,7 +56,7 @@ export default function TournamentPointsTable({
   embedded?: boolean
   tournamentId?: string
   matches?: Match[]
-  inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>
+  inningsMap?: Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>
   highlightMatch?: Match
   filterSquadIds?: string[]
   hideQualification?: boolean
@@ -65,7 +65,7 @@ export default function TournamentPointsTable({
   const tournamentId = tournamentIdProp || params.tournamentId
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
-  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>>(new Map())
+  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
   const [squadIdByName, setSquadIdByName] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -114,14 +114,16 @@ export default function TournamentPointsTable({
         if (!inningsMapProp) {
           const entries = await Promise.all(
             ms.map(async (m) => {
-              const [a, b] = await Promise.all([
+              const [a, b, aso, bso] = await Promise.all([
                 matchService.getInnings(m.id, 'teamA').catch(() => null),
                 matchService.getInnings(m.id, 'teamB').catch(() => null),
+                matchService.getInnings(m.id, 'teamA_super').catch(() => null),
+                matchService.getInnings(m.id, 'teamB_super').catch(() => null),
               ])
-              return [m.id, { teamA: a, teamB: b }] as const
+              return [m.id, { teamA: a, teamB: b, aso, bso }] as const
             })
           )
-          const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
+          const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>()
           entries.forEach(([id, v]) => im.set(id, v))
           setInningsMap(im)
         }
@@ -175,6 +177,15 @@ export default function TournamentPointsTable({
           const bId = normalizeSquadRef(resolveSquadId(m, 'B'))
           if (!aId || !bId) return
 
+          const winnerId = m.winnerId || (m as any).winner;
+          let res: 'win' | 'loss' | 'tie' = 'tie';
+          if (winnerId) {
+            if (winnerId === aId) res = 'win';
+            else if (winnerId === bId) res = 'loss';
+          } else {
+            res = inn.teamA.totalRuns > inn.teamB.totalRuns ? 'win' : inn.teamA.totalRuns < inn.teamB.totalRuns ? 'loss' : 'tie';
+          }
+
           results.push({
             matchId: m.id,
             tournamentId: String(tournamentId || ''),
@@ -182,7 +193,7 @@ export default function TournamentPointsTable({
             teamB: bId,
             groupA: groupIdByTeam.get(aId) || '',
             groupB: groupIdByTeam.get(bId) || '',
-            result: inn.teamA.totalRuns > inn.teamB.totalRuns ? 'win' : inn.teamA.totalRuns < inn.teamB.totalRuns ? 'loss' : 'tie',
+            result: res,
             teamARunsFor: inn.teamA.totalRuns,
             teamABallsFaced: inn.teamA.legalBalls,
             teamARunsAgainst: inn.teamB.totalRuns,
@@ -261,9 +272,16 @@ export default function TournamentPointsTable({
         rB.runsFor += inn.teamB.totalRuns; rB.ballsFaced += inn.teamB.legalBalls;
         rB.runsAgainst += inn.teamA.totalRuns; rB.ballsBowled += inn.teamA.legalBalls;
 
-        if (inn.teamA.totalRuns > inn.teamB.totalRuns) { rA.won++; rA.points += WIN; rB.lost++; }
-        else if (inn.teamB.totalRuns > inn.teamA.totalRuns) { rB.won++; rB.points += WIN; rA.lost++; }
-        else { rA.tied++; rB.tied++; rA.points += TIE; rB.points += TIE; }
+        const winnerId = m.winnerId || (m as any).winner;
+        if (winnerId) {
+          if (winnerId === aId) { rA.won++; rA.points += WIN; rB.lost++; }
+          else if (winnerId === bId) { rB.won++; rB.points += WIN; rA.lost++; }
+          else { rA.tied++; rB.tied++; rA.points += TIE; rB.points += TIE; }
+        } else {
+          if (inn.teamA.totalRuns > inn.teamB.totalRuns) { rA.won++; rA.points += WIN; rB.lost++; }
+          else if (inn.teamB.totalRuns > inn.teamA.totalRuns) { rB.won++; rB.points += WIN; rA.lost++; }
+          else { rA.tied++; rB.tied++; rA.points += TIE; rB.points += TIE; }
+        }
       })
 
       rowsMap.forEach(r => {

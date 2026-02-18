@@ -39,6 +39,12 @@ export async function syncMatchToPlayerProfiles(matchId: string): Promise<void> 
             throw new Error('Match not found')
         }
 
+        const statusLower = String(match.status || '').toLowerCase()
+        if (statusLower !== 'finished' && statusLower !== 'completed') {
+            console.log(`[SyncPlayerStats] Match ${matchId} is ${match.status}, skipping sync.`)
+            return
+        }
+
         // 2. Fetch both innings
         const [teamAInnings, teamBInnings] = await Promise.all([
             matchService.getInnings(matchId, 'teamA').catch(() => null),
@@ -230,8 +236,8 @@ export async function syncAllMatchesForPlayer(playerId: string): Promise<void> {
         console.log(`[SyncPlayerStats] Found ${allMatches.size} matches total for player ${playerId}.`)
 
         // Process them one by one (upsert handles duplicates)
-        for (const [id, match] of allMatches) {
-            await syncMatchToPlayerProfiles(id, match)
+        for (const [id] of allMatches) {
+            await syncMatchToPlayerProfiles(id)
         }
 
         console.log(`[SyncPlayerStats] ✅ Global backfill complete for ${playerId}`)

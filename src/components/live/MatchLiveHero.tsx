@@ -58,12 +58,14 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const overs = String(inn?.overs || '0.0')
     const crr = typeof inn?.currentRunRate === 'number' ? inn.currentRunRate : Number(inn?.currentRunRate || 0)
 
-    const currentTeamName = match.currentBatting === 'teamB' ? teamBName : teamAName
-    const currentSquad = match.currentBatting === 'teamB' ? teamBSquad : teamASquad
-    const logoUrl = currentSquad?.logoUrl || (match as any)[match.currentBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
+    const isSuperOver = match.isSuperOver || String(match.currentBatting || '').includes('super')
+    const baseBatting = String(match.currentBatting || 'teamA').replace('_super', '').replace('_super2', '') as 'teamA' | 'teamB'
+    const currentTeamName = baseBatting === 'teamB' ? teamBName : teamAName
+    const currentSquad = baseBatting === 'teamB' ? teamBSquad : teamASquad
+    const logoUrl = currentSquad?.logoUrl || (match as any)[baseBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
 
     const currentTeamAbbr = formatShortTeamName(currentTeamName, currentSquad?.batch)
-    const opponentTeamAbbr = formatShortTeamName(match.currentBatting === 'teamA' ? teamBName : teamAName, match.currentBatting === 'teamA' ? teamBSquad?.batch : teamASquad?.batch)
+    const opponentTeamAbbr = formatShortTeamName(baseBatting === 'teamA' ? teamBName : teamAName, baseBatting === 'teamA' ? teamBSquad?.batch : teamASquad?.batch)
 
     // --- Toss Logic ---
     const m = match as any;
@@ -88,6 +90,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const tossText = tossWinnerName ? formatShortTeamName(tossWinnerName) : '';
 
     const isInningsBreak = match.status === 'InningsBreak';
+    const isTied = (match as any).matchPhase === 'Tied';
 
     // --- Advanced Scoring Logic (Target / RRR) ---
     const totalLegals = (() => {
@@ -126,7 +129,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const isPlayerEntering = !isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0
     let displayEvent = isFinishedMatch
         ? (resultSummary || t('match_completed').toUpperCase())
-        : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—'))
+        : (isTied ? "WAITING FOR SUPER OVER" : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—')))
 
     // Special Case: 2nd Innings Start (Player Entering)
     if (isPlayerEntering) {
@@ -218,84 +221,84 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         <div className="relative">
             <div className={`text-white overflow-hidden shadow-sm transition-all duration-300 ${scorecardAnimationClass}`}>
                 {/* 1. Main Score Header - 60/40 Split - Enlarged for better visibility */}
-                <div className="flex items-stretch min-h-[105px] md:min-h-[120px] border-b border-white/5">
+                <div className="flex items-stretch min-h-[110px] md:min-h-[130px] border-b border-white/5 bg-gradient-to-r from-transparent to-black/5">
                     {/* LEFT: Team Score (60%) */}
-                    <div className="w-[60%] p-3 sm:p-4 flex items-center gap-3 sm:gap-4 border-r border-white/10 relative">
-                        {/* Team Logo */}
+                    <div className="w-[62%] p-3 sm:p-5 flex items-center gap-4 sm:gap-6 border-r border-white/10 relative">
+                        {/* Team Logo with sophisticated shadow */}
                         {(() => {
                             const squadId = currentSquad?.id || (currentSquad as any)?.squadId;
                             const isValidSquadId = squadId && typeof squadId === 'string' && squadId !== 'undefined' && squadId !== 'null' && squadId.trim() !== '';
 
-                            if (isValidSquadId) {
-                                return (
-                                    <Link to={`/squads/${squadId}`} className="block shrink-0">
-                                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a2333] border border-white/5 flex items-center justify-center shadow-lg overflow-hidden hover:scale-105 transition-transform relative">
-                                            {logoUrl ? (
-                                                <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl font-black uppercase">
-                                                    {currentTeamName.charAt(0)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </Link>
-                                );
-                            }
-
-                            return (
-                                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a2333] border border-white/5 flex items-center justify-center shadow-lg shrink-0 overflow-hidden relative">
+                            const LogoContent = (
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a2333] border border-white/10 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(0,0,0,0.5)] overflow-hidden hover:scale-105 transition-all duration-500 relative ring-4 ring-white/5">
                                     {logoUrl ? (
-                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1" alt="" />
+                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1.5" alt="" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl font-black uppercase">
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl font-black uppercase">
                                             {currentTeamName.charAt(0)}
                                         </div>
                                     )}
                                 </div>
                             );
+
+                            return isValidSquadId ? (
+                                <Link to={`/squads/${squadId}`} className="block shrink-0">{LogoContent}</Link>
+                            ) : (
+                                <div className="shrink-0">{LogoContent}</div>
+                            );
                         })()}
 
-                        <div className="min-w-0 flex flex-col justify-center">
-                            <div className="text-[13px] sm:text-[14px] font-semibold text-slate-200 uppercase tracking-wide truncate mb-1">
-                                {currentTeamAbbr}
+                        <div className="min-w-0 flex flex-col justify-center gap-1">
+                            <div className="flex items-center gap-2.5">
+                                <div className="text-[14px] sm:text-[16px] font-black text-white/90 uppercase tracking-tighter leading-none">
+                                    {currentTeamAbbr}
+                                </div>
+                                {isSuperOver && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                                        <div className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+                                        <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Super Over</span>
+                                    </div>
+                                )}
                             </div>
-                            <div className="flex items-baseline gap-2">
-                                <span className={`text-5xl sm:text-6xl font-medium tabular-nums tracking-tighter leading-none transition-colors duration-300 ${textGlowClass}`}>
+                            <div className="flex items-baseline gap-2.5">
+                                <span className={`text-5xl sm:text-7xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass}`}>
                                     {runs}-{wkts}
                                 </span>
-                                <span className="text-base sm:text-lg font-medium text-slate-500 tabular-nums">
-                                    {(isChasing && wkts >= 10) || isFinishedMatch ? 'FINAL' : `${overs}/${match.oversLimit || 20}`}
+                                <span className="text-base sm:text-xl font-black text-slate-500/80 tabular-nums uppercase">
+                                    {(isChasing && wkts >= 10) || isFinishedMatch ? 'Final' : `${overs}`}
                                 </span>
                             </div>
                         </div>
                     </div>
 
                     {/* RIGHT: Event Badge (40%) */}
-                    <div className="w-[40%] p-2 flex items-center justify-center bg-black/10 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-50" />
+                    <div className="w-[38%] p-3 flex items-center justify-center bg-black/20 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none" />
 
                         {showBoundaryAnim && isFour ? (
-                            <div className="flex flex-col items-center animate-bounce z-10 w-full justify-center">
-                                <img src={fourIcon} className="h-20 w-auto object-contain drop-shadow-xl" alt="4" />
+                            <div className="flex flex-col items-center animate-in zoom-in duration-300 z-10 w-full justify-center">
+                                <img src={fourIcon} className="h-24 w-auto object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]" alt="4" />
                             </div>
                         ) : showBoundaryAnim && isSix ? (
-                            <div className="flex flex-col items-center animate-bounce z-10 w-full justify-center">
-                                <img src={sixIcon} className="h-20 w-auto object-contain drop-shadow-xl" alt="6" />
+                            <div className="flex flex-col items-center animate-in zoom-in duration-300 z-10 w-full justify-center">
+                                <img src={sixIcon} className="h-24 w-auto object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]" alt="6" />
                             </div>
                         ) : (
                             <div className={`relative z-10 text-center flex items-center justify-center w-full px-2 ${eventColorClass}`}>
-                                <div className="flex flex-col items-center justify-center">
-                                    <span className={`font-black tracking-tight transition-all duration-300 scale-100 uppercase
+                                <div className="flex flex-col items-center justify-center gap-1.5">
+                                    <span className={`font-black tracking-tighter transition-all duration-500 scale-100 uppercase drop-shadow-md
                                         ${isFinishedMatch || !isRun
-                                            ? (resultMain.length > 15 ? 'text-[16px] sm:text-[19px] leading-[1.1]' : 'text-xl sm:text-2xl leading-none')
-                                            : 'text-5xl sm:text-7xl leading-none'
+                                            ? (resultMain.length > 15 ? 'text-[18px] sm:text-[22px] font-black leading-[1.05]' : 'text-2xl sm:text-3xl font-black leading-none')
+                                            : 'text-6xl sm:text-8xl leading-none'
                                         }`}>
                                         {resultMain === '—' ? '' : resultMain}
                                     </span>
                                     {resultSub && (
-                                        <span className="text-[11px] sm:text-[13px] font-bold text-amber-500/90 uppercase tracking-[0.1em] mt-1.5 leading-none">
-                                            {resultSub}
-                                        </span>
+                                        <div className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+                                            <span className="text-[10px] sm:text-[12px] font-black text-amber-500 uppercase tracking-widest whitespace-nowrap">
+                                                {resultSub}
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
                             </div>

@@ -82,6 +82,12 @@ export interface Tournament {
   // Winner info
   winnerSquadId?: string
   winnerSquadName?: string
+  runnerUpSquadId?: string
+  runnerUpSquadName?: string
+  playerOfTheTournament?: string // Player name or ID
+  topRunScorer?: string // Player name or ID
+  topWicketTaker?: string // Player name or ID
+
   createdAt: Timestamp
   updatedAt: Timestamp
   createdBy: string
@@ -258,7 +264,7 @@ export interface Match {
   teamBCaptainId?: string
   teamBKeeperId?: string
   // Current state
-  currentBatting?: 'teamA' | 'teamB'
+  currentBatting?: string // 'teamA' | 'teamB' | 'teamA_super' | 'teamB_super' etc.
   currentStrikerId?: string
   currentNonStrikerId?: string
   currentBowlerId?: string
@@ -270,7 +276,15 @@ export interface Match {
   adminId?: string
   resultSummary?: string
   winnerId?: string
+  playerOfTheMatch?: string // Player ID
+  isSuperOver?: boolean
+  superOverCount?: number
+  mainMatchScore?: {
+    teamA?: { runs: number; wickets: number; overs: string }
+    teamB?: { runs: number; wickets: number; overs: string }
+  }
   score?: {
+    [key: string]: { runs: number; wickets: number; overs: string } | undefined
     teamA?: { runs: number; wickets: number; overs: string }
     teamB?: { runs: number; wickets: number; overs: string }
   }
@@ -407,9 +421,11 @@ export interface Partnership {
   wicketNo?: number
 }
 
+export type InningId = 'teamA' | 'teamB' | 'teamA_super' | 'teamB_super' | 'teamA_super2' | 'teamB_super2'
+
 export interface InningsStats {
   matchId: string
-  inningId: 'teamA' | 'teamB'
+  inningId: InningId
   totalRuns: number
   totalWickets: number
   legalBalls: number

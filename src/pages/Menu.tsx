@@ -145,6 +145,20 @@ export default function MenuPage() {
                         <ChevronRight size={18} className="text-slate-400" />
                     </Link>
 
+                    {/* Champions */}
+                    <Link
+                        to="/champions"
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 flex items-center justify-center text-yellow-500">
+                                <Trophy size={22} className="fill-yellow-500/20" />
+                            </div>
+                            <span className="font-semibold text-[15px]">{t('nav_champions')}</span>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-400" />
+                    </Link>
+
                     {/* Squads */}
                     <Link
                         to="/squads"

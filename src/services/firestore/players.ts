@@ -3,7 +3,7 @@
  * Firestore operations for players
  */
 
-import { collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc, query, where, orderBy, Timestamp, onSnapshot } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, addDoc, updateDoc, setDoc, deleteDoc, query, where, Timestamp, onSnapshot } from 'firebase/firestore'
 import { db, auth } from '@/config/firebase'
 import { Player } from '@/types'
 import { COLLECTIONS } from './collections'
@@ -78,30 +78,18 @@ export const playerService = {
    */
   async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Player[]> {
     try {
-      let snapshot;
+      let q;
       if (isSuperAdmin) {
-        snapshot = await getDocs(query(playersRef, orderBy('name')))
+        q = query(playersRef)
       } else {
-        const q = query(playersRef, where('adminId', '==', adminId), orderBy('name'))
-        snapshot = await getDocs(q)
+        q = query(playersRef, where('adminId', '==', adminId))
       }
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+      const snapshot = await getDocs(q)
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+      return list.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
     } catch (error) {
-      console.warn('[playerService] getByAdmin: orderBy failed, fetching and sorting manually')
-      try {
-        let q;
-        if (isSuperAdmin) {
-          q = query(playersRef)
-        } else {
-          q = query(playersRef, where('adminId', '==', adminId))
-        }
-        const snapshot = await getDocs(q)
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
-          .sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
-      } catch (fallbackError) {
-        console.error('Error loading players by admin:', fallbackError)
-        return []
-      }
+      console.error('Error loading players by admin:', error)
+      return []
     }
   },
 
@@ -110,8 +98,9 @@ export const playerService = {
    */
   async getAll(): Promise<Player[]> {
     try {
-      const snapshot = await getDocs(query(playersRef, orderBy('name')))
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+      const snapshot = await getDocs(playersRef)
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+      return list.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
     } catch (error) {
       console.error('Error loading players:', error)
       return []
@@ -123,33 +112,11 @@ export const playerService = {
    */
   async getBySquad(squadId: string): Promise<Player[]> {
     try {
-      const q = query(playersRef, where('squadId', '==', squadId), orderBy('name'))
+      const q = query(playersRef, where('squadId', '==', squadId))
       const snapshot = await getDocs(q)
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player))
+      return list.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
     } catch (error: any) {
-      // If composite index doesn't exist, query without orderBy and sort in memory
-      const isIndexError =
-        error?.code === 'failed-precondition' ||
-        (typeof error?.message === 'string' && (
-          error.message.includes('requires an index') ||
-          error.message.includes('The query requires an index') ||
-          error.message.includes('index')
-        ))
-
-      if (isIndexError) {
-        console.warn('[playerService] Composite index not available for getBySquad; falling back without orderBy')
-        try {
-          const q = query(playersRef, where('squadId', '==', squadId))
-          const snapshot = await getDocs(q)
-          return snapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as Player))
-            .sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()))
-        } catch (fallbackError) {
-          console.error('[playerService] Fallback query failed:', fallbackError)
-          return []
-        }
-      }
-
       console.error('[playerService] Error querying players by squad:', error)
       return []
     }

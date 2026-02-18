@@ -47,6 +47,8 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
   const [matchData, setMatchData] = useState<Match | null>(null)
   const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
   const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(null)
+  const [teamASuperInnings, setTeamASuperInnings] = useState<InningsStats | null>(null)
+  const [teamBSuperInnings, setTeamBSuperInnings] = useState<InningsStats | null>(null)
   const [playersMap, setPlayersMap] = useState<Map<string, any>>(new Map())
   const [selectedInning, setSelectedInning] = useState<string>('teamA-1')
   const [loading, setLoading] = useState(true)
@@ -90,26 +92,19 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
     // Load initial data first - Important for first render
     const loadInitialInnings = async () => {
       try {
-        const [inningsA, inningsB] = await Promise.all([
-          matchService.getInnings(matchId, 'teamA').catch((err) => {
-            console.warn('[MatchScorecard] ⚠️ Team A innings not found:', err)
-            return null
-          }),
-          matchService.getInnings(matchId, 'teamB').catch((err) => {
-            console.warn('[MatchScorecard] ⚠️ Team B innings not found:', err)
-            return null
-          }),
+        const [inningsA, inningsB, inningsASO, inningsBSO] = await Promise.all([
+          matchService.getInnings(matchId, 'teamA').catch(() => null),
+          matchService.getInnings(matchId, 'teamB').catch(() => null),
+          matchService.getInnings(matchId, 'teamA_super').catch(() => null),
+          matchService.getInnings(matchId, 'teamB_super').catch(() => null),
         ])
 
-        if (inningsA) {
-          setTeamAInnings(inningsA)
-        }
-
-        if (inningsB) {
-          setTeamBInnings(inningsB)
-        }
-      } catch (error) {
-        console.error('[MatchScorecard] ❌ Error loading initial innings:', error)
+        if (inningsA) setTeamAInnings(inningsA)
+        if (inningsB) setTeamBInnings(inningsB)
+        if (inningsASO) setTeamASuperInnings(inningsASO)
+        if (inningsBSO) setTeamBSuperInnings(inningsBSO)
+      } catch (err) {
+        console.warn('[MatchScorecard] Initial load failed:', err)
       }
     }
 
@@ -117,20 +112,26 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
 
     // Subscribe to real-time updates
     const unsubA = matchService.subscribeToInnings(matchId, 'teamA', (innings) => {
-      if (innings) {
-        setTeamAInnings(innings)
-      }
+      if (innings) setTeamAInnings(innings)
     })
 
     const unsubB = matchService.subscribeToInnings(matchId, 'teamB', (innings) => {
-      if (innings) {
-        setTeamBInnings(innings)
-      }
+      if (innings) setTeamBInnings(innings)
+    })
+
+    const unsubASuper = matchService.subscribeToInnings(matchId, 'teamA_super', (innings) => {
+      if (innings) setTeamASuperInnings(innings)
+    })
+
+    const unsubBSuper = matchService.subscribeToInnings(matchId, 'teamB_super', (innings) => {
+      if (innings) setTeamBSuperInnings(innings)
     })
 
     return () => {
       unsubA()
       unsubB()
+      unsubASuper()
+      unsubBSuper()
     }
   }, [matchId])
 
@@ -171,7 +172,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
   const inningsTabs = useMemo(() => {
     if (!matchData) return []
 
-    const tabs: Array<{ id: string; label: string; inningId: 'teamA' | 'teamB'; inningNumber: 1 | 2 }> = []
+    const tabs: Array<{ id: string; label: string; inningId: string; inningNumber: number }> = []
 
     const resolveSideFromValue = (v: any): 'teamA' | 'teamB' | null => {
       if (v === 'teamA' || v === 'teamB') return v
@@ -218,13 +219,23 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
     const second: 'teamA' | 'teamB' = first === 'teamA' ? 'teamB' : 'teamA'
 
     const nameFor = (side: 'teamA' | 'teamB') => (side === 'teamA' ? teamAName : teamBName)
+    const shortNameFor = (side: 'teamA' | 'teamB') => formatShortTeamName(nameFor(side))
 
     // Always show BOTH pills/tabs (fixed order): 1st innings on left, 2nd innings on right.
-    tabs.push({ id: `${first}-1`, label: `${nameFor(first)} 1st Inn`, inningId: first, inningNumber: 1 })
-    tabs.push({ id: `${second}-2`, label: `${nameFor(second)} 2nd Inn`, inningId: second, inningNumber: 2 })
+    tabs.push({ id: `${first}-1`, label: `${shortNameFor(first)}`, inningId: first, inningNumber: 1 })
+    tabs.push({ id: `${second}-2`, label: `${shortNameFor(second)}`, inningId: second, inningNumber: 2 })
+
+    // Add Super Over tabs if match has super over data
+    if (matchData.isSuperOver || hasStarted(teamASuperInnings) || hasStarted(teamBSuperInnings)) {
+      // In Super Over, team that batted second bats first
+      const soFirst = second  // team batting second in main match bats first in SO
+      const soSecond = first
+      tabs.push({ id: `${soFirst}_super`, label: `${shortNameFor(soFirst)} SO`, inningId: `${soFirst}_super`, inningNumber: 3 })
+      tabs.push({ id: `${soSecond}_super`, label: `${shortNameFor(soSecond)} SO`, inningId: `${soSecond}_super`, inningNumber: 4 })
+    }
 
     return tabs
-  }, [matchData, teamAInnings, teamBInnings, teamAName, teamBName])
+  }, [matchData, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, teamAName, teamBName])
 
   // Ensure selectedInning always points to an existing tab (important when first-innings side isn't teamA)
   useEffect(() => {
@@ -235,81 +246,57 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
   }, [inningsTabs, selectedInning])
 
   const currentTab = inningsTabs.find(t => t.id === selectedInning) || inningsTabs[0]
-  const currentInningsDataRaw = currentTab?.inningId === 'teamA' ? teamAInnings : teamBInnings
+
+  const currentInningsDataRaw = useMemo(() => {
+    if (!currentTab) return null
+    const iid = currentTab.inningId
+    if (iid === 'teamA') return teamAInnings
+    if (iid === 'teamB') return teamBInnings
+    if (iid === 'teamA_super') return teamASuperInnings
+    if (iid === 'teamB_super') return teamBSuperInnings
+    return null
+  }, [currentTab, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings])
 
   // Fallback: Build batsmanStats from playingXI if innings data exists but batsmanStats is empty
   const currentInningsData = useMemo(() => {
     if (!matchData || !currentTab) return currentInningsDataRaw
 
-    // If user clicks 2nd innings before it starts, show an empty "yet to bat" innings card instead of blank page.
-    if (!currentInningsDataRaw) {
-      const playingXI = currentTab.inningId === 'teamA' ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || [])
+    const isSuper = currentTab.inningId.includes('super')
+    const isTeamA = currentTab.inningId.startsWith('teamA')
+    const mainTotal = !isSuper ? (isTeamA ? matchData.mainMatchScore?.teamA : matchData.mainMatchScore?.teamB) : null
+
+    // Case 1: Active Inning with real ball-by-ball data
+    if (currentInningsDataRaw && (currentInningsDataRaw.totalRuns > 0 || currentInningsDataRaw.legalBalls > 0)) {
+      // If our summary has MORE runs than detail (sync delay), update summary fields but keep stats
+      if (mainTotal && mainTotal.runs > currentInningsDataRaw.totalRuns) {
+        return {
+          ...currentInningsDataRaw,
+          totalRuns: mainTotal.runs,
+          totalWickets: mainTotal.wickets,
+          overs: mainTotal.overs,
+        }
+      }
+      return currentInningsDataRaw
+    }
+
+    // Case 2: Inning has not "truly" started but we have summary data (for main match tabs during SO)
+    if (!isSuper && mainTotal && (mainTotal.runs > 0 || mainTotal.wickets > 0)) {
       return {
         matchId: matchData.id,
         inningId: currentTab.inningId,
-        totalRuns: 0,
-        totalWickets: 0,
+        totalRuns: mainTotal.runs,
+        totalWickets: mainTotal.wickets,
+        overs: mainTotal.overs,
         legalBalls: 0,
-        overs: '0.0',
-        ballsInCurrentOver: 0,
-        currentRunRate: 0,
-        requiredRunRate: null,
-        remainingBalls: (matchData.oversLimit || 20) * 6,
-        target: null,
-        projectedTotal: 0,
-        lastBallSummary: null,
-        partnership: { runs: 0, balls: 0, overs: '0.0' },
-        extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-        fallOfWickets: [],
-        batsmanStats: [], // keep empty so "Did Not Bat" becomes all XI
-        bowlerStats: [],
+        batsmanStats: currentInningsDataRaw?.batsmanStats || [],
+        bowlerStats: currentInningsDataRaw?.bowlerStats || [],
+        fallOfWickets: currentInningsDataRaw?.fallOfWickets || [],
+        partnership: currentInningsDataRaw?.partnership || { runs: 0, balls: 0, overs: '0.0' },
+        extras: currentInningsDataRaw?.extras || { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
         recentOvers: [],
-        currentOverBalls: [],
-        currentStrikerId: '',
-        nonStrikerId: '',
-        currentBowlerId: '',
-        lastUpdated: (matchData as any)?.updatedAt || (matchData as any)?.createdAt,
-        updatedAt: new Date().toISOString(),
-        _isPlaceholder: true,
-        _playingXI: playingXI,
+        _isSummaryOnly: !(currentInningsDataRaw?.batsmanStats?.length > 0),
+        _playingXI: isTeamA ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || [])
       } as any
-    }
-
-    // If we have innings data but no batsmanStats, try to build from playingXI
-    if (currentInningsDataRaw && (!currentInningsDataRaw.batsmanStats || currentInningsDataRaw.batsmanStats.length === 0)) {
-      const playingXI = currentTab?.inningId === 'teamA'
-        ? (matchData.teamAPlayingXI || [])
-        : (matchData.teamBPlayingXI || [])
-
-      if (playingXI && playingXI.length > 0 && playersMap.size > 0) {
-        // Build batsmanStats from playingXI
-        const fallbackBatsmanStats = playingXI
-          .map((playerIdOrObj: any) => {
-            const playerId = typeof playerIdOrObj === 'string' ? playerIdOrObj : (playerIdOrObj.playerId || playerIdOrObj.id)
-            const player = playersMap.get(playerId)
-            if (!player) return null
-
-            return {
-              batsmanId: playerId,
-              batsmanName: player.name || 'Player',
-              runs: 0,
-              balls: 0,
-              fours: 0,
-              sixes: 0,
-              strikeRate: 0,
-              notOut: true,
-            }
-          })
-          .filter(Boolean)
-
-        if (fallbackBatsmanStats.length > 0) {
-          console.log('[MatchScorecard] 🔄 Using fallback batsmanStats from playingXI:', fallbackBatsmanStats.length)
-          return {
-            ...currentInningsDataRaw,
-            batsmanStats: fallbackBatsmanStats,
-          }
-        }
-      }
     }
 
     return currentInningsDataRaw
@@ -360,32 +347,78 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* 2. Top Innings Tab Switcher */}
-        <div className="flex gap-4">
-          {inningsTabs.slice(0, 2).map((tab) => {
-            const side = tab.inningId;
-            const inn = side === 'teamA' ? teamAInnings : teamBInnings;
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide px-0.5">
+          {inningsTabs.map((tab) => {
+            const isSuperTab = tab.inningId.includes('super');
+            const baseSide = tab.inningId.replace('_super', '').replace('_super2', '') as 'teamA' | 'teamB';
+            const inn = isSuperTab
+              ? (tab.inningId === 'teamA_super' ? teamASuperInnings : teamBSuperInnings)
+              : (baseSide === 'teamA' ? teamAInnings : teamBInnings);
+
+            // Logic to pick best available score
+            const mainTotal = !isSuperTab ? (baseSide === 'teamA' ? matchData?.mainMatchScore?.teamA : matchData?.mainMatchScore?.teamB) : null;
+
+            let displayRuns = inn?.totalRuns || 0;
+            let displayWickets = inn?.totalWickets || 0;
+            let displayOvers = formatOversDisplay(inn?.legalBalls || 0);
+
+            // If detail is 0 but summary has data, use summary
+            if (!isSuperTab && mainTotal && mainTotal.runs > displayRuns) {
+              displayRuns = mainTotal.runs;
+              displayWickets = mainTotal.wickets;
+              displayOvers = mainTotal.overs;
+            }
+
             const isActive = selectedInning === tab.id;
-            const name = side === 'teamA' ? teamAName : teamBName;
-            const shortName = formatShortTeamName(name);
-            const overs = formatOversDisplay(inn?.legalBalls || 0);
+            const hasData = displayRuns > 0 || displayWickets > 0 || (inn && inn.legalBalls > 0);
 
             return (
               <button
                 key={tab.id}
                 onClick={() => setSelectedInning(tab.id)}
-                className={`flex-1 py-3.5 px-6 rounded-xl transition-all duration-300 flex items-center justify-center font-bold text-[15px] shadow-sm
+                className={`flex-none min-w-[140px] px-3.5 py-2.5 rounded-2xl transition-all duration-500 border relative group overflow-hidden
                   ${isActive
-                    ? 'bg-[#004e96] text-white'
-                    : 'bg-white text-slate-500 border border-slate-100'
+                    ? (isSuperTab
+                      ? 'bg-amber-500 border-amber-400 shadow-[0_4px_12px_rgba(245,158,11,0.25)]'
+                      : 'bg-[#004e96] border-blue-400/30 shadow-[0_4px_12px_rgba(0,78,150,0.25)]')
+                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5 hover:border-slate-200 dark:hover:border-white/10'
                   }`}
               >
-                <span>{shortName}</span>
-                {!isActive && inn?.totalRuns !== undefined && (
-                  <span className="ml-2 font-medium">
-                    {inn.totalRuns}-{inn.totalWickets || 0}
-                    <span className="ml-1 text-[12px] opacity-60">({overs})</span>
-                  </span>
+                {/* Active Highlight Overlay */}
+                {isActive && (
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
                 )}
+
+                <div className="flex flex-col items-start gap-0.5 relative z-10">
+                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors
+                    ${isActive ? 'text-white/70' : 'text-slate-400'}
+                  `}>
+                    {tab.label}
+                  </span>
+
+                  <div className="flex items-baseline gap-1.5">
+                    {hasData ? (
+                      <>
+                        <span className={`text-[16px] font-black tabular-nums tracking-tighter
+                          ${isActive ? 'text-white' : 'text-slate-900 dark:text-white'}
+                        `}>
+                          {displayRuns}-{displayWickets}
+                        </span>
+                        <span className={`text-[11px] font-bold tabular-nums
+                          ${isActive ? 'text-white/60' : 'text-slate-400'}
+                        `}>
+                          ({displayOvers})
+                        </span>
+                      </>
+                    ) : (
+                      <span className={`text-[14px] font-bold italic
+                        ${isSuperTab && isActive ? 'text-white/90' : 'text-slate-300'}
+                      `}>
+                        {isSuperTab ? 'Waiting...' : 'Starting Soon'}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </button>
             );
           })}
@@ -394,6 +427,19 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
         {/* 3. Main Body Sections */}
         {currentInningsData ? (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
+            {currentInningsData._isSummaryOnly && (
+              <div className="bg-blue-50/50 px-6 py-8 text-center border-b border-blue-100">
+                <div className="text-[24px] font-black text-slate-900 mb-1">
+                  {currentInningsData.totalRuns}-{currentInningsData.totalWickets}
+                </div>
+                <div className="text-[12px] font-bold text-slate-500 uppercase tracking-widest">
+                  Overs: {currentInningsData.overs}
+                </div>
+                <div className="mt-4 text-[11px] font-medium text-blue-600 bg-blue-100/50 py-1 px-3 rounded-full inline-block">
+                  Main Match Score Summary
+                </div>
+              </div>
+            )}
 
             {/* BATTING SECTION */}
             <div className="pb-4">
@@ -425,8 +471,8 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                             className={`text-[13px] font-bold leading-none block truncate ${isActive ? 'text-[#004e96]' : 'text-slate-800'}`}
                           >
                             {formatPlayerScorecardName(b.batsmanName)}
-                            {b.batsmanId === (currentTab?.inningId === 'teamA' ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
-                            {b.batsmanId === (currentTab?.inningId === 'teamA' ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
+                            {b.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
+                            {b.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
                             {isStriker && isActive && '*'}
                           </PlayerLink>
                           <div className="text-[10px] mt-1.5 font-medium text-slate-400 leading-tight truncate">
@@ -469,7 +515,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
               <div className="grid grid-cols-2 gap-y-10 gap-x-12">
                 {(() => {
                   const battedPlayerIds = new Set(currentInningsData.batsmanStats?.map((b: any) => b.batsmanId));
-                  const playingXI = currentTab?.inningId === 'teamA' ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || []);
+                  const playingXI = currentTab?.inningId.startsWith('teamA') ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || []);
                   const yetToBat = playingXI.filter((item: any) => {
                     const id = typeof item === 'string' ? item : (item as any).playerId || (item as any).id;
                     return id && !battedPlayerIds.has(id);
@@ -486,8 +532,8 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                         <div className="min-w-0">
                           <PlayerLink playerId={pid} playerName={p?.name || 'Player'} className={`text-[14px] font-bold text-slate-800 block group-hover:text-[#004e96]`}>
                             {formatPlayerScorecardName(p?.name || 'Player')}
-                            {pid === (currentTab?.inningId === 'teamA' ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
-                            {pid === (currentTab?.inningId === 'teamA' ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
+                            {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
+                            {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
                           </PlayerLink>
                           <div className="text-[12px] font-medium text-slate-400 mt-1">
                             SR: {(() => {
@@ -569,7 +615,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                       <div className="w-1/2 min-w-0 pr-4">
                         <div className="text-[14px] font-bold text-slate-800 truncate">
                           {fw.batsmanName || 'Player'}
-                          {fw.batsmanId === (currentTab?.inningId === 'teamA' ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
+                          {fw.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
                         </div>
                       </div>
 

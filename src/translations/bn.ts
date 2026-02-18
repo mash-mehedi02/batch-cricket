@@ -10,6 +10,7 @@ export const bn = {
     nav_matches: 'ম্যাচ',
     nav_more: 'আরো',
     nav_rankings: 'র‍্যাঙ্কিং',
+    nav_champions: 'চ্যাম্পিয়নস',
 
     // Menu
     menu_title: 'মেনু',

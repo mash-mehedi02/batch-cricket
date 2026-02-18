@@ -45,6 +45,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
         return null
     })
 
+    const [teamASuperInnings, setTeamASuperInnings] = useState<InningsStats | null>(null)
+    const [teamBSuperInnings, setTeamBSuperInnings] = useState<InningsStats | null>(null)
+
     const [timeLeft, setTimeLeft] = useState<string>('')
 
     const statusLower = String(match.status || '').toLowerCase().trim()
@@ -55,24 +58,21 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
     useEffect(() => {
         // OPTIMIZATION: Only subscribe to live matches. 
-        // Finished matches shouldn't change, so we rely on the match.score data.
         if (isLive) {
-            const unsubA = matchService.subscribeToInnings(match.id, 'teamA', (data) => {
-                setTeamAInnings(data)
-            })
-            const unsubB = matchService.subscribeToInnings(match.id, 'teamB', (data) => {
-                setTeamBInnings(data)
-            })
+            const unsubA = matchService.subscribeToInnings(match.id, 'teamA', (data) => setTeamAInnings(data))
+            const unsubB = matchService.subscribeToInnings(match.id, 'teamB', (data) => setTeamBInnings(data))
+            const unsubASO = matchService.subscribeToInnings(match.id, 'teamA_super', (data) => setTeamASuperInnings(data))
+            const unsubBSO = matchService.subscribeToInnings(match.id, 'teamB_super', (data) => setTeamBSuperInnings(data))
 
             return () => {
-                unsubA()
-                unsubB()
+                unsubA(); unsubB(); unsubASO(); unsubBSO();
             }
-        } else if (isFinished && !teamAInnings && !teamBInnings && !match.score) {
-            // Fallback: If it's finished but we somehow don't have score in match obj, fetch once (rare legacy case)
-            // We don't subscribe, just fetch once.
+        } else if (isFinished) {
+            // Fetch once for finished matches to ensure we have SO data if needed
             matchService.getInnings(match.id, 'teamA').then(setTeamAInnings)
             matchService.getInnings(match.id, 'teamB').then(setTeamBInnings)
+            matchService.getInnings(match.id, 'teamA_super').then(setTeamASuperInnings)
+            matchService.getInnings(match.id, 'teamB_super').then(setTeamBSuperInnings)
         }
     }, [match.id, isLive, isFinished])
 
@@ -128,15 +128,31 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
         if (!match.tossWinner || !match.electedTo) return null
         const winnerName = match.tossWinner === 'teamA' ? teamAName : teamBName
         const decision = match.electedTo === 'bat' ? t('bat') : t('bowl')
-        // En: Team A won the toss and elected to bat
-        // Bn: Team A টসে জিতে ব্যাটিং করার সিদ্ধান্ত নিয়েছে (my translation for "won_toss" was "won the toss and elected to")
         return `${winnerName} ${t('won_toss')} ${decision}`
     }
 
     const getResultText = () => {
         if (!isFinished) return null
         if ((match as any).resultSummary) return (match as any).resultSummary
+
         if (teamAInnings && teamBInnings) {
+            const aRuns = teamAInnings.totalRuns || 0
+            const bRuns = teamBInnings.totalRuns || 0
+
+            // --- Super Over Result Logic ---
+            if (aRuns === bRuns && (teamASuperInnings || teamBSuperInnings)) {
+                const soA = teamASuperInnings?.totalRuns || 0
+                const soB = teamBSuperInnings?.totalRuns || 0
+
+                if (soA === 0 && soB === 0) return t('match_tied')
+                if (soA === soB) return `${t('match_tied')} (Super Over)`
+
+                const winnerName = soA > soB ? teamAName : teamBName
+                const diff = Math.abs(soA - soB)
+                return `${winnerName} won Super Over by ${diff} run${diff !== 1 ? 's' : ''}`
+            }
+
+            // Normal Result Logic
             // Determine who batted first
             let firstBat: 'teamA' | 'teamB' = 'teamA'
             if (match.tossWinner === 'teamA' && match.electedTo === 'bowl') firstBat = 'teamB'
@@ -149,23 +165,10 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
             if (firstInnings.totalRuns > secondInnings.totalRuns) {
                 const diff = firstInnings.totalRuns - secondInnings.totalRuns
-                // En: Team A won by 10 runs
-                // Bn: Team A ১০ রানে জয়ী (Team A won by 10 runs)
-                // My structure: won_by = "won by" / "জয়ী" ... runs = "runs" / "রানে"
-                // Bn: Team A [won_by] 10 [by_runs] -> Team A জয়ী ১০ রানে. (Grammatically weird in BN)
-                // Better Bn structure: Team A ১০ রানে জয়ী.
-
-                // I'll use a simple concatenation for now, assuming En structure is dominant OR use interpolation.
-                // Localization libraries usually support interpolation. Here I built a simple key-value store.
-                // I will assume English word order primarily but for Bangla it might be slightly off.
-                // "won by 10 runs" -> "১০ রানে জয়ী"
-
                 if (language === 'bn') {
-                    // Custom handling for Bangla word order
                     return `${firstTeamName} ${diff} ${t('by_runs')} ${t('won_by')}`
                 }
                 return `${firstTeamName} ${t('won_by')} ${diff} ${t('by_runs')}`
-
             } else if (secondInnings.totalRuns > firstInnings.totalRuns) {
                 const diff = 10 - secondInnings.totalWickets
                 if (language === 'bn') {
@@ -231,17 +234,29 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
     const parsedResult = (() => {
         if (!isFinished || !resultText) return null
-        // Find " won by "
         const lowerRes = resultText.toLowerCase()
+
+        // Handle Super Over split
+        if (lowerRes.includes('won super over by')) {
+            const splitWord = ' won super over by '
+            const idx = lowerRes.indexOf(splitWord)
+            if (idx !== -1) {
+                return {
+                    main: resultText.substring(0, idx).trim() + ' WON',
+                    sub: 'S.O. by ' + resultText.substring(idx + splitWord.length).trim()
+                }
+            }
+        }
+
+        // Normal split
         const wonIdx = lowerRes.indexOf(' won by ')
+        if (wonIdx === -1) return { main: resultText.toUpperCase(), sub: '' }
 
-        if (wonIdx === -1) return { main: resultText, sub: '' }
-
-        const teamWon = resultText.substring(0, wonIdx + 4) // "Team Won"
-        const byStats = resultText.substring(wonIdx + 4).trim() // "by X runs"
+        const teamWon = resultText.substring(0, wonIdx).trim() + ' WON'
+        const byStats = 'by ' + resultText.substring(wonIdx + 8).trim()
 
         return {
-            main: teamWon,
+            main: teamWon.toUpperCase(),
             sub: byStats
         }
     })()
@@ -303,38 +318,57 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
             </div>
 
             {/* Main Clickable Area - Just the scores and status */}
-            <Link to={`/match/${match.id}`} className="block relative z-10 cursor-pointer">
-                <div className="p-4 flex gap-4">
+            <Link to={`/match/${match.id}`} className="block relative z-10 cursor-pointer overflow-hidden transition-all group-active:scale-[0.98]">
+                <div className="p-3.5 flex gap-3">
                     {/* Teams and Scores */}
-                    <div className="flex-1 space-y-4">
+                    <div className="flex-1 space-y-2.5">
                         {displayOrder.map((side) => {
                             const name = side === 'teamA' ? teamAName : teamBName
                             const logo = side === 'teamA' ? teamALogo : teamBLogo
                             const inn = side === 'teamA' ? teamAInnings : teamBInnings
+                            const isBatting = isLive && (match as any).currentInningsSide === side
+
                             return (
                                 <div key={side} className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-7 h-7 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-white dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm relative group-hover:scale-110 transition-transform">
                                             {logo ? (
                                                 <img src={logo} alt={name} className="w-full h-full object-contain p-1" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-[10px] font-black uppercase">
+                                                <div className={`w-full h-full flex items-center justify-center text-white text-[11px] font-black uppercase ${side === 'teamA' ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-rose-500 to-pink-600'}`}>
                                                     {name.charAt(0)}
                                                 </div>
                                             )}
                                         </div>
-                                        <span className={`text-[12px] truncate max-w-[120px] transition-all dark:text-slate-200 ${getTeamColor(side)}`}>
-                                            {name}
-                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className={`text-[15px] font-black truncate max-w-[120px] transition-all tracking-tight leading-none ${isBatting ? 'text-blue-600 dark:text-blue-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                                                {name}
+                                                {isBatting && <span className="ml-1 text-[8px] animate-pulse text-blue-500">●</span>}
+                                            </span>
+                                            {isBatting && <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Batting</span>}
+                                        </div>
                                     </div>
                                     {(isLive || isFinished || isInningsBreak) && (
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-[10px] font-medium text-slate-400 font-mono">
-                                                ({inn?.overs || '0.0'}/{match.oversLimit || 20})
-                                            </span>
-                                            <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
-                                                {inn?.totalRuns || 0}-{inn?.totalWickets || 0}
-                                            </span>
+                                        <div className="flex flex-col items-end">
+                                            <div className="flex items-baseline gap-1.5 tabular-nums">
+                                                <span className="text-[9px] font-bold text-slate-400">
+                                                    ({inn?.overs || '0.0'})
+                                                </span>
+                                                <span className="text-[17px] font-black text-slate-900 dark:text-white tracking-tighter">
+                                                    {inn?.totalRuns || 0}-{inn?.totalWickets || 0}
+                                                </span>
+                                            </div>
+                                            {(() => {
+                                                const soInn = side === 'teamA' ? teamASuperInnings : teamBSuperInnings
+                                                if (soInn && (Number(soInn.totalRuns || 0) > 0 || Number(soInn.totalWickets || 0) > 0)) {
+                                                    return (
+                                                        <div className="text-[9px] font-black text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-1 rounded-sm border border-amber-100 dark:border-amber-900/50 -mt-0.5">
+                                                            S.O: {soInn.totalRuns}/{soInn.totalWickets} ({soInn.overs})
+                                                        </div>
+                                                    )
+                                                }
+                                                return null
+                                            })()}
                                         </div>
                                     )}
                                 </div>
@@ -342,66 +376,73 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                         })}
                     </div>
 
-                    {/* Status Divider */}
-                    <div className="w-px bg-slate-100 dark:bg-slate-800 self-stretch my-1"></div>
+                    {/* Status Divider - Compact */}
+                    <div className="w-[1px] bg-gradient-to-b from-transparent via-slate-100 dark:via-slate-800 to-transparent self-stretch my-1"></div>
 
-                    <div className="w-24 flex flex-col items-center justify-center text-center px-1">
+                    <div className="w-[90px] flex flex-col items-center justify-center text-center px-0.5">
                         {isLive ? (
-                            <div className="flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1.5">
-                                    <span className={`w-2 h-2 ${isInningsBreak ? 'bg-amber-500' : 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]'} rounded-full`}></span>
-                                    <span className={`text-[11px] font-black ${isInningsBreak ? 'text-amber-600' : 'text-red-600 dark:text-red-500'} uppercase tracking-widest`}>
+                            <div className="flex flex-col items-center gap-1.5">
+                                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full ${isInningsBreak ? 'bg-amber-100 dark:bg-amber-950/30' : 'bg-red-500 shadow-[0_2px_8px_rgba(239,68,68,0.3)]'} animate-pulse`}>
+                                    {!isInningsBreak && <span className="w-1 h-1 bg-white rounded-full"></span>}
+                                    <span className={`text-[8px] font-black uppercase tracking-[0.1em] ${isInningsBreak ? 'text-amber-600' : 'text-white'}`}>
                                         {isInningsBreak ? 'Break' : 'Live'}
                                     </span>
-                                </div>
+                                </span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                                    {isLive && isFirstInningsFinished ? '2nd Innings' : 'Ongoing'}
+                                </span>
                             </div>
                         ) : isFinished && parsedResult ? (
-                            <div className="flex flex-col items-center">
-                                <span className="text-[11px] font-black text-amber-500 leading-none uppercase">
+                            <div className="flex flex-col items-center bg-amber-500/[0.08] dark:bg-amber-500/[0.05] p-2 rounded-xl border border-amber-500/20 w-full min-h-[48px] justify-center shadow-[0_2px_10px_-4px_rgba(245,158,11,0.2)]">
+                                <span className="text-[9px] font-black text-amber-600 dark:text-amber-500 leading-none uppercase tracking-tighter text-center mb-1">
                                     {parsedResult.main}
                                 </span>
-                                <span className="text-[9px] font-bold text-amber-400 mt-1 lowercase whitespace-nowrap">
-                                    {parsedResult.sub}
-                                </span>
+                                {parsedResult.sub && (
+                                    <span className="text-[7.5px] font-black text-amber-500/80 uppercase tracking-[0.05em] whitespace-nowrap opacity-80">
+                                        {parsedResult.sub}
+                                    </span>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">
-                                    Starting
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 opacity-70">
+                                    Starts At
                                 </span>
-                                <div className="text-[10px] font-black leading-tight uppercase text-slate-900 dark:text-slate-100">
-                                    {getStatusText().split(',')[1]?.trim() || getStatusText()}
+                                <div className="text-[11px] font-black leading-tight uppercase text-slate-900 dark:text-white tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-full border border-slate-100 dark:border-slate-800">
+                                    {match.time || '11:00 AM'}
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Footer Strip - Toss & Progress & Results */}
-                <div className={`px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between min-h-[36px] ${isLive ? 'bg-red-50/40 dark:bg-red-950/20' : 'bg-slate-50/40 dark:bg-slate-800/40'}`}>
-                    <div className="text-[10px] font-normal uppercase tracking-tight flex-1">
+                {/* Footer Strip - Minimal & Clean */}
+                <div className={`px-4 py-2 border-t border-slate-50 dark:border-slate-800 flex items-center justify-between min-h-[32px] ${isLive ? 'bg-blue-50/20 dark:bg-blue-900/10' : 'bg-transparent'}`}>
+                    <div className="text-[9px] font-black uppercase tracking-tight flex-1 truncate pr-2">
                         {runsNeededText ? (
-                            <span className="text-blue-600 dark:text-blue-400 font-bold">{runsNeededText}</span>
+                            <span className="text-blue-600 dark:text-blue-400">{runsNeededText}</span>
                         ) : (isLive && isFirstInningsFinished && match.matchPhase === 'FirstInnings') ? (
-                            <span className="text-amber-500 font-bold normal-case">
+                            <span className="text-amber-500">
                                 {(() => {
                                     const battedFirst = match.tossWinner === 'teamA'
                                         ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
                                         : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
                                     const stats = battedFirst === 'teamA' ? teamAInnings : teamBInnings
                                     const chasing = battedFirst === 'teamA' ? teamBName : teamAName
-                                    return `${chasing} need ${(stats?.totalRuns || 0) + 1} runs`
+                                    return `${chasing} NEED ${(stats?.totalRuns || 0) + 1} RUNS`
                                 })()}
                             </span>
                         ) : (
-                            <span className="text-slate-700 dark:text-slate-300 font-medium">
-                                {isUpcoming ? getStatusText().split(',')[0].toUpperCase() : tossText || 'Match in progress...'}
+                            <span className="text-slate-400 dark:text-slate-500 truncate block">
+                                {tossText && <span className="opacity-90 underline underline-offset-2 decoration-slate-200 dark:decoration-slate-700">{tossText}</span>}
+                                {!tossText && <span className="opacity-60">{isFinished ? 'Match Finished' : 'Match Preview'}</span>}
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-1.5 ml-2">
-                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50"></div>
-                        <span className="text-[7px] font-black lg:text-[9px] text-slate-400 uppercase tracking-widest">SMA</span>
+                    <div className="flex items-center gap-1.5 ml-2 tabular-nums">
+                        <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">
+                            {coerceToDate(match.date)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        </span>
                     </div>
                 </div>
             </Link>

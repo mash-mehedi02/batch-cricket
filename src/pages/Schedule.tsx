@@ -83,15 +83,15 @@ export default function Schedule() {
     })
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-20">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-white/5 sticky top-0 z-30">
                 <div className="max-w-4xl mx-auto">
                     <div className="px-6 py-6 flex items-center justify-between">
-                        <h1 className="text-2xl font-black text-black tracking-tight">Match Schedule</h1>
+                        <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Match Schedule</h1>
                         <div className="flex gap-1.5 items-center">
                             <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{matches.length} Matches Found</span>
+                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{matches.length} Matches Found</span>
                         </div>
                     </div>
 
@@ -104,7 +104,7 @@ export default function Schedule() {
                                     setActiveTab(tab)
                                     setSearchParams({ tab })
                                 }}
-                                className={`px-8 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${activeTab === tab ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'
+                                className={`px-8 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${activeTab === tab ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400' : 'border-transparent text-slate-400 dark:text-slate-500'
                                     }`}
                             >
                                 {tab}
@@ -120,10 +120,10 @@ export default function Schedule() {
                         {[1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
                     </div>
                 ) : matches.length === 0 ? (
-                    <div className="bg-white rounded-3xl p-16 text-center border border-slate-200 shadow-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-16 text-center border border-slate-200 dark:border-white/5 shadow-sm">
                         <div className="text-5xl mb-6">📅</div>
-                        <h3 className="text-xl font-bold text-black mb-2 capitalize">No {activeTab} matches found</h3>
-                        <p className="text-slate-400 text-sm">Check other tabs for more matches.</p>
+                        <h3 className="text-xl font-bold text-black dark:text-white mb-2 capitalize">No {activeTab} matches found</h3>
+                        <p className="text-slate-400 dark:text-slate-500 text-sm">Check other tabs for more matches.</p>
                     </div>
                 ) : (
                     <div className="space-y-12">
@@ -134,7 +134,7 @@ export default function Schedule() {
                                     <div className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20">
                                         {formatDateLabel(new Date(dateKey))}
                                     </div>
-                                    <div className="h-px bg-slate-200 flex-1"></div>
+                                    <div className="h-px bg-slate-200 dark:bg-white/5 flex-1"></div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

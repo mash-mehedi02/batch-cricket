@@ -184,7 +184,7 @@ export default function Home() {
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[20px] md:translate-y-[35px] z-20">
           <button
             onClick={() => document.getElementById('match-sections')?.scrollIntoView({ behavior: 'smooth' })}
-            className="group relative bg-[#0f172a] dark:bg-teal-500 text-white dark:text-[#0f172a] px-8 py-3 rounded-full font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all hover:scale-105 active:scale-95 shadow-xl shadow-teal-500/20 whitespace-nowrap border-4 border-white dark:border-slate-900"
+            className="group relative bg-[#0f172a] dark:bg-white text-white dark:text-[#0f172a] px-8 py-3 rounded-full font-black uppercase tracking-widest text-[11px] sm:text-xs transition-all hover:scale-105 active:scale-95 shadow-xl shadow-teal-500/20 whitespace-nowrap border-4 border-white dark:border-slate-900"
           >
             Let's Explore
           </button>
@@ -193,9 +193,9 @@ export default function Home() {
       </div>
 
       {/* SQUADS SCROLL - Native Horizontal Scroll (No Marquee Lag) */}
-      <div className="py-6 bg-white overflow-hidden">
+      <div className="py-6 bg-white dark:bg-slate-950 overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Participating Teams</p>
+          <p className="px-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Participating Teams</p>
 
           {squads.filter(s => s.logoUrl).length > 0 ? (
             <div className="relative w-full overflow-hidden">
@@ -209,14 +209,14 @@ export default function Home() {
                       key={`${squad.id}-${index}`}
                       className="flex flex-col items-center gap-2 min-w-[70px] group hover:scale-105 transition-transform"
                     >
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 overflow-hidden bg-white dark:bg-slate-800 shadow-sm relative">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 shadow-sm relative">
                         <img
                           src={squad.logoUrl}
                           alt={squad.name}
                           className="w-full h-full object-contain p-1"
                         />
                       </div>
-                      <span className="text-[9px] font-black text-slate-700 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
+                      <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
                         {formatShortTeamName(squad.name, squad.batch)}
                       </span>
                     </Link>
@@ -231,7 +231,7 @@ export default function Home() {
       </div>
 
       {/* MATCH SECTIONS - Clean Tabs - Sticky */}
-      <div id="match-sections" className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
+      <div id="match-sections" className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto flex overflow-x-auto scrollbar-hide px-2">
           {[
             { id: 'live', label: 'Live' },
@@ -243,8 +243,8 @@ export default function Home() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-1 min-w-[100px] py-4 text-[11px] sm:text-xs font-black uppercase tracking-wider relative transition-colors ${activeTab === tab.id
-                ? 'text-[#0f172a]'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'text-[#0f172a] dark:text-white'
+                : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'
                 }`}
             >
               {tab.label}
@@ -254,7 +254,7 @@ export default function Home() {
                 </span>
               )}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0f172a]"></div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0f172a] dark:bg-teal-500"></div>
               )}
             </button>
           ))}

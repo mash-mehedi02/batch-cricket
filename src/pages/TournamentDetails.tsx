@@ -37,7 +37,7 @@ export default function TournamentDetails() {
   const [matches, setMatches] = useState<Match[]>([])
   const [squads, setSquads] = useState<Squad[]>([])
   const [players, setPlayers] = useState<Player[]>([])
-  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>>(new Map())
+  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
   const [loading, setLoading] = useState(true)
 
   // Update URL when tab changes
@@ -82,14 +82,16 @@ export default function TournamentDetails() {
       if (relevantMatches.length > 0) {
         const entries = await Promise.all(
           relevantMatches.map(async (m) => {
-            const [a, b] = await Promise.all([
+            const [a, b, aso, bso] = await Promise.all([
               matchService.getInnings(m.id, 'teamA').catch(() => null),
               matchService.getInnings(m.id, 'teamB').catch(() => null),
+              matchService.getInnings(m.id, 'teamA_super').catch(() => null),
+              matchService.getInnings(m.id, 'teamB_super').catch(() => null),
             ])
-            return [m.id, { teamA: a, teamB: b }] as const
+            return [m.id, { teamA: a, teamB: b, aso, bso }] as const
           })
         )
-        const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null }>()
+        const im = new Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>()
         entries.forEach(([id, v]) => im.set(id, v))
         setInningsMap(im)
       }
@@ -510,7 +512,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
   )
 }
 
-function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null } }) {
+function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null } }) {
   const status = String(match.status || '').toLowerCase()
   const isFin = status === 'finished' || status === 'completed'
   const isLive = status === 'live' || status === 'inningsbreak' || status === 'innings break'
@@ -518,7 +520,7 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
   const squadA = squads.find(s => s.id === match.teamAId)
   const squadB = squads.find(s => s.id === match.teamBId)
 
-  const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match) : ''
+  const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match, innings?.aso, innings?.bso) : ''
 
   return (
     <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-6 shadow-sm hover:shadow-md transition-all block">
@@ -533,7 +535,7 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
               </div>
             )}
           </div>
-          <span className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate">
+          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate">
             {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
           </span>
         </div>
@@ -544,17 +546,31 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
               <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'inningsbreak' || status === 'innings break' ? 'text-amber-500' : 'text-red-600 animate-pulse'}`}>
                 {status === 'inningsbreak' || status === 'innings break' ? 'Innings Break' : 'Live'}
               </span>
-              <div className="mt-1 flex flex-col items-center">
+              <div className="mt-1 flex flex-col items-center gap-1.5">
                 {innings?.teamA && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamA.totalRuns}/{innings.teamA.totalWickets}</span>
-                    <span className="text-[10px] text-slate-400 font-bold">({innings.teamA.overs})</span>
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamA.totalRuns}/{innings.teamA.totalWickets}</span>
+                      <span className="text-[10px] text-slate-400 font-bold">({innings.teamA.overs})</span>
+                    </div>
+                    {innings?.aso && (Number(innings.aso.totalRuns || 0) > 0 || Number(innings.aso.totalWickets || 0) > 0) && (
+                      <div className="text-[8px] font-black text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1 rounded-sm border border-amber-100 dark:border-amber-900/50">
+                        S.O: {innings.aso.totalRuns}/{innings.aso.totalWickets}
+                      </div>
+                    )}
                   </div>
                 )}
                 {innings?.teamB && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamB.totalRuns}/{innings.teamB.totalWickets}</span>
-                    <span className="text-[10px] text-slate-400 font-bold">({innings.teamB.overs})</span>
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamB.totalRuns}/{innings.teamB.totalWickets}</span>
+                      <span className="text-[10px] text-slate-400 font-bold">({innings.teamB.overs})</span>
+                    </div>
+                    {innings?.bso && (Number(innings.bso.totalRuns || 0) > 0 || Number(innings.bso.totalWickets || 0) > 0) && (
+                      <div className="text-[8px] font-black text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1 rounded-sm border border-amber-100 dark:border-amber-900/50">
+                        S.O: {innings.bso.totalRuns}/{innings.bso.totalWickets}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -571,6 +587,11 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
                 <div className="text-[9px] font-bold text-slate-500">
                   {innings?.teamA?.totalRuns}-{innings?.teamA?.totalWickets} & {innings?.teamB?.totalRuns}-{innings?.teamB?.totalWickets}
                 </div>
+                {(innings?.aso || innings?.bso) && (
+                  <div className="mt-1 text-[8px] font-black text-amber-600 uppercase tracking-tighter">
+                    S.O: {innings?.aso?.totalRuns || 0}/{innings?.aso?.totalWickets || 0} - {innings?.bso?.totalRuns || 0}/{innings?.bso?.totalWickets || 0}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -582,7 +603,7 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
         </div>
 
         <div className="flex items-center gap-3 w-1/3 justify-end">
-          <span className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right truncate">
+          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right truncate">
             {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
           </span>
           <div className="w-10 h-10 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0 relative">
@@ -610,7 +631,7 @@ function InfoRow({ label, value }: { label: string, value: string }) {
 }
 
 
-function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null } }) {
+function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null } }) {
   const status = String(match.status || '').toLowerCase()
   const isFin = status === 'finished' || status === 'completed'
   const isLive = status === 'live' || status === 'inningsbreak' || status === 'innings break'
@@ -618,7 +639,7 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
   const squadA = squads.find(s => s.id === match.teamAId)
   const squadB = squads.find(s => s.id === match.teamBId)
 
-  const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match) : ''
+  const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match, innings?.aso, innings?.bso) : ''
 
   return (
     <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2rem] p-5 shadow-sm hover:shadow-md transition-all">
@@ -633,7 +654,7 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
               </div>
             )}
           </div>
-          <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter">
             {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
           </span>
         </div>
@@ -642,11 +663,18 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
             <div className="flex flex-col items-center">
               <span className="text-[9px] font-black text-red-600 uppercase tracking-widest animate-pulse mb-1">Live</span>
               <div className="flex flex-col items-center gap-0.5">
-                <div className="text-[11px] font-black text-slate-900 dark:text-white whitespace-nowrap">
-                  {innings?.teamA ? `${innings.teamA.totalRuns}/${innings.teamA.totalWickets}` : '0/0'} - {innings?.teamB ? `${innings.teamB.totalRuns}/${innings.teamB.totalWickets}` : '0/0'}
-                </div>
-                <div className="text-[8px] text-slate-400 font-bold">
-                  {innings?.teamA?.overs || '0.0'} & {innings?.teamB?.overs || '0.0'} ov
+                <div className="flex flex-col items-center">
+                  <div className="text-[11px] font-black text-slate-900 dark:text-white whitespace-nowrap">
+                    {innings?.teamA ? `${innings.teamA.totalRuns}/${innings.teamA.totalWickets}` : '0/0'} - {innings?.teamB ? `${innings.teamB.totalRuns}/${innings.teamB.totalWickets}` : '0/0'}
+                  </div>
+                  <div className="text-[8px] text-slate-400 font-bold">
+                    {innings?.teamA?.overs || '0.0'} & {innings?.teamB?.overs || '0.0'} ov
+                  </div>
+                  {(innings?.aso || innings?.bso) && (
+                    <div className="mt-0.5 text-[7px] font-black text-amber-600 uppercase tracking-tighter">
+                      S.O: {innings?.aso?.totalRuns || 0}/{innings?.aso?.totalWickets || 0} vs {innings?.bso?.totalRuns || 0}/{innings?.bso?.totalWickets || 0}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -656,6 +684,11 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
               <div className="text-[8px] text-slate-400 font-bold mt-1">
                 {innings?.teamA ? `${innings.teamA.totalRuns}-${innings.teamA.totalWickets}` : '0-0'} & {innings?.teamB ? `${innings.teamB.totalRuns}-${innings.teamB.totalWickets}` : '0-0'}
               </div>
+              {(innings?.aso || innings?.bso) && (
+                <div className="mt-1 text-[7px] font-black text-amber-600 uppercase tracking-tighter">
+                  S.O: {innings?.aso?.totalRuns || 0}/{innings?.aso?.totalWickets || 0} - {innings?.bso?.totalRuns || 0}/{innings?.bso?.totalWickets || 0}
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center">
@@ -665,7 +698,7 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
           )}
         </div>
         <div className="flex items-center gap-3 w-[120px] justify-end">
-          <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right">
+          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right">
             {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
           </span>
           <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative">

@@ -24,7 +24,8 @@ import {
     SwitchCamera
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { getMatchResultString } from '@/utils/matchWinner';
+import { getMatchResultString, calculateMatchWinner } from '@/utils/matchWinner';
+import { calculatePotM } from '@/utils/potmCalculator';
 import * as commentaryService from '@/services/commentary/commentaryService';
 import { oneSignalService } from '@/services/oneSignalService';
 import { useAuthStore } from '@/store/authStore';
@@ -38,6 +39,8 @@ const AdminLiveScoring = () => {
     const [match, setMatch] = useState<Match | null>(null);
     const [inningsA, setInningsA] = useState<InningsStats | null>(null);
     const [inningsB, setInningsB] = useState<InningsStats | null>(null);
+    const [inningsASO, setInningsASO] = useState<InningsStats | null>(null);
+    const [inningsBSO, setInningsBSO] = useState<InningsStats | null>(null);
 
     // Players State
     const [teamAPlayers, setTeamAPlayers] = useState<Player[]>([]);
@@ -68,6 +71,8 @@ const AdminLiveScoring = () => {
     const [nextBatterId, setNextBatterId] = useState('');
     const [fielderId, setFielderId] = useState('');
     const [manualCommentary, setManualCommentary] = useState('');
+    const [potmId, setPotmId] = useState<string>('');
+    const [suggestedPotm, setSuggestedPotm] = useState<Player | null>(null);
 
     // Permissions check
     useEffect(() => {
@@ -103,13 +108,28 @@ const AdminLiveScoring = () => {
 
         const unsubInn = matchService.subscribeToInnings(matchId, 'teamA', (data) => setInningsA(data));
         const unsubInnB = matchService.subscribeToInnings(matchId, 'teamB', (data) => setInningsB(data));
+        const unsubInnASO = matchService.subscribeToInnings(matchId, 'teamA_super', (data) => setInningsASO(data));
+        const unsubInnBSO = matchService.subscribeToInnings(matchId, 'teamB_super', (data) => setInningsBSO(data));
 
         return () => {
             unsubMatch();
             unsubInn && unsubInn();
             unsubInnB && unsubInnB();
+            unsubInnASO && unsubInnASO();
+            unsubInnBSO && unsubInnBSO();
         };
     }, [matchId]);
+
+    // --- Player of the Match Logic ---
+    useEffect(() => {
+        if (finalizeModalOpen && match && inningsA && inningsB && teamAPlayers.length > 0 && teamBPlayers.length > 0) {
+            const suggested = calculatePotM(match, inningsA, inningsB, teamAPlayers, teamBPlayers);
+            if (suggested) {
+                setSuggestedPotm(suggested);
+                if (!potmId) setPotmId(suggested.id);
+            }
+        }
+    }, [finalizeModalOpen, match, inningsA, inningsB, teamAPlayers, teamBPlayers]);
 
     // --- Fetch Players Logic ---
     useEffect(() => {
@@ -182,16 +202,26 @@ const AdminLiveScoring = () => {
     }, [matchId, playersLoaded, teamAPlayers, teamBPlayers, match]);
 
     // --- Derived Data ---
-    const currentInnings = match?.currentBatting === 'teamB' ? inningsB : inningsA;
+    const isTeamB = match?.currentBatting === 'teamB' || match?.currentBatting === 'teamB_super';
+    const isSuper = match?.isSuperOver || String(match?.currentBatting || '').includes('super');
+
+    const currentInnings = useMemo(() => {
+        if (!match) return null;
+        const cb = match.currentBatting;
+        if (cb === 'teamA') return inningsA;
+        if (cb === 'teamB') return inningsB;
+        if (cb === 'teamA_super') return inningsASO;
+        if (cb === 'teamB_super') return inningsBSO;
+        return null;
+    }, [match, inningsA, inningsB, inningsASO, inningsBSO]);
+
+    const battingTeamPlayersAll = isTeamB ? teamBPlayers : teamAPlayers;
+    const bowlingTeamPlayersAll = isTeamB ? teamAPlayers : teamBPlayers;
 
     // Resolve Real Player Objects based on Playing XI IDs
     const resolvePlayers = (playerIds: string[], sourceList: Player[]) => {
         return (playerIds || []).map(id => sourceList.find(p => p.id === id)).filter(Boolean) as Player[];
     };
-
-    const isTeamB = match?.currentBatting === 'teamB';
-    const battingTeamPlayersAll = isTeamB ? teamBPlayers : teamAPlayers;
-    const bowlingTeamPlayersAll = isTeamB ? teamAPlayers : teamBPlayers;
 
     const battingPlayingXI = resolvePlayers(
         isTeamB ? match?.teamBPlayingXI || [] : match?.teamAPlayingXI || [],
@@ -703,15 +733,17 @@ const AdminLiveScoring = () => {
         setProcessing(true);
         try {
             // 1. Update Match Status (Triggers stats sync in service)
+            const finalResult = resultSummary; // Use memoized result which includes SO
             await matchService.update(matchId, {
                 status: 'finished',
-                matchPhase: 'finished'
+                matchPhase: 'finished',
+                playerOfTheMatch: potmId || suggestedPotm?.id || null,
+                resultSummary: finalResult
             });
 
             // 2. Send Push Notification for Match Result
-            const resultStr = getMatchResultString(match.teamAName, match.teamBName, inningsA || null, inningsB || null, match);
             const mAdminId = match.adminId || match.createdBy || 'admin';
-            oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🏆", resultStr);
+            oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🏆", finalResult);
 
             // 3. Send Emails if requested
             if (sendMailChecked) {
@@ -735,6 +767,61 @@ const AdminLiveScoring = () => {
         }
     };
 
+    const handleStartSuperOver = async () => {
+        if (!matchId || !match) return;
+        if (!window.confirm("ARE YOU SURE? This will start a 1-over Super Over without deleting main match scores!")) return;
+
+        setProcessing(true);
+        try {
+            // 1. Determine Batting Order for Super Over
+            // ICC Rule: Team batting second in the match will bat first in the Super Over.
+            // If matchPhase is 'Tied', currentBatting is the team that just finished 2nd innings.
+            const battedSecond = match.currentBatting || 'teamB';
+            const firstBatInSO = battedSecond; // teamA or teamB
+            const firstBatSOInningId = firstBatInSO === 'teamA' ? 'teamA_super' : 'teamB_super';
+
+            // 2. Store stats if not already stored
+            const mainScore = match.isSuperOver ? match.mainMatchScore : {
+                teamA: { runs: inningsA?.totalRuns || 0, wickets: inningsA?.totalWickets || 0, overs: inningsA?.overs || "0.0" },
+                teamB: { runs: inningsB?.totalRuns || 0, wickets: inningsB?.totalWickets || 0, overs: inningsB?.overs || "0.0" }
+            };
+
+            // 3. Setup New Innings for Super Over
+            await matchService.setupSuperOver(matchId, 'teamA_super');
+            await matchService.setupSuperOver(matchId, 'teamB_super');
+
+            // 4. Update Match Document
+            await matchService.update(matchId, {
+                status: 'live',
+                matchPhase: 'FirstInnings', // Re-use phase for SO 1st inn
+                oversLimit: 1,
+                isSuperOver: true,
+                superOverCount: (match.superOverCount || 0) + 1,
+                mainMatchScore: mainScore,
+                currentBatting: firstBatSOInningId,
+                currentStrikerId: '',
+                currentNonStrikerId: '',
+                currentBowlerId: '',
+                // DO NOT reset innings1Score/Wickets/Overs or target here,
+                // as they relate to the main match and are used for display/scorecard.
+                // The Super Over will manage its own score in the 'score' map and innings docs.
+                winnerId: null,
+                resultSummary: null
+            });
+
+            // 5. Notification
+            oneSignalService.sendToMatch(matchId, match.adminId || 'admin', "SUPER OVER! ⚡", "A Super Over has been initiated! Get ready for the drama!");
+
+            toast.success("Super Over Started!");
+            setFinalizeModalOpen(false);
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to start Super Over: " + err.message);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     const resultSummary = useMemo(() => {
         if (!match) return '';
         return getMatchResultString(
@@ -742,9 +829,11 @@ const AdminLiveScoring = () => {
             match.teamBName,
             inningsA || null,
             inningsB || null,
-            match
+            match,
+            inningsASO || null,
+            inningsBSO || null
         );
-    }, [match, inningsA, inningsB]);
+    }, [match, inningsA, inningsB, inningsASO, inningsBSO]);
 
     if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 animate-spin text-blue-600" /></div>;
     if (!match) return <div className="p-10 text-red-500 font-bold text-center">Match not found</div>;
@@ -794,13 +883,38 @@ const AdminLiveScoring = () => {
                                 </button>
                             )}
                         </h1>
-                        <div className="flex items-baseline gap-3 mt-3">
-                            <div className="text-4xl font-black text-white tabular-nums tracking-tighter">
-                                {currentInnings?.totalRuns || 0}/{currentInnings?.totalWickets || 0}
+                        <div className="flex flex-col gap-2 mt-3">
+                            <div className="flex items-baseline gap-3">
+                                <div className="text-4xl font-black text-white tabular-nums tracking-tighter">
+                                    {currentInnings?.totalRuns || 0}/{currentInnings?.totalWickets || 0}
+                                </div>
+                                <div className="text-slate-400 font-medium text-lg">
+                                    ({currentInnings?.overs || '0.0'} ov)
+                                </div>
+                                {isSuper && (
+                                    <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded uppercase tracking-wider">Super Over</span>
+                                )}
                             </div>
-                            <div className="text-slate-400 font-medium text-lg">
-                                ({currentInnings?.overs || '0.0'} ov)
-                            </div>
+
+                            {/* Main match score during Super Over */}
+                            {isSuper && (
+                                <div className="text-[11px] font-bold text-slate-400 flex flex-col gap-1 border-t border-white/5 pt-2">
+                                    <span className="uppercase tracking-widest text-[9px] text-blue-400 opacity-60">Main Match Score</span>
+                                    {match.mainMatchScore ? (
+                                        <div className="flex items-center gap-4 text-slate-300">
+                                            <span>{match.teamAName}: {match.mainMatchScore.teamA?.runs || 0}/{match.mainMatchScore.teamA?.wickets || 0} ({match.mainMatchScore.teamA?.overs || '0.0'})</span>
+                                            <div className="w-1 h-1 rounded-full bg-slate-600" />
+                                            <span>{match.teamBName}: {match.mainMatchScore.teamB?.runs || 0}/{match.mainMatchScore.teamB?.wickets || 0} ({match.mainMatchScore.teamB?.overs || '0.0'})</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-4 text-slate-300">
+                                            <span>{match.teamAName}: {inningsA?.totalRuns || 0}/{inningsA?.totalWickets || 0} ({inningsA?.overs || '0.0'})</span>
+                                            <div className="w-1 h-1 rounded-full bg-slate-600" />
+                                            <span>{match.teamBName}: {inningsB?.totalRuns || 0}/{inningsB?.totalWickets || 0} ({inningsB?.overs || '0.0'})</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -823,14 +937,16 @@ const AdminLiveScoring = () => {
 
                 {/* --- TOP: SCORING PAD --- */}
                 <div className="w-full">
-                    {(match.matchPhase?.toLowerCase() === 'inningsbreak' || match.status?.toLowerCase() === 'inningsbreak') ? (
+                    {(match.matchPhase?.toLowerCase() === 'inningsbreak' || match.status?.toLowerCase() === 'inningsbreak' || match.matchPhase?.toLowerCase() === 'tied') ? (
                         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden text-center p-12">
                             <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <Megaphone size={48} />
+                                {match.matchPhase?.toLowerCase() === 'tied' ? <Activity size={48} className="text-amber-500" /> : <Megaphone size={48} />}
                             </div>
-                            <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">Innings Break</h2>
+                            <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">
+                                {match.matchPhase?.toLowerCase() === 'tied' ? "Match Tied! Waiting for Super Over" : "Innings Break"}
+                            </h2>
                             <p className="text-xl font-bold text-slate-600 mb-8">
-                                {match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished their innings.
+                                {match.matchPhase?.toLowerCase() === 'tied' ? "The match is tied! Decide if you want a Super Over or Finalize as a Tie." : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished their innings.`}
                             </p>
 
                             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
@@ -847,8 +963,17 @@ const AdminLiveScoring = () => {
                                 </div>
                             </div>
 
-                            <div className="mt-12 flex items-center justify-center gap-4">
-                                {(!inningsB || (inningsB.legalBalls || 0) === 0) && (
+                            <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
+                                {match.matchPhase?.toLowerCase() === 'tied' && (
+                                    <button
+                                        onClick={handleStartSuperOver}
+                                        disabled={processing}
+                                        className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        <Activity size={20} /> START SUPER OVER
+                                    </button>
+                                )}
+                                {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && ((!inningsA || (inningsA.legalBalls || 0) === 0) || (!inningsB || (inningsB.legalBalls || 0) === 0)) && (
                                     <button
                                         onClick={() => {
                                             if (confirm("Start 2nd Innings?")) {
@@ -881,6 +1006,42 @@ const AdminLiveScoring = () => {
                                         Start 2nd Innings
                                     </button>
                                 )}
+                                {/* Super Over: Start 2nd Super Over Innings */}
+                                {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm("Start 2nd Super Over Innings?")) {
+                                                // Switch from teamA_super to teamB_super or vice versa
+                                                const cb = String(match.currentBatting || '');
+                                                const newBatting = cb.includes('teamA') ? 'teamB_super' : 'teamA_super';
+                                                const soScore = currentInnings?.totalRuns || 0;
+                                                const target = Number(soScore) + 1;
+                                                matchService.update(matchId!, {
+                                                    status: 'live',
+                                                    matchPhase: 'SecondInnings',
+                                                    currentBatting: newBatting,
+                                                    target: target,
+                                                    currentStrikerId: '',
+                                                    currentNonStrikerId: '',
+                                                    currentBowlerId: ''
+                                                });
+
+                                                const mAdminId = match.adminId || match.createdBy || 'admin';
+                                                oneSignalService.sendToMatch(
+                                                    matchId!,
+                                                    mAdminId,
+                                                    "Super Over 2nd Innings ⚡",
+                                                    `Target: ${target} runs in 1 over.`
+                                                );
+
+                                                toast.success("Super Over 2nd Innings Started!");
+                                            }
+                                        }}
+                                        className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        <Activity size={20} /> Start SO 2nd Inn
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setFinalizeModalOpen(true)}
                                     className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
@@ -895,7 +1056,7 @@ const AdminLiveScoring = () => {
                                 <Trophy size={48} />
                             </div>
                             <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">Match Finished</h2>
-                            <p className="text-xl font-bold text-slate-600 mb-8">{getMatchResultString(match, inningsA, inningsB)}</p>
+                            <p className="text-xl font-bold text-slate-600 mb-8">{getMatchResultString(match.teamAName, match.teamBName, inningsA, inningsB, match)}</p>
 
                             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Summary</h3>
@@ -911,7 +1072,16 @@ const AdminLiveScoring = () => {
                                 </div>
                             </div>
 
-                            <div className="mt-12 flex items-center justify-center gap-4">
+                            <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
+                                {calculateMatchWinner(match.teamAName, match.teamBName, inningsA, inningsB, match).isTied && (
+                                    <button
+                                        onClick={handleStartSuperOver}
+                                        disabled={processing}
+                                        className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        <Activity size={20} /> START SUPER OVER
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setUndoModalOpen(true)}
                                     disabled={processing}
@@ -1175,32 +1345,9 @@ const AdminLiveScoring = () => {
             <div className="mt-8 border-t border-slate-200 pt-8">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Game Management</h4>
                 <div className="flex flex-wrap gap-4">
-                    {match.currentBatting === 'teamA' && (
-                        <button
-                            onClick={() => {
-                                if (confirm("End Innings?")) matchService.update(matchId!, { status: 'InningsBreak', matchPhase: 'InningsBreak' });
-                            }}
-                            className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm transition-colors"
-                        >
-                            End Innings
-                        </button>
-                    )}
-                    <button
-                        onClick={() => {
-                            if (confirm("Start 2nd Innings?")) {
-                                const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
-                                matchService.update(matchId!, {
-                                    status: 'live',
-                                    matchPhase: 'SecondInnings',
-                                    currentBatting: newBatting,
-                                    currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: ''
-                                });
-                            }
-                        }}
-                        className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm transition-colors"
-                    >
-                        Start 2nd Innings
-                    </button>
+                    {/* These buttons shifted to the main status card for better workflow. 
+                        Keeping only utilities here to avoid confusion. */}
+
                     <button
                         onClick={async () => {
                             if (!matchId) return;
@@ -1208,7 +1355,9 @@ const AdminLiveScoring = () => {
                             try {
                                 await Promise.all([
                                     recalculateInnings(matchId, 'teamA'),
-                                    recalculateInnings(matchId, 'teamB')
+                                    recalculateInnings(matchId, 'teamB'),
+                                    recalculateInnings(matchId, 'teamA_super'),
+                                    recalculateInnings(matchId, 'teamB_super')
                                 ]);
                                 toast.success("Historical data synced!");
                             } catch (e) {
@@ -1424,6 +1573,31 @@ const AdminLiveScoring = () => {
                                         <span className="text-xs text-slate-500 block">Send personalized match reports to all players in Playing XI.</span>
                                     </div>
                                 </label>
+
+                                <div className="mt-6 space-y-4">
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Player of the Match</label>
+                                        <select
+                                            className="w-full form-select rounded-lg border-slate-200 text-sm font-semibold focus:ring-blue-500 focus:border-blue-500"
+                                            value={potmId}
+                                            onChange={(e) => setPotmId(e.target.value)}
+                                        >
+                                            <option value="">Select PotM...</option>
+                                            <optgroup label="Suggested (Winner)">
+                                                {suggestedPotm && <option value={suggestedPotm.id}>{suggestedPotm.name} (Auto-Calculated)</option>}
+                                            </optgroup>
+                                            <optgroup label={match.teamAName}>
+                                                {teamAPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </optgroup>
+                                            <optgroup label={match.teamBName}>
+                                                {teamBPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </optgroup>
+                                        </select>
+                                        <p className="mt-2 text-[10px] text-slate-400 italic">
+                                            {suggestedPotm ? `Calculated suggestion: ${suggestedPotm.name}` : "Pick the best performer from the winning team."}
+                                        </p>
+                                    </div>
+                                </div>
 
                                 <div className="flex gap-3 mt-6">
                                     <button

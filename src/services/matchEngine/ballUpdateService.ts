@@ -6,14 +6,15 @@
 import { collection, doc, getDocs, getDoc, Timestamp, runTransaction } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import { recalculateInnings } from './recalculateInnings'
+import { InningId } from '@/types'
 
 const MATCHES_COLLECTION = 'matches'
 const BALLS_SUBCOLLECTION = 'balls'
 
 export interface BallData {
   matchId: string
-  inningId: 'teamA' | 'teamB'
-  innings?: 'teamA' | 'teamB' // Legacy field for backwards compatibility with queries
+  inningId: InningId
+  innings?: InningId // Legacy field for backwards compatibility with queries
   sequence: number
   runsOffBat: number
   extras: {
@@ -54,7 +55,7 @@ export interface BallUpdateResult {
  */
 export async function addBall(
   matchId: string,
-  inningId: 'teamA' | 'teamB',
+  inningId: InningId,
   ballData: Omit<BallData, 'matchId' | 'inningId' | 'innings' | 'sequence' | 'timestamp'>
 ): Promise<BallUpdateResult> {
   try {
