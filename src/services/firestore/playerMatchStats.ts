@@ -15,6 +15,7 @@ export interface PlayerMatchStats {
   runsConceded: number
   wickets: number
   matchId: string
+  tournamentId?: string
   playerId: string
   adminId: string
   lastUpdated: Timestamp
@@ -25,13 +26,14 @@ function docId(matchId: string, playerId: string): string {
 }
 
 export const playerMatchStatsService = {
-  async ensureParticipation(matchId: string, playerId: string, adminId: string, opponentName?: string): Promise<void> {
+  async ensureParticipation(matchId: string, playerId: string, adminId: string, tournamentId?: string, opponentName?: string): Promise<void> {
     const id = docId(matchId, playerId)
     const ref = doc(collection(db, COLLECTION_NAME), id)
     await setDoc(
       ref,
       {
         matchId,
+        tournamentId: tournamentId || null,
         playerId,
         adminId,
         opponent: opponentName || 'Opponent',
@@ -90,13 +92,27 @@ export const playerMatchStatsService = {
     let matchesSet = new Set<string>()
     let batting = { innings: 0, runs: 0, balls: 0, outs: 0, average: 0, strikeRate: 0, fours: 0, sixes: 0, highestScore: 0, fifties: 0, hundreds: 0 }
     let bowling = { innings: 0, overs: 0, runsConceded: 0, wickets: 0, economy: 0, bowlingAverage: 0, strikeRate: 0 }
-
-    console.log(`[PlayerMatchStats] Found ${snapshot.size} match records for player.`)
+    // Aggregation logic update
+    let tournamentStats: Record<string, any> = {}
 
     snapshot.forEach((d) => {
       const s = d.data() as any
+      const tid = s.tournamentId || 'unassigned'
+
+      if (!tournamentStats[tid]) {
+        tournamentStats[tid] = {
+          matches: new Set(),
+          batting: { innings: 0, runs: 0, balls: 0, outs: 0, average: 0, strikeRate: 0, fours: 0, sixes: 0, highestScore: 0, fifties: 0, hundreds: 0 },
+          bowling: { innings: 0, overs: 0, runsConceded: 0, wickets: 0, economy: 0, bowlingAverage: 0, strikeRate: 0 }
+        }
+      }
+
+      const tRef = tournamentStats[tid]
       const mid = String(s.matchId || '').trim()
-      if (mid) matchesSet.add(mid)
+      if (mid) {
+        matchesSet.add(mid)
+        tRef.matches.add(mid)
+      }
 
       const runs = Number(s.runs || 0)
       const balls = Number(s.balls || 0)
@@ -107,48 +123,42 @@ export const playerMatchStatsService = {
       const rc = Number(s.runsConceded || 0)
       const wkts = Number(s.wickets || 0)
 
-      // Batting Innings: If they faced a ball or were out
-      if (balls > 0 || out) {
-        batting.innings += 1
-      }
-
-      batting.runs += runs
-      batting.balls += balls
-      batting.fours += fours
-      batting.sixes += sixes
+      // Global Sum
+      if (balls > 0 || out) batting.innings += 1
+      batting.runs += runs; batting.balls += balls; batting.fours += fours; batting.sixes += sixes
       if (out) batting.outs += 1
+      if (runs > batting.highestScore) batting.highestScore = runs
+      if (runs >= 100) batting.hundreds += 1; else if (runs >= 50) batting.fifties += 1
+      if (oversBowled > 0) bowling.innings += 1
+      bowling.overs += oversBowled; bowling.runsConceded += rc; bowling.wickets += wkts
 
-      // Track highest score
-      if (runs > batting.highestScore) {
-        batting.highestScore = runs
-      }
-
-      // Track 50s and 100s
-      if (runs >= 100) {
-        batting.hundreds += 1
-      } else if (runs >= 50) {
-        batting.fifties += 1
-      }
-
-      // Bowling Innings/Stats
-      if (oversBowled > 0) {
-        bowling.innings += 1
-      }
-      bowling.overs += oversBowled
-      bowling.runsConceded += rc
-      bowling.wickets += wkts
+      // Tournament Sum
+      if (balls > 0 || out) tRef.batting.innings += 1
+      tRef.batting.runs += runs; tRef.batting.balls += balls; tRef.batting.fours += fours; tRef.batting.sixes += sixes
+      if (out) tRef.batting.outs += 1
+      if (runs > tRef.batting.highestScore) tRef.batting.highestScore = runs
+      if (runs >= 100) tRef.batting.hundreds += 1; else if (runs >= 50) tRef.batting.fifties += 1
+      if (oversBowled > 0) tRef.bowling.innings += 1
+      tRef.bowling.overs += oversBowled; tRef.bowling.runsConceded += rc; tRef.bowling.wickets += wkts
     })
 
-    // Batting Averages
+    // Calculate Global Averages
     batting.average = batting.outs > 0 ? batting.runs / batting.outs : (batting.outs === 0 && batting.runs > 0 ? batting.runs : 0)
     batting.strikeRate = batting.balls > 0 ? (batting.runs / batting.balls) * 100 : 0
-
-    // Bowling Economy/Average
     bowling.economy = bowling.overs > 0 ? bowling.runsConceded / bowling.overs : 0
     bowling.bowlingAverage = bowling.wickets > 0 ? bowling.runsConceded / bowling.wickets : 0
-    // Bowling Strike Rate = Balls per wicket
-    const totalBallsBowled = bowling.overs * 6
-    bowling.strikeRate = bowling.wickets > 0 ? totalBallsBowled / bowling.wickets : 0
+    bowling.strikeRate = bowling.wickets > 0 ? (bowling.overs * 6) / bowling.wickets : 0
+
+    // Calculate Tournament Averages
+    Object.keys(tournamentStats).forEach(tid => {
+      const t = tournamentStats[tid]
+      t.matches = t.matches.size
+      t.batting.average = t.batting.outs > 0 ? t.batting.runs / t.batting.outs : (t.batting.outs === 0 && t.batting.runs > 0 ? t.batting.runs : 0)
+      t.batting.strikeRate = t.batting.balls > 0 ? (t.batting.runs / t.batting.balls) * 100 : 0
+      t.bowling.economy = t.bowling.overs > 0 ? t.bowling.runsConceded / t.bowling.overs : 0
+      t.bowling.bowlingAverage = t.bowling.wickets > 0 ? t.bowling.runsConceded / t.bowling.wickets : 0
+      t.bowling.strikeRate = t.bowling.wickets > 0 ? (t.bowling.overs * 6) / t.bowling.wickets : 0
+    })
 
     const careerStats = {
       matches: matchesSet.size,
@@ -159,7 +169,7 @@ export const playerMatchStatsService = {
     console.log(`[PlayerMatchStats] ✅ Result: ${careerStats.matches} matches, ${careerStats.batting.runs} runs.`)
 
     const playerRef = doc(collection(db, COLLECTIONS.PLAYERS), playerId)
-    await updateDoc(playerRef, { stats: careerStats, updatedAt: Timestamp.now() } as any)
+    await updateDoc(playerRef, { stats: careerStats, tournamentStats, updatedAt: Timestamp.now() } as any)
   },
 
   /**
@@ -201,11 +211,13 @@ export const playerMatchStatsService = {
       const runsConceded = Number(m.runsConceded ?? m.bowling?.runsConceded ?? 0)
       const wickets = Number(m.wickets ?? m.bowling?.wickets ?? 0)
       const opponent = m.opponentName || m.opponent || 'Opponent'
+      const tournamentId = m.tournamentId || matchSnap.data()?.tournamentId || null
 
       console.log(`[PlayerMatchStats] Migrating match ${mid}: ${runs} runs, ${wickets} wkts.`)
 
       await setDoc(ref, {
         matchId: mid,
+        tournamentId,
         playerId,
         opponent,
         runs,

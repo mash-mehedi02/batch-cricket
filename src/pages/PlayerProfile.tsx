@@ -26,6 +26,8 @@ import { getCroppedImg } from '@/utils/cropImage'
 import { motion, AnimatePresence } from 'framer-motion'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
+import { calculateBattingPoints, calculateBowlingPoints } from '@/utils/statsCalculator'
+import { playerService } from '@/services/firestore/players'
 
 const detectPlatform = (url: string): 'instagram' | 'facebook' | 'x' | 'linkedin' | null => {
   const lower = url.toLowerCase()
@@ -311,6 +313,7 @@ export default function PlayerProfile() {
   const [dbStats, setDbStats] = useState<any[]>([])
   const [liveData, setLiveData] = useState<Record<string, any>>({})
   const [tournaments, setTournaments] = useState<Record<string, any>>({})
+  const [ranks, setRanks] = useState({ batting: '--', bowling: '--' })
 
   // 0. Listen to Tournaments (to resolve IDs to names)
   useEffect(() => {
@@ -324,6 +327,37 @@ export default function PlayerProfile() {
     })
     return () => unsubscribe()
   }, [])
+
+  // 1. Fetch Ranks
+  useEffect(() => {
+    if (!playerId) return
+    const fetchRanks = async () => {
+      try {
+        const allPlayers = await playerService.getAll()
+
+        const battingList = allPlayers
+          .map(p => ({ id: p.id, pts: calculateBattingPoints(p.stats) }))
+          .filter(p => p.pts > 0)
+          .sort((a, b) => b.pts - a.pts)
+
+        const bowlingList = allPlayers
+          .map(p => ({ id: p.id, pts: calculateBowlingPoints(p.stats) }))
+          .filter(p => p.pts > 0)
+          .sort((a, b) => b.pts - a.pts)
+
+        const bRank = battingList.findIndex(p => p.id === playerId) + 1
+        const boRank = bowlingList.findIndex(p => p.id === playerId) + 1
+
+        setRanks({
+          batting: bRank > 0 ? `#${bRank}` : '--',
+          bowling: boRank > 0 ? `#${boRank}` : '--'
+        })
+      } catch (err) {
+        console.error('Error fetching ranks:', err)
+      }
+    }
+    fetchRanks()
+  }, [playerId])
 
   // 1. Listen to the Player document in real-time
   useEffect(() => {
@@ -915,7 +949,7 @@ export default function PlayerProfile() {
                     <StatCell label="Fours" value={fours} />
                     <StatCell label="Sixes" value={sixes} />
                     <StatCell label="Duck Out" value={ducks} />
-                    <StatCell label="Rank" value="#--" />
+                    <StatCell label="Rank" value={ranks.batting} />
                   </div>
                 </div>
               ) : (
@@ -938,7 +972,7 @@ export default function PlayerProfile() {
                   <div className="grid grid-cols-4 divide-x divide-slate-200">
                     <StatCell label="SR" value={bowlingAverage !== '-' ? (Number(bowlingInnings * 6) / (wickets || 1)).toFixed(1) : '-'} />
                     <StatCell label="Maiden" value={maidens > 0 ? maidens : '--'} />
-                    <StatCell label="Rank" value="#--" />
+                    <StatCell label="Rank" value={ranks.bowling} />
                     <StatCell label="" value="" />
                   </div>
                 </div>
