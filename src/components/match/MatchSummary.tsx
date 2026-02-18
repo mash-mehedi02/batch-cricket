@@ -189,7 +189,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                             {match.teamAName} VS {match.teamBName}
                         </h2>
                         <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-1">
-                            MATCH • {tournament?.name || 'FRIENDLY MATCH'}
+                            {match.oversLimit || 20} OVERS • {tournament?.name || 'FRIENDLY MATCH'}
                         </div>
                     </div>
 

@@ -330,7 +330,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                     {(isLive || isFinished || isInningsBreak) && (
                                         <div className="flex items-baseline gap-2">
                                             <span className="text-[10px] font-medium text-slate-400 font-mono">
-                                                ({inn?.overs || '0.0'})
+                                                ({inn?.overs || '0.0'}/{match.oversLimit || 20})
                                             </span>
                                             <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
                                                 {inn?.totalRuns || 0}-{inn?.totalWickets || 0}

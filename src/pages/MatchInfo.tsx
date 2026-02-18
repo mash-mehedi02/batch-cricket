@@ -376,18 +376,30 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                     </div>
                     <ChevronDown className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors" />
                 </div>
-                {/* Match Number - Only show if exists */}
-                {(match as any).matchNo && (
-                    <div className="flex items-center gap-4 text-sm font-semibold pt-2 border-t border-slate-100">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100/50">
-                            <span className="text-emerald-600 font-black text-xs">#</span>
+                {/* Match Number & Overs Limit */}
+                <div className="flex items-center gap-8 pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-4 text-sm font-semibold">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
+                            <Info className="w-4.5 h-4.5 text-blue-400" />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Match Number</span>
-                            <span className="text-emerald-600 font-black text-base tracking-tight uppercase">{(match as any).matchNo}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Match Type</span>
+                            <span className="text-blue-600 font-black text-base tracking-tight uppercase">{match.oversLimit || 20} Overs</span>
                         </div>
                     </div>
-                )}
+
+                    {(match as any).matchNo && (
+                        <div className="flex items-center gap-4 text-sm font-semibold pl-8 border-l border-slate-100">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100/50">
+                                <span className="text-emerald-600 font-black text-xs">#</span>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Match Number</span>
+                                <span className="text-emerald-600 font-black text-base tracking-tight uppercase">{(match as any).matchNo}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* 4. Squad / Playing XI Section */}

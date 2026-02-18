@@ -17,7 +17,9 @@ import {
     ShieldCheck,
     Handshake,
     UserPlus,
-    LayoutDashboard
+    LayoutDashboard,
+    Users,
+    User
 } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 import schoolConfig from '@/config/school';
@@ -117,7 +119,7 @@ export default function MenuPage() {
 
                     {/* Rankings */}
                     <Link
-                        to="/players"
+                        to="/rankings"
                         className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
                     >
                         <div className="flex items-center gap-4">
@@ -139,6 +141,34 @@ export default function MenuPage() {
                                 <Trophy size={22} />
                             </div>
                             <span className="font-semibold text-[15px]">{t('nav_series')}</span>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-400" />
+                    </Link>
+
+                    {/* Squads */}
+                    <Link
+                        to="/squads"
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 flex items-center justify-center text-indigo-500">
+                                <Users size={22} />
+                            </div>
+                            <span className="font-semibold text-[15px]">{t('nav_squads')}</span>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-400" />
+                    </Link>
+
+                    {/* Players */}
+                    <Link
+                        to="/players"
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 flex items-center justify-center text-emerald-500">
+                                <User size={22} />
+                            </div>
+                            <span className="font-semibold text-[15px]">{t('nav_players')}</span>
                         </div>
                         <ChevronRight size={18} className="text-slate-400" />
                     </Link>

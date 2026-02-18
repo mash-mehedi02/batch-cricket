@@ -1404,6 +1404,16 @@ export default function MatchLive() {
                         <div className="text-[11px] font-bold text-slate-200">{(match as any)?.groupName || 'Pool Match'}</div>
                       </div>
                     </div>
+
+                    <div className="bg-white/[0.03] backdrop-blur-sm border border-white/5 rounded-2xl p-4 flex items-center gap-4 hover:bg-white/[0.06] transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                        <Info size={18} className="text-blue-500" />
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Format</div>
+                        <div className="text-[11px] font-bold text-slate-200">{match.oversLimit || 20} Overs</div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Right: Countdown Block */}

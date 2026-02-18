@@ -72,12 +72,12 @@ export const oversToBalls = (oversValue = '0.0') => {
 export const calculateNRR = (runsScored, oversFaced, runsConceded, oversBowled) => {
   const oversFacedDecimal = parseFloat(oversFaced) || 0
   const oversBowledDecimal = parseFloat(oversBowled) || 0
-  
+
   if (oversFacedDecimal === 0 && oversBowledDecimal === 0) return '0.000'
-  
+
   const runRateFor = oversFacedDecimal > 0 ? runsScored / oversFacedDecimal : 0
   const runRateAgainst = oversBowledDecimal > 0 ? runsConceded / oversBowledDecimal : 0
-  
+
   const nrr = runRateFor - runRateAgainst
   return nrr.toFixed(3)
 }
@@ -124,11 +124,11 @@ export const calculatePlayerCareerStats = (matchPerformances = []) => {
         stats.balls += performance.batting.balls || 0
         stats.fours += performance.batting.fours || 0
         stats.sixes += performance.batting.sixes || 0
-        
+
         if (performance.batting.runs > stats.highestScore) {
           stats.highestScore = performance.batting.runs
         }
-        
+
         if (performance.batting.dismissed) {
           stats.dismissals++
         } else {
@@ -254,5 +254,38 @@ export const calculatePointsTable = (squads = [], matches = []) => {
     if (b.points !== a.points) return b.points - a.points
     return b.nrr - a.nrr
   })
+}
+
+/**
+ * Calculate Fantasy points for a player
+ */
+export const calculateFantasyPoints = (stats) => {
+  if (!stats) return 0
+
+  const runs = Number(stats.batting?.runs || stats.runs || 0)
+  const fours = Number(stats.batting?.fours || stats.fours || 0)
+  const sixes = Number(stats.batting?.sixes || stats.sixes || 0)
+  const fifties = Number(stats.batting?.fifties || stats.fifties || 0)
+  const hundreds = Number(stats.batting?.hundreds || stats.hundreds || 0)
+  const wickets = Number(stats.bowling?.wickets || stats.wickets || 0)
+  const maidens = Number(stats.bowling?.maidens || stats.maidens || 0)
+  const catches = Number(stats.fielding?.catches || stats.catches || 0)
+  const stumpings = Number(stats.fielding?.stumpings || stats.stumpings || 0)
+  const runOuts = Number(stats.fielding?.runOuts || stats.runOuts || 0)
+
+  // Standard Fantasy Point System
+  const points =
+    (runs * 1) +                  // 1 pt per run
+    (fours * 1) +                 // +1 pt per boundary
+    (sixes * 2) +                 // +2 pt per six
+    (fifties * 8) +               // +8 pt per half century
+    (hundreds * 16) +             // +16 pt per century
+    (wickets * 25) +              // 25 pts per wicket
+    (maidens * 12) +              // 12 pts per maiden
+    (catches * 8) +               // 8 pts per catch
+    (stumpings * 12) +            // 12 pts per stumping
+    (runOuts * 6)                 // 6 pts per run-out
+
+  return Math.round(points)
 }
 

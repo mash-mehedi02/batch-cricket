@@ -138,6 +138,24 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     // Determine if the event is a boundary, wicket, or other type for styling
     const isRun = !isFinishedMatch && !isInningsBreak && ['0', '1', '2', '3', '4', '5', '6'].includes(displayEvent);
     const isWideOrNoBall = !isFinishedMatch && !isInningsBreak && (displayEvent.toLowerCase().includes('wide') || displayEvent.toLowerCase().includes('no ball') || displayEvent.toLowerCase().includes('free hit'));
+
+    // Result split logic for finished matches
+    const { resultMain, resultSub } = useMemo(() => {
+        if (!isFinishedMatch) return { resultMain: displayEvent, resultSub: '' };
+
+        const lowerRes = displayEvent.toLowerCase();
+        const wonByIdx = lowerRes.indexOf(' won by ');
+
+        if (wonByIdx !== -1) {
+            return {
+                resultMain: displayEvent.substring(0, wonByIdx + 4).trim(),
+                resultSub: displayEvent.substring(wonByIdx + 4).trim()
+            };
+        }
+
+        return { resultMain: displayEvent, resultSub: '' };
+    }, [isFinishedMatch, displayEvent]);
+
     const isBye = !isFinishedMatch && !isInningsBreak && displayEvent.toLowerCase().includes('bye');
     const isBoundary = !isFinishedMatch && !isInningsBreak && (displayEvent === '4' || displayEvent === '6');
 
@@ -246,7 +264,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     {runs}-{wkts}
                                 </span>
                                 <span className="text-base sm:text-lg font-medium text-slate-500 tabular-nums">
-                                    {(isChasing && wkts >= 10) || isFinishedMatch ? 'FINAL' : overs}
+                                    {(isChasing && wkts >= 10) || isFinishedMatch ? 'FINAL' : `${overs}/${match.oversLimit || 20}`}
                                 </span>
                             </div>
                         </div>
@@ -265,10 +283,21 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 <img src={sixIcon} className="h-20 w-auto object-contain drop-shadow-xl" alt="6" />
                             </div>
                         ) : (
-                            <div className={`relative z-10 text-center flex flex-col items-center justify-center ${eventColorClass}`}>
-                                <span className={`font-medium tracking-tighter transition-all duration-300 scale-100 leading-none ${isFinishedMatch || !isRun ? 'text-2xl sm:text-3xl uppercase px-2' : 'text-5xl sm:text-7xl'}`}>
-                                    {displayEvent === '—' ? '' : displayEvent}
-                                </span>
+                            <div className={`relative z-10 text-center flex items-center justify-center w-full px-2 ${eventColorClass}`}>
+                                <div className="flex flex-col items-center justify-center">
+                                    <span className={`font-black tracking-tight transition-all duration-300 scale-100 uppercase
+                                        ${isFinishedMatch || !isRun
+                                            ? (resultMain.length > 15 ? 'text-[16px] sm:text-[19px] leading-[1.1]' : 'text-xl sm:text-2xl leading-none')
+                                            : 'text-5xl sm:text-7xl leading-none'
+                                        }`}>
+                                        {resultMain === '—' ? '' : resultMain}
+                                    </span>
+                                    {resultSub && (
+                                        <span className="text-[11px] sm:text-[13px] font-bold text-amber-500/90 uppercase tracking-[0.1em] mt-1.5 leading-none">
+                                            {resultSub}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

@@ -13,6 +13,7 @@ import SquadDetails from './pages/SquadDetails'
 import Players from './pages/Players'
 import PlayerProfile from './pages/PlayerProfile'
 import Champions from './pages/Champions'
+import Rankings from './pages/Rankings'
 import Menu from './pages/Menu'
 import Account from './pages/Account'
 import EditProfile from './pages/EditProfile'
@@ -97,6 +98,7 @@ function App() {
           <Route path="/players" element={<Players />} />
           <Route path="/players/:playerId" element={<PlayerProfile />} />
           <Route path="/champions" element={<Champions />} />
+          <Route path="/rankings" element={<Rankings />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/menu" element={<Menu />} />
           <Route path="/account" element={<Account />} />

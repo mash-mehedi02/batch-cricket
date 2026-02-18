@@ -276,6 +276,27 @@ export const playerService = {
       console.error(`[playerService] upsertPastMatchAndRecompute failed for ${playerId}:`, error)
       throw error
     }
+  },
+
+  /**
+   * Bulk sync all players legacy data into the new stats system
+   */
+  async bulkSyncAllPlayers(): Promise<{ total: number; success: number }> {
+    const players = await this.getAll()
+    const { playerMatchStatsService } = await import('./playerMatchStats')
+
+    let successCount = 0
+    for (const player of players) {
+      if (player.pastMatches && player.pastMatches.length > 0) {
+        try {
+          await playerMatchStatsService.migrateFromPastMatches(player.id, player.pastMatches)
+          successCount++
+        } catch (e) {
+          console.error(`Failed to sync player ${player.id}:`, e)
+        }
+      }
+    }
+    return { total: players.length, success: successCount }
   }
 }
 
