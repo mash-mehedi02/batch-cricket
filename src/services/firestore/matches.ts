@@ -423,113 +423,152 @@ export const matchService = {
    */
   async removeMatchStatsFromPlayers(matchId: string): Promise<void> {
     const { playerService } = await import('./players')
-    const players = await playerService.getAll()
+    const match = await this.getById(matchId)
+    if (!match) return
 
-    // Helper function to recalculate stats from pastMatches
-    const recalculateStats = (pastMatches: any[]) => {
-      const totals = pastMatches.reduce(
-        (acc, match) => {
-          const runs = Number(match.runs || 0)
-          const balls = Number(match.balls || 0)
-          const fours = Number(match.fours || 0)
-          const sixes = Number(match.sixes || 0)
-          const wickets = Number(match.wickets || 0)
-          const ballsBowled = Number(match.ballsBowled || 0)
-          const runsConceded = Number(match.runsConceded || 0)
+    // Collect all unique participant IDs
+    const involved = new Set<string>()
 
-          if (match.played) acc.matches += 1
-          acc.runs += runs
-          acc.balls += balls
-          acc.fours += fours
-          acc.sixes += sixes
-          acc.wickets += wickets
-          acc.ballsBowled += ballsBowled
-          acc.runsConceded += runsConceded
+      // 1. From Playing XIs
+      ; ((match as any).teamAPlayingXI || []).forEach((id: string) => id && involved.add(id))
+      ; ((match as any).teamBPlayingXI || []).forEach((id: string) => id && involved.add(id))
 
-          if (match.batted) {
-            acc.battingInnings += 1
-            if (match.notOut) {
-              acc.notOuts += 1
-            } else {
-              acc.dismissals += 1
-            }
-          }
-
-          if (runs > acc.highest) acc.highest = runs
-          if (runs >= 50 && runs < 100) acc.fifties += 1
-          if (runs >= 100) acc.hundreds += 1
-
-          return acc
-        },
-        {
-          matches: 0,
-          runs: 0,
-          balls: 0,
-          fours: 0,
-          sixes: 0,
-          wickets: 0,
-          ballsBowled: 0,
-          runsConceded: 0,
-          battingInnings: 0,
-          dismissals: 0,
-          notOuts: 0,
-          highest: 0,
-          fifties: 0,
-          hundreds: 0,
-        }
-      )
-
-      const strikeRate = totals.balls > 0 ? (totals.runs / totals.balls) * 100 : 0
-      const average =
-        totals.dismissals > 0
-          ? totals.runs / totals.dismissals
-          : totals.battingInnings > 0 && totals.runs > 0
-            ? totals.runs
-            : 0
-      const economy = totals.ballsBowled > 0 ? totals.runsConceded / (totals.ballsBowled / 6) : 0
-      const bowlingAverage = totals.wickets > 0 ? totals.runsConceded / totals.wickets : 0
-      const bowlingStrikeRate = totals.wickets > 0 ? totals.ballsBowled / totals.wickets : 0
-
-      return {
-        matches: totals.matches,
-        innings: totals.battingInnings,
-        runs: totals.runs,
-        balls: totals.balls,
-        fours: totals.fours,
-        sixes: totals.sixes,
-        wickets: totals.wickets,
-        ballsBowled: totals.ballsBowled,
-        runsConceded: totals.runsConceded,
-        dismissals: totals.dismissals,
-        notOuts: totals.notOuts,
-        highestScore: totals.highest,
-        average: Number(average.toFixed(2)),
-        strikeRate: Number(strikeRate.toFixed(2)),
-        hundreds: totals.hundreds,
-        fifties: totals.fifties,
-        economy: Number(economy.toFixed(2)),
-        bowlingAverage: Number(bowlingAverage.toFixed(2)),
-        bowlingStrikeRate: Number(bowlingStrikeRate.toFixed(2)),
+    // 2. From Innings Stats (Robustness)
+    try {
+      const [innA, innB] = await Promise.all([
+        this.getInnings(matchId, 'teamA'),
+        this.getInnings(matchId, 'teamB')
+      ])
+      if (innA) {
+        innA.batsmanStats?.forEach((b: any) => b.batsmanId && involved.add(b.batsmanId))
+        innA.bowlerStats?.forEach((b: any) => b.bowlerId && involved.add(b.bowlerId))
       }
+      if (innB) {
+        innB.batsmanStats?.forEach((b: any) => b.batsmanId && involved.add(b.batsmanId))
+        innB.bowlerStats?.forEach((b: any) => b.bowlerId && involved.add(b.bowlerId))
+      }
+    } catch (e) {
+      console.warn('[MatchService] Innings fetch failed during delete cleanup:', e)
     }
 
-    // Update each player
-    const updatePromises = players.map(async (player) => {
-      const pastMatches = (player.pastMatches || []).filter(
-        (match: any) => match.matchId !== matchId && match.id !== matchId
-      )
+    const playerIds = Array.from(involved)
+    console.log(`[MatchService] Removing stats for match ${matchId} from ${playerIds.length} players`)
 
-      // Only update if match was found and removed
-      if (pastMatches.length !== (player.pastMatches || []).length) {
-        const aggregatedStats = recalculateStats(pastMatches)
-        await playerService.update(player.id, {
-          pastMatches,
-          stats: aggregatedStats,
-        })
+    // Update each involved player
+    const updatePromises = playerIds.map(async (playerId) => {
+      try {
+        const player = await playerService.getById(playerId)
+        if (!player) return
+
+        const originalCount = (player.pastMatches || []).length
+        const pastMatches = (player.pastMatches || []).filter(
+          (m: any) => m.matchId !== matchId && m.id !== matchId
+        )
+
+        // Only update if match was found and removed
+        if (pastMatches.length !== originalCount) {
+          const aggregatedStats = this.recalculateStatsForDeletion(pastMatches)
+          await playerService.update(player.id, {
+            pastMatches,
+            stats: aggregatedStats,
+          })
+        }
+      } catch (err) {
+        console.error(`[MatchService] Failed to cleanup stats for player ${playerId}:`, err)
       }
     })
 
     await Promise.all(updatePromises)
+  },
+
+  /**
+   * Recalculate stats from pastMatches (Shared with deletion logic)
+   */
+  recalculateStatsForDeletion(pastMatches: any[]) {
+    const totals = pastMatches.reduce(
+      (acc, match) => {
+        const runs = Number(match.runs || 0)
+        const balls = Number(match.balls || 0)
+        const fours = Number(match.fours || 0)
+        const sixes = Number(match.sixes || 0)
+        const wickets = Number(match.wickets || 0)
+        const ballsBowled = Number(match.ballsBowled || 0)
+        const runsConceded = Number(match.runsConceded || 0)
+
+        if (match.played) acc.matches += 1
+        acc.runs += runs
+        acc.balls += balls
+        acc.fours += fours
+        acc.sixes += sixes
+        acc.wickets += wickets
+        acc.ballsBowled += ballsBowled
+        acc.runsConceded += runsConceded
+
+        if (match.batted) {
+          acc.battingInnings += 1
+          if (match.notOut) {
+            acc.notOuts += 1
+          } else {
+            acc.dismissals += 1
+          }
+        }
+
+        if (runs > acc.highest) acc.highest = runs
+        if (runs >= 50 && runs < 100) acc.fifties += 1
+        if (runs >= 100) acc.hundreds += 1
+
+        return acc
+      },
+      {
+        matches: 0,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        wickets: 0,
+        ballsBowled: 0,
+        runsConceded: 0,
+        battingInnings: 0,
+        dismissals: 0,
+        notOuts: 0,
+        highest: 0,
+        fifties: 0,
+        hundreds: 0,
+      }
+    )
+
+    const strikeRate = totals.balls > 0 ? (totals.runs / totals.balls) * 100 : 0
+    const average =
+      totals.dismissals > 0
+        ? totals.runs / totals.dismissals
+        : totals.battingInnings > 0 && totals.runs > 0
+          ? totals.runs
+          : 0
+    const economy = totals.ballsBowled > 0 ? totals.runsConceded / (totals.ballsBowled / 6) : 0
+    const bowlingAverage = totals.wickets > 0 ? totals.runsConceded / totals.wickets : 0
+    const bowlingStrikeRate = totals.wickets > 0 ? totals.ballsBowled / totals.wickets : 0
+
+    return {
+      matches: totals.matches,
+      innings: totals.battingInnings,
+      runs: totals.runs,
+      balls: totals.balls,
+      fours: totals.fours,
+      sixes: totals.sixes,
+      wickets: totals.wickets,
+      ballsBowled: totals.ballsBowled,
+      runsConceded: totals.runsConceded,
+      dismissals: totals.dismissals,
+      notOuts: totals.notOuts,
+      highestScore: totals.highest,
+      average: Number(average.toFixed(2)),
+      strikeRate: Number(strikeRate.toFixed(2)),
+      hundreds: totals.hundreds,
+      fifties: totals.fifties,
+      economy: Number(economy.toFixed(2)),
+      bowlingAverage: Number(bowlingAverage.toFixed(2)),
+      bowlingStrikeRate: Number(bowlingStrikeRate.toFixed(2)),
+    }
   },
 
   /**

@@ -64,8 +64,19 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
     // --- Result Logic ---
     const resultText = useMemo(() => {
-        if ((match as any).resultSummary) return (match as any).resultSummary
-        return getMatchResultString(teamAName, teamBName, teamAInnings, teamBInnings, match, teamASuperInnings, teamBSuperInnings)
+        const calc = getMatchResultString(
+            teamAName,
+            teamBName,
+            teamAInnings,
+            teamBInnings,
+            match,
+            teamASuperInnings,
+            teamBSuperInnings
+        )
+        // Prefer calculated result if it contains "Won" or "Tie" (meaning we have data)
+        if (calc && (calc.toLowerCase().includes(' won') || calc.includes('Tie'))) return calc
+
+        return (match as any)?.resultSummary || ''
     }, [match, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, teamAName, teamBName])
 
     const winnerSide = useMemo(() => {
@@ -193,7 +204,9 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                             {match.teamAName} VS {match.teamBName}
                         </h2>
                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 opacity-80">
-                            {match.oversLimit || 20} OVERS • {tournament?.name || 'FRIENDLY MATCH'}
+                            {(match as any).stage === 'knockout'
+                                ? `KNOCKOUT (${String((match as any).round || '').replace('_', ' ')})`
+                                : (match as any).matchNo ? `MATCH ${(match as any).matchNo}` : `${match.oversLimit || 20} OVERS`} • {tournament?.name || 'FRIENDLY MATCH'}
                         </div>
                     </div>
 

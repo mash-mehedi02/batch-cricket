@@ -942,7 +942,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleDeleteClick = (match: Match) => {
     // Check if user is admin is handled by UI visibility, but double check
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
       toast.error('Only admins can delete matches')
       return
     }
@@ -981,7 +981,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
   const handleRescheduleMatch = async () => {
     // Check if user is admin
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
       toast.error('Only admins can reschedule matches')
       return
     }
@@ -1913,7 +1913,11 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                                   </div>
                                   <div>
                                     <div className="text-xs font-bold text-blue-600 uppercase tracking-tight">{tourneyName}</div>
-                                    <div className="text-xs text-slate-400 capitalize">{match.groupName ? `${match.groupName} Group` : 'Match'}</div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                      {(match as any).stage === 'knockout'
+                                        ? `Knockout (${String((match as any).round || '').replace('_', ' ')})`
+                                        : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
+                                    </div>
                                   </div>
                                 </div>
                               </td>

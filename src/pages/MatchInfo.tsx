@@ -11,7 +11,8 @@ import { squadService } from '@/services/firestore/squads'
 import { Match, Tournament } from '@/types'
 import { formatShortTeamName } from '@/utils/teamName'
 import { coerceToDate, formatTimeLabel, formatTimeHMTo12h } from '@/utils/date'
-import { Calendar, MapPin, ChevronRight, ChevronDown, Info } from 'lucide-react'
+import { Calendar, MapPin, ChevronRight, ChevronDown, Info, Zap, Hash, X } from 'lucide-react'
+import MatchPlayingXI from './MatchPlayingXI'
 
 interface MatchInfoProps {
     compact?: boolean
@@ -30,6 +31,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
     const [teamAForm, setTeamAForm] = useState<any[]>([])
     const [teamBForm, setTeamBForm] = useState<any[]>([])
     const [expandedTeamIdx, setExpandedTeamIdx] = useState<number | null>(null)
+    const [showPlayingXIModal, setShowPlayingXIModal] = useState(false)
 
     useEffect(() => {
         if (!matchId) return
@@ -367,7 +369,11 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                 onClick={() => navigate(tournament?.id ? `/tournaments/${tournament.id}` : '/tournaments')}
             >
                 <div className="space-y-1">
-                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">{(match as any).matchNo || 'T20 Match'}</div>
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">
+                        {(match as any).stage === 'knockout'
+                            ? `Knockout (${String((match as any).round || '').replace('_', ' ')})`
+                            : (match as any).matchNo || 'T20 Match'}
+                    </div>
                     <div className="text-[15px] font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         {tournament?.name || 'Local Tournament'}
                         <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
@@ -395,26 +401,47 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                     </div>
                     <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                 </div>
-                {/* Match Number & Overs Limit */}
-                <div className="flex items-center gap-8 pt-2 border-t border-slate-100 dark:border-white/5">
-                    <div className="flex items-center gap-4 text-sm font-semibold">
+                {/* Match Stage, Overs & Number */}
+                <div className="flex items-center gap-6 pt-2 border-t border-slate-100 dark:border-white/5 overflow-x-auto no-scrollbar">
+                    {/* Stage */}
+                    <div className="flex items-center gap-3 text-sm font-semibold shrink-0">
                         <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                             <Info className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match Type</span>
-                            <span className="text-blue-600 dark:text-blue-400 font-black text-base tracking-tight uppercase">{match.oversLimit || 20} Overs</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Stage</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-black text-[13px] tracking-tight uppercase whitespace-nowrap">
+                                {(match as any).stage === 'knockout'
+                                    ? String((match as any).round || '').replace('_', ' ')
+                                    : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
+                            </span>
                         </div>
                     </div>
 
+                    {/* Overs */}
+                    <div className="flex items-center gap-3 text-sm font-semibold pl-6 border-l border-slate-100 dark:border-white/5 shrink-0">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                            <Zap className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Format</span>
+                            <span className="text-indigo-600 dark:text-indigo-400 font-black text-base tracking-tight uppercase">
+                                {match.oversLimit || 20} Overs
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Match No */}
                     {(match as any).matchNo && (
-                        <div className="flex items-center gap-4 text-sm font-semibold pl-8 border-l border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-3 text-sm font-semibold pl-6 border-l border-slate-100 dark:border-white/5 shrink-0">
                             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                                <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs">#</span>
+                                <Hash className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match Number</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-black text-base tracking-tight uppercase">{(match as any).matchNo}</span>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-black text-base tracking-tight uppercase">
+                                    {(match as any).matchNo}
+                                </span>
                             </div>
                         </div>
                     )}
@@ -425,7 +452,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
             <div className="space-y-3">
                 <h3 className="text-[13px] font-black text-slate-900 dark:text-slate-100 px-1 uppercase tracking-wide">{xiTitle}</h3>
                 <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm divide-y divide-slate-100 dark:divide-white/5 overflow-hidden">
-                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
+                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => setShowPlayingXIModal(true)}>
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
                                 {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-400 dark:text-white/10">{teamAName[0]}</span>}
@@ -434,7 +461,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                         </div>
                         <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-1 transition-transform" />
                     </div>
-                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
+                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => setShowPlayingXIModal(true)}>
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
                                 {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-400 dark:text-white/10">{teamBName[0]}</span>}
@@ -680,6 +707,33 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                     </div>
                 </div>
             </div>
+
+            {/* Playing XI Popup Modal */}
+            {showPlayingXIModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-slate-50 dark:bg-[#060b16] w-full max-w-4xl max-h-[90vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/10 relative">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-white/5 bg-white dark:bg-[#0f172a]">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Playing XI</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match Day Squad</p>
+                            </div>
+                            <button
+                                onClick={() => setShowPlayingXIModal(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto">
+                            <MatchPlayingXI compact={true} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
+

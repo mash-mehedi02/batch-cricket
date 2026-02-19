@@ -202,7 +202,7 @@ export default function Squads() {
                 </div>
               </div>
             )
-          })} // Added missing bracket and parens
+          })}
         </div>
       )}
     </div>

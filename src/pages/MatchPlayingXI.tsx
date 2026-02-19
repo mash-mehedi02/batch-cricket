@@ -264,7 +264,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
               <PlayerLink playerId={player.id} playerName={player.name} className="font-medium text-slate-900 dark:text-white truncate text-sm sm:text-base hover:text-blue-600 dark:hover:text-blue-400 transition-colors" />
               {(isCaptain || isKeeper) && (
                 <div className="flex gap-1">
-                  {isCaptain && <span className="text-[8px] sm:text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">Captain</span>}
+                  {isCaptain && <span className="text-[8px] sm:text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">(C)</span>}
                   {isKeeper && <span className="text-[8px] sm:text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">WK</span>}
                 </div>
               )}
@@ -323,9 +323,19 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
           ) : (
             <>
               {(selectedTeam === 'A' && teamAPlayingXI.length === 0) || (selectedTeam === 'B' && teamBPlayingXI.length === 0) ? (
-                <div className="bg-[#0f172a] border border-white/5 rounded-[2rem] p-12 text-center shadow-sm">
-                  <div className="text-4xl mb-4 opacity-20">⏳</div>
-                  <p className="text-slate-500 font-medium uppercase tracking-widest text-xs">XI not announced for this squad</p>
+                <div className="space-y-8">
+                  <div className="bg-slate-100 dark:bg-white/5 rounded-2xl p-4 text-center">
+                    <p className="text-slate-500 font-medium uppercase tracking-widest text-[10px]">Playing XI not announced yet</p>
+                  </div>
+
+                  {/* Show Full Squad */}
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    {selectedTeam === 'A' ? (
+                      squadData.allA.map((p) => renderPlayerCard(p, p.id === match.teamACaptainId, p.id === match.teamAKeeperId))
+                    ) : (
+                      squadData.allB.map((p) => renderPlayerCard(p, p.id === match.teamACaptainId, p.id === match.teamAKeeperId))
+                    )}
+                  </div>
                 </div>
               ) : (
                 <>

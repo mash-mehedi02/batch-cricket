@@ -296,12 +296,12 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
       return s === 'live' || s === 'inningsbreak' || s === 'innings break'
     }).sort((a, b) => (coerceToDate(b.date)?.getTime() || 0) - (coerceToDate(a.date)?.getTime() || 0))
 
-    // 2. Soonest Upcoming match (must be in the future)
+    // 2. Upcoming matches (not yet live or finished)
     const upcoming = matches.filter(m => {
       const s = statusLower(m)
       const isStatusUpcoming = s === 'upcoming' || s === '' || !m.status
-      const isDateFuture = (coerceToDate(m.date)?.getTime() || 0) > now
-      return isStatusUpcoming && isDateFuture
+      // Remove strict isDateFuture check to show matches that might be delayed or haven't started yet
+      return isStatusUpcoming
     }).sort((a, b) => (coerceToDate(a.date)?.getTime() || 0) - (coerceToDate(b.date)?.getTime() || 0))
 
     // 3. Most recent Finished match
@@ -579,62 +579,78 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
 
   return (
     <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all block">
-      <div className="flex items-center justify-between gap-4">
-        {/* Team A (Left) */}
-        <div className="flex items-center gap-3 w-[120px]">
-          <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
-            {squadA?.logoUrl ? (
-              <img src={squadA.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
-                {match.teamAName?.charAt(0) || 'A'}
-              </div>
-            )}
-          </div>
-          <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate">
-            {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-white/5 px-2 py-0.5 rounded">
+            {(match as any).stage === 'knockout'
+              ? `${String((match as any).round || '').replace('_', ' ')}`
+              : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
           </span>
-        </div>
-
-        {/* Status (Center) */}
-        <div className="flex-1 text-center flex flex-col items-center justify-center min-w-0">
-          {isLive ? (
+          {isLive && (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
               <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Live</span>
             </div>
-          ) : isFin ? (
-            <div className="flex flex-col items-center">
-              <span className="text-[12px] font-black text-rose-900/80 dark:text-rose-200 uppercase tracking-tighter leading-tight">
-                {match.winnerId === match.teamAId
-                  ? (squadA ? formatShortTeamName(squadA.name, squadA.batch) : match.teamAName)
-                  : (squadB ? formatShortTeamName(squadB.name, squadB.batch) : match.teamBName)} Won
-              </span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
-                {resultStr.includes('by') ? `by ${resultStr.split('by')[1]?.trim()}` : resultStr}
-              </span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{match.time || '07:30 PM'}</span>
-              <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase leading-none mt-1">Today</span>
-            </div>
           )}
         </div>
 
-        {/* Team B (Right) */}
-        <div className="flex items-center gap-3 w-[120px] justify-end">
-          <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate text-right">
-            {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
-          </span>
-          <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
-            {squadB?.logoUrl ? (
-              <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+        <div className="flex items-center justify-between gap-4">
+          {/* Team A (Left) */}
+          <div className="flex items-center gap-3 w-[120px]">
+            <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
+              {squadA?.logoUrl ? (
+                <img src={squadA.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
+                  {match.teamAName?.charAt(0) || 'A'}
+                </div>
+              )}
+            </div>
+            <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate">
+              {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
+            </span>
+          </div>
+
+          {/* Status (Center) */}
+          <div className="flex-1 text-center flex flex-col items-center justify-center min-w-0">
+            {isLive ? (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+                <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Live</span>
+              </div>
+            ) : isFin ? (
+              <div className="flex flex-col items-center">
+                <span className="text-[12px] font-black text-rose-900/80 dark:text-rose-200 uppercase tracking-tighter leading-tight">
+                  {match.winnerId === match.teamAId
+                    ? (squadA ? formatShortTeamName(squadA.name, squadA.batch) : match.teamAName)
+                    : (squadB ? formatShortTeamName(squadB.name, squadB.batch) : match.teamBName)} Won
+                </span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                  {resultStr.includes('by') ? `by ${resultStr.split('by')[1]?.trim()}` : resultStr}
+                </span>
+              </div>
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
-                {match.teamBName?.charAt(0) || 'B'}
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{match.time || '07:30 PM'}</span>
+                <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase leading-none mt-1">Today</span>
               </div>
             )}
+          </div>
+
+          {/* Team B (Right) */}
+          <div className="flex items-center gap-3 w-[120px] justify-end">
+            <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate text-right">
+              {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
+            </span>
+            <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
+              {squadB?.logoUrl ? (
+                <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
+                  {match.teamBName?.charAt(0) || 'B'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -667,6 +683,13 @@ function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Sq
 
   return (
     <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2rem] p-5 shadow-sm hover:shadow-md transition-all">
+      <div className="mb-3 flex justify-center">
+        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-white/5 px-3 py-1 rounded-full">
+          {(match as any).stage === 'knockout'
+            ? `${String((match as any).round || '').replace('_', ' ')}`
+            : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
+        </span>
+      </div>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-[120px]">
           <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative">
@@ -748,7 +771,10 @@ function TournamentMatchesTab({ matches, squads, inningsMap }: { matches: Match[
       const s = String(m.status || '').toLowerCase()
       return s === 'live' || s === 'inningsbreak' || s === 'innings break'
     })
-    else if (filter === 'upcoming') f = matches.filter(m => (m.status?.toLowerCase() === 'upcoming' || !m.status) && coerceToDate(m.date)?.getTime()! > Date.now())
+    else if (filter === 'upcoming') f = matches.filter(m => {
+      const s = String(m.status || '').toLowerCase()
+      return s === 'upcoming' || s === '' || !m.status
+    })
     else if (filter === 'finished') f = matches.filter(m => m.status?.toLowerCase() === 'finished' || m.status?.toLowerCase() === 'completed')
     return f.sort((a, b) => (coerceToDate(b.date)?.getTime() || 0) - (coerceToDate(a.date)?.getTime() || 0))
   }, [matches, filter])

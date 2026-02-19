@@ -45,19 +45,38 @@ export default function QualificationCenter({ tournament, squads, matches, innin
         config.groups.forEach((g) => (g.squadIds || []).forEach((sid) => groupIdByTeam.set(sid, g.id)));
 
         matches.forEach((m: any) => {
-            const inn = inningsMap.get(m.id);
-            if (!inn?.teamA || !inn?.teamB) return;
+            const status = String(m.status || '').toLowerCase()
+            if (status !== 'finished' && status !== 'completed' && status !== 'abandoned') return
 
             const aId = m.teamAId || m.teamASquadId || m.teamA;
             const bId = m.teamBId || m.teamBSquadId || m.teamB;
-            if (!aId || !bId) return;
+            if (!aId || !bId) return
+
+            const inn = inningsMap.get(m.id);
+
+            if (status === 'abandoned' || !inn?.teamA || !inn?.teamB) {
+                results.push({
+                    matchId: m.id,
+                    tournamentId: tournament.id,
+                    teamA: aId,
+                    teamB: bId,
+                    groupA: groupIdByTeam.get(aId) || '',
+                    groupB: groupIdByTeam.get(bId) || '',
+                    result: 'no_result' as any,
+                    teamARunsFor: 0,
+                    teamABallsFaced: 0,
+                    teamARunsAgainst: 0,
+                    teamABallsBowled: 0,
+                });
+                return;
+            }
 
             const aRuns = Number(inn.teamA.totalRuns || 0);
             const bRuns = Number(inn.teamB.totalRuns || 0);
             const aBalls = Number(inn.teamA.legalBalls || 0);
             const bBalls = Number(inn.teamB.legalBalls || 0);
 
-            let res: 'win' | 'loss' | 'tie' = 'tie';
+            let res: 'win' | 'loss' | 'tie' | 'no_result' = 'tie';
             if (aRuns > bRuns) res = 'win';
             else if (aRuns < bRuns) res = 'loss';
             else {
@@ -69,8 +88,14 @@ export default function QualificationCenter({ tournament, squads, matches, innin
                 else {
                     // Super over also tied or not played, check winnerId/resultSummary
                     const winnerId = m.winnerId || m.winnerSquadId || m.winner;
+                    const resultSummary = String(m.resultSummary || '').toLowerCase();
+                    const teamAName = String(m.teamAName || '').toLowerCase();
+                    const teamBName = String(m.teamBName || '').toLowerCase();
+
                     if (winnerId === aId) res = 'win';
                     else if (winnerId === bId) res = 'loss';
+                    else if (resultSummary.includes(teamAName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'win';
+                    else if (resultSummary.includes(teamBName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'loss';
                     else res = 'tie';
                 }
             }
@@ -82,7 +107,7 @@ export default function QualificationCenter({ tournament, squads, matches, innin
                 teamB: bId,
                 groupA: groupIdByTeam.get(aId) || '',
                 groupB: groupIdByTeam.get(bId) || '',
-                result: res,
+                result: res as any,
                 teamARunsFor: aRuns,
                 teamABallsFaced: aBalls,
                 teamARunsAgainst: bRuns,

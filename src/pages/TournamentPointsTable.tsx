@@ -170,20 +170,37 @@ export default function TournamentPointsTable({
         const results: MatchResult[] = []
         matches.forEach((m: any) => {
           const status = String(m.status || '').toLowerCase()
-          if (status !== 'finished' && status !== 'completed') return
+          if (status !== 'finished' && status !== 'completed' && status !== 'abandoned') return
 
-          const inn = inningsMap.get(m.id)
-          if (!inn?.teamA || !inn?.teamB) return
           const aId = normalizeSquadRef(resolveSquadId(m, 'A'))
           const bId = normalizeSquadRef(resolveSquadId(m, 'B'))
           if (!aId || !bId) return
 
-          const mainARuns = inn.teamA.totalRuns;
-          const mainBRuns = inn.teamB.totalRuns;
+          const inn = inningsMap.get(m.id)
+
+          if (status === 'abandoned' || !inn?.teamA || !inn?.teamB) {
+            results.push({
+              matchId: m.id,
+              tournamentId: String(tournamentId || ''),
+              teamA: aId,
+              teamB: bId,
+              groupA: groupIdByTeam.get(aId) || '',
+              groupB: groupIdByTeam.get(bId) || '',
+              result: 'no_result' as any,
+              teamARunsFor: 0,
+              teamABallsFaced: 0,
+              teamARunsAgainst: 0,
+              teamABallsBowled: 0,
+            })
+            return
+          }
+
+          const mainARuns = Number(inn.teamA.totalRuns || 0);
+          const mainBRuns = Number(inn.teamB.totalRuns || 0);
           const soARuns = Number(inn.aso?.totalRuns || 0);
           const soBRuns = Number(inn.bso?.totalRuns || 0);
 
-          let res: 'win' | 'loss' | 'tie' = 'tie';
+          let res: 'win' | 'loss' | 'tie' | 'no_result' = 'tie';
 
           if (mainARuns > mainBRuns) {
             res = 'win';
@@ -217,7 +234,7 @@ export default function TournamentPointsTable({
             teamB: bId,
             groupA: groupIdByTeam.get(aId) || '',
             groupB: groupIdByTeam.get(bId) || '',
-            result: res,
+            result: res as any,
             teamARunsFor: inn.teamA.totalRuns,
             teamABallsFaced: inn.teamA.legalBalls,
             teamARunsAgainst: inn.teamB.totalRuns,

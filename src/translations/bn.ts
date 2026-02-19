@@ -67,6 +67,7 @@ export const bn = {
     match_completed: 'ম্যাচ সমাপ্ত',
     innings_break: 'ইনিংস বিরতি',
     player_entering: 'খেলোয়াড় নামছেন',
+    waiting_super_over: 'সুপার ওভারের জন্য অপেক্ষা করা হচ্ছে',
     result: 'ফলাফল',
 
     // Dynamic Messages

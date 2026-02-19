@@ -5,6 +5,7 @@ import sixIcon from '../../assets/six.png'
 import { Link } from 'react-router-dom'
 import { useTranslation } from '@/hooks/useTranslation'
 import { formatShortTeamName } from '@/utils/teamName'
+import gsap from 'gsap'
 
 interface MatchLiveHeroProps {
     match: Match
@@ -51,6 +52,9 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
             scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
         }
     }, [recentOvers])
+
+    const eventTextRef = useRef<HTMLSpanElement>(null);
+    const cricketBallRef = useRef<HTMLDivElement>(null);
 
     const inn = currentInnings as any
     const runs = Number(inn?.totalRuns || 0)
@@ -129,7 +133,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const isPlayerEntering = !isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0
     let displayEvent = isFinishedMatch
         ? (resultSummary || t('match_completed').toUpperCase())
-        : (isTied ? "MATCH TIED" : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—')))
+        : (isTied ? t('waiting_super_over').toUpperCase() : (isSuperOver && totalLegals === 0 ? t('waiting_super_over').toUpperCase() : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—'))))
 
     // Special Case: 2nd Innings Start (Player Entering)
     if (isPlayerEntering) {
@@ -147,17 +151,98 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         if (!isFinishedMatch) return { resultMain: displayEvent, resultSub: '' };
 
         const lowerRes = displayEvent.toLowerCase();
-        const wonByIdx = lowerRes.indexOf(' won by ');
+        const wonByIdx = lowerRes.indexOf(' won');
+        // If "won" is found, split there. We want "TEAM A WON" as main, and the rest as sub.
 
         if (wonByIdx !== -1) {
+            const splitIndex = wonByIdx + 4; // " won" is 4 chars
             return {
-                resultMain: displayEvent.substring(0, wonByIdx + 4).trim(),
-                resultSub: displayEvent.substring(wonByIdx + 4).trim()
+                resultMain: displayEvent.substring(0, splitIndex).trim(),
+                resultSub: displayEvent.substring(splitIndex).trim()
             };
         }
 
         return { resultMain: displayEvent, resultSub: '' };
     }, [isFinishedMatch, displayEvent]);
+
+    // GSAP Animation for Ball Update Sequence (BALL -> Result)
+    useEffect(() => {
+        if (!eventTextRef.current) return;
+
+        const el = eventTextRef.current;
+        const ball = cricketBallRef.current;
+        gsap.killTweensOf(el);
+        if (ball) gsap.killTweensOf(ball);
+
+        if (resultMain === 'BALL') {
+            // "BALL" precursor animation - Energy building style
+            const tl = gsap.timeline();
+
+            tl.fromTo(el,
+                { scale: 0.4, opacity: 0, filter: 'blur(15px)', y: 30 },
+                {
+                    scale: 1,
+                    opacity: 1,
+                    filter: 'blur(0px)',
+                    y: 0,
+                    duration: 0.4,
+                    ease: 'power3.out'
+                }
+            );
+
+            if (ball) {
+                // Balanced flight: 1.2s total
+                gsap.fromTo(ball,
+                    { x: -400, y: -60, opacity: 0, rotation: 0 },
+                    {
+                        duration: 1.2,
+                        x: 400,
+                        opacity: 1,
+                        rotation: 360,
+                        ease: "none",
+                        onComplete: () => {
+                            gsap.set(ball, { opacity: 0 });
+                        }
+                    }
+                );
+
+                // Bounce: hits y:0 at 0.6s mark
+                gsap.fromTo(ball,
+                    { y: -60 },
+                    {
+                        duration: 0.35,
+                        y: 0,
+                        ease: "power2.in",
+                        repeat: 1,
+                        yoyo: true,
+                        delay: 0.25, // 0.25 + 0.35 = 0.6s (Center of 1.2s)
+                    }
+                );
+            }
+
+            tl.to(el, {
+                scale: 1.1,
+                duration: 0.3,
+                ease: 'sine.inOut',
+                repeat: -1,
+                yoyo: true
+            });
+        } else if (resultMain && resultMain !== '—') {
+            // Actual result animation - Impactful pop style
+            gsap.fromTo(el,
+                { scale: 2.5, opacity: 0, filter: 'blur(20px)', rotationX: -90 },
+                {
+                    scale: 1,
+                    opacity: 1,
+                    filter: 'blur(0px)',
+                    rotationX: 0,
+                    duration: 0.6,
+                    ease: 'back.out(2)',
+                    clearProps: 'filter,rotationX'
+                }
+            );
+        }
+    }, [resultMain]);
 
     const isBye = !isFinishedMatch && !isInningsBreak && displayEvent.toLowerCase().includes('bye');
     const isBoundary = !isFinishedMatch && !isInningsBreak && (displayEvent === '4' || displayEvent === '6');
@@ -172,6 +257,8 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         eventColorClass = displayEvent === 'WICKET' ? 'text-amber-400' : 'text-red-500';
     } else if (isBoundary) {
         eventColorClass = displayEvent === '4' ? 'text-amber-400' : 'text-orange-400';
+    } else if (displayEvent === 'BALL') {
+        eventColorClass = 'text-amber-400 font-black italic tracking-widest';
     }
     const isFour = !isInningsBreak && displayEvent === '4'
     const isSix = !isInningsBreak && displayEvent === '6'
@@ -259,6 +346,14 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                         <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Super Over</span>
                                     </div>
                                 )}
+                                {(match as any).stage === 'knockout' && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                                            {String((match as any).round || '').replace('_', ' ')}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex items-baseline gap-2.5">
                                 <span className={`text-4xl sm:text-6xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass}`}>
@@ -285,17 +380,33 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                             </div>
                         ) : (
                             <div className={`relative z-10 text-center flex items-center justify-center w-full px-2 ${eventColorClass}`}>
+                                {/* Animated Cricket Ball */}
+                                {resultMain === 'BALL' && (
+                                    <div
+                                        ref={cricketBallRef}
+                                        className="absolute w-8 h-8 rounded-full bg-gradient-to-br from-slate-50 to-slate-300 shadow-2xl z-20 pointer-events-none opacity-0"
+                                        style={{
+                                            border: '2px dashed rgba(0,0,0,0.15)',
+                                            boxShadow: 'inset -4px -4px 8px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.3)'
+                                        }}
+                                    >
+                                        <div className="absolute top-1/2 left-0 w-full h-[1px] bg-black/10 rotate-0"></div>
+                                    </div>
+                                )}
+
                                 <div className="flex flex-col items-center justify-center gap-1.5">
-                                    <span className={`font-black tracking-tighter transition-all duration-500 scale-100 uppercase drop-shadow-md
+                                    <span
+                                        ref={eventTextRef}
+                                        className={`font-black tracking-tighter uppercase drop-shadow-md
                                         ${isFinishedMatch || !isRun
-                                            ? (resultMain.length > 15 ? 'text-[18px] sm:text-[22px] font-black leading-[1.05]' : 'text-2xl sm:text-3xl font-black leading-none')
-                                            : 'text-4xl sm:text-6xl leading-none'
-                                        }`}>
-                                        {resultMain === '—' ? '' : resultMain}
+                                                ? (resultMain.length > 15 ? 'text-[18px] sm:text-[22px] font-black leading-[1.05]' : 'text-2xl sm:text-3xl font-black leading-none')
+                                                : 'text-4xl sm:text-6xl leading-none'
+                                            }`}>
+                                        {resultMain === '—' || resultMain === 'BALL' ? '' : resultMain}
                                     </span>
                                     {resultSub && (
-                                        <div className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
-                                            <span className="text-[10px] sm:text-[12px] font-black text-amber-500 uppercase tracking-widest whitespace-nowrap">
+                                        <div className="mt-1">
+                                            <span className="text-[14px] sm:text-[16px] font-black text-amber-500 uppercase tracking-tight leading-none">
                                                 {resultSub}
                                             </span>
                                         </div>

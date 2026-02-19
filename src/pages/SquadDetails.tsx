@@ -15,7 +15,7 @@ import { Trophy, Medal, ChevronRight } from 'lucide-react'
 type Tab = 'squad' | 'matches' | 'achievement'
 
 export default function SquadDetails() {
-  const { id } = useParams()
+  const { squadId: id } = useParams()
   const [activeTab, setActiveTab] = useState<Tab>('squad')
   const [squad, setSquad] = useState<Squad | null>(null)
   const [players, setPlayers] = useState<any[]>([])
@@ -26,6 +26,22 @@ export default function SquadDetails() {
   const [loadingAchievements, setLoadingAchievements] = useState(false)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
   const liveMatchRef = useRef<HTMLDivElement>(null)
+  const upcomingRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll logic for Matches tab
+  useEffect(() => {
+    if (activeTab === 'matches' && !loadingMatches && matches.length > 0) {
+      // Use setTimeout to allow render to complete
+      const timer = setTimeout(() => {
+        if (liveMatchRef.current) {
+          liveMatchRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else if (upcomingRef.current) {
+          upcomingRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [activeTab, loadingMatches, matches.length])
 
   const squadsMap = { [id || '']: squad } as Record<string, Squad>
 
@@ -212,7 +228,7 @@ export default function SquadDetails() {
                       </span>
                       {squad.captainId === p.id && (
                         <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
-                          C
+                          (C)
                         </span>
                       )}
                       {squad.wicketKeeperId === p.id && (
@@ -285,7 +301,7 @@ export default function SquadDetails() {
                   })
                   if (up.length === 0) return null
                   return (
-                    <div className="space-y-3">
+                    <div ref={upcomingRef} className="space-y-3 scroll-mt-32">
                       <div className="px-1 flex items-center gap-2 mb-2">
                         <div className="h-3 w-0.5 bg-blue-500 rounded-full" />
                         <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Upcoming Matches</span>

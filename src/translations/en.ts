@@ -67,6 +67,7 @@ export const en = {
     match_completed: 'Match Completed',
     innings_break: 'Innings Break',
     player_entering: 'Player Entering',
+    waiting_super_over: 'Waiting for Super Over',
     result: 'Result',
 
     // Dynamic Messages

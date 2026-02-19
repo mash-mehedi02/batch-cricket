@@ -399,12 +399,12 @@ const CrexLiveSection = ({
               {currentBowler && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {currentBowler?.bowlerId && String(currentBowler.bowlerId) !== 'undefined' ? (
-                      <Link to={`/players/${currentBowler.bowlerId}`} className="text-sm font-bold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                        {currentBowler.bowlerName || 'Bowler'}
+                    {(currentBowler?.bowlerId || currentBowler?.id) && String(currentBowler?.bowlerId || currentBowler?.id) !== 'undefined' ? (
+                      <Link to={`/players/${currentBowler?.bowlerId || currentBowler?.id}`} className="text-sm font-bold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                        {currentBowler?.bowlerName || currentBowler?.name || 'Bowler'}
                       </Link>
                     ) : (
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{currentBowler.bowlerName || 'Bowler'}</span>
+                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{currentBowler?.bowlerName || currentBowler?.name || 'Bowler'}</span>
                     )}
                   </div>
                   <div className="flex gap-6 pr-1 text-sm font-bold text-slate-800 dark:text-slate-200 items-center">

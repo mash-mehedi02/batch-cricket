@@ -64,6 +64,7 @@ export default function MatchLive() {
   const [showAnimation, setShowAnimation] = useState<boolean>(false)
   const [expandedTeamIdx, setExpandedTeamIdx] = useState<number | null>(null)
   const [isPinned, setIsPinned] = useState(false)
+  const prevBallKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     const pinnedId = localStorage.getItem('pinnedMatchId')
@@ -360,6 +361,8 @@ export default function MatchLive() {
     return {
       id: bowlerStats.bowlerId,
       name: bowlerStats.bowlerName,
+      bowlerId: bowlerStats.bowlerId,
+      bowlerName: bowlerStats.bowlerName,
       photo: playersMap.get(bowlerStats.bowlerId)?.photoUrl || null,
       wickets: bowlerStats.wickets || 0,
       runsConceded: bowlerStats.runsConceded || 0,
@@ -527,88 +530,105 @@ export default function MatchLive() {
     const isOversFinished = totalLegalBalls >= oversLimit * 6
     const isInningsEnded = isAllOut || isOversFinished
 
-    // Detect if we should show Innings Break or Match Completed
-    if (isFinishedMatch) {
-      setCenterEventText('MATCH COMPLETED')
-    } else if (isInningsEnded) {
-      setCenterEventText('INNINGS BREAK')
-    } else {
-      // Handle wicket display sequence: first show 'WICKET', then after 2 seconds show wicket type
-      if (isWicketLabel) {
-        const wType = (innLast as any)?.wicketType || base || 'OUT';
-        setIsWicketDisplay(true)
-        setCenterEventText('WICKET')  // Show 'WICKET' first
+    const currentBallKey = `${lastBallDoc?.id || ''}_${lastBallDoc?.sequence || ''}_${inn?.legalBalls || 0}_${inn?.totalRuns || 0}`;
+    const isNewBallUpdate = prevBallKeyRef.current !== null && prevBallKeyRef.current !== currentBallKey && !isFinishedMatch && !isInningsEnded;
+    prevBallKeyRef.current = currentBallKey;
 
-        // Trigger the wicket animation
-        setAnimationEvent('WICKET')
-        setShowAnimation(true)
-
-        // After 2 seconds, show the wicket type in red
-        t5 = window.setTimeout(() => {
-          setCenterEventText(wType)
-          // After another 2 seconds, clear only the animation overlay, keep the event indicator
-          const timerId = window.setTimeout(() => {
-            setShowAnimation(false) // Clear the animation overlay only
-            setShowBoundaryAnim(false)
-          }, 2000);
-          // Store timerId in a way we can clear it
-          (window as any)._wicketClearTimer = timerId;
-        }, 2000)
+    const performUpdate = () => {
+      // Detect if we should show Innings Break or Match Completed
+      if (isFinishedMatch) {
+        setCenterEventText('MATCH COMPLETED')
+      } else if (isInningsEnded) {
+        const isTied = (match as any)?.matchPhase === 'Tied';
+        if (isTied) {
+          setCenterEventText('WAITING FOR SUPER OVER')
+        } else {
+          setCenterEventText('INNINGS BREAK')
+        }
       } else {
-        setCenterEventText(base || '')
-        setIsWicketDisplay(false)
-      }
+        // Handle wicket display sequence: first show 'WICKET', then after 2 seconds show wicket type
+        if (isWicketLabel) {
+          const wType = (innLast as any)?.wicketType || base || 'OUT';
+          setIsWicketDisplay(true)
+          setCenterEventText('WICKET')  // Show 'WICKET' first
 
-      // RESET boundary animation state first to avoid carrying over from previous ball
-      setShowBoundaryAnim(false)
+          // Trigger the wicket animation
+          setAnimationEvent('WICKET')
+          setShowAnimation(true)
 
-      // Trigger Boundary Animation for 4/6
-      const cleanBase = String(base || '').trim()
-      if (cleanBase === '4' || cleanBase === '6') {
-        setShowBoundaryAnim(true)
-        // Trigger the new full-screen animation
-        setAnimationEvent(cleanBase)
-        setShowAnimation(true)
-        if (t3) window.clearTimeout(t3)
-        t3 = window.setTimeout(() => {
-          setShowBoundaryAnim(false)
-          setShowAnimation(false)
-          // Only remove the animation overlay, keep the event indicator
-        }, 2000)
-      }
+          // After 2 seconds, show the wicket type in red
+          t5 = window.setTimeout(() => {
+            setCenterEventText(wType)
+            // After another 2 seconds, clear only the animation overlay, keep the event indicator
+            const timerId = window.setTimeout(() => {
+              setShowAnimation(false) // Clear the animation overlay only
+              setShowBoundaryAnim(false)
+            }, 2000);
+            // Store timerId in a way we can clear it
+            (window as any)._wicketClearTimer = timerId;
+          }, 2000)
+        } else {
+          setCenterEventText(base || '')
+          setIsWicketDisplay(false)
+        }
 
-      // Check if over is complete by counting legal balls in current over or scoreboard state
-      const currentOverBalls = inn?.currentOverBalls || []
-      const legalBallsInOver = currentOverBalls.filter((b: any) => {
-        const bExtras = b?.extras || {}
-        const bType = String(b?.type || '').toLowerCase()
-        const isWide = Number(bExtras?.wides || 0) > 0 || bType === 'wide'
-        const isNB = Number(bExtras?.noBalls || 0) > 0 || bType === 'no-ball' || bType === 'noball'
-        return !isWide && !isNB
-      }).length
+        // RESET boundary animation state first to avoid carrying over from previous ball
+        setShowBoundaryAnim(false)
 
-      if (!isInningsEnded && !isFinishedMatch) {
-        const isTrueOverEnd = legalBallsInOver === 6 || (isAtOverBoundary && lastBallDoc?.isLegal);
-        if (isTrueOverEnd) {
-          if (t4) window.clearTimeout(t4)
-          t4 = window.setTimeout(() => {
-            setCenterEventText('OVER')
-          }, 5000)
+        // Trigger Boundary Animation for 4/6
+        const cleanBase = String(base || '').trim()
+        if (cleanBase === '4' || cleanBase === '6') {
+          setShowBoundaryAnim(true)
+          // Trigger the new full-screen animation
+          setAnimationEvent(cleanBase)
+          setShowAnimation(true)
+          if (t3) window.clearTimeout(t3)
+          t3 = window.setTimeout(() => {
+            setShowBoundaryAnim(false)
+            setShowAnimation(false)
+            // Only remove the animation overlay, keep the event indicator
+          }, 2000)
+        }
+
+        // Check if over is complete by counting legal balls in current over or scoreboard state
+        const currentOverBalls = inn?.currentOverBalls || []
+        const legalBallsInOver = currentOverBalls.filter((b: any) => {
+          const bExtras = b?.extras || {}
+          const bType = String(b?.type || '').toLowerCase()
+          const isWide = Number(bExtras?.wides || 0) > 0 || bType === 'wide'
+          const isNB = Number(bExtras?.noBalls || 0) > 0 || bType === 'no-ball' || bType === 'noball'
+          return !isWide && !isNB
+        }).length
+
+        if (!isInningsEnded && !isFinishedMatch) {
+          const isTrueOverEnd = legalBallsInOver === 6 || (isAtOverBoundary && lastBallDoc?.isLegal);
+          if (isTrueOverEnd) {
+            if (t4) window.clearTimeout(t4)
+            t4 = window.setTimeout(() => {
+              setCenterEventText('OVER')
+            }, 5000) // Increase delay to let boundary/wicket anims finish
+          }
         }
       }
 
-    }
+      bump()
 
-    bump()
+      if (isNoBall && !isWicketLabel && !isInningsEnded && !isFinishedMatch) {
+        // Keep toggling: NO BALL (+X) <-> FREE HIT every 2s
+        let showFreeHit = false
+        intervalId = window.setInterval(() => {
+          showFreeHit = !showFreeHit
+          setCenterEventText(showFreeHit ? 'FREE HIT' : (base || 'NO BALL'))
+          bump()
+        }, 2000)
+      }
+    };
 
-    if (isNoBall && !isWicketLabel && !isInningsEnded && !isFinishedMatch) {
-      // Keep toggling: NO BALL (+X) <-> FREE HIT every 2s
-      let showFreeHit = false
-      intervalId = window.setInterval(() => {
-        showFreeHit = !showFreeHit
-        setCenterEventText(showFreeHit ? 'FREE HIT' : (base || 'NO BALL'))
-        bump()
-      }, 2000)
+    if (isNewBallUpdate) {
+      setCenterEventText('BALL');
+      t1 = window.setTimeout(performUpdate, 1200);
+    } else {
+      performUpdate();
     }
 
     return () => {
@@ -1355,6 +1375,21 @@ export default function MatchLive() {
     return baseTabs
   }, [match?.tournamentId, isFinishedMatch, isLiveMatch, isLiveEffective, match, tournament, t])
 
+  const calculatedResultSummary = useMemo(() => {
+    if (!isFinishedMatch) return null
+    const calc = getMatchResultString(
+      teamAName,
+      teamBName,
+      teamAInnings,
+      teamBInnings,
+      match,
+      teamASuperInnings,
+      teamBSuperInnings
+    )
+    if (calc && (calc.toLowerCase().includes(' won') || calc.includes('Tie'))) return calc
+    return (match as any)?.resultSummary || ''
+  }, [isFinishedMatch, match, teamAName, teamBName, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings])
+
   // Early returns AFTER all hooks
   if (loading) {
     return <MatchLiveSkeleton />
@@ -1378,6 +1413,17 @@ export default function MatchLive() {
         <div className="w-full max-w-2xl mx-auto px-4 py-8 pb-32">
           {/* 1. Header: Venue & Status */}
           <div className="flex flex-col items-center gap-6 mb-12">
+            {/* Stage Pill */}
+            {(match as any).stage && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl shadow-sm">
+                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">
+                  {(match as any).stage === 'knockout'
+                    ? String((match as any).round || '').replace('_', ' ')
+                    : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage}
+                </span>
+              </div>
+            )}
+
             {/* Venue Pill */}
             <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl shadow-sm">
               <MapPin size={14} className="text-rose-500" />
@@ -1522,33 +1568,35 @@ export default function MatchLive() {
           </div>
 
           {/* 5. Points Table Preview */}
-          {hasGroup && match?.tournamentId && (
-            <div className="mt-12">
-              <div className="flex items-center justify-between px-2 mb-6">
-                <h3 className="text-[13px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <LayoutDashboard size={14} className="text-blue-500" />
-                  Points Table
-                </h3>
-                <button onClick={() => setActiveTab('points-table')} className="text-[11px] font-black text-blue-500 hover:text-blue-400 transition-colors uppercase tracking-widest">
-                  View Full Table
-                </button>
+          {
+            hasGroup && match?.tournamentId && (
+              <div className="mt-12">
+                <div className="flex items-center justify-between px-2 mb-6">
+                  <h3 className="text-[13px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <LayoutDashboard size={14} className="text-blue-500" />
+                    Points Table
+                  </h3>
+                  <button onClick={() => setActiveTab('points-table')} className="text-[11px] font-black text-blue-500 hover:text-blue-400 transition-colors uppercase tracking-widest">
+                    View Full Table
+                  </button>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
+                  <TournamentPointsTable
+                    embedded={true}
+                    tournamentId={match.tournamentId}
+                    hideQualification={true}
+                    filterSquadIds={[
+                      String(resolveMatchSideRef(match as any, 'A') || ''),
+                      String(resolveMatchSideRef(match as any, 'B') || '')
+                    ].filter(Boolean)}
+                    highlightMatch={match as any}
+                  />
+                </div>
               </div>
-              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-                <TournamentPointsTable
-                  embedded={true}
-                  tournamentId={match.tournamentId}
-                  hideQualification={true}
-                  filterSquadIds={[
-                    String(resolveMatchSideRef(match as any, 'A') || ''),
-                    String(resolveMatchSideRef(match as any, 'B') || '')
-                  ].filter(Boolean)}
-                  highlightMatch={match as any}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )
+          }
+        </div >
+      </div >
     )
   }
 
@@ -1587,7 +1635,7 @@ export default function MatchLive() {
               teamBInnings={teamBInnings}
               firstSide={firstSide}
               secondSide={secondSide}
-              resultSummary={isFinishedMatch ? (resultSummary || null) : null}
+              resultSummary={isFinishedMatch ? (calculatedResultSummary || (match as any)?.resultSummary || null) : null}
               onlyCommentary={true} // New prop to only show commentary
               teamFormAndH2H={teamFormAndH2H}
               hasGroup={Boolean((match as any)?.groupName || (match as any)?.groupId)}
@@ -1738,7 +1786,7 @@ export default function MatchLive() {
             teamAInnings={teamAInnings}
             teamBInnings={teamBInnings}
             isFinishedMatch={isFinishedMatch}
-            resultSummary={resultSummary}
+            resultSummary={calculatedResultSummary || resultSummary}
             centerEventText={centerEventText || '—'}
             showBoundaryAnim={showBoundaryAnim}
             ballAnimating={ballAnimating}

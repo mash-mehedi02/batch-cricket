@@ -7,9 +7,10 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Match, Squad, InningsStats } from '@/types'
 import { matchService } from '@/services/firestore/matches'
+import { tournamentService } from '@/services/firestore/tournaments'
 import { coerceToDate } from '@/utils/date'
 import { formatShortTeamName } from '@/utils/teamName'
-import { Trophy, ChevronRight } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useTranslation } from '@/hooks/useTranslation'
 
@@ -21,6 +22,8 @@ interface MatchCardProps {
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName }) => {
     const { t, language } = useTranslation()
+
+    const [fetchedTournamentName, setFetchedTournamentName] = useState<string>('')
 
     const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(() => {
         if (match.score?.teamA) {
@@ -53,6 +56,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     const isFinished = ['finished', 'completed', 'result'].includes(statusLower)
     const isInningsBreak = statusLower === 'inningsbreak' || statusLower === 'innings break'
     const isUpcoming = !isLive && !isFinished && !isInningsBreak
+
+    useEffect(() => {
+        if (!tournamentName && match.tournamentId) {
+            tournamentService.getById(match.tournamentId).then(t => {
+                if (t) setFetchedTournamentName(t.name)
+            }).catch(console.error)
+        }
+    }, [match.tournamentId, tournamentName])
 
     useEffect(() => {
         if (isLive) {
@@ -224,7 +235,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                         <Trophy size={11} className="text-amber-500 fill-amber-500/20" />
                     </div>
                     <span className="text-[10px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest truncate">
-                        {tournamentName || 'Tournament Series'}
+                        {tournamentName || fetchedTournamentName || 'Tournament Series'}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -234,12 +245,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             <span className="text-[9px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-tighter">{timeLeft}</span>
                         </div>
                     )}
-                    <NotificationBell
-                        matchId={match.id}
-                        adminId={(match as any).adminId || 'default'}
-                        tournamentId={match.tournamentId}
-                        color="text-slate-400 dark:text-slate-500"
-                    />
+                    {!isFinished && (
+                        <NotificationBell
+                            matchId={match.id}
+                            adminId={(match as any).adminId || 'default'}
+                            tournamentId={match.tournamentId}
+                            color="text-slate-400 dark:text-slate-500"
+                        />
+                    )}
                 </div>
             </div>
 
@@ -322,7 +335,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                 </div>
 
                 <div className="px-4 py-2 border-t border-slate-50 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] flex justify-between items-center">
-                    <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tight truncate">
+                    <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-tight truncate">
                         {runsNeededText || tossText || (coerceToDate(match.date)?.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) || 'Match Date TBD')}
                     </span>
                 </div>

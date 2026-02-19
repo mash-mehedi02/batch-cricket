@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Calendar, Clock, Trophy, MoreVertical, Share2, Filter, Users, AlertTriangle, Save, Mic, Lock, Check, X, Calendar as CalendarIcon, MapPin, ExternalLink } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, Trophy, MoreVertical, Share2, Filter, Users, AlertTriangle, Save, Mic, Lock, Check, X, Calendar as CalendarIcon, MapPin, ExternalLink, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { matchService } from '@/services/firestore/matches';
 import { squadService } from '@/services/firestore/squads';
@@ -93,7 +93,7 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
     }, [squads, groups, formData.groupId, tournament.participantSquadIds]);
 
     const handleCreateMatch = async () => {
-        if (!user || user.role !== 'admin') {
+        if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
             toast.error('Permission denied');
             return;
         }
@@ -254,7 +254,9 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                             <span className="text-xs font-black text-indigo-600">#{match.id.substring(0, 6).toUpperCase()}</span>
                                         </div>
                                         <div className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-widest w-fit">
-                                            {(match as any).stageLabel || (match as any).stage || 'Match'}
+                                            {(match as any).stage === 'knockout'
+                                                ? `Knockout (${String((match as any).round || '').replace('_', ' ')})`
+                                                : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).stageLabel || (match as any).stage || 'Match'}
                                         </div>
                                     </td>
                                     <td className="py-6 px-6">
@@ -278,8 +280,8 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                     </td>
                                     <td className="py-6 px-6 text-center">
                                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${match.status === 'live' ? 'bg-rose-50 text-rose-600 animate-pulse' :
-                                                match.status === 'finished' ? 'bg-emerald-50 text-emerald-600' :
-                                                    'bg-slate-50 text-slate-400'
+                                            match.status === 'finished' ? 'bg-emerald-50 text-emerald-600' :
+                                                'bg-slate-50 text-slate-400'
                                             }`}>
                                             {match.status}
                                         </span>
@@ -299,12 +301,38 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                             <button
                                                 onClick={() => navigate(`/admin/live/${match.id}`)}
                                                 className={`p-3 rounded-2xl transition-all shadow-sm ${match.status === 'live' || match.status === 'finished'
-                                                        ? 'bg-slate-900 text-white hover:bg-indigo-600'
-                                                        : 'bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100'
+                                                    ? 'bg-slate-900 text-white hover:bg-indigo-600'
+                                                    : 'bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100'
                                                     }`}
                                                 title="Match Control"
                                             >
                                                 <ExternalLink size={16} />
+                                            </button>
+
+                                            <button
+                                                onClick={async () => {
+                                                    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+                                                        toast.error('Permission denied');
+                                                        return;
+                                                    }
+                                                    if (window.confirm('Are you sure you want to delete this match? This action cannot be undone.')) {
+                                                        try {
+                                                            await matchService.delete(match.id);
+                                                            toast.success('Match deleted successfully');
+                                                            // Usually we should trigger a reload or update parent state
+                                                            // Since this is a component, let's hope the parent is listening to matches changes
+                                                            // If not, we might need a callback.
+                                                            // Given the current structure, a full reload might be needed if they don't have real-time sync.
+                                                        } catch (err) {
+                                                            console.error(err);
+                                                            toast.error('Failed to delete match');
+                                                        }
+                                                    }
+                                                }}
+                                                className="p-3 bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100 rounded-2xl transition-all shadow-sm"
+                                                title="Delete Match"
+                                            >
+                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </td>

@@ -471,7 +471,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                             className={`text-[13px] font-bold leading-none block truncate ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-slate-200'}`}
                           >
                             {formatPlayerScorecardName(b.batsmanName)}
-                            {b.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
+                            {b.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
                             {b.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
                             {isStriker && isActive && '*'}
                           </PlayerLink>
@@ -532,7 +532,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                         <div className="min-w-0">
                           <PlayerLink playerId={pid} playerName={p?.name || 'Player'} className={`text-[14px] font-bold text-slate-200 block group-hover:text-blue-400`}>
                             {formatPlayerScorecardName(p?.name || 'Player')}
-                            {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
+                            {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
                             {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
                           </PlayerLink>
                           <div className="text-[12px] font-medium text-slate-500 mt-1">
@@ -615,7 +615,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                       <div className="w-1/2 min-w-0 pr-4">
                         <div className="text-[14px] font-bold text-slate-200 truncate">
                           {fw.batsmanName || 'Player'}
-                          {fw.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (c)'}
+                          {fw.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
                         </div>
                       </div>
 
