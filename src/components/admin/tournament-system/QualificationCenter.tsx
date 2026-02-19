@@ -5,7 +5,6 @@ import {
     AlertCircle,
     ShieldCheck,
     Trophy,
-    Lock,
     RefreshCcw,
     Zap
 } from 'lucide-react';
@@ -16,7 +15,7 @@ interface QualificationCenterProps {
     tournament: Tournament;
     matches: Match[];
     squads: Squad[];
-    inningsMap: Map<string, { teamA: any, teamB: any }>;
+    inningsMap: Map<string, { teamA: any, teamB: any, aso?: any, bso?: any }>;
     onUpdate: (data: Partial<Tournament>) => Promise<void>;
 }
 
@@ -58,6 +57,24 @@ export default function QualificationCenter({ tournament, squads, matches, innin
             const aBalls = Number(inn.teamA.legalBalls || 0);
             const bBalls = Number(inn.teamB.legalBalls || 0);
 
+            let res: 'win' | 'loss' | 'tie' = 'tie';
+            if (aRuns > bRuns) res = 'win';
+            else if (aRuns < bRuns) res = 'loss';
+            else {
+                // Main innings tied, check Super Over
+                const asoRuns = Number(inn.aso?.totalRuns || 0);
+                const bsoRuns = Number(inn.bso?.totalRuns || 0);
+                if (asoRuns > bsoRuns) res = 'win';
+                else if (bsoRuns > asoRuns) res = 'loss';
+                else {
+                    // Super over also tied or not played, check winnerId/resultSummary
+                    const winnerId = m.winnerId || m.winnerSquadId || m.winner;
+                    if (winnerId === aId) res = 'win';
+                    else if (winnerId === bId) res = 'loss';
+                    else res = 'tie';
+                }
+            }
+
             results.push({
                 matchId: m.id,
                 tournamentId: tournament.id,
@@ -65,7 +82,7 @@ export default function QualificationCenter({ tournament, squads, matches, innin
                 teamB: bId,
                 groupA: groupIdByTeam.get(aId) || '',
                 groupB: groupIdByTeam.get(bId) || '',
-                result: aRuns > bRuns ? 'win' : aRuns < bRuns ? 'loss' : 'tie',
+                result: res,
                 teamARunsFor: aRuns,
                 teamABallsFaced: aBalls,
                 teamARunsAgainst: bRuns,

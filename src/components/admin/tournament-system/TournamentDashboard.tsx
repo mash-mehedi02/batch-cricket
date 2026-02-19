@@ -55,13 +55,15 @@ export default function TournamentDashboard() {
             setMatches(m as any);
 
             // Fetch innings for standings
-            const im = new Map<string, { teamA: any, teamB: any }>();
+            const im = new Map<string, { teamA: any, teamB: any, aso?: any, bso?: any }>();
             await Promise.all(m.map(async (match) => {
-                const [a, b] = await Promise.all([
-                    matchService.getInnings(match.id, 'teamA'),
-                    matchService.getInnings(match.id, 'teamB')
+                const [a, b, aso, bso] = await Promise.all([
+                    matchService.getInnings(match.id, 'teamA').catch(() => null),
+                    matchService.getInnings(match.id, 'teamB').catch(() => null),
+                    matchService.getInnings(match.id, 'teamA_super').catch(() => null),
+                    matchService.getInnings(match.id, 'teamB_super').catch(() => null),
                 ]);
-                im.set(match.id, { teamA: a, teamB: b });
+                im.set(match.id, { teamA: a, teamB: b, aso, bso });
             }));
             setInningsMap(im);
         } catch (e) {

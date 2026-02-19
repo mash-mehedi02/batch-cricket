@@ -9,6 +9,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import schoolConfig from '@/config/school'
 import { Search, Command } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
+import GlobalLoginSheet from './common/GlobalLoginSheet'
 
 interface LayoutProps {
   children: ReactNode
@@ -40,6 +41,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDetailPage ? 'bg-[#060b16]' : 'bg-slate-50 dark:bg-[#060b16]'}`}>
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
+      <GlobalLoginSheet />
       {/* Navigation - Professional Header - Hidden on Detail Pages & Menu Page */}
       {!isDetailPage && !isMenuPage && (
         <nav className={`z-50 backdrop-blur-xl border-b sticky top-0 transition-colors duration-300 ${isHome

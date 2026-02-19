@@ -123,9 +123,11 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                 // Enrich items for H2H cards with result codes
                 const enrichedH2H = await Promise.all(
                     commonMatches.slice(0, 5).map(async (m) => {
-                        const [innA, innB] = await Promise.all([
+                        const [innA, innB, soA, soB] = await Promise.all([
                             matchService.getInnings(m.id, 'teamA').catch(() => null),
-                            matchService.getInnings(m.id, 'teamB').catch(() => null)
+                            matchService.getInnings(m.id, 'teamB').catch(() => null),
+                            matchService.getInnings(m.id, 'teamA_super').catch(() => null),
+                            matchService.getInnings(m.id, 'teamB_super').catch(() => null)
                         ])
 
                         const m2 = m as any;
@@ -141,6 +143,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                             h2hCount.tie++;
                             res = 'T'
                         } else {
+                            // 1. Try to decide by explicit winnerId
                             const isWinA = (squadIdA && (winnerId === squadIdA || normalize(winnerId) === squadIdA.toLowerCase())) ||
                                 (teamANameNorm && winnerNorm === teamANameNorm);
                             const isWinB = (squadIdB && (winnerId === squadIdB || normalize(winnerId) === squadIdB.toLowerCase())) ||
@@ -153,20 +156,31 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                 h2hCount.teamB++;
                                 res = 'L';
                             } else if (innA && innB) {
-                                // Fallback to scores
+                                // 2. Fallback to scores
                                 const runsA = (innA as any).totalRuns || 0;
                                 const runsB = (innB as any).totalRuns || 0;
-                                if (runsA === runsB) {
+                                const sRunsA = (soA as any)?.totalRuns || 0;
+                                const sRunsB = (soB as any)?.totalRuns || 0;
+
+                                const mAId = m.teamAId || (m as any).teamASquadId;
+                                const mANorm = normalize(m.teamAName || (m as any).teamA);
+                                const isTeamASideInMatch = (squadIdA && mAId === squadIdA) || (teamANameNorm && mANorm === teamANameNorm);
+
+                                let teamAActuallyWon = false;
+                                let isActuallyTieInMatch = false;
+
+                                if (runsA > runsB) teamAActuallyWon = true;
+                                else if (runsB > runsA) teamAActuallyWon = false;
+                                else if (sRunsA > sRunsB) teamAActuallyWon = true;
+                                else if (sRunsB > sRunsA) teamAActuallyWon = false;
+                                else isActuallyTieInMatch = true;
+
+                                if (isActuallyTieInMatch) {
                                     h2hCount.tie++;
                                     res = 'T';
                                 } else {
-                                    const mAId = m.teamAId || (m as any).teamASquadId;
-                                    const mANorm = normalize(m.teamAName || (m as any).teamA);
-                                    const isTeamAInThisMatch = (squadIdA && mAId === squadIdA) || (teamANameNorm && mANorm === teamANameNorm);
-
-                                    const actualWinnerIsTeamA = isTeamAInThisMatch ? (runsA > runsB) : (runsB > runsA);
-
-                                    if (actualWinnerIsTeamA) {
+                                    const winForTargetA = isTeamASideInMatch ? teamAActuallyWon : !teamAActuallyWon;
+                                    if (winForTargetA) {
                                         h2hCount.teamA++;
                                         res = 'W';
                                     } else {
@@ -210,9 +224,11 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                         .slice(0, 5)
 
                     return await Promise.all(sorted.map(async (m) => {
-                        const [innA, innB] = await Promise.all([
+                        const [innA, innB, soA, soB] = await Promise.all([
                             matchService.getInnings(m.id, 'teamA').catch(() => null),
-                            matchService.getInnings(m.id, 'teamB').catch(() => null)
+                            matchService.getInnings(m.id, 'teamB').catch(() => null),
+                            matchService.getInnings(m.id, 'teamA_super').catch(() => null),
+                            matchService.getInnings(m.id, 'teamB_super').catch(() => null)
                         ])
 
                         const m2 = m as any;
@@ -227,29 +243,40 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                         if (!isTie) {
                             // 1. Check explicit winner fields
                             const isWinnerMe = (targetId && (winnerId === targetId || normalize(winnerId) === targetId.toLowerCase())) ||
-                                (targetNameNorm && winnerNorm === teamANameNorm);
+                                (targetNameNorm && winnerNorm === targetNameNorm);
 
                             if (isWinnerMe) {
                                 res = 'W';
                             } else if (winnerId || winnerNorm) {
-                                res = 'L';
+                                // Some winner is set, but it's not me
+                                if (normalize(winnerId) === 'tie' || winnerNorm === 'tie') res = 'T';
+                                else res = 'L';
                             } else if (innA && innB) {
-                                // 2. Fallback to scores if winner not recorded
+                                // 2. Fallback to scores
                                 const runsA = innA.totalRuns || 0;
                                 const runsB = innB.totalRuns || 0;
-                                if (runsA === runsB) {
+                                const soRunsA = (soA as any)?.totalRuns || 0;
+                                const soRunsB = (soB as any)?.totalRuns || 0;
+
+                                // Need to know if I am Team A or Team B in THIS match
+                                const mAId = m.teamAId || (m as any).teamASquadId;
+                                const mANorm = normalize(m.teamAName || (m as any).teamA);
+                                const isTeamA = (targetId && mAId === targetId) || (targetNameNorm && mANorm === targetNameNorm);
+
+                                let teamAActuallyWon = false;
+                                let isActuallyTie = false;
+
+                                if (runsA > runsB) teamAActuallyWon = true;
+                                else if (runsB > runsA) teamAActuallyWon = false;
+                                else if (soRunsA > soRunsB) teamAActuallyWon = true;
+                                else if (soRunsB > soRunsA) teamAActuallyWon = false;
+                                else isActuallyTie = true;
+
+                                if (isActuallyTie) {
                                     res = 'T';
                                 } else {
-                                    // Need to know if I am Team A or Team B in THIS match
-                                    const mAId = m.teamAId || (m as any).teamASquadId;
-                                    const mANorm = normalize(m.teamAName || (m as any).teamA);
-                                    const isTeamA = (targetId && mAId === targetId) || (targetNameNorm && mANorm === targetNameNorm);
-
-                                    if (isTeamA) {
-                                        res = runsA > runsB ? 'W' : 'L';
-                                    } else {
-                                        res = runsB > runsA ? 'W' : 'L';
-                                    }
+                                    const winForMe = isTeamA ? teamAActuallyWon : !teamAActuallyWon;
+                                    res = winForMe ? 'W' : 'L';
                                 }
                             }
                         }

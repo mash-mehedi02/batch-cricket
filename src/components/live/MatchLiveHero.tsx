@@ -129,7 +129,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const isPlayerEntering = !isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0
     let displayEvent = isFinishedMatch
         ? (resultSummary || t('match_completed').toUpperCase())
-        : (isTied ? "WAITING FOR SUPER OVER" : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—')))
+        : (isTied ? "MATCH TIED" : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—')))
 
     // Special Case: 2nd Innings Start (Player Entering)
     if (isPlayerEntering) {

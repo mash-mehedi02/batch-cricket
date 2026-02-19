@@ -18,7 +18,6 @@ import {
     Lock,
     Mail,
     ShieldAlert,
-    ArrowLeftRight,
     Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -164,7 +163,7 @@ const AdminLayout = () => {
 
         if (!loading) {
             if (!user) {
-                navigate('/login?admin=true&redirect=' + encodeURIComponent(location.pathname));
+                navigate('/admin/auth?admin=true&redirect=' + encodeURIComponent(location.pathname));
             } else {
                 const role = user.role as string;
                 if (role === 'admin' || role === 'super_admin') {
@@ -262,12 +261,11 @@ const AdminLayout = () => {
                         <button
                             onClick={async () => {
                                 await logout();
-                                navigate('/login?admin=true');
+                                navigate('/admin/auth?admin=true');
                             }}
                             className="w-full bg-white hover:bg-slate-200 text-slate-950 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
-                            <ArrowLeftRight size={16} />
-                            Login with Email & Password
+                            Sign in to Admin Console
                         </button>
 
                         <button

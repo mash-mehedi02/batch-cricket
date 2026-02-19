@@ -17,10 +17,16 @@ import { getMatchResultString } from '@/utils/matchWinner'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { ArrowLeft, Bell, ChevronDown, Share2, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Bell, ChevronDown, Share2, ChevronRight, Check } from 'lucide-react'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
+import { memo } from 'react'
+import { useAuthStore } from '@/store/authStore'
+import { oneSignalService } from '@/services/oneSignalService'
+import { db } from '@/config/firebase'
+import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
+import toast from 'react-hot-toast'
 
-type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats' | 'bracket'
+type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats'
 
 export default function TournamentDetails() {
   const { tournamentId } = useParams<{ tournamentId: string }>()
@@ -29,7 +35,7 @@ export default function TournamentDetails() {
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const tab = searchParams.get('tab')?.toLowerCase()
-    if (tab === 'matches' || tab === 'teams' || tab === 'points' || tab === 'stats' || tab === 'bracket') return tab as Tab
+    if (tab === 'matches' || tab === 'teams' || tab === 'points' || tab === 'stats') return tab as Tab
     return 'overview'
   })
 
@@ -39,6 +45,38 @@ export default function TournamentDetails() {
   const [players, setPlayers] = useState<Player[]>([])
   const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
   const [loading, setLoading] = useState(true)
+
+  const { user } = useAuthStore()
+  const isFollowing = user?.followedTournaments?.includes(tournamentId!) || false
+
+  const handleFollow = async () => {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+      return
+    }
+
+    if (!tournamentId) return
+
+    try {
+      const userRef = doc(db, 'users', user.uid)
+      if (isFollowing) {
+        await updateDoc(userRef, {
+          followedTournaments: arrayRemove(tournamentId)
+        })
+        await oneSignalService.unsubscribeFromTournament(tournamentId, tournamentData?.createdBy || 'admin')
+        toast.success('Unfollowed series')
+      } else {
+        await updateDoc(userRef, {
+          followedTournaments: arrayUnion(tournamentId)
+        })
+        await oneSignalService.subscribeToTournament(tournamentId, tournamentData?.createdBy || 'admin')
+        toast.success('Following series! 🔔')
+      }
+    } catch (error) {
+      console.error('Follow error:', error)
+      toast.error('Failed to update follow status')
+    }
+  }
 
   // Update URL when tab changes
   useEffect(() => {
@@ -106,16 +144,9 @@ export default function TournamentDetails() {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
-    let ticking = false
     const handleScroll = () => {
-      const isScrolled = window.scrollY > 40
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setScrolled(isScrolled)
-          ticking = false
-        })
-        ticking = true
-      }
+      // Small threshold for a quick feel
+      setScrolled(window.scrollY > 20)
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
@@ -145,8 +176,6 @@ export default function TournamentDetails() {
         return <TournamentPointsTable embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
       case 'stats':
         return <TournamentKeyStats embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
-      case 'bracket':
-        return <PlayoffBracket tournament={tournamentData} squads={squads} matches={matches} />
       default:
         return null
     }
@@ -164,87 +193,87 @@ export default function TournamentDetails() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24">
-      {/* 1. Dark Hero Header - Sticky & Optimized */}
+      {/* 1. Sticky Top Bar - Clean & Stable */}
       <div
-        className={`bg-[#050B18] text-white pt-[calc(var(--status-bar-height)+8px)] relative overflow-hidden sticky top-0 z-50 transition-shadow duration-300 border-b border-white/5 ${scrolled ? 'shadow-2xl' : ''}`}
-        style={{ willChange: 'transform' }}
+        className={`bg-[#050B18] text-white sticky top-0 z-50 transition-all duration-300 border-b border-white/5 ${scrolled ? 'shadow-2xl' : ''}`}
       >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 blur-[100px] rounded-full -mr-20 -mt-20 pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto px-5 relative z-10">
-          {/* Top Row: Back + Compact Name + Actions */}
-          <div className="flex items-center justify-between h-12">
+        <div className="max-w-4xl mx-auto px-5">
+          <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <button onClick={() => navigate('/tournaments')} className="p-1 -ml-1 hover:bg-white/10 rounded-full transition-colors shrink-0">
                 <ArrowLeft size={24} />
               </button>
-
-              <h1 className={`text-sm font-bold text-white truncate tracking-tight transition-all duration-300 transform ${scrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+              <h1 className={`text-sm font-bold text-white truncate tracking-tight transition-all duration-300 ${scrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
                 {tournamentData.name}
               </h1>
             </div>
-
             <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all shadow-sm">
-                <Bell size={14} className="fill-white" />
-                <span className="hidden xs:inline">Following</span>
-                <ChevronDown size={12} />
+              <button
+                onClick={handleFollow}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
+                  }`}
+              >
+                {isFollowing ? <Check size={14} /> : <Bell size={14} className="fill-white" />}
+                <span>{isFollowing ? 'Following' : 'Follow'}</span>
               </button>
-              <button className="p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all shadow-sm">
+              <button className="p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all">
                 <Share2 size={16} />
               </button>
             </div>
           </div>
 
-          {/* Hero Content - Collapses with GPU optimized transforms */}
-          <div className={`transition-all duration-500 transform origin-top ${scrolled ? 'h-0 opacity-0 pointer-events-none scale-y-95 -translate-y-4' : 'h-auto py-4 opacity-100 scale-y-100 translate-y-0'}`}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0 pr-4">
-                <h1 className="text-xl font-bold text-white tracking-tight leading-tight">
-                  {tournamentData.name}
-                </h1>
-                <div className="text-[11px] font-bold text-slate-400 mt-1">
-                  {coerceToDate(tournamentData.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} to {coerceToDate(tournamentData.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </div>
-                <button className="flex items-center gap-1 text-blue-500 mt-3 group">
-                  <span className="text-xs font-bold">Seasons</span>
-                  <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+          {/* Tab Navigation - Nested in Sticky Bar for zero-jump effect */}
+          <div className="overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center gap-8">
+              {[
+                { id: 'overview', label: 'Overview' },
+                { id: 'matches', label: 'Matches' },
+                { id: 'teams', label: 'Teams' },
+                { id: 'points', label: 'Points Table' },
+                { id: 'stats', label: 'Stats' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as Tab)}
+                  className={`pb-3 text-[13px] font-bold transition-all relative whitespace-nowrap ${activeTab === tab.id ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                >
+                  {tab.label}
+                  {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 rounded-full" />}
                 </button>
-              </div>
-
-              <div className="w-24 h-24 bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center p-2 shadow-2xl backdrop-blur-md shrink-0">
-                <img src={tournamentData.logoUrl || '/placeholder-tournament.png'} alt="" className="w-full h-full object-contain" />
-              </div>
+              ))}
             </div>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="max-w-4xl mx-auto px-5 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-8">
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'matches', label: 'Matches' },
-              { id: 'teams', label: 'Teams' },
-              { id: 'points', label: 'Points Table' },
-              { id: 'stats', label: 'Stats' },
-              ...(tournamentData.config?.knockout?.custom?.matches?.length > 0 ? [{ id: 'bracket', label: 'Playoffs' }] : []),
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as Tab)}
-                className={`pb-3 text-[13px] font-bold transition-all relative whitespace-nowrap ${activeTab === tab.id ? 'text-white' : 'text-slate-500 hover:text-slate-300'
-                  }`}
-              >
-                {tab.label}
-                {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 rounded-full" />}
-              </button>
-            ))}
           </div>
         </div>
       </div>
 
-      {/* Content Section */}
+      {/* 2. Hero Content - Part of normal scroll flow to prevent layout shifts */}
+      <div className="bg-[#050B18] text-white overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 blur-[100px] rounded-full -mr-20 -mt-20 pointer-events-none" />
+        <div className="max-w-4xl mx-auto px-5 py-6">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0 pr-4">
+              <h1 className="text-2xl font-black text-white tracking-tight leading-tight">
+                {tournamentData.name}
+              </h1>
+              <div className="text-[12px] font-bold text-slate-400 mt-1.5">
+                {coerceToDate(tournamentData.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} to {coerceToDate(tournamentData.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+              <button className="flex items-center gap-1 text-blue-500 mt-4 group">
+                <span className="text-xs font-bold uppercase tracking-wider">Seasons</span>
+                <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+            <div className="w-24 h-24 bg-white/5 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center p-2 shadow-2xl backdrop-blur-md shrink-0">
+              <img src={tournamentData.logoUrl || '/placeholder-tournament.png'} alt="" className="w-full h-full object-contain" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Main Content Content Container */}
       <div className="max-w-4xl mx-auto px-5">
         {content}
       </div>
@@ -253,9 +282,9 @@ export default function TournamentDetails() {
 }
 
 /**
- * OVERVIEW TAB COMPONENT
+ * OVERVIEW TAB COMPONENT - Wrapped in memo to prevent re-renders when parent's scroll state changes
  */
-function OverviewTab({ tournament, matches, squads, players, inningsMap, setActiveTab }: { tournament: Tournament, matches: Match[], squads: Squad[], players: Player[], inningsMap: Map<string, any>, setActiveTab: (t: Tab) => void }) {
+const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, setActiveTab }: { tournament: Tournament, matches: Match[], squads: Squad[], players: Player[], inningsMap: Map<string, any>, setActiveTab: (t: Tab) => void }) => {
 
   const featuredMatches = useMemo(() => {
     const statusLower = (m: Match) => String(m.status || '').toLowerCase().trim()
@@ -358,87 +387,97 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
         </section>
       )}
 
-      {/* 3. Key Stats Section */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+      {/* 3. Key Stats Section - Redesigned to match high-fidelity cards */}
+      <section>
+        <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Key Stats</h2>
-          <button onClick={() => setActiveTab('stats')} className="text-blue-500 text-xs font-bold uppercase tracking-widest">See All</button>
+          <button onClick={() => setActiveTab('stats')} className="text-blue-600 text-xs font-black uppercase tracking-widest hover:opacity-70 transition-opacity">See All</button>
         </div>
 
         <div className="space-y-4">
-          <Link to="/tournaments" onClick={(e) => { e.preventDefault(); setActiveTab('stats'); }} className="flex items-center justify-between group transition-all">
-            <div className="flex items-center gap-4">
-              <PlayerAvatar photoUrl={statsSummary.mostRuns.photo} name={statsSummary.mostRuns.name} size="lg" className="border-2 border-slate-50 shadow-sm" />
+          {/* Most Runs - Hero Card */}
+          <div className="bg-[#F2F5F7] dark:bg-slate-900/40 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-5">
+              <div className="relative">
+                <div className="absolute inset-0 bg-blue-500/10 blur-xl rounded-full" />
+                <PlayerAvatar photoUrl={statsSummary.mostRuns.photo} name={statsSummary.mostRuns.name} size="xl" className="border-2 border-white dark:border-slate-800 relative z-10 shadow-md" />
+              </div>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Most Runs</span>
-                <div className="text-sm font-bold text-slate-900 dark:text-white leading-tight group-hover:text-blue-500">{statsSummary.mostRuns.name}</div>
-                <div className="text-[9px] text-slate-400 font-bold uppercase">{statsSummary.mostRuns.team}</div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Most Runs</span>
+                <div className="text-[17px] font-black text-slate-900 dark:text-white italic uppercase tracking-tighter mt-0.5 leading-tight">{statsSummary.mostRuns.name}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">{statsSummary.mostRuns.team}</div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-black text-slate-900 dark:text-white leading-none">{statsSummary.mostRuns.val}</div>
-              <div className="text-[10px] text-slate-400 font-bold uppercase">runs</div>
-            </div>
-          </Link>
-
-          <div className="h-px bg-slate-100 dark:bg-white/5 mx-2" />
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Most Wickets</span>
-              <div className="flex items-center gap-2">
-                <PlayerAvatar photoUrl={statsSummary.mostWkts.photo} name={statsSummary.mostWkts.name} size="sm" />
-                <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-slate-800 dark:text-white truncate">{statsSummary.mostWkts.name}</div>
-                  <div className="text-[9px] text-slate-400 font-bold uppercase truncate">{formatShortTeamName(statsSummary.mostWkts.team)}</div>
-                </div>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">{statsSummary.mostWkts.val}</span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase">wickets</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Best Figures</span>
-              <div className="flex items-center gap-2">
-                <PlayerAvatar photoUrl={statsSummary.bestFig.photo} name={statsSummary.bestFig.name} size="sm" />
-                <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-slate-800 dark:text-white truncate">{statsSummary.bestFig.name}</div>
-                  <div className="text-[9px] text-slate-400 font-bold uppercase truncate">{formatShortTeamName(statsSummary.bestFig.team)}</div>
-                </div>
-              </div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white">{statsSummary.bestFig.val}</div>
+              <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">{statsSummary.mostRuns.val}</div>
+              <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Runs</div>
             </div>
           </div>
 
-          <div className="h-px bg-slate-100 dark:bg-white/5 mx-2" />
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Highest Score</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-bold text-slate-800 dark:text-white">{statsSummary.highestScore.name}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">({formatShortTeamName(statsSummary.highestScore.team)})</span>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Most Wickets Card */}
+            <div className="bg-[#F2F5F7] dark:bg-slate-900/40 rounded-[2.5rem] p-6 flex flex-col gap-6 shadow-sm">
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Most Wickets</span>
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar photoUrl={statsSummary.mostWkts.photo} name={statsSummary.mostWkts.name} size="sm" className="border border-white dark:border-slate-800" />
+                  <div className="min-w-0">
+                    <div className="text-[9px] text-slate-500 font-bold uppercase truncate">{formatShortTeamName(statsSummary.mostWkts.team)}</div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white italic uppercase truncate">{statsSummary.mostWkts.name}</div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">{statsSummary.highestScore.val}</span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase">runs</span>
+              <div className="h-px bg-slate-200 dark:bg-white/5" />
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{statsSummary.mostWkts.val}</span>
+                <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Wickets</span>
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Most Sixes</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-bold text-slate-800 dark:text-white">{statsSummary.mostSixes.name}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">({formatShortTeamName(statsSummary.mostSixes.team)})</span>
+
+            {/* Best Figures Card */}
+            <div className="bg-[#F2F5F7] dark:bg-slate-900/40 rounded-[2.5rem] p-6 flex flex-col gap-6 shadow-sm">
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Best Figures</span>
+                <div className="flex items-center gap-3">
+                  <PlayerAvatar photoUrl={statsSummary.bestFig.photo} name={statsSummary.bestFig.name} size="sm" className="border border-white dark:border-slate-800" />
+                  <div className="min-w-0">
+                    <div className="text-[9px] text-slate-500 font-bold uppercase truncate">{formatShortTeamName(statsSummary.bestFig.team)}</div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white italic uppercase truncate">{statsSummary.bestFig.name}</div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">{statsSummary.mostSixes.val}</span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase">sixes</span>
+              <div className="h-px bg-slate-200 dark:bg-white/5" />
+              <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">{statsSummary.bestFig.val}</div>
+            </div>
+          </div>
+
+          {/* Highest Score - Pink Card */}
+          <div className="bg-[#FFEFEF] dark:bg-rose-950/20 rounded-[2rem] p-6 flex items-center justify-between border border-rose-100/50 dark:border-rose-500/10 shadow-sm">
+            <div>
+              <span className="text-[10px] font-black text-rose-400 dark:text-rose-500 uppercase tracking-widest">Highest Score</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <div className="text-[17px] font-black text-slate-900 dark:text-white italic uppercase tracking-tighter">{statsSummary.highestScore.name}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">({formatShortTeamName(statsSummary.highestScore.team)})</div>
               </div>
+            </div>
+            <div className="text-right">
+              <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">{statsSummary.highestScore.val}</div>
+              <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Runs</div>
+            </div>
+          </div>
+
+          {/* Most Sixes - Light Card */}
+          <div className="bg-[#F2F5F7] dark:bg-slate-900/40 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
+            <div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Most Sixes</span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <div className="text-[17px] font-black text-slate-900 dark:text-white italic uppercase tracking-tighter">{statsSummary.mostSixes.name}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">({formatShortTeamName(statsSummary.mostSixes.team)})</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">{statsSummary.mostSixes.val}</div>
+              <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Sixes</div>
             </div>
           </div>
         </div>
@@ -449,6 +488,22 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
       <section>
         <TournamentPointsTable embedded tournamentId={tournament.id} matches={matches} inningsMap={inningsMap} />
       </section>
+
+      {/* 5.5 Playoff Bracket Preview (Added here to Overview) */}
+      {tournament && (tournament as any).config?.knockout?.custom?.matches?.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-5 px-2">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Playoff Bracket</h2>
+          </div>
+          <div className="bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-2 overflow-hidden shadow-sm">
+            <PlayoffBracket
+              tournament={tournament}
+              squads={squads}
+              matches={matches}
+            />
+          </div>
+        </section>
+      )}
 
       {/* 6. Team Squads - Now below Points Table */}
       <section>
@@ -510,7 +565,7 @@ function OverviewTab({ tournament, matches, squads, players, inningsMap, setActi
       </section>
     </div>
   )
-}
+})
 
 function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null } }) {
   const status = String(match.status || '').toLowerCase()
@@ -523,94 +578,60 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
   const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match, innings?.aso, innings?.bso) : ''
 
   return (
-    <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-6 shadow-sm hover:shadow-md transition-all block">
-      <div className="flex items-center justify-between gap-6">
-        <div className="flex items-center gap-3 w-1/3">
-          <div className="w-10 h-10 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0 relative">
+    <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all block">
+      <div className="flex items-center justify-between gap-4">
+        {/* Team A (Left) */}
+        <div className="flex items-center gap-3 w-[120px]">
+          <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
             {squadA?.logoUrl ? (
               <img src={squadA.logoUrl} alt="" className="w-full h-full object-contain p-1" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-[14px] font-black uppercase">
+              <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
                 {match.teamAName?.charAt(0) || 'A'}
               </div>
             )}
           </div>
-          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter truncate">
+          <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate">
             {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
           </span>
         </div>
 
-        <div className="flex-1 text-center">
+        {/* Status (Center) */}
+        <div className="flex-1 text-center flex flex-col items-center justify-center min-w-0">
           {isLive ? (
-            <div className="flex flex-col items-center">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${status === 'inningsbreak' || status === 'innings break' ? 'text-amber-500' : 'text-red-600 animate-pulse'}`}>
-                {status === 'inningsbreak' || status === 'innings break' ? 'Innings Break' : 'Live'}
-              </span>
-              <div className="mt-1 flex flex-col items-center gap-1.5">
-                {innings?.teamA && (
-                  <div className="flex flex-col items-center">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamA.totalRuns}/{innings.teamA.totalWickets}</span>
-                      <span className="text-[10px] text-slate-400 font-bold">({innings.teamA.overs})</span>
-                    </div>
-                    {innings?.aso && (Number(innings.aso.totalRuns || 0) > 0 || Number(innings.aso.totalWickets || 0) > 0) && (
-                      <div className="text-[8px] font-black text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1 rounded-sm border border-amber-100 dark:border-amber-900/50">
-                        S.O: {innings.aso.totalRuns}/{innings.aso.totalWickets}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {innings?.teamB && (
-                  <div className="flex flex-col items-center">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[14px] font-black text-slate-900 dark:text-white">{innings.teamB.totalRuns}/{innings.teamB.totalWickets}</span>
-                      <span className="text-[10px] text-slate-400 font-bold">({innings.teamB.overs})</span>
-                    </div>
-                    {innings?.bso && (Number(innings.bso.totalRuns || 0) > 0 || Number(innings.bso.totalWickets || 0) > 0) && (
-                      <div className="text-[8px] font-black text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1 rounded-sm border border-amber-100 dark:border-amber-900/50">
-                        S.O: {innings.bso.totalRuns}/{innings.bso.totalWickets}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+              <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Live</span>
             </div>
           ) : isFin ? (
             <div className="flex flex-col items-center">
-              <span className="text-[11px] font-bold text-slate-800 dark:text-white uppercase leading-tight">
+              <span className="text-[12px] font-black text-rose-900/80 dark:text-rose-200 uppercase tracking-tighter leading-tight">
                 {match.winnerId === match.teamAId
                   ? (squadA ? formatShortTeamName(squadA.name, squadA.batch) : match.teamAName)
                   : (squadB ? formatShortTeamName(squadB.name, squadB.batch) : match.teamBName)} Won
               </span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">{resultStr.includes('by') ? `by ${resultStr.split('by')[1]?.trim()}` : resultStr}</span>
-              <div className="mt-1 flex flex-col items-center opacity-60">
-                <div className="text-[9px] font-bold text-slate-500">
-                  {innings?.teamA?.totalRuns}-{innings?.teamA?.totalWickets} & {innings?.teamB?.totalRuns}-{innings?.teamB?.totalWickets}
-                </div>
-                {(innings?.aso || innings?.bso) && (
-                  <div className="mt-1 text-[8px] font-black text-amber-600 uppercase tracking-tighter">
-                    S.O: {innings?.aso?.totalRuns || 0}/{innings?.aso?.totalWickets || 0} - {innings?.bso?.totalRuns || 0}/{innings?.bso?.totalWickets || 0}
-                  </div>
-                )}
-              </div>
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                {resultStr.includes('by') ? `by ${resultStr.split('by')[1]?.trim()}` : resultStr}
+              </span>
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{match.time || '11:30 AM'}</span>
-              <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase mt-0.5">Upcoming</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{match.time || '07:30 PM'}</span>
+              <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase leading-none mt-1">Today</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-3 w-1/3 justify-end">
-          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right truncate">
+        {/* Team B (Right) */}
+        <div className="flex items-center gap-3 w-[120px] justify-end">
+          <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate text-right">
             {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
           </span>
-          <div className="w-10 h-10 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center shadow-sm shrink-0 relative">
+          <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
             {squadB?.logoUrl ? (
               <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-500 to-pink-600 text-white text-[14px] font-black uppercase">
+              <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
                 {match.teamBName?.charAt(0) || 'B'}
               </div>
             )}
@@ -620,6 +641,9 @@ function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: S
     </Link>
   )
 }
+
+
+
 
 function InfoRow({ label, value }: { label: string, value: string }) {
   return (

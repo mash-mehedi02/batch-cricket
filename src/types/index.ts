@@ -31,6 +31,7 @@ export interface User {
     bio?: string
     socialLinks?: SocialLink[]
   }
+  followedTournaments?: string[]
 }
 
 // ==================== TOURNAMENT ====================

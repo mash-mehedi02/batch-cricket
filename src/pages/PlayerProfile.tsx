@@ -596,7 +596,30 @@ export default function PlayerProfile() {
         ...s,
         opponentName: s.opponentName || (m ? (m.teamAId === player.squadId ? formatShortTeamName(m.teamBName || m.teamB) : formatShortTeamName(m.teamAName || m.teamA)) : 'Opponent'),
         date: s.date || m?.date,
-        result: s.result || m?.result || '',
+        result: (() => {
+          if (s.result) return s.result
+          if (!m) return ''
+
+          const m2 = m as any
+          const winnerId = m2.winnerId || m2.winnerSquadId || m2.winner || ''
+          const mySquadId = player.squadId || ''
+
+          if (winnerId && mySquadId) {
+            if (winnerId === mySquadId) return 'Won'
+            if (winnerId !== 'Tie' && winnerId !== 'Draw') return 'Lost'
+          }
+
+          const resSummary = String(m2.resultSummary || '').toLowerCase()
+          const teamAId = m2.teamAId || m2.teamASquadId || ''
+          const myTeamName = String(teamAId === mySquadId ? m2.teamAName : m2.teamBName).toLowerCase()
+          const oppTeamName = String(teamAId === mySquadId ? m2.teamBName : m2.teamAName).toLowerCase()
+
+          if (myTeamName && resSummary.includes(myTeamName) && (resSummary.includes('won') || resSummary.includes('win'))) return 'Won'
+          if (oppTeamName && resSummary.includes(oppTeamName) && (resSummary.includes('won') || resSummary.includes('win'))) return 'Lost'
+          if (resSummary.includes('tie') || resSummary.includes('draw')) return 'Tied'
+
+          return m2.result || ''
+        })(),
         tournamentName: t?.name || m?.tournamentName || m?.series || 'BatchCrick League',
         isLive: s.isLive || m?.status?.toLowerCase() === 'live'
       }

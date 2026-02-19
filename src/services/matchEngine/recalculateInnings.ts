@@ -1060,6 +1060,31 @@ export async function recalculateInnings(
           } else {
             matchUpdate.status = 'finished'
             matchUpdate.matchPhase = 'finished'
+
+            // --- Auto-calculate Winner & Result Summary ---
+            const teamA_main = Number(matchData.score?.teamA?.runs || 0);
+            const teamB_main = Number(matchData.score?.teamB?.runs || 0);
+            const teamA_so = inningId === 'teamA_super' ? totalRuns : Number(matchData.score?.teamA_super?.runs || 0);
+            const teamB_so = inningId === 'teamB_super' ? totalRuns : Number(matchData.score?.teamB_super?.runs || 0);
+
+            const rA = (inningId === 'teamA') ? totalRuns : teamA_main;
+            const rB = (inningId === 'teamB') ? totalRuns : teamB_main;
+
+            if (rA > rB) {
+              matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
+              matchUpdate.resultSummary = `${matchData.teamAName} won`;
+            } else if (rB > rA) {
+              matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
+              matchUpdate.resultSummary = `${matchData.teamBName} won`;
+            } else if (teamA_so > 0 || teamB_so > 0) {
+              if (teamA_so > teamB_so) {
+                matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
+                matchUpdate.resultSummary = `${matchData.teamAName} won (Super Over)`;
+              } else if (teamB_so > teamA_so) {
+                matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
+                matchUpdate.resultSummary = `${matchData.teamBName} won (Super Over)`;
+              }
+            }
           }
         } else if (isCalculatingSecondSide) {
           // If we are currently in the second innings but it's NOT finished 
@@ -1108,6 +1133,37 @@ export async function recalculateInnings(
         } else {
           matchUpdate.status = 'finished'
           matchUpdate.matchPhase = 'finished'
+
+          // --- Auto-calculate Winner & Result Summary ---
+          // We can't easily fetch other innings here without risking recursion or slow ops, 
+          // but we can at least try to determine winner if it's the 2nd innings or Super Over.
+          // For now, let's trust the current calculateMatchWinner logic if we had all data, 
+          // but since we only have current totalRuns and matchData.score, let's do a quick check.
+
+          const teamA_main = Number(matchData.score?.teamA?.runs || 0);
+          const teamB_main = Number(matchData.score?.teamB?.runs || 0);
+          const teamA_so = inningId === 'teamA_super' ? totalRuns : Number(matchData.score?.teamA_super?.runs || 0);
+          const teamB_so = inningId === 'teamB_super' ? totalRuns : Number(matchData.score?.teamB_super?.runs || 0);
+
+          // Current innings runs might be the latest if it just finished
+          const rA = (inningId === 'teamA') ? totalRuns : teamA_main;
+          const rB = (inningId === 'teamB') ? totalRuns : teamB_main;
+
+          if (rA > rB) {
+            matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
+            matchUpdate.resultSummary = `${matchData.teamAName} won`;
+          } else if (rB > rA) {
+            matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
+            matchUpdate.resultSummary = `${matchData.teamBName} won`;
+          } else if (teamA_so > 0 || teamB_so > 0) {
+            if (teamA_so > teamB_so) {
+              matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
+              matchUpdate.resultSummary = `${matchData.teamAName} won (Super Over)`;
+            } else if (teamB_so > teamA_so) {
+              matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
+              matchUpdate.resultSummary = `${matchData.teamBName} won (Super Over)`;
+            }
+          }
         }
       } else if (isCalculatingSecondSide) {
         matchUpdate.status = 'live'

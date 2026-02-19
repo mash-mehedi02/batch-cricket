@@ -307,18 +307,14 @@ export default function Login() {
 
       {/* HEADER LOGO */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-10">
-        <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl ${isAdminLogin ? 'bg-blue-600' : 'bg-gradient-to-br from-teal-500 to-emerald-600'} shadow-xl mb-6 transform rotate-3 hover:rotate-0 transition-transform duration-500`}>
-          {isAdminLogin ? (
-            <Shield className="w-10 h-10 text-white" />
-          ) : (
-            <img src={schoolConfig.batchLogo} alt="Logo" className="w-12 h-12 object-contain brightness-0 invert" />
-          )}
+        <div className={`inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-xl mb-6 transform rotate-3 hover:rotate-0 transition-transform duration-500`}>
+          <img src={schoolConfig.batchLogo} alt="Logo" className="w-12 h-12 object-contain brightness-0 invert" />
         </div>
         <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          {isAdminLogin ? 'Admin Console' : schoolConfig.appName}
+          {schoolConfig.appName}
         </h2>
         <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium">
-          {isAdminLogin ? 'Restricted Access' : 'The correct place for cricket stats'}
+          The correct place for cricket stats
         </p>
       </div>
 
@@ -352,8 +348,8 @@ export default function Login() {
                 /* ADMIN EMAIL LOGIN FORM */
                 <form onSubmit={handleAdminLogin} className="space-y-6">
                   <div className="text-center mb-6">
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Admin Login</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Enter your credentials to manage the system.</p>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Sign In</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Enter your credentials to access your account.</p>
                   </div>
 
                   <div>

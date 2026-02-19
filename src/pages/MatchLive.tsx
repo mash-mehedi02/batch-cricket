@@ -1002,55 +1002,70 @@ export default function MatchLive() {
 
 
       const resultBadge = (m: any, teamKey: string): 'W' | 'L' | 'T' | '*' => {
-        // USE match.score if available (Optimized)
+        const m2 = m as any;
+        const winnerId = m2.winnerId || m2.winnerSquadId;
+        const winnerTextRaw = m2.winnerName || m2.winner || m2.winningTeam || m2.winnerSquadName || '';
+        const winnerNorm = String(winnerTextRaw).toLowerCase().trim();
+        const resultSummary = String(m2.resultSummary || '').toLowerCase();
+
+        const isTie = winnerNorm === 'tie' || winnerNorm === 'draw' || winnerId === 'Tie' || winnerId === 'Draw' ||
+          m2.status?.toLowerCase() === 'abandoned' || resultSummary.includes('no result') || resultSummary.includes('abandoned');
+
+        // 1. Explicit winner fields
+        const isMeWinner = (winnerId && (teamKey.includes(winnerId) || winnerId.includes(teamKey))) ||
+          (winnerNorm && teamKey.toLowerCase().includes(winnerNorm));
+
+        if (isMeWinner) return 'W';
+        if (isTie) return 'T';
+
+        // If some other winner is set, it's a loss for me
+        if (winnerId && winnerId !== 'Tie') return 'L';
+        if (winnerNorm && !['tie', 'draw', 'pending'].includes(winnerNorm)) return 'L';
+
+        // 2. Score Fallback
         const sA = m.score?.teamA
         const sB = m.score?.teamB
-        // Fallback to relatedInningsMap if no score
+        const soA = m.score?.teamA_super
+        const soB = m.score?.teamB_super
         const inn = relatedInningsMap.get(m.id)
 
-        let aRuns = 0, bRuns = 0, hasData = false
+        let aRuns = 0, bRuns = 0, soARuns = 0, soBRuns = 0;
+        let hasData = false;
 
         if (sA && sB) {
-          aRuns = Number(sA.runs || 0)
-          bRuns = Number(sB.runs || 0)
-          hasData = true
+          aRuns = Number(sA.runs || 0);
+          bRuns = Number(sB.runs || 0);
+          soARuns = Number(soA?.runs || 0);
+          soBRuns = Number(soB?.runs || 0);
+          hasData = true;
         } else if (inn?.teamA && inn?.teamB) {
-          aRuns = Number(inn.teamA.totalRuns || 0)
-          bRuns = Number(inn.teamB.totalRuns || 0)
-          hasData = true
+          aRuns = Number(inn.teamA.totalRuns || 0);
+          bRuns = Number(inn.teamB.totalRuns || 0);
+          soARuns = Number(inn.aso?.totalRuns || 0);
+          soBRuns = Number(inn.bso?.totalRuns || 0);
+          hasData = true;
         }
 
-        // Try to determine result from winner fields if scores missing
-        if (!hasData) {
-          const winnerId = String(m.winnerId || m.winningTeam || '').trim()
-          const winnerName = String(m.winner || m.winnerName || '').trim().toLowerCase()
-          const resultSummary = String(m.resultSummary || '').toLowerCase()
+        if (!hasData) return '*';
 
-          // If we have a winner ID, check against team key
-          if (winnerId) {
-            // Check if current team matches the winner ID
-            if (teamKey.includes(winnerId)) return 'W'
-            // If it doesn't match winner ID, it's a Loss (unless tie/abandoned)
-            if (resultSummary.includes('tie') || resultSummary.includes('draw') || resultSummary.includes('abandoned')) return 'T'
-            return 'L'
-          }
+        const aKey = keyForMatchSide(m, 'A');
+        const bKey = keyForMatchSide(m, 'B');
+        const teamIsA = aKey === teamKey;
+        const teamIsB = bKey === teamKey;
+        if (!teamIsA && !teamIsB) return '*';
 
-          // Tie/No Result checks
-          if (resultSummary.includes('tie') || resultSummary.includes('draw')) return 'T'
-          if (resultSummary.includes('abandoned') || resultSummary.includes('no result')) return 'T' // Treat NR as neutral/tie badge
+        let teamAWon = false;
+        let isActuallyTie = false;
 
-          return '*'
-        }
+        if (aRuns > bRuns) teamAWon = true;
+        else if (bRuns > aRuns) teamAWon = false;
+        else if (soARuns > soBRuns) teamAWon = true;
+        else if (soBRuns > soARuns) teamAWon = false;
+        else isActuallyTie = true;
 
-        if (aRuns === bRuns) return 'T'
-        const aKey = keyForMatchSide(m, 'A')
-        const bKey = keyForMatchSide(m, 'B')
-        const teamIsA = aKey === teamKey
-        const teamIsB = bKey === teamKey
-        if (!teamIsA && !teamIsB) return '*'
-        const teamWon = (aRuns > bRuns && teamIsA) || (bRuns > aRuns && teamIsB)
-        const badge = teamWon ? 'W' : 'L'
-        return badge
+        if (isActuallyTie) return 'T';
+        const winForMe = teamIsA ? teamAWon : !teamAWon;
+        return winForMe ? 'W' : 'L';
       }
 
       const getScoreText = (m: any, side: 'A' | 'B') => {
@@ -1093,30 +1108,51 @@ export default function MatchLive() {
       let winsA = 0
       let winsB = 0
       h2h.forEach((m: any) => {
-        let aRuns = 0
-        let bRuns = 0
-        let hasData = false
+        const m2 = m as any;
+        const winnerId = m2.winnerId || m2.winnerSquadId;
+        const winnerName = String(m2.winnerName || m2.winner || m2.winningTeam || '').toLowerCase();
+        const resSum = String(m2.resultSummary || '').toLowerCase();
+
+        // 1. Explicit winner check
+        if (winnerId || (winnerName && !['tie', 'pending'].includes(winnerName))) {
+          const aKey = keyForMatchSide(m, 'A');
+          const bKey = keyForMatchSide(m, 'B');
+          const isWinA = (winnerId && (aKey.includes(winnerId) || winnerId.includes(aKey))) ||
+            (winnerName && aKey.toLowerCase().includes(winnerName));
+          const isWinB = (winnerId && (bKey.includes(winnerId) || winnerId.includes(bKey))) ||
+            (winnerName && bKey.toLowerCase().includes(winnerName));
+
+          if (isWinA) { winsA++; return; }
+          if (isWinB) { winsB++; return; }
+        }
+
+        // 2. Score check
+        let aRuns = 0, bRuns = 0, soA = 0, soB = 0;
+        let hasData = false;
 
         if (m.score?.teamA && m.score?.teamB) {
-          aRuns = Number(m.score.teamA.runs || 0)
-          bRuns = Number(m.score.teamB.runs || 0)
-          hasData = true
+          aRuns = Number(m.score.teamA.runs || 0);
+          bRuns = Number(m.score.teamB.runs || 0);
+          soA = Number(m.score.teamA_super?.runs || 0);
+          soB = Number(m.score.teamB_super?.runs || 0);
+          hasData = true;
         } else {
-          const inn = relatedInningsMap.get(m.id)
+          const inn = relatedInningsMap.get(m.id);
           if (inn?.teamA && inn?.teamB) {
-            aRuns = Number(inn.teamA.totalRuns || 0)
-            bRuns = Number(inn.teamB.totalRuns || 0)
-            hasData = true
+            aRuns = Number(inn.teamA.totalRuns || 0);
+            bRuns = Number(inn.teamB.totalRuns || 0);
+            soA = Number(inn.aso?.totalRuns || 0);
+            soB = Number(inn.bso?.totalRuns || 0);
+            hasData = true;
           }
         }
 
-        if (!hasData) return
-        if (aRuns === bRuns) return
-        const aKey = keyForMatchSide(m, 'A')
-        const bKey = keyForMatchSide(m, 'B')
-        const winnerKey = aRuns > bRuns ? aKey : bKey
-        if (winnerKey === currentKeyA) winsA += 1
-        if (winnerKey === currentKeyB) winsB += 1
+        if (!hasData) return;
+
+        if (aRuns > bRuns) winsA++;
+        else if (bRuns > aRuns) winsB++;
+        else if (soA > soB) winsA++;
+        else if (soB > soA) winsB++;
       })
 
       const mapFormItem = (m: any, currentTeamKey: string) => {
@@ -1126,26 +1162,38 @@ export default function MatchLive() {
         const scoreA = getScoreText(m, 'A')
         const scoreB = getScoreText(m, 'B')
 
-        let winnerText = '—'
-        let hasData = false
-        let aRuns = 0, bRuns = 0
-
-        if (m.score?.teamA && m.score?.teamB) {
-          aRuns = Number(m.score.teamA.runs || 0)
-          bRuns = Number(m.score.teamB.runs || 0)
-          hasData = true
+        if ((m as any).resultSummary) {
+          winnerText = (m as any).resultSummary;
+          hasData = true;
         } else {
-          const inn = relatedInningsMap.get(m.id)
-          if (inn?.teamA && inn?.teamB) {
-            aRuns = Number(inn.teamA.totalRuns || 0)
-            bRuns = Number(inn.teamB.totalRuns || 0)
-            hasData = true
-          }
-        }
+          let aRuns = 0, bRuns = 0, soA = 0, soB = 0;
 
-        if (hasData) {
-          if (aRuns === bRuns) winnerText = 'Tied'
-          else winnerText = (aRuns > bRuns ? aName : bName) + ' won'
+          if (m.score?.teamA && m.score?.teamB) {
+            aRuns = Number(m.score.teamA.runs || 0);
+            bRuns = Number(m.score.teamB.runs || 0);
+            soA = Number(m.score.teamA_super?.runs || 0);
+            soB = Number(m.score.teamB_super?.runs || 0);
+            hasData = true;
+          } else {
+            const inn = relatedInningsMap.get(m.id);
+            if (inn?.teamA && inn?.teamB) {
+              aRuns = Number(inn.teamA.totalRuns || 0);
+              bRuns = Number(inn.teamB.totalRuns || 0);
+              soA = Number(inn.aso?.totalRuns || 0);
+              soB = Number(inn.bso?.totalRuns || 0);
+              hasData = true;
+            }
+          }
+
+          if (hasData) {
+            if (aRuns === bRuns) {
+              if (soA > soB) winnerText = aName + ' won (Super Over)';
+              else if (soB > soA) winnerText = bName + ' won (Super Over)';
+              else winnerText = 'Tied';
+            } else {
+              winnerText = (aRuns > bRuns ? aName : bName) + ' won';
+            }
+          }
         }
 
         const d = coerceToDate(m?.date)

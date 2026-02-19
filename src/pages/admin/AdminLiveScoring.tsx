@@ -732,20 +732,41 @@ const AdminLiveScoring = () => {
         if (!matchId) return;
         setProcessing(true);
         try {
-            // 1. Update Match Status (Triggers stats sync in service)
+            // 1. Calculate Winner ID for the points table
             const finalResult = resultSummary; // Use memoized result which includes SO
+            let winnerSquadId: string | null = null;
+
+            // Check Super Over result first
+            const soAR = Number(inningsASO?.totalRuns || 0);
+            const soBR = Number(inningsBSO?.totalRuns || 0);
+            const mainAR = Number(inningsA?.totalRuns || 0);
+            const mainBR = Number(inningsB?.totalRuns || 0);
+            const hasSO = match.isSuperOver && (soAR > 0 || soBR > 0);
+
+            if (hasSO) {
+                if (soAR > soBR) winnerSquadId = (match as any).teamASquadId || (match as any).teamAId || match.teamAId || null;
+                else if (soBR > soAR) winnerSquadId = (match as any).teamBSquadId || (match as any).teamBId || match.teamBId || null;
+                // If SO also tied, winnerId stays null (tie)
+            } else {
+                if (mainAR > mainBR) winnerSquadId = (match as any).teamASquadId || (match as any).teamAId || match.teamAId || null;
+                else if (mainBR > mainAR) winnerSquadId = (match as any).teamBSquadId || (match as any).teamBId || match.teamBId || null;
+                // If tied, winnerId stays null (tie)
+            }
+
+            // 2. Update Match Status (Triggers stats sync in service)
             await matchService.update(matchId, {
                 status: 'finished',
                 matchPhase: 'finished',
                 playerOfTheMatch: potmId || suggestedPotm?.id || null,
-                resultSummary: finalResult
+                resultSummary: finalResult,
+                winnerId: winnerSquadId
             });
 
-            // 2. Send Push Notification for Match Result
+            // 3. Send Push Notification for Match Result
             const mAdminId = match.adminId || match.createdBy || 'admin';
             oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🏆", finalResult);
 
-            // 3. Send Emails if requested
+            // 4. Send Emails if requested
             if (sendMailChecked) {
                 const emailToastId = toast.loading("Sending personalized scores to Playing XI...");
                 const emailResult = await emailService.sendMatchEndEmails(matchId, resultSummary);
@@ -943,10 +964,10 @@ const AdminLiveScoring = () => {
                                 {match.matchPhase?.toLowerCase() === 'tied' ? <Activity size={48} className="text-amber-500" /> : <Megaphone size={48} />}
                             </div>
                             <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">
-                                {match.matchPhase?.toLowerCase() === 'tied' ? "Match Tied! Waiting for Super Over" : "Innings Break"}
+                                {match.matchPhase?.toLowerCase() === 'tied' ? "Match Tied!" : "Innings Break"}
                             </h2>
                             <p className="text-xl font-bold text-slate-600 mb-8">
-                                {match.matchPhase?.toLowerCase() === 'tied' ? "The match is tied! Decide if you want a Super Over or Finalize as a Tie." : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished their innings.`}
+                                {match.matchPhase?.toLowerCase() === 'tied' ? "Both teams scored equally! Choose an option below." : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished their innings.`}
                             </p>
 
                             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
@@ -971,6 +992,34 @@ const AdminLiveScoring = () => {
                                         className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
                                     >
                                         <Activity size={20} /> START SUPER OVER
+                                    </button>
+                                )}
+                                {match.matchPhase?.toLowerCase() === 'tied' && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!matchId) return;
+                                            if (!window.confirm("Are you sure? This will finish the match as a TIE. No Super Over will be played.")) return;
+                                            setProcessing(true);
+                                            try {
+                                                await matchService.update(matchId, {
+                                                    status: 'finished',
+                                                    matchPhase: 'finished',
+                                                    winnerId: null,
+                                                    resultSummary: 'Match Tied'
+                                                });
+                                                const mAdminId = match.adminId || match.createdBy || 'admin';
+                                                oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🤝", "Match Tied!");
+                                                toast.success("Match finished as a Tie!");
+                                            } catch (err: any) {
+                                                toast.error("Failed: " + err.message);
+                                            } finally {
+                                                setProcessing(false);
+                                            }
+                                        }}
+                                        disabled={processing}
+                                        className="px-8 py-4 bg-slate-700 text-white font-black rounded-2xl hover:bg-slate-800 transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        <Trophy size={20} /> FINISH MATCH (TIED)
                                     </button>
                                 )}
                                 {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && ((!inningsA || (inningsA.legalBalls || 0) === 0) || (!inningsB || (inningsB.legalBalls || 0) === 0)) && (
@@ -1042,12 +1091,14 @@ const AdminLiveScoring = () => {
                                         <Activity size={20} /> Start SO 2nd Inn
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => setFinalizeModalOpen(true)}
-                                    className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
-                                >
-                                    Finalize Match
-                                </button>
+                                {match.matchPhase?.toLowerCase() !== 'tied' && (
+                                    <button
+                                        onClick={() => setFinalizeModalOpen(true)}
+                                        className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
+                                    >
+                                        Finalize Match
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ) : (match.status?.toLowerCase() === 'finished') ? (

@@ -7,7 +7,6 @@ import type { Match, Tournament, InningsStats } from '@/types'
 import type { MatchResult } from '@/engine/tournament'
 import { computeGroupStandings, validateTournamentConfig } from '@/engine/tournament'
 import { formatShortTeamName } from '@/utils/teamName'
-import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 
 type Row = {
   squadId: string
@@ -179,13 +178,36 @@ export default function TournamentPointsTable({
           const bId = normalizeSquadRef(resolveSquadId(m, 'B'))
           if (!aId || !bId) return
 
-          const winnerId = m.winnerId || (m as any).winner;
+          const mainARuns = inn.teamA.totalRuns;
+          const mainBRuns = inn.teamB.totalRuns;
+          const soARuns = Number(inn.aso?.totalRuns || 0);
+          const soBRuns = Number(inn.bso?.totalRuns || 0);
+
           let res: 'win' | 'loss' | 'tie' = 'tie';
-          if (winnerId) {
-            if (winnerId === aId) res = 'win';
-            else if (winnerId === bId) res = 'loss';
+
+          if (mainARuns > mainBRuns) {
+            res = 'win';
+          } else if (mainBRuns > mainARuns) {
+            res = 'loss';
           } else {
-            res = inn.teamA.totalRuns > inn.teamB.totalRuns ? 'win' : inn.teamA.totalRuns < inn.teamB.totalRuns ? 'loss' : 'tie';
+            // Main match tied - Check super over runs
+            if (soARuns > soBRuns) {
+              res = 'win';
+            } else if (soBRuns > soARuns) {
+              res = 'loss';
+            } else {
+              // Super over also tied or not played, fallback to winnerId or resultSummary
+              const winnerId = normalizeSquadRef(m.winnerId || (m as any).winner);
+              const resultSummary = String(m.resultSummary || '').toLowerCase();
+              const teamAName = String(m.teamAName || '').toLowerCase();
+              const teamBName = String(m.teamBName || '').toLowerCase();
+
+              if (winnerId === aId) res = 'win';
+              else if (winnerId === bId) res = 'loss';
+              else if (resultSummary.includes(teamAName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'win';
+              else if (resultSummary.includes(teamBName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'loss';
+              else res = 'tie';
+            }
           }
 
           results.push({
@@ -274,15 +296,34 @@ export default function TournamentPointsTable({
         rB.runsFor += inn.teamB.totalRuns; rB.ballsFaced += inn.teamB.legalBalls;
         rB.runsAgainst += inn.teamA.totalRuns; rB.ballsBowled += inn.teamA.legalBalls;
 
-        const winnerId = m.winnerId || (m as any).winner;
-        if (winnerId) {
-          if (winnerId === aId) { rA.won++; rA.points += WIN; rB.lost++; }
-          else if (winnerId === bId) { rB.won++; rB.points += WIN; rA.lost++; }
-          else { rA.tied++; rB.tied++; rA.points += TIE; rB.points += TIE; }
+        const mainARuns = inn.teamA.totalRuns;
+        const mainBRuns = inn.teamB.totalRuns;
+        const soARuns = Number(inn.aso?.totalRuns || 0);
+        const soBRuns = Number(inn.bso?.totalRuns || 0);
+
+        if (mainARuns > mainBRuns) {
+          rA.won++; rA.points += WIN; rB.lost++;
+        } else if (mainBRuns > mainARuns) {
+          rB.won++; rB.points += WIN; rA.lost++;
         } else {
-          if (inn.teamA.totalRuns > inn.teamB.totalRuns) { rA.won++; rA.points += WIN; rB.lost++; }
-          else if (inn.teamB.totalRuns > inn.teamA.totalRuns) { rB.won++; rB.points += WIN; rA.lost++; }
-          else { rA.tied++; rB.tied++; rA.points += TIE; rB.points += TIE; }
+          // Main match tied - Check super over
+          if (soARuns > soBRuns) {
+            rA.won++; rA.points += WIN; rB.lost++;
+          } else if (soBRuns > soARuns) {
+            rB.won++; rB.points += WIN; rA.lost++;
+          } else {
+            // Super over also tied or generic winnerId check
+            const winnerId = normalizeSquadRef(m.winnerId || (m as any).winner);
+            const resultSummary = String(m.resultSummary || '').toLowerCase();
+            const teamAName = String(m.teamAName || '').toLowerCase();
+            const teamBName = String(m.teamBName || '').toLowerCase();
+
+            if (winnerId === aId) { rA.won++; rA.points += WIN; rB.lost++; }
+            else if (winnerId === bId) { rB.won++; rB.points += WIN; rA.lost++; }
+            else if (resultSummary.includes(teamAName) && (resultSummary.includes('won') || resultSummary.includes('win'))) { rA.won++; rA.points += WIN; rB.lost++; }
+            else if (resultSummary.includes(teamBName) && (resultSummary.includes('won') || resultSummary.includes('win'))) { rB.won++; rB.points += WIN; rA.lost++; }
+            else { rA.tied++; rB.tied++; rA.points += TIE; rB.points += TIE; }
+          }
         }
       })
 
@@ -439,22 +480,6 @@ export default function TournamentPointsTable({
         )}
       </div>
 
-      {/* Playoff Bracket Section (Dynamic) */}
-      {tournament && (tournament as any).config?.knockout?.custom?.matches?.length > 0 && (
-        <div className="mt-12 space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h2 className={`text-sm font-bold ${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'} uppercase tracking-tight`}>Playoff Bracket</h2>
-            <Link to={`/tournament/${tournament.id}?tab=bracket`} className="text-blue-500 text-[10px] font-bold uppercase tracking-widest">Full View</Link>
-          </div>
-          <div className={`${forcedDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 dark:bg-slate-950/50 border-slate-100 dark:border-white/5'} rounded-[2.5rem] border p-2 overflow-hidden`}>
-            <PlayoffBracket
-              tournament={tournament}
-              squads={Array.from(squadsById.values())}
-              matches={matches}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

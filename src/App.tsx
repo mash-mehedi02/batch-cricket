@@ -81,8 +81,9 @@ function App() {
       <NativeAppWrapper />
       <ScrollToTop />
       <Routes>
-        {/* Login Route - No Layout */}
-        <Route path="/login" element={<Login />} />
+        {/* Login Route - Redirect to Home with popup trigger */}
+        <Route path="/login" element={<Navigate to="/?login=true" replace />} />
+        <Route path="/admin/auth" element={<Login />} />
         <Route path="/search" element={<Search />} />
 
         {/* Public Routes - Wrapped in Layout */}
