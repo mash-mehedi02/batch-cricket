@@ -120,7 +120,7 @@ export default function Home() {
   }, {} as Record<string, Squad>)
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] font-sans">
       {/* MODERN HERO SECTION - Adjusted Height 50vh */}
       <div className="h-[50vh] min-h-[350px] relative bg-[#0f172a] text-white flex flex-col pt-6">
 
@@ -193,7 +193,7 @@ export default function Home() {
       </div>
 
       {/* SQUADS SCROLL - Native Horizontal Scroll (No Marquee Lag) */}
-      <div className="py-6 bg-white dark:bg-slate-950 overflow-hidden">
+      <div className="py-6 bg-white dark:bg-[#060b16] overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <p className="px-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Participating Teams</p>
 
@@ -209,14 +209,14 @@ export default function Home() {
                       key={`${squad.id}-${index}`}
                       className="flex flex-col items-center gap-2 min-w-[70px] group hover:scale-105 transition-transform"
                     >
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 shadow-sm relative">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 transition-all transform group-hover:scale-110 duration-300 flex items-center justify-center rounded-full border border-slate-100 dark:border-white/5 overflow-hidden bg-white dark:bg-[#0f172a] shadow-sm relative">
                         <img
                           src={squad.logoUrl}
                           alt={squad.name}
                           className="w-full h-full object-contain p-1"
                         />
                       </div>
-                      <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 truncate max-w-full group-hover:text-teal-600 transition-colors uppercase tracking-tight">
+                      <span className="text-[9px] font-black text-slate-700 dark:text-slate-300 truncate max-w-full group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors uppercase tracking-tight">
                         {formatShortTeamName(squad.name, squad.batch)}
                       </span>
                     </Link>
@@ -231,7 +231,7 @@ export default function Home() {
       </div>
 
       {/* MATCH SECTIONS - Clean Tabs - Sticky */}
-      <div id="match-sections" className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-30 shadow-sm">
+      <div id="match-sections" className="bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-white/5 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto flex overflow-x-auto scrollbar-hide px-2">
           {[
             { id: 'live', label: 'Live' },
@@ -276,7 +276,7 @@ export default function Home() {
                 {liveMatches.length === 0 ? (
                   <div className="col-span-full py-12 text-center flex flex-col items-center opacity-60">
                     <div className="text-5xl mb-4 grayscale">🏏</div>
-                    <p className="text-slate-900 font-bold uppercase text-xs tracking-widest">No Live Matches</p>
+                    <p className="text-slate-900 dark:text-white font-bold uppercase text-xs tracking-widest">No Live Matches</p>
                   </div>
                 ) : (
                   liveMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)
@@ -298,7 +298,7 @@ export default function Home() {
           <div className="mt-8 text-center">
             <Link
               to="/schedule"
-              className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#0f172a] hover:text-teal-600 transition-colors border-b border-[#0f172a]/20 pb-0.5 hover:border-teal-600"
+              className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#0f172a] dark:text-teal-400 hover:text-teal-600 transition-colors border-b border-[#0f172a]/20 dark:border-teal-400/20 pb-0.5 hover:border-teal-600"
             >
               View Full Schedule
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
@@ -311,9 +311,9 @@ export default function Home() {
       <div className="px-4 pb-12">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-3 mb-6 opacity-80">
-            <div className="h-px bg-slate-200 flex-1"></div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Explore More</span>
-            <div className="h-px bg-slate-200 flex-1"></div>
+            <div className="h-px bg-slate-200 dark:bg-white/5 flex-1"></div>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Explore More</span>
+            <div className="h-px bg-slate-200 dark:bg-white/5 flex-1"></div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -331,10 +331,10 @@ export default function Home() {
 
 function QuickLinkCard({ to, icon, label, sub }: { to: string, icon: string, label: string, sub: string }) {
   return (
-    <Link to={to} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-95 flex flex-col items-center text-center">
+    <Link to={to} className="bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all active:scale-95 flex flex-col items-center text-center">
       <div className={`text-2xl mb-2`}>{icon}</div>
-      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">{sub}</div>
-      <div className="text-xs font-bold text-slate-800">{label}</div>
+      <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mb-0.5">{sub}</div>
+      <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{label}</div>
     </Link>
   )
 }

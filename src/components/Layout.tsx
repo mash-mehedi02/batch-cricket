@@ -38,13 +38,13 @@ export default function Layout({ children }: LayoutProps) {
   const isHome = location.pathname === '/'
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDetailPage ? 'bg-[#050B18]' : 'bg-slate-50 dark:bg-slate-950'}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${isDetailPage ? 'bg-[#060b16]' : 'bg-slate-50 dark:bg-[#060b16]'}`}>
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
       {/* Navigation - Professional Header - Hidden on Detail Pages & Menu Page */}
       {!isDetailPage && !isMenuPage && (
         <nav className={`z-50 backdrop-blur-xl border-b sticky top-0 transition-colors duration-300 ${isHome
-          ? 'bg-[#0f172a] text-white border-[#0f172a]'
-          : 'bg-white/80 dark:bg-slate-950/80 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
+          ? 'bg-[#0f172a]/95 text-white border-white/5'
+          : 'bg-white/90 dark:bg-[#060b16]/90 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
           }`}>
           <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-[var(--status-bar-height)]">
             <div className="flex justify-between items-center h-14">
@@ -134,7 +134,7 @@ export default function Layout({ children }: LayoutProps) {
 
                     {/* Shortcut Hint - Desktop Only */}
                     <div className="absolute inset-y-0 right-0 pr-3 hidden lg:flex items-center">
-                      <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black border ${isHome ? 'bg-black/20 border-white/10 text-slate-400' : 'bg-slate-700/50 text-slate-400 border-slate-600/50'}`}>
+                      <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-black border ${isHome ? 'bg-black/20 border-white/10 text-slate-400' : 'bg-slate-200 dark:bg-white/10 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-white/5'}`}>
                         <Command className="w-2.5 h-2.5" />
                         <span>K</span>
                       </div>

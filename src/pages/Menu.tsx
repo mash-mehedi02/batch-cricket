@@ -1,5 +1,5 @@
-
 import { useNavigate, Link } from 'react-router-dom';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -13,27 +13,60 @@ import {
     Settings,
     Moon,
     Bell,
-    AlertCircle,
     ShieldCheck,
-    Handshake,
     UserPlus,
     LayoutDashboard,
     Users,
-    User
+    User,
+    X,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguageStore } from '@/store/languageStore';
 import schoolConfig from '@/config/school';
 import { useTranslation } from '@/hooks/useTranslation';
 
+const CricketIcon = ({ size = 20 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 8v12" />
+        <path d="M12 8v12" />
+        <path d="M16 8v12" />
+        <path d="M7 8h10" />
+        <path d="M20 4l-9 14" />
+        <circle cx="6" cy="18" r="1.5" fill="currentColor" />
+    </svg>
+);
+
 export default function MenuPage() {
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const { user, googleLogin } = useAuthStore();
     const { isDarkMode, toggleDarkMode } = useThemeStore();
     const { language, setLanguage } = useLanguageStore();
     const { t } = useTranslation();
+    const [showLoginSheet, setShowLoginSheet] = useState(false);
+    const [vibration, setVibration] = useState(() => localStorage.getItem('match_vibration') === 'true');
+    const [sound, setSound] = useState(() => localStorage.getItem('match_sound') === 'true');
+
+    const toggleVibration = () => {
+        const newVal = !vibration;
+        setVibration(newVal);
+        localStorage.setItem('match_vibration', String(newVal));
+        if (newVal && 'vibrate' in navigator) navigator.vibrate(50);
+        toast.success(`Score Vibration: ${newVal ? 'Enabled' : 'Disabled'}`);
+    };
+
+    const toggleSound = () => {
+        const newVal = !sound;
+        setSound(newVal);
+        localStorage.setItem('match_sound', String(newVal));
+        toast.success(`Sound Feedback: ${newVal ? 'Enabled' : 'Disabled'}`);
+    };
 
     const handleProfileClick = () => {
-        navigate('/account');
+        if (!user) {
+            setShowLoginSheet(true);
+        } else {
+            navigate('/account');
+        }
     };
 
     const toggleLanguage = () => {
@@ -72,51 +105,60 @@ export default function MenuPage() {
                 {/* 1. Profile Section - Clickable to Edit Profile */}
                 <button
                     onClick={handleProfileClick}
-                    className={`w-full flex items-center justify-between px-5 py-4 border-b transition-colors ${isDarkMode ? 'border-slate-800 hover:bg-[#1e293b]' : 'border-slate-100 hover:bg-slate-50'}`}
+                    className={`w-full flex items-center justify-between px-5 py-6 border-b transition-colors ${isDarkMode ? 'border-slate-800 hover:bg-[#1e293b]' : 'border-slate-100 hover:bg-slate-50'}`}
                 >
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-white text-xl font-bold overflow-hidden shrink-0">
+                    <div className="flex items-center gap-5">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 overflow-hidden shrink-0 border border-slate-200 dark:border-white/5">
                             {user?.photoURL ? (
                                 <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
                             ) : (
-                                <div className="bg-teal-500 w-full h-full flex items-center justify-center">
-                                    {user?.displayName?.charAt(0).toUpperCase() || <UserIcon size={24} />}
-                                </div>
+                                <UserIcon size={24} strokeWidth={1.5} />
                             )}
                         </div>
                         <div className="min-w-0 flex-1 text-left">
-                            <h3 className={`text-lg font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                                {user?.displayName || 'Cricket Fan'}
+                            <h3 className={`text-xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                {user ? user.displayName : 'Login or Sign-up'}
                             </h3>
-                            <p className={`text-sm truncate ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {user?.email || t('menu_profile_login')}
+                            <p className={`text-sm font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                {user ? user.email : 'Ads free & manage your profile'}
                             </p>
                         </div>
                     </div>
-                    <ChevronRight size={20} className="text-slate-400 shrink-0" />
+                    {!user && <ChevronRight size={20} className="text-slate-300 shrink-0" />}
                 </button>
 
-                {/* 2. Premium + Main Navigation Links */}
-                <div className={`border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
-                    {/* Premium Badge */}
+                {/* 2. Premium Section */}
+                <div className="px-5 py-4 border-b dark:border-slate-800">
                     <button
                         onClick={handlePremiumClick}
-                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'hover:bg-[#1e293b]' : 'hover:bg-slate-50'}`}
+                        className="w-full relative overflow-hidden bg-gradient-to-r from-[#1a1a1a] via-[#2d2419] to-[#1a1a1a] rounded-2xl p-3.5 shadow-xl border border-white/5 group"
                     >
-                        <div className="flex items-center gap-4">
-                            <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center shrink-0">
-                                <img src={schoolConfig.batchLogo} alt="Logo" className="w-full h-full object-contain" />
-                            </div>
+                        {/* Sparkle Decorations */}
+                        <div className="absolute top-2 right-10 w-1 h-1 bg-white/20 rounded-full animate-pulse" />
+                        <div className="absolute bottom-4 right-20 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-700" />
+                        <div className="absolute top-6 left-1/2 w-1 h-1 bg-white/30 rounded-full animate-pulse delay-300" />
+
+                        <div className="flex items-center justify-between relative z-10">
                             <div className="flex items-center gap-3">
-                                <span className={`font-bold text-[15px] ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{schoolConfig.appName}</span>
-                                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-500/10 text-[10px] font-black text-amber-600 dark:text-amber-500 rounded uppercase tracking-tight border border-amber-200 dark:border-amber-500/20">
-                                    {t('menu_go_premium')}
-                                </span>
+                                <div className="w-9 h-9 flex items-center justify-center shrink-0">
+                                    <img src={schoolConfig.batchLogo} alt="Logo" className="w-full h-full object-contain" />
+                                </div>
+                                <div className="text-left">
+                                    <h4 className="text-base font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-400 uppercase">
+                                        {schoolConfig.appName.toUpperCase()}
+                                    </h4>
+                                </div>
+                            </div>
+
+                            <div className="bg-gradient-to-b from-[#b4905d] to-[#8c6d44] hover:from-[#c5a36e] hover:to-[#a17e52] px-4 py-2 rounded-xl border border-[#d4af37]/30 shadow-lg text-white text-[11px] font-black uppercase tracking-wider transition-all transform group-active:scale-95">
+                                {t('menu_go_premium')}
                             </div>
                         </div>
-                        <ChevronRight size={18} className="text-slate-400" />
                     </button>
+                </div>
 
+                {/* Main Navigation */}
+                <div className="py-2">
                     {/* Rankings */}
                     <Link
                         to="/rankings"
@@ -138,7 +180,7 @@ export default function MenuPage() {
                     >
                         <div className="flex items-center gap-4">
                             <div className="w-8 h-8 flex items-center justify-center text-amber-500">
-                                <Trophy size={22} />
+                                <CricketIcon size={22} />
                             </div>
                             <span className="font-semibold text-[15px]">{t('nav_series')}</span>
                         </div>
@@ -226,19 +268,25 @@ export default function MenuPage() {
                     )}
                 </div>
 
-                {/* 3. APP SETTINGS Section */}
+                {/* APP SETTINGS Section */}
                 <div className={`mt-2 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
                     {t('menu_app_settings')}
                 </div>
 
                 <div className={`border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                     {/* Match Settings */}
-                    <button className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}>
+                    <button
+                        onClick={toggleVibration}
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
                         <div className="flex items-center gap-4">
                             <div className="w-8 h-8 flex items-center justify-center text-slate-500">
                                 <Settings size={22} />
                             </div>
-                            <span className="font-semibold text-[15px]">{t('menu_match_settings')}</span>
+                            <div className="text-left">
+                                <span className="font-semibold text-[15px] block">{t('menu_match_settings')}</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Vibration: {vibration ? 'ON' : 'OFF'}</span>
+                            </div>
                         </div>
                         <ChevronRight size={18} className="text-slate-400" />
                     </button>
@@ -261,12 +309,18 @@ export default function MenuPage() {
                     </button>
 
                     {/* Notification Settings */}
-                    <button className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}>
+                    <button
+                        onClick={toggleSound}
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
                         <div className="flex items-center gap-4">
                             <div className="w-8 h-8 flex items-center justify-center text-slate-500">
                                 <Bell size={22} />
                             </div>
-                            <span className="font-semibold text-[15px]">{t('menu_notifications')}</span>
+                            <div className="text-left">
+                                <span className="font-semibold text-[15px] block">{t('menu_notifications')}</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Sound: {sound ? 'ON' : 'OFF'}</span>
+                            </div>
                         </div>
                         <ChevronRight size={18} className="text-slate-400" />
                     </button>
@@ -290,16 +344,6 @@ export default function MenuPage() {
                         </div>
                     </button>
 
-                    {/* Report a Problem */}
-                    <button className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}>
-                        <div className="flex items-center gap-4">
-                            <div className="w-8 h-8 flex items-center justify-center text-red-400">
-                                <AlertCircle size={22} />
-                            </div>
-                            <span className="font-semibold text-[15px]">{t('menu_report_problem')}</span>
-                        </div>
-                        <ChevronRight size={18} className="text-slate-400" />
-                    </button>
 
                     {/* Terms & Privacy Policy */}
                     <Link
@@ -315,16 +359,6 @@ export default function MenuPage() {
                         <ChevronRight size={18} className="text-slate-400" />
                     </Link>
 
-                    {/* Partner with us */}
-                    <button className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}>
-                        <div className="flex items-center gap-4">
-                            <div className="w-8 h-8 flex items-center justify-center text-purple-500">
-                                <Handshake size={22} />
-                            </div>
-                            <span className="font-semibold text-[15px]">{t('menu_partner')}</span>
-                        </div>
-                        <ChevronRight size={18} className="text-slate-400" />
-                    </button>
                 </div>
 
                 {/* Credits */}
@@ -334,6 +368,81 @@ export default function MenuPage() {
                     <span className="text-[9px] font-bold italic tracking-wider">v2.1.5-beta</span>
                 </div>
             </div>
+
+            {/* Bottom Login Sheet */}
+            <AnimatePresence>
+                {showLoginSheet && (
+                    <div className="fixed inset-0 z-[60] flex items-end justify-center">
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowLoginSheet(false)}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        />
+
+                        {/* Sheet Container for sizing */}
+                        <div className="relative w-full max-w-lg">
+                            <motion.div
+                                initial={{ y: '100%' }}
+                                animate={{ y: 0 }}
+                                exit={{ y: '100%' }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                className={`${isDarkMode ? 'bg-[#1e293b]' : 'bg-white'} rounded-t-[2.5rem] p-8 pb-12 shadow-2xl flex flex-col items-center safe-area-pb`}
+                            >
+                                {/* Drag Handle */}
+                                <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mb-6 -mt-2 opacity-50" />
+
+                                {/* Close Button */}
+                                <button
+                                    onClick={() => setShowLoginSheet(false)}
+                                    className="absolute top-6 right-8 p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 transition-transform active:scale-90"
+                                >
+                                    <X size={20} />
+                                </button>
+
+                                {/* Illustration Mockup */}
+                                <div className="flex items-center justify-center gap-2 mb-8 mt-4 scale-110">
+                                    <div className="w-12 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-xl shadow-lg -rotate-6">🏏</div>
+                                    <div className="w-14 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center text-3xl shadow-xl z-10 border-2 border-white dark:border-slate-700">🏆</div>
+                                    <div className="w-12 h-14 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-xl shadow-lg rotate-6">🌟</div>
+                                </div>
+
+                                <h2 className={`text-2xl font-black text-center mb-3 tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                    Maximise your {schoolConfig.appName} experience
+                                </h2>
+                                <p className="text-slate-500 dark:text-slate-400 text-center text-sm font-medium leading-relaxed max-w-xs mb-10">
+                                    Log in with Google to personalise your {schoolConfig.appName} experience and stay updated on your favourite teams, series, and more.
+                                </p>
+
+                                {/* Google Button */}
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await googleLogin();
+                                            setShowLoginSheet(false);
+                                            toast.success('Signed in successfully!');
+                                        } catch (err) {
+                                            console.error(err);
+                                            toast.error('Failed to sign in.');
+                                        }
+                                    }}
+                                    className="w-full max-w-sm flex items-center justify-center gap-3 bg-black dark:bg-white text-white dark:text-black py-4 px-6 rounded-2xl font-bold transition-transform active:scale-95 shadow-xl"
+                                >
+                                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-6 h-6" alt="Google" />
+                                    <span>Continue with Google</span>
+                                </button>
+
+                                {/* Footer Links */}
+                                <p className="mt-8 text-[11px] text-slate-400 dark:text-slate-500 text-center leading-relaxed max-w-sm">
+                                    By continuing, you agree to our <Link to="/terms" className="underline font-bold text-slate-500">Terms of Service</Link> and <Link to="/privacy" className="underline font-bold text-slate-500">Privacy Policy</Link>.
+                                </p>
+                            </motion.div>
+                        </div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

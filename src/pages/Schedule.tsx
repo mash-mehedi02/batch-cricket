@@ -83,9 +83,9 @@ export default function Schedule() {
     })
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
+        <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] pb-20">
             {/* Header */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-white/5 sticky top-0 z-30">
+            <div className="bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-white/5 sticky top-0 z-30">
                 <div className="max-w-4xl mx-auto">
                     <div className="px-6 py-6 flex items-center justify-between">
                         <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Match Schedule</h1>
@@ -120,7 +120,7 @@ export default function Schedule() {
                         {[1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
                     </div>
                 ) : matches.length === 0 ? (
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-16 text-center border border-slate-200 dark:border-white/5 shadow-sm">
+                    <div className="bg-white dark:bg-[#0f172a] rounded-3xl p-16 text-center border border-slate-200 dark:border-white/5 shadow-sm">
                         <div className="text-5xl mb-6">📅</div>
                         <h3 className="text-xl font-bold text-black dark:text-white mb-2 capitalize">No {activeTab} matches found</h3>
                         <p className="text-slate-400 dark:text-slate-500 text-sm">Check other tabs for more matches.</p>

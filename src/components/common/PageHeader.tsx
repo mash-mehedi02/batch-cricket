@@ -7,7 +7,7 @@ export default function PageHeader({
     backLink,
     rightContent
 }: {
-    title?: string
+    title?: React.ReactNode
     subtitle?: string
     backLink?: string
     rightContent?: React.ReactNode
@@ -23,10 +23,10 @@ export default function PageHeader({
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-blue-600/5 to-transparent pointer-events-none"></div>
 
                 {/* Left: Back Button + Title Group */}
-                <div className="flex items-center gap-4 max-w-[80%] relative z-10">
+                <div className="flex items-center gap-4 flex-1 min-w-0 relative z-10">
                     <button
                         onClick={() => backLink ? navigate(backLink) : navigate(-1)}
-                        className="group relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-95 bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 shadow-lg backdrop-blur-sm"
+                        className="group relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-95 bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 shadow-lg backdrop-blur-sm shrink-0"
                     >
                         <ArrowLeft size={20} className="transition-transform group-hover:-translate-x-0.5" />
                     </button>

@@ -274,11 +274,11 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
     if (loading) {
         return (
             <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} animate-pulse`}>
-                <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100 space-y-6">
+                <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm p-8 border border-slate-200 dark:border-white/5 space-y-6">
                     {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="bg-gray-50 rounded-xl p-6">
-                            <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
-                            <div className="h-6 bg-gray-200 rounded w-48"></div>
+                        <div key={i} className="bg-slate-50 dark:bg-white/5 rounded-xl p-6">
+                            <div className="h-4 bg-slate-100 dark:bg-white/10 rounded w-24 mb-3"></div>
+                            <div className="h-6 bg-slate-100 dark:bg-white/10 rounded w-48"></div>
                         </div>
                     ))}
                 </div>
@@ -288,9 +288,9 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
 
     if (!match) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] flex items-center justify-center">
                 <div className="text-center">
-                    <p className="text-slate-600 text-lg mb-4">Match not found</p>
+                    <p className="text-slate-500 text-lg mb-4">Match not found</p>
                 </div>
             </div>
         )
@@ -309,15 +309,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
     const hasAnyXI = (match.teamAPlayingXI?.length || 0) > 0 || (match.teamBPlayingXI?.length || 0) > 0
     const xiTitle = hasAnyXI ? 'Playing XI' : 'Squad'
 
-    const FormCircle = ({ result }: { result: 'W' | 'L' | 'T' | '*' }) => (
-        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-[6px] flex items-center justify-center text-[10px] sm:text-[11px] font-black shadow-sm transition-all
-      ${result === 'W' ? 'bg-[#10b981] text-white' :
-                result === 'L' ? 'bg-[#f43f5e] text-white' :
-                    result === 'T' ? 'bg-[#94a3b8] text-white' :
-                        'bg-slate-50 text-slate-300 border border-slate-200/50'}`}>
-            <span className="leading-none">{result === '*' ? '·' : result}</span>
-        </div>
-    )
+
 
     const tossMessage = (match.tossWinner || (match as any).tossWinner) ? (() => {
         const m2 = match as any;
@@ -332,7 +324,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
     })() : null;
 
     return (
-        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-6 pb-24 bg-white`}>
+        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-6 pb-24 bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white`}>
 
             {/* 1. Toss Message */}
             {tossMessage && (
@@ -344,58 +336,58 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
 
             {/* 2. Brand/Series Card */}
             <div
-                className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center justify-between group cursor-pointer hover:border-blue-100 transition-colors"
+                className="bg-white dark:bg-[#0f172a] rounded-2xl p-4 border border-slate-200 dark:border-white/5 shadow-sm flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-colors"
                 onClick={() => navigate(tournament?.id ? `/tournaments/${tournament.id}` : '/tournaments')}
             >
                 <div className="space-y-1">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em]">{(match as any).matchNo || 'T20 Match'}</div>
-                    <div className="text-[15px] font-black text-slate-800 flex items-center gap-2 group-hover:text-blue-600">
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">{(match as any).matchNo || 'T20 Match'}</div>
+                    <div className="text-[15px] font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         {tournament?.name || 'Local Tournament'}
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-0.5 transition-transform" />
+                        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-2 shadow-inner">
-                    {tournament?.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-contain" /> : <Info className="w-6 h-6 text-slate-100" />}
+                <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center p-2 shadow-inner">
+                    {tournament?.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-contain" /> : <Info className="w-6 h-6 text-slate-300 dark:text-white/10" />}
                 </div>
             </div>
 
             {/* 3. Match Metadata */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-4">
-                <div className="flex items-center gap-4 text-sm text-slate-600 font-semibold">
-                    <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100/50">
-                        <Calendar className="w-4.5 h-4.5 text-slate-400" />
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-4 border border-slate-200 dark:border-white/5 shadow-sm space-y-4">
+                <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400 font-semibold">
+                    <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-white/[0.03] flex items-center justify-center border border-slate-200 dark:border-white/5">
+                        <Calendar className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
                     </div>
                     <span>{matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }) : 'TBA'} • {timeText}</span>
                 </div>
-                <div className="flex items-center justify-between gap-4 text-sm text-slate-600 font-semibold group cursor-pointer">
+                <div className="flex items-center justify-between gap-4 text-sm text-slate-600 dark:text-slate-400 font-semibold group cursor-pointer">
                     <div className="flex items-center gap-4">
-                        <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100/50">
-                            <MapPin className="w-4.5 h-4.5 text-slate-400" />
+                        <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-white/[0.03] flex items-center justify-center border border-slate-200 dark:border-white/5">
+                            <MapPin className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
                         </div>
-                        <span className="text-blue-600 group-hover:underline">{match.venue || 'SMA Home Ground'}</span>
+                        <span className="text-blue-600 dark:text-blue-400 group-hover:underline">{match.venue || 'SMA Home Ground'}</span>
                     </div>
-                    <ChevronDown className="w-4 h-4 text-slate-300 group-hover:text-blue-400 transition-colors" />
+                    <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                 </div>
                 {/* Match Number & Overs Limit */}
-                <div className="flex items-center gap-8 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-8 pt-2 border-t border-slate-100 dark:border-white/5">
                     <div className="flex items-center gap-4 text-sm font-semibold">
-                        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50">
-                            <Info className="w-4.5 h-4.5 text-blue-400" />
+                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                            <Info className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Match Type</span>
-                            <span className="text-blue-600 font-black text-base tracking-tight uppercase">{match.oversLimit || 20} Overs</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match Type</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-black text-base tracking-tight uppercase">{match.oversLimit || 20} Overs</span>
                         </div>
                     </div>
 
                     {(match as any).matchNo && (
-                        <div className="flex items-center gap-4 text-sm font-semibold pl-8 border-l border-slate-100">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100/50">
-                                <span className="text-emerald-600 font-black text-xs">#</span>
+                        <div className="flex items-center gap-4 text-sm font-semibold pl-8 border-l border-slate-100 dark:border-white/5">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs">#</span>
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Match Number</span>
-                                <span className="text-emerald-600 font-black text-base tracking-tight uppercase">{(match as any).matchNo}</span>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Match Number</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-black text-base tracking-tight uppercase">{(match as any).matchNo}</span>
                             </div>
                         </div>
                     )}
@@ -404,33 +396,33 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
 
             {/* 4. Squad / Playing XI Section */}
             <div className="space-y-3">
-                <h3 className="text-[13px] font-black text-slate-800 px-1 uppercase tracking-wide">{xiTitle}</h3>
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50 overflow-hidden">
-                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
+                <h3 className="text-[13px] font-black text-slate-900 dark:text-slate-100 px-1 uppercase tracking-wide">{xiTitle}</h3>
+                <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm divide-y divide-slate-100 dark:divide-white/5 overflow-hidden">
+                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
                         <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
-                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{teamAName[0]}</span>}
+                            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
+                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-400 dark:text-white/10">{teamAName[0]}</span>}
                             </div>
-                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{formatShortTeamName(teamAName)}</span>
+                            <span className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">{formatShortTeamName(teamAName)}</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-1 transition-transform" />
                     </div>
-                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
+                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => onSwitchTab?.('playing-xi')}>
                         <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
-                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{teamBName[0]}</span>}
+                            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
+                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-400 dark:text-white/10">{teamBName[0]}</span>}
                             </div>
-                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{formatShortTeamName(teamBName)}</span>
+                            <span className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">{formatShortTeamName(teamBName)}</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-1 transition-transform" />
                     </div>
                 </div>
             </div>
 
             {/* 6. Team Form */}
             <div className="space-y-3 pt-2">
-                <h3 className="text-[13px] font-black text-slate-800 px-1 uppercase tracking-wide">Team form <span className="text-[11px] font-bold text-slate-400 normal-case">(Last 5 matches)</span></h3>
-                <div className="bg-white rounded-2xl p-2 sm:p-5 border border-slate-100 shadow-sm space-y-2 sm:space-y-4">
+                <h3 className="text-[13px] font-black text-slate-900 dark:text-slate-100 px-1 uppercase tracking-wide">Team form <span className="text-[11px] font-bold text-slate-500 normal-case">(Last 5 matches)</span></h3>
+                <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-2 sm:p-5 border border-slate-200 dark:border-white/5 shadow-sm space-y-2 sm:space-y-4">
                     {[
                         { name: teamAName, short: (match as any).teamAShort || formatShortTeamName(teamAName), squad: teamASquad, form: teamAForm },
                         { name: teamBName, short: (match as any).teamBShort || formatShortTeamName(teamBName), squad: teamBSquad, form: teamBForm }
@@ -440,16 +432,16 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                         return (
                             <div key={idx} className="space-y-3">
                                 <div
-                                    className={`flex items-center justify-between gap-4 p-3 rounded-xl cursor-pointer transition-all ${isExpanded ? 'bg-slate-50 border-slate-200' : 'hover:bg-slate-50/50 border border-transparent'}`}
+                                    className={`flex items-center justify-between gap-4 p-3 rounded-xl cursor-pointer transition-all ${isExpanded ? 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10' : 'hover:bg-slate-50 dark:hover:bg-white/[0.03] border border-transparent'}`}
                                     onClick={() => setExpandedTeamIdx(isExpanded ? null : idx)}
                                 >
                                     {/* Logo */}
-                                    <div className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center overflow-hidden p-1.5 shadow-sm shrink-0">
-                                        {row.squad?.logoUrl ? <img src={row.squad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-200">{row.name[0]}</span>}
+                                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center overflow-hidden p-1.5 shadow-sm shrink-0">
+                                        {row.squad?.logoUrl ? <img src={row.squad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-black text-slate-400 dark:text-white/10">{row.name[0]}</span>}
                                     </div>
 
                                     {/* Name */}
-                                    <span className="text-sm font-black text-slate-800 uppercase truncate tracking-tight flex-1 min-w-0">{formatShortTeamName(row.name)}</span>
+                                    <span className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase truncate tracking-tight flex-1 min-w-0">{formatShortTeamName(row.name)}</span>
 
                                     {/* Badges + Chevron */}
                                     <div className="flex items-center gap-2">
@@ -459,13 +451,13 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                                       ${r.formResult === 'W' ? 'bg-[#10b981] text-white' :
                                                         r.formResult === 'L' ? 'bg-[#f43f5e] text-white' :
                                                             r.formResult === 'T' ? 'bg-[#94a3b8] text-white' :
-                                                                'bg-slate-50 text-slate-300 border border-slate-200/50'}`}>
+                                                                'bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-white/10'}`}>
                                                     <span className="leading-none">{r.formResult === '*' ? '·' : r.formResult}</span>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-full transition-colors shrink-0">
-                                            <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-500' : ''}`} />
+                                        <div className="w-8 h-8 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors shrink-0">
+                                            <ChevronDown size={14} className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''}`} />
                                         </div>
                                     </div>
                                 </div>
@@ -473,7 +465,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                 {/* Expanded form matches */}
                                 {isExpanded && row.form.length > 0 && (
                                     <div className="px-1 sm:px-2 space-y-3 pb-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <div className="text-[11px] font-black text-slate-400 px-3 uppercase tracking-widest pb-1">Recent Matches</div>
+                                        <div className="text-[11px] font-black text-slate-500 px-3 uppercase tracking-widest pb-1">Recent Matches</div>
                                         {row.form.map((m: any) => {
                                             const getInningsDisplay = (side: 'A' | 'B') => {
                                                 const inn = side === 'A' ? m.innA : m.innB;
@@ -488,44 +480,44 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                             const result = m.formResult || 'T';
 
                                             return (
-                                                <div key={m.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-100 transition-all p-4 flex items-center justify-between gap-6 group">
+                                                <div key={m.id} className="bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-500/30 transition-all p-4 flex items-center justify-between gap-6 group">
                                                     <div className="flex-1 space-y-3">
                                                         <div className="flex items-center justify-between group-hover:translate-x-1 transition-transform duration-300">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden p-0.5">
-                                                                    <span className="text-[9px] font-black text-slate-300">{m.teamAName?.[0]}</span>
+                                                                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center overflow-hidden p-0.5">
+                                                                    <span className="text-[9px] font-black text-slate-400 dark:text-white/20">{m.teamAName?.[0]}</span>
                                                                 </div>
-                                                                <span className="text-[13px] font-black text-slate-700 uppercase tracking-tight truncate max-w-[120px] sm:max-w-none">{m.teamAName}</span>
+                                                                <span className="text-[13px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-tight truncate max-w-[120px] sm:max-w-none">{m.teamAName}</span>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-[13px] font-black text-slate-800 tabular-nums">{scoreA.score}</span>
-                                                                {scoreA.overs && <span className="text-[10px] font-bold text-slate-400 tabular-nums">({scoreA.overs})</span>}
+                                                                <span className="text-[13px] font-black text-slate-200 tabular-nums">{scoreA.score}</span>
+                                                                {scoreA.overs && <span className="text-[10px] font-bold text-slate-500 tabular-nums">({scoreA.overs})</span>}
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center justify-between group-hover:translate-x-1 transition-transform duration-300 delay-75">
                                                             <div className="flex items-center gap-3">
-                                                                <div className="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden p-0.5">
-                                                                    <span className="text-[9px] font-black text-slate-300">{m.teamBName?.[0]}</span>
+                                                                <div className="w-6 h-6 rounded-full bg-[#060b16] border border-white/5 flex items-center justify-center overflow-hidden p-0.5">
+                                                                    <span className="text-[9px] font-black text-white/20">{m.teamBName?.[0]}</span>
                                                                 </div>
-                                                                <span className="text-[13px] font-black text-slate-700 uppercase tracking-tight truncate max-w-[120px] sm:max-w-none">{m.teamBName}</span>
+                                                                <span className="text-[13px] font-black text-slate-300 uppercase tracking-tight truncate max-w-[120px] sm:max-w-none">{m.teamBName}</span>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-[13px] font-black text-slate-800 tabular-nums">{scoreB.score}</span>
-                                                                {scoreB.overs && <span className="text-[10px] font-bold text-slate-400 tabular-nums">({scoreB.overs})</span>}
+                                                                <span className="text-[13px] font-black text-slate-200 tabular-nums">{scoreB.score}</span>
+                                                                {scoreB.overs && <span className="text-[10px] font-bold text-slate-500 tabular-nums">({scoreB.overs})</span>}
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="w-px h-12 bg-slate-100 hidden sm:block"></div>
+                                                    <div className="w-px h-12 bg-white/5 hidden sm:block"></div>
 
                                                     <div className="flex items-center gap-4">
                                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-sm transition-transform group-hover:scale-110
-                                                            ${result === 'W' ? 'bg-[#10b981]' : result === 'L' ? 'bg-[#f43f5e]' : 'bg-slate-400'}`}>
+                                                            ${result === 'W' ? 'bg-[#10b981]' : result === 'L' ? 'bg-[#f43f5e]' : 'bg-slate-600'}`}>
                                                             {result}
                                                         </div>
                                                         <div className="hidden sm:block text-right min-w-[100px] space-y-0.5">
-                                                            <div className="text-[11px] font-black text-slate-800 leading-tight">{(m as any).matchNo || 'Match'}</div>
-                                                            <div className="text-[10px] font-bold text-slate-400 truncate max-w-[120px] italic">{m.tournamentName || tournament?.name}</div>
+                                                            <div className="text-[11px] font-black text-slate-200 leading-tight">{(m as any).matchNo || 'Match'}</div>
+                                                            <div className="text-[10px] font-bold text-slate-500 truncate max-w-[120px] italic">{m.tournamentName || tournament?.name}</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -533,20 +525,20 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                         })}
                                         <div className="flex justify-between items-center px-3 pt-2">
                                             <div className="flex items-center gap-2.5 group cursor-pointer">
-                                                <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center p-1">
-                                                    {row.squad?.logoUrl ? <img src={row.squad.logoUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full bg-slate-200 rounded-full" />}
+                                                <div className="w-7 h-7 rounded-full overflow-hidden bg-[#060b16] border border-white/5 flex items-center justify-center p-1">
+                                                    {row.squad?.logoUrl ? <img src={row.squad.logoUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full bg-white/5 rounded-full" />}
                                                 </div>
-                                                <span className="text-[11px] font-black text-slate-500 group-hover:text-blue-600 transition-colors">See complete team history</span>
+                                                <span className="text-[11px] font-black text-slate-500 group-hover:text-blue-400 transition-colors">See complete team history</span>
                                             </div>
-                                            <button className="text-[11px] font-black text-blue-600 hover:text-blue-700 px-3 py-1 rounded-full bg-blue-50 transition-colors">FIXTURES</button>
+                                            <button className="text-[11px] font-black text-blue-400 hover:text-blue-300 px-3 py-1 rounded-full bg-blue-500/10 transition-colors">FIXTURES</button>
                                         </div>
                                     </div>
                                 )}
                             </div>
                         )
                     })}
-                    <div className="text-[10px] font-bold text-slate-400 italic pt-1 flex items-center gap-1.5 px-3">
-                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <div className="text-[10px] font-bold text-slate-500 italic pt-1 flex items-center gap-1.5 px-3">
+                        <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                         * Upcoming Matches
                     </div>
                 </div>
@@ -555,34 +547,34 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
             {/* 7. Head to Head */}
             <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between px-1">
-                    <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wide">Head to Head <span className="text-[11px] font-bold text-slate-400 normal-case">(Last 10 matches)</span></h3>
-                    <button className="text-[12px] font-black text-blue-600 hover:text-blue-700 transition-colors uppercase tracking-tight">All Matches</button>
+                    <h3 className="text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">Head to Head <span className="text-[11px] font-bold text-slate-500 normal-case">(Last 10 matches)</span></h3>
+                    <button className="text-[12px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors uppercase tracking-tight">All Matches</button>
                 </div>
 
                 {/* Summary View */}
-                <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm space-y-10">
+                <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-8 border border-slate-200 dark:border-white/5 shadow-sm space-y-10">
                     <div className="flex items-center justify-center gap-10 sm:gap-20">
                         <div className="text-center space-y-4">
-                            <div className="w-20 h-20 rounded-full bg-white border border-slate-100 flex items-center justify-center p-4 mx-auto shadow-md">
-                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-black text-slate-100">{teamAName[0]}</span>}
+                            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center p-4 mx-auto shadow-md">
+                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-black text-white/10">{teamAName[0]}</span>}
                             </div>
-                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{(match as any).teamAShort || formatShortTeamName(teamAName)}</div>
+                            <div className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">{(match as any).teamAShort || formatShortTeamName(teamAName)}</div>
                         </div>
 
                         <div className="flex flex-col items-center">
-                            <div className="text-5xl font-black flex items-center gap-6 tabular-nums tracking-tighter text-slate-800">
+                            <div className="text-5xl font-black flex items-center gap-6 tabular-nums tracking-tighter text-slate-900 dark:text-white">
                                 <span>{headToHead.teamA}</span>
-                                <span className="text-slate-100 text-3xl font-normal">—</span>
+                                <span className="text-white/10 text-3xl font-normal">—</span>
                                 <span>{headToHead.teamB}</span>
                             </div>
-                            {headToHead.tie > 0 && <div className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">{headToHead.tie} {headToHead.tie === 1 ? 'Tie' : 'Ties'}</div>}
+                            {headToHead.tie > 0 && <div className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-widest">{headToHead.tie} {headToHead.tie === 1 ? 'Tie' : 'Ties'}</div>}
                         </div>
 
                         <div className="text-center space-y-4">
-                            <div className="w-20 h-20 rounded-full bg-white border border-slate-100 flex items-center justify-center p-4 mx-auto shadow-md">
-                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-black text-slate-100">{teamBName[0]}</span>}
+                            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center p-4 mx-auto shadow-md">
+                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-black text-white/10">{teamBName[0]}</span>}
                             </div>
-                            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{(match as any).teamBShort || formatShortTeamName(teamBName)}</div>
+                            <div className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">{(match as any).teamBShort || formatShortTeamName(teamBName)}</div>
                         </div>
                     </div>
 
@@ -606,40 +598,40 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                             const scoreB = getInningsDisplay('B');
 
                             return (
-                                <div key={m.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-100 transition-all group">
-                                    <div className="bg-slate-50/50 px-5 py-2.5 border-b border-slate-100 flex justify-between items-center">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">{m.tournamentName || tournament?.name || (m as any).matchNo || 'Series Match'}</span>
+                                <div key={m.id} className="bg-slate-50/50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-500/30 transition-all group">
+                                    <div className="bg-white/[0.03] px-5 py-2.5 border-b border-white/5 flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wide">{m.tournamentName || tournament?.name || (m as any).matchNo || 'Series Match'}</span>
                                         <span className="text-[10px] font-black text-slate-500">{mDate ? mDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
                                     </div>
                                     <div className="p-5 flex items-center justify-between gap-6">
                                         <div className="space-y-3 flex-1">
                                             <div className="flex items-center justify-between group-hover:translate-x-1 transition-transform duration-300">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-7 h-7 rounded-full bg-white border border-slate-50 flex items-center justify-center overflow-hidden p-1 shadow-sm">
-                                                        <span className="text-[9px] font-black text-slate-200">{m.teamAName?.[0]}</span>
+                                                    <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center overflow-hidden p-1 shadow-sm">
+                                                        <span className="text-[9px] font-black text-slate-400 dark:text-white/10">{m.teamAName?.[0]}</span>
                                                     </div>
-                                                    <span className="text-[13px] font-black text-slate-700 uppercase tracking-tight">{m.teamAName}</span>
+                                                    <span className="text-[13px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-tight">{m.teamAName}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-black text-slate-800 tabular-nums">{scoreA.score}</span>
-                                                    {scoreA.overs && <span className="text-[10px] font-bold text-slate-400 tabular-nums">({scoreA.overs})</span>}
+                                                    <span className="text-sm font-black text-slate-900 dark:text-slate-200 tabular-nums">{scoreA.score}</span>
+                                                    {scoreA.overs && <span className="text-[10px] font-bold text-slate-500 tabular-nums">({scoreA.overs})</span>}
                                                 </div>
                                             </div>
                                             <div className="flex items-center justify-between group-hover:translate-x-1 transition-transform duration-300 delay-75">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-7 h-7 rounded-full bg-white border border-slate-50 flex items-center justify-center overflow-hidden p-1 shadow-sm">
-                                                        <span className="text-[9px] font-black text-slate-200">{m.teamBName?.[0]}</span>
+                                                    <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center overflow-hidden p-1 shadow-sm">
+                                                        <span className="text-[9px] font-black text-slate-400 dark:text-white/10">{m.teamBName?.[0]}</span>
                                                     </div>
-                                                    <span className="text-[13px] font-black text-slate-700 uppercase tracking-tight">{m.teamBName}</span>
+                                                    <span className="text-[13px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-tight">{m.teamBName}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-black text-slate-800 tabular-nums">{scoreB.score}</span>
-                                                    {scoreB.overs && <span className="text-[10px] font-bold text-slate-400 tabular-nums">({scoreB.overs})</span>}
+                                                    <span className="text-sm font-black text-slate-900 dark:text-slate-200 tabular-nums">{scoreB.score}</span>
+                                                    {scoreB.overs && <span className="text-[10px] font-bold text-slate-500 tabular-nums">({scoreB.overs})</span>}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="w-px h-12 bg-slate-100 hidden sm:block"></div>
+                                        <div className="w-px h-12 bg-slate-100 dark:bg-white/5 hidden sm:block"></div>
 
                                         <div className="flex items-center gap-4">
                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-sm transition-transform group-hover:scale-110
@@ -647,11 +639,11 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                                                 {m.resCode}
                                             </div>
                                             <div className="hidden sm:block text-right min-w-[120px] space-y-1">
-                                                <div className={`text-[12px] font-black leading-tight tracking-tight ${m.resCode === 'W' ? 'text-emerald-600' : m.resCode === 'L' ? 'text-rose-600' : 'text-slate-500'}`}>
+                                                <div className={`text-[12px] font-black leading-tight tracking-tight ${m.resCode === 'W' ? 'text-emerald-400' : m.resCode === 'L' ? 'text-rose-400' : 'text-slate-500'}`}>
                                                     {resSummary.includes('won') ? resSummary.replace('won', 'Won') :
                                                         resSummary.includes('Won') ? resSummary : `${resSummary} Won`}
                                                 </div>
-                                                <div className="text-[9px] font-bold text-slate-300 italic tracking-wider uppercase">Match Result</div>
+                                                <div className="text-[9px] font-bold text-slate-600 italic tracking-wider uppercase">Match Result</div>
                                             </div>
                                         </div>
                                     </div>

@@ -718,13 +718,13 @@ export default function PlayerProfile() {
 
   // Internal component for career grid cells
   const StatCell = ({ label, value, highlight, labelSmall, matchId }: { label: string, value: any, highlight?: boolean, labelSmall?: boolean, matchId?: string }) => {
-    const className = clsx("flex flex-col items-center justify-center py-7 px-1 text-center transition-all", matchId && "hover:bg-slate-50 cursor-pointer group")
+    const className = clsx("flex flex-col items-center justify-center py-7 px-1 text-center transition-all", matchId && "hover:bg-slate-50 dark:hover:bg-white/[0.03] cursor-pointer group")
     const content = (
       <>
-        <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600 group-hover:text-sky-700' : 'text-slate-800'}`}>
+        <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600 dark:text-sky-400 group-hover:text-sky-700 dark:group-hover:text-sky-300' : 'text-slate-800 dark:text-slate-100'}`}>
           {value}
         </div>
-        <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 uppercase tracking-tight`}>
+        <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight`}>
           {label}
         </div>
       </>
@@ -746,7 +746,7 @@ export default function PlayerProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-white relative pb-24">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] relative pb-24 text-slate-900 dark:text-white">
       <PageHeader
         title={player.name}
         subtitle={squadName || "Player Profile"}
@@ -814,23 +814,23 @@ export default function PlayerProfile() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 md:gap-6 text-slate-400 font-medium">
+                <div className="flex flex-wrap items-center gap-2 md:gap-6 text-slate-300 dark:text-slate-400 font-medium">
                   {player.batch && (
-                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-100">
+                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-100">
                       <span className="text-emerald-500 text-xs md:text-base">📚</span>
-                      <span className="text-[10px] md:text-sm whitespace-nowrap">Batch {player.batch}</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap text-white">Batch {player.batch}</span>
                     </span>
                   )}
                   {squadName && (
-                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-200">
+                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-200">
                       <span className="text-emerald-500 text-xs md:text-base">👥</span>
-                      <span className="text-[10px] md:text-sm whitespace-nowrap">{squadName}</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap text-white">{squadName}</span>
                     </span>
                   )}
                   {age && (
-                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-300">
+                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-300">
                       <span className="text-emerald-500 text-xs md:text-base">🎂</span>
-                      <span className="text-[10px] md:text-sm whitespace-nowrap">{age} Yrs</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap text-white">{age} Yrs</span>
                     </span>
                   )}
                 </div>
@@ -840,7 +840,7 @@ export default function PlayerProfile() {
         </div>
 
         {/* Refined Tabs (Now part of the same sticky container) */}
-        <div className="bg-white border-b border-slate-200">
+        <div className="bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex gap-4">
               {tabs.map((tab) => (
@@ -848,8 +848,8 @@ export default function PlayerProfile() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-4 py-4 text-sm font-bold relative transition-all ${activeTab === tab.id
-                    ? 'text-emerald-600'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'text-emerald-600 dark:text-emerald-500'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                 >
                   {tab.label}
@@ -870,10 +870,10 @@ export default function PlayerProfile() {
             {recentForm.length > 0 && (
               <div className="animate-in slide-in-from-bottom-4 duration-700 mb-8">
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                    Recent Form <span className="text-slate-400 font-bold text-sm ml-1">(Last 10)</span>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Recent Form <span className="text-slate-400 dark:text-slate-500 font-bold text-sm ml-1">(Last 10)</span>
                   </h3>
-                  <button onClick={() => setActiveTab('matches')} className="text-blue-600 text-sm font-bold hover:underline">
+                  <button onClick={() => setActiveTab('matches')} className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">
                     See More
                   </button>
                 </div>
@@ -882,34 +882,34 @@ export default function PlayerProfile() {
                     <Link
                       key={idx}
                       to={`/match/${form.matchId}`}
-                      className="group flex flex-col justify-center items-center p-4 bg-white rounded-2xl shrink-0 min-w-[125px] h-[105px] text-center shadow-sm border border-slate-100 transition-all hover:shadow-md hover:border-blue-200"
+                      className="group flex flex-col justify-center items-center p-4 bg-white dark:bg-[#0f172a] rounded-2xl shrink-0 min-w-[125px] h-[105px] text-center shadow-sm border border-slate-100 dark:border-white/5 transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/20"
                     >
                       <div className="flex items-baseline justify-center gap-1.5 mb-2">
                         {viewMode === 'batting' ? (
                           <>
-                            <span className="text-slate-800 text-2xl font-bold relative leading-none">
+                            <span className="text-slate-800 dark:text-slate-100 text-2xl font-bold relative leading-none">
                               {form.runs}
                               {form.isNotOut && (
-                                <span className="absolute -top-1 -right-3 text-[14px] font-bold text-slate-900">
+                                <span className="absolute -top-1 -right-3 text-[14px] font-bold text-slate-900 dark:text-white">
                                   *
                                 </span>
                               )}
                             </span>
-                            <span className="text-[12px] font-bold text-slate-600 leading-none">({form.balls})</span>
+                            <span className="text-[12px] font-bold text-slate-600 dark:text-slate-400 leading-none">({form.balls})</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-slate-800 text-2xl font-bold leading-none">
+                            <span className="text-slate-800 dark:text-slate-100 text-2xl font-bold leading-none">
                               {form.wickets}
                             </span>
-                            <span className="text-slate-400 text-lg font-bold leading-none mx-0.5">-</span>
-                            <span className="text-slate-800 text-xl font-bold leading-none">
+                            <span className="text-slate-400 font-bold leading-none mx-0.5">-</span>
+                            <span className="text-slate-800 dark:text-slate-100 text-xl font-bold leading-none">
                               {form.runsConceded}
                             </span>
                           </>
                         )}
                       </div>
-                      <div className="text-slate-600 text-[11px] font-bold uppercase tracking-tight truncate w-full px-1">
+                      <div className="text-slate-600 dark:text-slate-400 text-[11px] font-bold uppercase tracking-tight truncate w-full px-1">
                         {formatShortTeamName(form.opponent)}
                       </div>
                     </Link>
@@ -920,32 +920,32 @@ export default function PlayerProfile() {
 
             {/* Career Title */}
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span className="capitalize">{viewMode} Career</span>
-                <img src={viewMode === 'batting' ? cricketBatIcon : cricketBallIcon} className="w-5 h-5 object-contain" alt="" />
+                <img src={viewMode === 'batting' ? cricketBatIcon : cricketBallIcon} className="w-5 h-5 object-contain dark:invert" alt="" />
               </h3>
             </div>
 
             {/* Premium Career Grid Design */}
-            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden mb-8">
+            <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden mb-8">
               {viewMode === 'batting' ? (
-                <div className="divide-y divide-slate-200">
+                <div className="divide-y divide-slate-200 dark:divide-white/5">
                   {/* Row 1 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
                     <StatCell label="Matches" value={matchesCount} />
                     <StatCell label="Innings" value={battingInnings} />
                     <StatCell label="Runs" value={runs} />
                     <StatCell label="Highest Score" value={highestScore} highlight labelSmall matchId={highestScoreMatchId} />
                   </div>
                   {/* Row 2 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
                     <StatCell label="100s" value={hundreds} />
                     <StatCell label="50s" value={fifties} />
                     <StatCell label="SR" value={strikeRate} />
                     <StatCell label="Avg" value={average} />
                   </div>
                   {/* Row 3 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
                     <StatCell label="Fours" value={fours} />
                     <StatCell label="Sixes" value={sixes} />
                     <StatCell label="Duck Out" value={ducks} />
@@ -953,23 +953,23 @@ export default function PlayerProfile() {
                   </div>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-200">
+                <div className="divide-y divide-slate-200 dark:divide-white/5">
                   {/* Row 1 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
                     <StatCell label="Matches" value={matchesCount} />
                     <StatCell label="Innings" value={bowlingInnings} />
                     <StatCell label="Wickets" value={wickets} />
                     <StatCell label="Best" value={bowlingBest} />
                   </div>
                   {/* Row 2 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
                     <StatCell label="Econ" value={economy} />
                     <StatCell label="3 Wkt" value={threeW} />
                     <StatCell label="5 Wkt" value={fiveW} />
                     <StatCell label="Avg" value={bowlingAverage} />
                   </div>
                   {/* Row 3 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200">
+                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
                     <StatCell label="SR" value={bowlingAverage !== '-' ? (Number(bowlingInnings * 6) / (wickets || 1)).toFixed(1) : '-'} />
                     <StatCell label="Maiden" value={maidens > 0 ? maidens : '--'} />
                     <StatCell label="Rank" value={ranks.bowling} />
@@ -984,22 +984,22 @@ export default function PlayerProfile() {
         {activeTab === 'matches' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between px-2">
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                 Performance History
               </h3>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-white/[0.05] rounded-full text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 {viewMode === 'batting' ? 'Batting Records' : 'Bowling Records'}
               </div>
             </div>
 
             {filteredMatches.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl text-slate-300">📊</span>
+              <div className="text-center py-20 bg-white dark:bg-[#0f172a] rounded-[2.5rem] border border-slate-100 dark:border-white/5 shadow-sm">
+                <div className="w-20 h-20 bg-slate-50 dark:bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl text-slate-300 dark:text-slate-600">📊</span>
                 </div>
-                <h4 className="text-slate-900 font-bold mb-1">No matches found</h4>
-                <p className="text-slate-400 text-sm">This player hasn't appeared in any recorded matches yet.</p>
+                <h4 className="text-slate-900 dark:text-white font-bold mb-1">No matches found</h4>
+                <p className="text-slate-400 dark:text-slate-500 text-sm">This player hasn't appeared in any recorded matches yet.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -1026,28 +1026,28 @@ export default function PlayerProfile() {
                     <Link
                       key={idx}
                       to={`/match/${matchId}`}
-                      className="group bg-white rounded-3xl border border-slate-100 p-5 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300"
+                      className="group bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-100 dark:border-white/5 p-5 hover:border-emerald-500 dark:hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300 shadow-sm"
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 min-w-0">
                           {/* Date Block */}
-                          <div className="hidden sm:flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 shrink-0 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-colors">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                          <div className="hidden sm:flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 shrink-0 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 group-hover:border-emerald-100 dark:group-hover:border-emerald-500/20 transition-colors">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
                               {!isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, { month: 'short' }) : '---'}
                             </span>
-                            <span className="text-lg font-black text-slate-700 leading-none">
+                            <span className="text-lg font-black text-slate-700 dark:text-slate-200 leading-none">
                               {!isNaN(dateObj.getTime()) ? dateObj.getDate() : '--'}
                             </span>
                           </div>
 
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
                                 vs {match.opponentName || 'Opponent'}
                               </span>
-                              <span className="text-[10px] text-slate-400 font-medium">{formattedDate}</span>
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{formattedDate}</span>
                             </div>
-                            <h4 className="text-base sm:text-lg font-bold text-slate-800 truncate">
+                            <h4 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
                               {match.tournamentName}
                             </h4>
                           </div>
@@ -1059,27 +1059,27 @@ export default function PlayerProfile() {
                             {viewMode === 'batting' ? (
                               <div className="flex flex-col items-end">
                                 <div className="flex items-baseline gap-1">
-                                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
                                     {runs}
                                   </span>
-                                  {isNotOut && <span className="text-lg font-black text-emerald-600 leading-none">*</span>}
-                                  <span className="text-[11px] font-bold text-slate-400 ml-1">({balls})</span>
+                                  {isNotOut && <span className="text-lg font-black text-emerald-600 dark:text-emerald-500 leading-none">*</span>}
+                                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({balls})</span>
                                 </div>
                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Runs Scored</span>
                               </div>
                             ) : (
                               <div className="flex flex-col items-end">
                                 <div className="flex items-baseline gap-1">
-                                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
                                     {wickets}
                                   </span>
-                                  <span className="text-lg font-bold text-slate-300 mx-0.5">/</span>
-                                  <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                                  <span className="text-lg font-bold text-slate-300 dark:text-slate-600 mx-0.5">/</span>
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
                                     {runsConceded}
                                   </span>
-                                  <span className="text-[11px] font-bold text-slate-400 ml-1">({overs})</span>
+                                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({overs})</span>
                                 </div>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Bowling Figure</span>
+                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Bowling Figure</span>
                               </div>
                             )}
                           </div>
@@ -1194,15 +1194,15 @@ export default function PlayerProfile() {
             )}
 
             {/* Playing Info Card */}
-            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+            <div className="bg-white dark:bg-[#0f172a] rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-100 dark:border-white/5 overflow-hidden">
               <div className="px-8 py-2">
-                <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Role:</span>
+                <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                  <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Role:</span>
                   {isEditing ? (
                     <select
                       value={editForm.role}
                       onChange={(e) => setEditForm({ ...editForm, role: e.target.value as PlayerRole })}
-                      className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                      className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
                     >
                       <option value="batsman">Batsman</option>
                       <option value="bowler">Bowler</option>
@@ -1210,31 +1210,31 @@ export default function PlayerProfile() {
                       <option value="wicket-keeper">Wicket Keeper</option>
                     </select>
                   ) : (
-                    <span className="text-sm font-bold text-slate-800 capitalize">{player.role || 'Batter'}</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.role || 'Batter'}</span>
                   )}
                 </div>
-                <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Bats:</span>
+                <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                  <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Bats:</span>
                   {isEditing ? (
                     <select
                       value={editForm.battingStyle}
                       onChange={(e) => setEditForm({ ...editForm, battingStyle: e.target.value as BattingStyle })}
-                      className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                      className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
                     >
                       <option value="right-handed">Right Handed</option>
                       <option value="left-handed">Left Handed</option>
                     </select>
                   ) : (
-                    <span className="text-sm font-bold text-slate-800 capitalize">{player.battingStyle || 'Right Handed'}</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.battingStyle || 'Right Handed'}</span>
                   )}
                 </div>
                 <div className={clsx("flex items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Bowl:</span>
+                  <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Bowl:</span>
                   {isEditing ? (
                     <select
                       value={editForm.bowlingStyle}
                       onChange={(e) => setEditForm({ ...editForm, bowlingStyle: e.target.value as BowlingStyle })}
-                      className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                      className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
                     >
                       <option value="right-arm-fast">Right Arm Fast</option>
                       <option value="right-arm-medium">Right Arm Medium</option>
@@ -1244,7 +1244,7 @@ export default function PlayerProfile() {
                       <option value="left-arm-spin">Left Arm Spin</option>
                     </select>
                   ) : (
-                    <span className="text-sm font-bold text-slate-800 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
                   )}
                 </div>
               </div>
@@ -1252,22 +1252,22 @@ export default function PlayerProfile() {
 
             {/* Personal Info Card */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 px-2 flex items-center gap-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white px-2 flex items-center gap-2">
                 {isEditing ? 'Personal Details' : `About ${player.name.split(' ')[0]}`}
               </h3>
-              <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+              <div className="bg-white dark:bg-[#0f172a] rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-100 dark:border-white/5 overflow-hidden">
                 <div className="px-8 py-2">
-                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Name:</span>
+                  <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                    <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Name:</span>
                     {isEditing ? (
                       <input
                         type="text"
                         value={editForm.name}
                         onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                        className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
                       />
                     ) : (
-                      <span className="text-sm font-bold text-slate-800">{player.name}</span>
+                      <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{player.name}</span>
                     )}
                   </div>
                   <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
@@ -1430,7 +1430,7 @@ export default function PlayerProfile() {
                       rel="noopener noreferrer"
                       className="group flex flex-col items-center gap-2 text-slate-400 hover:text-emerald-500 transition-all"
                     >
-                      <div className="w-12 h-12 rounded-2xl bg-white shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all border border-slate-50">
+                      <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#0f172a] shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all border border-slate-50 dark:border-white/5">
                         <Icon className="w-6 h-6" />
                       </div>
                       <span className="text-[9px] font-black uppercase tracking-widest">

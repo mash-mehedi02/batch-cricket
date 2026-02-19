@@ -51,7 +51,8 @@ export default function TournamentPointsTable({
   inningsMap: inningsMapProp,
   highlightMatch,
   filterSquadIds,
-  hideQualification = false
+  hideQualification = false,
+  forcedDark
 }: {
   embedded?: boolean
   tournamentId?: string
@@ -60,6 +61,7 @@ export default function TournamentPointsTable({
   highlightMatch?: Match
   filterSquadIds?: string[]
   hideQualification?: boolean
+  forcedDark?: boolean
 } = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
@@ -325,7 +327,7 @@ export default function TournamentPointsTable({
     <div className={embedded ? 'pt-4' : 'max-w-4xl mx-auto p-5'}>
       {/* Table Header Section */}
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-base font-bold text-slate-900 dark:text-white">Points Table</h2>
+        <h2 className={`text-base font-bold ${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Points Table</h2>
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Team form</span>
           <button
@@ -345,8 +347,10 @@ export default function TournamentPointsTable({
               key={g.id}
               onClick={() => setActiveGroupId(g.id)}
               className={`px-5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all ${activeGroupId === g.id
-                ? 'bg-[#0f172a] text-white shadow-lg'
-                : 'bg-slate-100 dark:bg-slate-900 text-slate-500 hover:bg-slate-200'
+                ? 'bg-blue-600 text-white shadow-lg'
+                : forcedDark
+                  ? 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  : 'bg-slate-100 dark:bg-slate-900 text-slate-500 hover:bg-slate-200'
                 }`}
             >
               {g.name}
@@ -356,11 +360,11 @@ export default function TournamentPointsTable({
       )}
 
       {/* Standings Table */}
-      <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden mb-6">
+      <div className={`${forcedDark ? 'bg-slate-950/20' : 'bg-white dark:bg-slate-950'} rounded-2xl border ${forcedDark ? 'border-white/5' : 'border-slate-100 dark:border-white/5'} shadow-sm overflow-hidden mb-6`}>
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-[11px] font-medium">
             <thead>
-              <tr className="text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-white/5 uppercase tracking-tighter">
+              <tr className={`${forcedDark ? 'text-slate-500' : 'text-slate-400 dark:text-slate-500'} border-b ${forcedDark ? 'border-white/5' : 'border-slate-100 dark:border-white/5'} uppercase tracking-tighter`}>
                 <th className="text-left py-4 px-4 font-bold">Team</th>
                 <th className="text-center py-4 px-1">P</th>
                 <th className="text-center py-4 px-1">W</th>
@@ -370,10 +374,10 @@ export default function TournamentPointsTable({
                 <th className="text-center py-4 px-4">Pts</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            <tbody className={`divide-y ${forcedDark ? 'divide-white/5' : 'divide-slate-100 dark:divide-white/5'}`}>
               {rows.map((r, idx) => {
-                const isConfirmed = confirmedQualifiedIds.includes(r.squadId)
-                const isInQualZone = !hideQualification && idx < 2 // Dummy threshold for visual
+                const isConfirmed = Array.from(confirmedQualifiedIds).includes(r.squadId)
+                const isInQualZone = !hideQualification && idx < 2
                 const squad = squadsById.get(r.squadId)
                 const isHighlighted = highlightMatch && (
                   r.squadId === highlightMatch.teamAId ||
@@ -408,17 +412,17 @@ export default function TournamentPointsTable({
                             )}
                           </div>
                         </div>
-                        <div className="font-bold text-slate-900 dark:text-white uppercase truncate max-w-[100px]">
+                        <div className={`${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'} font-bold uppercase truncate max-w-[100px]`}>
                           {squad ? formatShortTeamName(squad.name, squad.batch) : r.squadName}
                         </div>
                       </Link>
                     </td>
-                    <td className="text-center tabular-nums text-slate-600 dark:text-slate-400">{r.played}</td>
-                    <td className="text-center tabular-nums text-slate-600 dark:text-slate-400">{r.won}</td>
-                    <td className="text-center tabular-nums text-slate-600 dark:text-slate-400">{r.lost}</td>
-                    <td className="text-center tabular-nums text-slate-600 dark:text-slate-400">{(r.tied || 0) + (r.noResult || 0)}</td>
-                    <td className="text-center tabular-nums text-slate-400 dark:text-slate-500">{(r.nrr >= 0 ? '+' : '') + r.nrr.toFixed(3)}</td>
-                    <td className="text-center tabular-nums text-sm font-bold text-amber-600 dark:text-amber-500 px-4">{r.points}</td>
+                    <td className={`text-center tabular-nums ${forcedDark ? 'text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>{r.played}</td>
+                    <td className={`text-center tabular-nums ${forcedDark ? 'text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>{r.won}</td>
+                    <td className={`text-center tabular-nums ${forcedDark ? 'text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>{r.lost}</td>
+                    <td className={`text-center tabular-nums ${forcedDark ? 'text-slate-400' : 'text-slate-600 dark:text-slate-400'}`}>{(r.tied || 0) + (r.noResult || 0)}</td>
+                    <td className={`text-center tabular-nums ${forcedDark ? 'text-slate-500' : 'text-slate-400 dark:text-slate-500'}`}>{(r.nrr >= 0 ? '+' : '') + r.nrr.toFixed(3)}</td>
+                    <td className={`text-center tabular-nums text-sm font-bold ${forcedDark ? 'text-amber-500' : 'text-amber-600 dark:text-amber-500'} px-4`}>{r.points}</td>
                   </tr>
                 )
               })}
@@ -428,7 +432,7 @@ export default function TournamentPointsTable({
 
         {/* Legend */}
         {!hideQualification && (
-          <div className="px-5 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-slate-900/20 flex items-center gap-2">
+          <div className={`px-5 py-3 border-t ${forcedDark ? 'border-white/5 bg-white/5' : 'border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-slate-900/20'} flex items-center gap-2`}>
             <div className="w-3.5 h-3.5 bg-yellow-400 text-black text-[7px] font-black flex items-center justify-center rounded-sm">Q</div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qualified</span>
           </div>
@@ -439,10 +443,10 @@ export default function TournamentPointsTable({
       {tournament && (tournament as any).config?.knockout?.custom?.matches?.length > 0 && (
         <div className="mt-12 space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Playoff Bracket</h2>
+            <h2 className={`text-sm font-bold ${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'} uppercase tracking-tight`}>Playoff Bracket</h2>
             <Link to={`/tournament/${tournament.id}?tab=bracket`} className="text-blue-500 text-[10px] font-bold uppercase tracking-widest">Full View</Link>
           </div>
-          <div className="bg-slate-50 dark:bg-slate-950/50 rounded-[2.5rem] border border-slate-100 dark:border-white/5 p-2 overflow-hidden">
+          <div className={`${forcedDark ? 'bg-white/5 border-white/5' : 'bg-slate-50 dark:bg-slate-950/50 border-slate-100 dark:border-white/5'} rounded-[2.5rem] border p-2 overflow-hidden`}>
             <PlayoffBracket
               tournament={tournament}
               squads={Array.from(squadsById.values())}

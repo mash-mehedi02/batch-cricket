@@ -1,384 +1,119 @@
-/**
- * Squad Details Page - Premium Mobile-First Design
- * Tabs, mobile-optimized cards, match history with dark theme
- */
-
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { squadService } from '@/services/firestore/squads'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { playerService } from '@/services/firestore/players'
 import { matchService } from '@/services/firestore/matches'
-import { Player, Squad, Tournament, Match, InningsStats } from '@/types'
-import toast from 'react-hot-toast'
+import { Squad, Match } from '@/types'
 import { Timestamp } from 'firebase/firestore'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 import PageHeader from '@/components/common/PageHeader'
-import { getMatchResultString } from '@/utils/matchWinner'
-import { formatShortTeamName } from '@/utils/teamName'
-import { schoolConfig } from '@/config/school'
+import MatchCard from '@/components/match/MatchCard'
 import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
 import { Trophy, Medal, ChevronRight } from 'lucide-react'
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
 export default function SquadDetails() {
-  const { squadId } = useParams<{ squadId: string }>()
-  const [loading, setLoading] = useState(true)
-  const [squad, setSquad] = useState<Squad | null>(null)
-  const [tournament, setTournament] = useState<Tournament | null>(null)
-  const [players, setPlayers] = useState<Player[]>([])
-  const [matches, setMatches] = useState<Match[]>([])
-  const [loadingMatches, setLoadingMatches] = useState(false)
-  const [squadsMap, setSquadsMap] = useState<Record<string, Squad>>({})
+  const { id } = useParams()
   const [activeTab, setActiveTab] = useState<Tab>('squad')
-  const [achievements, setAchievements] = useState<Array<{ type: 'winner' | 'runner-up'; tournament: Tournament }>>([])
+  const [squad, setSquad] = useState<Squad | null>(null)
+  const [players, setPlayers] = useState<any[]>([])
+  const [matches, setMatches] = useState<Match[]>([])
+  const [achievements, setAchievements] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadingMatches, setLoadingMatches] = useState(false)
   const [loadingAchievements, setLoadingAchievements] = useState(false)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
   const liveMatchRef = useRef<HTMLDivElement>(null)
 
+  const squadsMap = { [id || '']: squad } as Record<string, Squad>
+
+  // Load Squad Info
   useEffect(() => {
-    const run = async () => {
-      if (!squadId) return
-      setLoading(true)
+    if (!id) return
+    const unsubscribe = squadService.subscribeToSquad(id, (data: Squad | null) => {
+      setSquad(data)
+      setLoading(false)
+    })
+    return () => unsubscribe()
+  }, [id])
+
+  // Load Players of the Squad
+  useEffect(() => {
+    if (!id || !squad) return
+
+    const loadPlayers = async () => {
       try {
-        // Load squad data first (critical)
-        const squadData = await squadService.getById(squadId)
-        if (!squadData) {
-          setSquad(null)
-          return
-        }
+        const squadPlayers = await playerService.getBySquad(id)
 
-        setSquad(squadData)
-
-        // Load players immediately (critical for display)
-        const ids = Array.isArray(squadData.playerIds) ? squadData.playerIds : []
-        let loadedPlayers: Player[] = []
-
-        if (ids.length > 0) {
-          const results = await Promise.all(ids.map((id) => playerService.getById(id)))
-          loadedPlayers = results.filter(Boolean) as Player[]
-        } else {
-          const all = await playerService.getAll()
-          loadedPlayers = all.filter((p) => p.squadId === squadData.id)
-        }
-
-        const roleOrder: Record<string, number> = {
-          'batsman': 1,
-          'batter': 1,
-          'all-rounder': 2,
-          'wicket-keeper': 3,
-          'bowler': 4,
-          'all-rounder (captain)': 2, // backup for some data formats
-        }
-
-        loadedPlayers.sort((a, b) => {
-          const rA = roleOrder[(a.role || '').toLowerCase()] || 99
-          const rB = roleOrder[(b.role || '').toLowerCase()] || 99
-          if (rA !== rB) return rA - rB
-          return (a.name || '').localeCompare(b.name || '')
+        // Sort players by role
+        const roleOrder = ['batter', 'all-rounder', 'wicket-keeper', 'bowler']
+        const sorted = [...squadPlayers].sort((a, b) => {
+          const roleA = (a.role || 'batter').toLowerCase()
+          const roleB = (b.role || 'batter').toLowerCase()
+          return roleOrder.indexOf(roleA) - roleOrder.indexOf(roleB)
         })
-        setPlayers(loadedPlayers)
 
-        // End loading state here - page can now display!
-        setLoading(false)
-
-        // Load non-critical data in background (parallel)
-        Promise.all([
-          // Tournament (optional)
-          (async () => {
-            try {
-              if (squadData.tournamentId) {
-                const t = await tournamentService.getById(squadData.tournamentId)
-                setTournament(t)
-              }
-            } catch {
-              setTournament(null)
-            }
-          })(),
-
-          // Matches (for matches tab)
-          (async () => {
-            setLoadingMatches(true)
-            try {
-              const allMatches = await matchService.getAll()
-              const squadMatches = allMatches.filter(m =>
-                m.teamAId === squadId ||
-                m.teamBId === squadId ||
-                (m as any).teamA === squadId ||
-                (m as any).teamB === squadId
-              )
-              setMatches(squadMatches)
-            } catch (err) {
-              console.error('Error loading matches:', err)
-            } finally {
-              setLoadingMatches(false)
-            }
-          })(),
-
-          // All Squads for logos (for match cards)
-          (async () => {
-            try {
-              const allSq = await squadService.getAll()
-              const sMap: Record<string, Squad> = {}
-              allSq.forEach(s => sMap[s.id] = s)
-              setSquadsMap(sMap)
-            } catch (err) {
-              console.error('Error loading squads map:', err)
-            }
-          })(),
-
-          // Achievements (Tournaments where squad won or was runner-up)
-          (async () => {
-            setLoadingAchievements(true)
-            try {
-              const allTournaments = await tournamentService.getAll()
-              const squadAchievements: Array<{ type: 'winner' | 'runner-up'; tournament: Tournament }> = []
-
-              allTournaments.forEach(t => {
-                if (t.winnerSquadId === squadId) {
-                  squadAchievements.push({ type: 'winner', tournament: t })
-                } else if (t.runnerUpSquadId === squadId) {
-                  squadAchievements.push({ type: 'runner-up', tournament: t })
-                }
-              })
-
-              setAchievements(squadAchievements.sort((a, b) => (b.tournament.year || 0) - (a.tournament.year || 0)))
-            } catch (err) {
-              console.error('Error loading achievements:', err)
-            } finally {
-              setLoadingAchievements(false)
-            }
-          })()
-        ])
-
-      } catch (e) {
-        console.error('Error loading squad details:', e)
-        toast.error('Failed to load squad.')
-        setSquad(null)
-        setLoading(false)
+        setPlayers(sorted)
+      } catch (err) {
+        console.error('Error fetching players:', err)
       }
     }
 
-    run()
-  }, [squadId])
+    loadPlayers()
+  }, [id, squad])
 
+  // Load Matches & Achievements conditionally
   useEffect(() => {
-    if (activeTab === 'matches' && !loadingMatches && matches.length > 0) {
-      setTimeout(() => {
-        liveMatchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 300)
+    if (!id || !squad) return
+
+    if (activeTab === 'matches') {
+      setLoadingMatches(true)
+      const unsubMatches = matchService.subscribeBySquad(id, (data: Match[]) => {
+        setMatches(data)
+        setLoadingMatches(false)
+      })
+      return () => unsubMatches()
     }
-  }, [activeTab, loadingMatches, matches.length])
 
-  const captain = useMemo(() => {
-    if (!squad?.captainId) return null
-    return players.find((p) => p.id === squad.captainId) || null
-  }, [players, squad?.captainId])
+    if (activeTab === 'achievement') {
+      const fetchAchievements = async () => {
+        setLoadingAchievements(true)
+        try {
+          const allTournaments = await tournamentService.getAll()
+          const squadAchievements: any[] = []
 
-  const wicketKeeper = useMemo(() => {
-    if (!squad?.wicketKeeperId) return null
-    return players.find((p) => p.id === squad.wicketKeeperId) || null
-  }, [players, squad?.wicketKeeperId])
+          allTournaments.forEach(tournament => {
+            if (tournament.winnerSquadId === id) {
+              squadAchievements.push({
+                tournament,
+                type: 'winner'
+              })
+            } else if (tournament.runnerUpSquadId === id) {
+              squadAchievements.push({
+                tournament,
+                type: 'runner-up'
+              })
+            }
+          })
 
-  const safeRender = (val: any) => {
-    if (val instanceof Timestamp) {
-      return val.toDate().getFullYear().toString()
+          setAchievements(squadAchievements)
+        } catch (err) {
+          console.error('Error fetching achievements:', err)
+        } finally {
+          setLoadingAchievements(false)
+        }
+      }
+      fetchAchievements()
     }
-    if (typeof val === 'object' && val !== null) {
-      return 'Batch'
-    }
-    return val
-  }
-
+  }, [id, squad, activeTab])
 
   const handleImgError = (url: string) => {
     setBrokenImages(prev => ({ ...prev, [url]: true }))
   }
 
-  const SquadMatchCard = ({ match: initialMatch }: { match: Match }) => {
-    const [match, setMatch] = useState<Match>(initialMatch)
-    const [scoreA, setScoreA] = useState<InningsStats | null>(null)
-    const [scoreB, setScoreB] = useState<InningsStats | null>(null)
-    const [scoreASO, setScoreASO] = useState<InningsStats | null>(null)
-    const [scoreBSO, setScoreBSO] = useState<InningsStats | null>(null)
-
-    const status = String(match.status || '').toLowerCase()
-    const isLive = status === 'live'
-    const isFin = status === 'finished' || status === 'completed'
-    const dStr = match.date instanceof Timestamp
-      ? match.date.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-      : 'TBD'
-
-    useEffect(() => {
-      if (!isLive && !isFin) return
-
-      // Subscribe to match document for latest resultSummary and status
-      const unsubMatch = matchService.subscribeToMatch(initialMatch.id, (updatedMatch) => {
-        if (updatedMatch) setMatch(updatedMatch)
-      })
-
-      // Always subscribe to innings for the most accurate data (source of truth)
-      const unsubA = matchService.subscribeToInnings(initialMatch.id, 'teamA', (data) => {
-        if (data) setScoreA(data)
-      })
-      const unsubB = matchService.subscribeToInnings(initialMatch.id, 'teamB', (data) => {
-        if (data) setScoreB(data)
-      })
-      const unsubASO = matchService.subscribeToInnings(initialMatch.id, 'teamA_super', (data) => {
-        if (data) setScoreASO(data)
-      })
-      const unsubBSO = matchService.subscribeToInnings(initialMatch.id, 'teamB_super', (data) => {
-        if (data) setScoreBSO(data)
-      })
-
-      return () => {
-        unsubMatch(); unsubA(); unsubB(); unsubASO(); unsubBSO();
-      }
-    }, [initialMatch.id, isLive, isFin])
-
-    const getS = (id: 'teamA' | 'teamB') => {
-      const liveScore = id === 'teamA' ? scoreA : scoreB
-      if (liveScore) {
-        return {
-          r: Number(liveScore.totalRuns || 0),
-          w: Number(liveScore.totalWickets || 0),
-          o: String(liveScore.overs || '0.0')
-        }
-      }
-
-      const p = id === 'teamA' ? 'teamA' : 'teamB'
-      const fromDoc = match.score?.[id]
-      const r = Number(fromDoc?.runs ?? (match as any)[`${p}Runs`] ?? 0)
-      const w = Number(fromDoc?.wickets ?? (match as any)[`${p}Wickets`] ?? 0)
-      const o = String(fromDoc?.overs ?? (match as any)[`${p}Overs`] ?? '0.0')
-      return { r, w, o }
-    }
-
-    const sA = getS('teamA'), sB = getS('teamB')
-
-    // UI Helpers for Logos
-    const teamAData = squadsMap[match.teamAId || (match as any).teamA]
-    const teamBData = squadsMap[match.teamBId || (match as any).teamB]
-    const tALogo = (match as any).teamALogoUrl || teamAData?.logoUrl
-    const tBLogo = (match as any).teamBLogoUrl || teamBData?.logoUrl
-
-    return (
-      <Link
-        to={`/match/${match.id}`}
-        className={`block group bg-white border rounded-[1.2rem] overflow-hidden transition-all duration-300 active:scale-[0.98] ${isLive ? 'border-red-500/30 shadow-md shadow-red-500/5' : 'border-slate-100 shadow-sm'
-          } mb-3`}
-      >
-        <div className={`px-4 py-2 flex items-center justify-between border-b ${isLive ? 'bg-red-50/50 border-red-100/50' : 'bg-slate-50 border-slate-100'}`}>
-          <div className="flex items-center gap-2">
-            {isLive ? (
-              <span className="flex items-center gap-1.5 text-[9px] font-black text-red-500 tracking-widest uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Live Now
-              </span>
-            ) : (
-              <span className="text-[9px] font-black text-slate-500 tracking-widest uppercase">
-                {isFin ? 'Match Completed' : 'Upcoming'}
-              </span>
-            )}
-          </div>
-          <span className="text-[9px] font-bold text-slate-500 tabular-nums">{dStr}</span>
-        </div>
-
-        <div className="p-4">
-          <div className="flex items-center justify-between gap-6">
-            <div className="flex-1 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform relative">
-                    {tALogo && !brokenImages[tALogo] ? (
-                      <img src={tALogo} onError={() => handleImgError(tALogo)} className="w-full h-full object-contain p-1" alt="" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-base font-black uppercase">
-                        {(match.teamAName || 'T')[0]}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[18px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamAName)}</span>
-                </div>
-                {(isLive || isFin) && (
-                  <div className="flex flex-col items-end">
-                    <div className="flex flex-col items-end tabular-nums">
-                      <span className="text-[17px] font-black text-slate-900 leading-none">{sA.r}/{sA.w}</span>
-                      <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sA.o} Ov</span>
-                    </div>
-                    {scoreASO && (Number(scoreASO.totalRuns || 0) > 0 || Number(scoreASO.totalWickets || 0) > 0) && (
-                      <div className="text-[9px] font-black text-amber-600 bg-amber-50 px-1 rounded-sm border border-amber-100 -mt-0.5">
-                        S.O: {scoreASO.totalRuns}/{scoreASO.totalWickets}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shadow-sm shrink-0 overflow-hidden group-hover:scale-110 transition-transform relative">
-                    {tBLogo && !brokenImages[tBLogo] ? (
-                      <img src={tBLogo} onError={() => handleImgError(tBLogo)} className="w-full h-full object-contain p-1" alt="" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-500 to-pink-600 text-white text-base font-black uppercase">
-                        {(match.teamBName || 'T')[0]}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[18px] font-black text-slate-900 tracking-tight leading-none">{formatShortTeamName(match.teamBName)}</span>
-                </div>
-                {(isLive || isFin) ? (
-                  <div className="flex flex-col items-end">
-                    <div className="flex flex-col items-end tabular-nums">
-                      <span className="text-[17px] font-black text-slate-900 leading-none">{sB.r}/{sB.w}</span>
-                      <span className="text-[10px] font-bold text-slate-500 mt-0.5">{sB.o} Ov</span>
-                    </div>
-                    {scoreBSO && (Number(scoreBSO.totalRuns || 0) > 0 || Number(scoreBSO.totalWickets || 0) > 0) && (
-                      <div className="text-[9px] font-black text-amber-600 bg-amber-50 px-1 rounded-sm border border-amber-100 -mt-0.5">
-                        S.O: {scoreBSO.totalRuns}/{scoreBSO.totalWickets}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100 uppercase tracking-tighter">Scheduled</span>
-                )}
-              </div>
-            </div>
-
-            {isLive && (
-              <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex flex-col items-center justify-center shadow-lg shadow-red-500/20 active:scale-95 transition-all">
-                <span className="text-[9px] font-black uppercase">Live</span>
-              </div>
-            )}
-          </div>
-
-          {(isLive || isFin) && (
-            <div className={`mt-4 pt-4 border-t flex flex-col gap-2 ${isLive ? 'border-red-50' : 'border-slate-50'}`}>
-              <div className="flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
-                <span className={`text-[11px] font-black uppercase tracking-wider ${isLive ? 'text-slate-700' : 'text-amber-500'}`}>
-                  {isLive ? 'Match in progress' : (() => {
-                    if (match.resultSummary) return match.resultSummary.toUpperCase();
-                    const result = getMatchResultString(
-                      match.teamAName,
-                      match.teamBName,
-                      scoreA,
-                      scoreB,
-                      match,
-                      scoreASO,
-                      scoreBSO
-                    );
-                    return result ? result.toUpperCase() : 'MATCH COMPLETED';
-                  })()}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </Link>
-    )
-  }
+  // SquadMatchCard removed in favor of global MatchCard component
 
   if (loading) {
     return <SquadDetailsSkeleton />
@@ -396,6 +131,13 @@ export default function SquadDetails() {
         </div>
       </div>
     )
+  }
+
+  const safeRender = (val: any) => {
+    if (val instanceof Timestamp) {
+      return val.toDate().getFullYear().toString()
+    }
+    return val || 'N/A'
   }
 
   return (
@@ -511,7 +253,7 @@ export default function SquadDetails() {
                         <div className="h-3 w-0.5 bg-slate-300 rounded-full" />
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Finished Matches</span>
                       </div>
-                      {fin.map(m => <SquadMatchCard key={m.id} match={m} />)}
+                      {fin.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
                     </div>
                   )
                 })()}
@@ -527,7 +269,7 @@ export default function SquadDetails() {
                           Live Now <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                         </span>
                       </div>
-                      {live.map(m => <SquadMatchCard key={m.id} match={m} />)}
+                      {live.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
                     </div>
                   )
                 })()}
@@ -548,7 +290,7 @@ export default function SquadDetails() {
                         <div className="h-3 w-0.5 bg-blue-500 rounded-full" />
                         <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Upcoming Matches</span>
                       </div>
-                      {up.map(m => <SquadMatchCard key={m.id} match={m} />)}
+                      {up.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
                     </div>
                   )
                 })()}

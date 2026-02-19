@@ -5,7 +5,6 @@ import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { Match } from '@/types'
 import { formatShortTeamName } from '@/utils/teamName'
-import { SkeletonText } from '@/components/skeletons/SkeletonCard'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 
@@ -196,10 +195,10 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
-          <span className="text-xs font-medium text-slate-400 uppercase tracking-widest">Loading XI...</span>
+          <div className="w-12 h-12 border-4 border-slate-200 dark:border-white/5 border-t-blue-500 rounded-full animate-spin"></div>
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-widest">Loading XI...</span>
         </div>
       </div>
     )
@@ -207,11 +206,11 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
 
   if (!match) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="text-center bg-white p-12 rounded-[2rem] shadow-xl border border-slate-100">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] flex items-center justify-center p-6">
+        <div className="text-center bg-white dark:bg-[#0f172a] p-12 rounded-[2rem] shadow-xl border border-slate-200 dark:border-white/5">
           <div className="text-5xl mb-6">🏴</div>
-          <p className="text-slate-400 font-medium mb-8 uppercase tracking-widest">Match data unavailable</p>
-          <button onClick={() => navigate('/')} className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all">Go Home</button>
+          <p className="text-slate-500 font-medium mb-8 uppercase tracking-widest">Match data unavailable</p>
+          <button onClick={() => navigate('/')} className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all">Go Home</button>
         </div>
       </div>
     )
@@ -245,7 +244,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
     const roleDisplay = formatRole(player)
     return (
       <div key={player.id} className="relative group">
-        <div className="bg-white rounded-[1.5rem] p-3 sm:p-4 border border-slate-100 flex items-center gap-3 sm:gap-4 hover:border-blue-100 hover:shadow-md transition-all duration-300">
+        <div className="bg-white dark:bg-[#0f172a] rounded-[1.5rem] p-3 sm:p-4 border border-slate-200 dark:border-white/5 flex items-center gap-3 sm:gap-4 hover:border-blue-500/30 hover:shadow-md transition-all duration-300">
           <div className="relative shrink-0">
             <PlayerAvatar
               photoUrl={player.photoUrl || (player as any).photo}
@@ -262,7 +261,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <PlayerLink playerId={player.id} playerName={player.name} className="font-medium text-slate-900 truncate text-sm sm:text-base hover:text-blue-600 transition-colors" />
+              <PlayerLink playerId={player.id} playerName={player.name} className="font-medium text-slate-900 dark:text-white truncate text-sm sm:text-base hover:text-blue-600 dark:hover:text-blue-400 transition-colors" />
               {(isCaptain || isKeeper) && (
                 <div className="flex gap-1">
                   {isCaptain && <span className="text-[8px] sm:text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">Captain</span>}
@@ -271,7 +270,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
               )}
             </div>
             <div className="flex items-center justify-between mt-1">
-              <div className="text-[10px] sm:text-xs text-slate-400 font-medium truncate uppercase tracking-tight">{roleDisplay}</div>
+              <div className="text-[10px] sm:text-xs text-slate-500 font-medium truncate uppercase tracking-tight">{roleDisplay}</div>
               {player.status && (
                 <span className={`text-[9px] font-black uppercase tracking-widest ${player.status === 'IN' ? 'text-green-600' : 'text-rose-500'}`}>
                   {player.status}
@@ -285,20 +284,20 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-indigo-950 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white pb-20">
       {/* Premium Header */}
       {!compact && (
-        <div className="bg-white border-b border-slate-100 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-slate-200/20">
+        <div className="bg-[#0f172a] border-b border-white/5 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-black/20">
           <div className="max-w-5xl mx-auto">
-            <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-slate-900">Playing XI</h1>
-            <p className="text-[10px] sm:text-xs text-slate-400 font-medium uppercase tracking-[0.2em] mt-1">Match Day Squad Details</p>
+            <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-white">Playing XI</h1>
+            <p className="text-[10px] sm:text-xs text-slate-500 font-medium uppercase tracking-[0.2em] mt-1">Match Day Squad Details</p>
           </div>
         </div>
       )}
 
       <div className="max-w-5xl mx-auto px-3 sm:px-8 py-8 space-y-10">
         {/* Team Tabs - Custom Design */}
-        <div className="p-1.5 bg-slate-200/40 backdrop-blur rounded-[1.5rem] flex gap-2 w-full max-w-md mx-auto">
+        <div className="p-1.5 bg-slate-100 dark:bg-white/5 backdrop-blur rounded-[1.5rem] flex gap-2 w-full max-w-md mx-auto ring-1 ring-slate-200 dark:ring-white/10">
           {[
             { side: firstSide, name: firstSide === 'A' ? teamAName : teamBName },
             { side: secondSide, name: secondSide === 'A' ? teamAName : teamBName }
@@ -306,7 +305,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
             <button
               key={t.side}
               onClick={() => setSelectedTeam(t.side)}
-              className={`flex-1 py-3 px-4 rounded-[1.2rem] text-xs font-medium uppercase tracking-widest transition-all duration-300 ${selectedTeam === t.side ? 'bg-white shadow-lg text-slate-900 ring-1 ring-slate-100' : 'text-slate-400 hover:text-slate-600'
+              className={`flex-1 py-3 px-4 rounded-[1.2rem] text-xs font-medium uppercase tracking-widest transition-all duration-300 ${selectedTeam === t.side ? 'bg-blue-600 shadow-lg text-white ring-1 ring-blue-500/30' : 'text-slate-500 hover:text-slate-300'
                 }`}
             >
               {formatShortTeamName(t.name)}
@@ -324,9 +323,9 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
           ) : (
             <>
               {(selectedTeam === 'A' && teamAPlayingXI.length === 0) || (selectedTeam === 'B' && teamBPlayingXI.length === 0) ? (
-                <div className="bg-white border border-slate-100 rounded-[2rem] p-12 text-center shadow-sm">
+                <div className="bg-[#0f172a] border border-white/5 rounded-[2rem] p-12 text-center shadow-sm">
                   <div className="text-4xl mb-4 opacity-20">⏳</div>
-                  <p className="text-slate-400 font-medium uppercase tracking-widest text-xs">XI not announced for this squad</p>
+                  <p className="text-slate-500 font-medium uppercase tracking-widest text-xs">XI not announced for this squad</p>
                 </div>
               ) : (
                 <>
@@ -342,8 +341,8 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
                   {(selectedTeam === 'A' ? teamAData.bench : teamBData.bench).length > 0 && (
                     <div className="mt-16">
                       <div className="flex items-center gap-4 mb-8">
-                        <h3 className="text-xs font-medium text-slate-400 uppercase tracking-[0.3em] whitespace-nowrap">On Bench</h3>
-                        <div className="h-px bg-slate-100 w-full" />
+                        <h3 className="text-xs font-medium text-slate-500 uppercase tracking-[0.3em] whitespace-nowrap">On Bench</h3>
+                        <div className="h-px bg-white/5 w-full" />
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:gap-4 opacity-80 filter grayscale-[0.3]">
                         {selectedTeam === 'A' ? (

@@ -261,7 +261,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 )}
                             </div>
                             <div className="flex items-baseline gap-2.5">
-                                <span className={`text-5xl sm:text-7xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass}`}>
+                                <span className={`text-4xl sm:text-6xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass}`}>
                                     {runs}-{wkts}
                                 </span>
                                 <span className="text-base sm:text-xl font-black text-slate-500/80 tabular-nums uppercase">
@@ -289,7 +289,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     <span className={`font-black tracking-tighter transition-all duration-500 scale-100 uppercase drop-shadow-md
                                         ${isFinishedMatch || !isRun
                                             ? (resultMain.length > 15 ? 'text-[18px] sm:text-[22px] font-black leading-[1.05]' : 'text-2xl sm:text-3xl font-black leading-none')
-                                            : 'text-6xl sm:text-8xl leading-none'
+                                            : 'text-4xl sm:text-6xl leading-none'
                                         }`}>
                                         {resultMain === '—' ? '' : resultMain}
                                     </span>
@@ -347,8 +347,8 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
             {/* 3. Chase Detail Sub-header - Visible in Innings Break too */}
             {targetScore > 0 && !isFinishedMatch && (
-                <div className="bg-[#0f172a] py-2 border-t border-white/5 text-center shadow-lg relative z-0">
-                    <span className="text-[11px] sm:text-xs font-bold text-amber-500 tracking-wider">
+                <div className="bg-white dark:bg-[#0f172a] py-2 border-t border-slate-100 dark:border-white/5 text-center shadow-lg relative z-0">
+                    <span className="text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-500 tracking-wider">
                         {isInningsBreak ? (
                             `${opponentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(targetScore)).replace('${balls}', String(matchOvers * 6))}`
                         ) : (

@@ -13,6 +13,30 @@ import { COLLECTIONS, SUBCOLLECTIONS } from './collections'
 
 const matchesRef = collection(db, COLLECTIONS.MATCHES)
 
+/**
+ * Robust match comparison for client-side sorting
+ */
+const compareMatches = (a: any, b: any) => {
+  const getVal = (v: any) => {
+    if (!v) return ''
+    if (v instanceof Timestamp) return v.toMillis().toString()
+    if (typeof v === 'object' && v.seconds) return (v.seconds * 1000).toString()
+    return String(v)
+  }
+
+  const dateA = getVal(a.date)
+  const dateB = getVal(b.date)
+  if (dateA !== dateB) return dateB.localeCompare(dateA)
+
+  const timeA = String(a.time || '')
+  const timeB = String(b.time || '')
+  if (timeA !== timeB) return timeB.localeCompare(timeA)
+
+  const tsA = (a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0) as number
+  const tsB = (b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0) as number
+  return tsB - tsA
+}
+
 export const matchService = {
   /**
    * Get match by ID
@@ -38,17 +62,7 @@ export const matchService = {
       const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Match))
 
       // Professional in-memory sort (Date desc, Time desc, Version desc)
-      return list.sort((a: any, b: any) => {
-        const dateA = String(a.date || '')
-        const dateB = String(b.date || '')
-        if (dateA !== dateB) return dateB.localeCompare(dateA)
-        const timeA = String(a.time || '')
-        const timeB = String(b.time || '')
-        if (timeA !== timeB) return timeB.localeCompare(timeA)
-        const tsA = (a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0) as number
-        const tsB = (b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0) as number
-        return tsB - tsA
-      })
+      return list.sort(compareMatches)
     } catch (error) {
       console.error('[MatchService] getByTournament failed:', error)
       return []
@@ -68,17 +82,7 @@ export const matchService = {
       (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
         // Sort identically to getByTournament
-        callback(list.sort((a: any, b: any) => {
-          const dateA = String(a.date || '')
-          const dateB = String(b.date || '')
-          if (dateA !== dateB) return dateB.localeCompare(dateA)
-          const timeA = String(a.time || '')
-          const timeB = String(b.time || '')
-          if (timeA !== timeB) return timeB.localeCompare(timeA)
-          const tsA = (a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0) as number
-          const tsB = (b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0) as number
-          return tsB - tsA
-        }))
+        callback(list.sort(compareMatches))
       },
       (error) => {
         console.error('[MatchService] subscribeByTournament failed:', error)
@@ -111,11 +115,7 @@ export const matchService = {
         })
       })
 
-      return Array.from(matches.values()).sort((a: any, b: any) => {
-        const dateA = String(a.date || '')
-        const dateB = String(b.date || '')
-        return dateB.localeCompare(dateA)
-      })
+      return Array.from(matches.values()).sort(compareMatches)
     } catch (error) {
       console.error('Error loading live matches:', error)
       return []
@@ -156,11 +156,7 @@ export const matchService = {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
 
       // Client-side sort to avoid Missing Index errors
-      return list.sort((a: any, b: any) => {
-        const dateA = String(a.date || '')
-        const dateB = String(b.date || '')
-        return dateB.localeCompare(dateA)
-      })
+      return list.sort(compareMatches)
     } catch (error) {
       console.error('Error loading matches by admin:', error)
       return []
@@ -194,7 +190,7 @@ export const matchService = {
       snapA.docs.forEach(d => matches.set(d.id, { id: d.id, ...d.data() } as Match))
       snapB.docs.forEach(d => matches.set(d.id, { id: d.id, ...d.data() } as Match))
 
-      return Array.from(matches.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      return Array.from(matches.values()).sort(compareMatches)
     } catch (error) {
       console.warn('[MatchService] getBySquad: orderBy query failed, falling back to client-side sort.', error)
       // Fallback without orderBy
@@ -206,7 +202,32 @@ export const matchService = {
       snapA.docs.forEach(d => matches.set(d.id, { id: d.id, ...d.data() } as Match))
       snapB.docs.forEach(d => matches.set(d.id, { id: d.id, ...d.data() } as Match))
 
-      return Array.from(matches.values()).sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      return Array.from(matches.values()).sort(compareMatches)
+    }
+  },
+
+  /**
+   * Subscribe to matches by squad (teamA or teamB) - Real-time
+   */
+  subscribeBySquad(squadId: string, callback: (matches: Match[]) => void): () => void {
+    const qA = query(matchesRef, where('teamAId', '==', squadId))
+    const qB = query(matchesRef, where('teamBId', '==', squadId))
+
+    const matchesMap = new Map<string, Match>()
+
+    const unsubA = onSnapshot(qA, (snap) => {
+      snap.docs.forEach(d => matchesMap.set(d.id, { id: d.id, ...d.data() } as Match))
+      callback(Array.from(matchesMap.values()).sort(compareMatches))
+    }, (err) => console.error('[subscribeBySquad A]', err))
+
+    const unsubB = onSnapshot(qB, (snap) => {
+      snap.docs.forEach(d => matchesMap.set(d.id, { id: d.id, ...d.data() } as Match))
+      callback(Array.from(matchesMap.values()).sort(compareMatches))
+    }, (err) => console.error('[subscribeBySquad B]', err))
+
+    return () => {
+      unsubA()
+      unsubB()
     }
   },
 
