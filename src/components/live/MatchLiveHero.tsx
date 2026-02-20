@@ -254,7 +254,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     } else if (isRun || isWideOrNoBall || isBye) {
         eventColorClass = 'text-amber-400';
     } else if (isWicket) {
-        eventColorClass = displayEvent === 'WICKET' ? 'text-amber-400' : 'text-red-500';
+        eventColorClass = displayEvent === 'WICKET' ? 'text-amber-400' : 'text-red-500 [text-shadow:0_0_10px_rgba(239,68,68,0.5)]';
     } else if (isBoundary) {
         eventColorClass = displayEvent === '4' ? 'text-amber-400' : 'text-orange-400';
     } else if (displayEvent === 'BALL') {
@@ -308,9 +308,12 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         <div className="relative">
             <div className={`text-white overflow-hidden shadow-sm transition-all duration-300 ${scorecardAnimationClass}`}>
                 {/* 1. Main Score Header - 60/40 Split - Enlarged for better visibility */}
-                <div className="flex items-stretch min-h-[110px] md:min-h-[130px] border-b border-white/5 bg-gradient-to-r from-transparent to-black/5">
-                    {/* LEFT: Team Score (60%) */}
-                    <div className="w-[62%] p-3 sm:p-5 flex items-center gap-4 sm:gap-6 border-r border-white/10 relative">
+                <div className="flex items-stretch min-h-[110px] md:min-h-[130px] border-b border-white/5 bg-gradient-to-r from-transparent to-black/5 relative">
+                    {/* Slanted Divider with Lighting Effect */}
+                    <div className="absolute top-0 bottom-0 left-[62%] w-[1.5px] bg-gradient-to-b from-transparent via-white/20 to-transparent -skew-x-[12deg] z-20 shadow-[0_0_12px_rgba(148,225,212,0.3)]" />
+
+                    {/* LEFT: Team Score (62%) */}
+                    <div className="w-[62%] p-3 sm:p-5 flex items-center gap-4 sm:gap-6 relative">
                         {/* Team Logo with sophisticated shadow */}
                         {(() => {
                             const squadId = currentSquad?.id || (currentSquad as any)?.squadId;
@@ -458,7 +461,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
             {/* 3. Chase Detail Sub-header - Visible in Innings Break too */}
             {targetScore > 0 && !isFinishedMatch && (
-                <div className="bg-white dark:bg-[#0f172a] py-2 border-t border-slate-100 dark:border-white/5 text-center shadow-lg relative z-0">
+                <div className="bg-white dark:bg-[#0f172a] py-1 border-t border-slate-100 dark:border-white/5 text-center shadow-lg relative z-0">
                     <span className="text-[11px] sm:text-xs font-bold text-amber-600 dark:text-amber-500 tracking-wider">
                         {isInningsBreak ? (
                             `${opponentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(targetScore)).replace('${balls}', String(matchOvers * 6))}`

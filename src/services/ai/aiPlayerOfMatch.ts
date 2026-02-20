@@ -92,7 +92,14 @@ export function calculatePlayerOfMatch(
 ): PotmResult | null {
   if (!players || players.length === 0) return null
 
-  const scoredPlayers = players.map(p => {
+  // If winning team is specified, ONLY consider players from that team
+  const filteredPlayers = winningTeamId
+    ? players.filter(p => p.teamId === winningTeamId)
+    : players;
+
+  const finalPlayers = filteredPlayers.length > 0 ? filteredPlayers : players;
+
+  const scoredPlayers = finalPlayers.map(p => {
     const isWin = winningTeamId ? p.teamId === winningTeamId : p.isWinningTeam
     const { totalScore, breakdown } = calculatePlayerScore({ ...p, isWinningTeam: isWin })
 
@@ -113,7 +120,7 @@ export function calculatePlayerOfMatch(
   })
 
   const sorted = scoredPlayers.sort((a, b) => b.score - a.score)
-  return sorted[0]
+  return sorted[0] || null
 }
 
 export function getTopPlayers(
@@ -123,7 +130,14 @@ export function getTopPlayers(
 ): PotmResult[] {
   if (!players) return []
 
-  const scoredPlayers = players.map(p => {
+  // If winning team is specified, prefer players from that team
+  const filteredPlayers = winningTeamId
+    ? players.filter(p => p.teamId === winningTeamId)
+    : players;
+
+  const finalPlayers = filteredPlayers.length > 0 ? filteredPlayers : players;
+
+  const scoredPlayers = finalPlayers.map(p => {
     const isWin = winningTeamId ? p.teamId === winningTeamId : p.isWinningTeam
     const { totalScore, breakdown } = calculatePlayerScore({ ...p, isWinningTeam: isWin })
 

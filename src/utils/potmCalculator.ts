@@ -1,5 +1,6 @@
 import { InningsStats, Match, Player } from '@/types';
 import { calculateFantasyPoints } from './statsCalculator';
+import { calculateMatchWinner } from './matchWinner';
 
 /**
  * Automatically determines the Player of the Match based on Fantasy Points.
@@ -14,15 +15,21 @@ export function calculatePotM(
 ): Player | null {
     if (!inningsA || !inningsB) return null;
 
-    const aRuns = Number(inningsA.totalRuns || 0);
-    const bRuns = Number(inningsB.totalRuns || 0);
+    const winnerResult = calculateMatchWinner(
+        _match.teamAName || 'Team A',
+        _match.teamBName || 'Team B',
+        inningsA,
+        inningsB,
+        _match
+    );
 
-    if (aRuns === bRuns) return null; // No PotM if tied (unless we want one, but usually it's for the winner)
+    if (winnerResult.isTied || !winnerResult.winner) return null;
 
-    const winner = aRuns > bRuns ? 'teamA' : 'teamB';
-    const winningPlayers = winner === 'teamA' ? playersA : playersB;
-    const winningInnings = winner === 'teamA' ? inningsA : inningsB;
-    const losingInnings = winner === 'teamA' ? inningsB : inningsA;
+    // Resolve which internal side won (teamA or teamB)
+    const winnerSide = winnerResult.winner === (_match.teamAName || 'Team A') ? 'teamA' : 'teamB';
+    const winningPlayers = winnerSide === 'teamA' ? playersA : playersB;
+    const winningInnings = winnerSide === 'teamA' ? inningsA : inningsB;
+    const losingInnings = winnerSide === 'teamA' ? inningsB : inningsA;
 
     let bestPlayer: Player | null = null;
     let maxPoints = -1;

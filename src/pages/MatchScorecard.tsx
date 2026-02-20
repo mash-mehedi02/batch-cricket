@@ -3,7 +3,7 @@
  * CREX-style full scorecard with innings tabs
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
@@ -44,14 +44,15 @@ const formatPlayerScorecardName = (name: string): string => {
 export default function MatchScorecard({ compact = false }: { compact?: boolean }) {
   const { matchId } = useParams<{ matchId: string }>()
   const navigate = useNavigate()
-  const [matchData, setMatchData] = useState<Match | null>(null)
-  const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
-  const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(null)
-  const [teamASuperInnings, setTeamASuperInnings] = useState<InningsStats | null>(null)
-  const [teamBSuperInnings, setTeamBSuperInnings] = useState<InningsStats | null>(null)
-  const [playersMap, setPlayersMap] = useState<Map<string, any>>(new Map())
-  const [selectedInning, setSelectedInning] = useState<string>('teamA-1')
-  const [loading, setLoading] = useState(true)
+  const [matchData, setMatchData] = React.useState<Match | null>(null)
+  const [teamAInnings, setTeamAInnings] = React.useState<InningsStats | null>(null)
+  const [teamBInnings, setTeamBInnings] = React.useState<InningsStats | null>(null)
+  const [teamASuperInnings, setTeamASuperInnings] = React.useState<InningsStats | null>(null)
+  const [teamBSuperInnings, setTeamBSuperInnings] = React.useState<InningsStats | null>(null)
+  const [playersMap, setPlayersMap] = React.useState<Map<string, any>>(new Map())
+  const [selectedInning, setSelectedInning] = React.useState<string>('teamA-1')
+  const [loading, setLoading] = React.useState(true)
+  const didAutoSelect = React.useRef(false)
 
   // Load match with comprehensive data
   useEffect(() => {
@@ -247,6 +248,31 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
 
   const currentTab = inningsTabs.find(t => t.id === selectedInning) || inningsTabs[0]
 
+  // Auto-select live innings tab once match data is available
+  useEffect(() => {
+    if (matchData && inningsTabs.length > 0 && !didAutoSelect.current) {
+      const status = matchData.status?.toLowerCase()
+      const isLive = status === 'live' || status === 'inningsbreak'
+      const isFinished = status === 'finished' || status === 'completed'
+
+      if (isLive) {
+        const currentBatting = matchData.currentBatting || 'teamA'
+        const liveTab = inningsTabs.find(t => t.inningId === currentBatting)
+        if (liveTab) {
+          setSelectedInning(liveTab.id)
+          didAutoSelect.current = true
+        }
+      } else if (isFinished) {
+        // For finished matches, jump to the last innings played (usually 2nd innings or Super Over)
+        const lastTab = inningsTabs[inningsTabs.length - 1]
+        if (lastTab) {
+          setSelectedInning(lastTab.id)
+          didAutoSelect.current = true
+        }
+      }
+    }
+  }, [matchData, inningsTabs])
+
   const currentInningsDataRaw = useMemo(() => {
     if (!currentTab) return null
     const iid = currentTab.inningId
@@ -294,7 +320,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
         partnership: currentInningsDataRaw?.partnership || { runs: 0, balls: 0, overs: '0.0' },
         extras: currentInningsDataRaw?.extras || { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
         recentOvers: [],
-        _isSummaryOnly: !(currentInningsDataRaw?.batsmanStats?.length > 0),
+        _isSummaryOnly: !((currentInningsDataRaw?.batsmanStats?.length || 0) > 0),
         _playingXI: isTeamA ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || [])
       } as any
     }
@@ -399,15 +425,15 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                   <div className="flex items-baseline gap-1">
                     {hasData ? (
                       <>
-                        <span className={`text-[15px] font-black tabular-nums tracking-tighter
-                          ${isActive ? 'text-white' : 'text-slate-900 dark:text-white'}
-                        `}>
-                          {displayRuns}-{displayWickets}
-                        </span>
                         <span className={`text-[10px] font-bold tabular-nums
                           ${isActive ? 'text-white/60' : 'text-slate-500'}
                         `}>
                           ({displayOvers})
+                        </span>
+                        <span className={`text-[15px] font-black tabular-nums tracking-tighter
+                          ${isActive ? 'text-white' : 'text-slate-900 dark:text-white'}
+                        `}>
+                          {displayRuns}-{displayWickets}
                         </span>
                       </>
                     ) : (
@@ -480,10 +506,10 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                           </div>
                         </div>
                         <span className="text-center text-[14px] font-black text-slate-900 dark:text-white tabular-nums">{b.runs}</span>
-                        <span className="text-center text-[11px] font-medium text-slate-400 tabular-nums pt-0.5">{b.balls}</span>
-                        <span className="text-center text-[11px] font-medium text-slate-400 tabular-nums pt-0.5">{b.fours}</span>
-                        <span className="text-center text-[11px] font-medium text-slate-400 tabular-nums pt-0.5">{b.sixes}</span>
-                        <span className="text-right text-[10px] font-medium text-slate-400 tabular-nums pt-0.5">
+                        <span className="text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 tabular-nums pt-0.5">{b.balls}</span>
+                        <span className="text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 tabular-nums pt-0.5">{b.fours}</span>
+                        <span className="text-center text-[11px] font-bold text-slate-600 dark:text-slate-400 tabular-nums pt-0.5">{b.sixes}</span>
+                        <span className="text-right text-[10px] font-bold text-slate-600 dark:text-slate-400 tabular-nums pt-0.5">
                           {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}
                         </span>
                       </div>
@@ -530,7 +556,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                           <PlayerAvatar photoUrl={p?.photoUrl || p?.photo} name={p?.name} className="w-full h-full object-cover" />
                         </div>
                         <div className="min-w-0">
-                          <PlayerLink playerId={pid} playerName={p?.name || 'Player'} className={`text-[14px] font-bold text-slate-200 block group-hover:text-blue-400`}>
+                          <PlayerLink playerId={pid} playerName={p?.name || 'Player'} className={`text-[14px] font-bold text-slate-800 dark:text-slate-200 block group-hover:text-blue-500`}>
                             {formatPlayerScorecardName(p?.name || 'Player')}
                             {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
                             {pid === (currentTab?.inningId.startsWith('teamA') ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
@@ -576,17 +602,17 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                           <PlayerLink
                             playerId={bw.bowlerId}
                             playerName={bw.bowlerName}
-                            className={`text-[14px] font-medium truncate whitespace-nowrap text-slate-300 hover:text-blue-400`}
+                            className={`text-[14px] font-bold truncate whitespace-nowrap text-slate-800 dark:text-slate-300 hover:text-blue-500`}
                           >
                             {formatPlayerScorecardName(bw.bowlerName)}
                           </PlayerLink>
                           {isActive && <div className="w-2 h-2 bg-slate-500 rounded-full"></div>}
                         </div>
-                        <span className="text-center text-[13px] font-medium text-slate-400 tabular-nums">{bw.overs}</span>
-                        <span className="text-center text-[13px] font-medium text-slate-400 tabular-nums">{bw.maidens || 0}</span>
-                        <span className="text-center text-[13px] font-medium text-slate-400 tabular-nums">{bw.runsConceded}</span>
-                        <span className="text-center text-[14px] font-black text-white tabular-nums">{bw.wickets}</span>
-                        <span className="text-right text-[13px] font-medium text-slate-500 tabular-nums">{(bw.economy || 0).toFixed(2)}</span>
+                        <span className="text-center text-[13px] font-bold text-slate-700 dark:text-slate-400 tabular-nums">{bw.overs}</span>
+                        <span className="text-center text-[13px] font-bold text-slate-700 dark:text-slate-400 tabular-nums">{bw.maidens || 0}</span>
+                        <span className="text-center text-[13px] font-bold text-slate-700 dark:text-slate-400 tabular-nums">{bw.runsConceded}</span>
+                        <span className="text-center text-[14px] font-black text-slate-900 dark:text-white tabular-nums">{bw.wickets}</span>
+                        <span className="text-right text-[13px] font-bold text-slate-700 dark:text-slate-500 tabular-nums">{(bw.economy || 0).toFixed(2)}</span>
                       </div>
                     </div>
                   );
@@ -613,17 +639,17 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                   {currentInningsData.fallOfWickets.map((fw: any, i: number) => (
                     <div key={i} className="px-5 py-4.5 flex items-center justify-between">
                       <div className="w-1/2 min-w-0 pr-4">
-                        <div className="text-[14px] font-bold text-slate-200 truncate">
+                        <div className="text-[14px] font-bold text-slate-800 dark:text-slate-200 truncate">
                           {fw.batsmanName || 'Player'}
                           {fw.batsmanId === (currentTab?.inningId.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
                         </div>
                       </div>
 
                       <div className="flex-1 flex justify-between items-center pr-2">
-                        <span className="flex-1 text-center text-[14px] font-black text-white">
+                        <span className="flex-1 text-center text-[14px] font-black text-slate-900 dark:text-white">
                           {fw.wicket}-{fw.score}
                         </span>
-                        <span className="w-12 text-right text-[13px] font-medium text-slate-500 tabular-nums">
+                        <span className="w-12 text-right text-[13px] font-bold text-slate-700 dark:text-slate-500 tabular-nums">
                           {fw.over}
                         </span>
                       </div>
@@ -641,15 +667,15 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
               </div>
 
               {/* Batter Indicators */}
-              <div className="flex items-center justify-between px-5 mb-4">
-                <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between px-5 mb-4 gap-4 flex-wrap">
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider truncate max-w-[45%]">
                   {(() => {
                     const p = currentInningsData?.partnership?.batter1;
                     const id = p?.id || (matchData as any).currentStrikerId;
                     return playersMap.get(id)?.name || currentInningsData?.batsmanStats?.find((s: any) => s.batsmanId === id)?.batsmanName || 'Batter 1';
                   })()}
                 </span>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-rose-600 dark:text-rose-500 uppercase tracking-wider truncate max-w-[45%]">
                   {(() => {
                     const p = currentInningsData?.partnership?.batter2;
                     const id = p?.id || (matchData as any).currentNonStrikerId;
@@ -701,32 +727,32 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
 
                         <div className="flex items-start justify-between">
                           <div className="w-1/3 min-w-0">
-                            <div className="text-[14px] font-bold text-slate-200 truncate mb-1">
+                            <div className="text-[14px] font-bold text-emerald-600 dark:text-emerald-400 truncate mb-1">
                               {b1Name}
                             </div>
-                            <div className="text-[14px] font-black text-white leading-none">
-                              {b1Runs} <span className="text-[11px] text-slate-500 font-bold ml-0.5">({p.batter1?.balls || 0})</span>
+                            <div className="text-[14px] font-black text-slate-900 dark:text-white leading-none">
+                              {b1Runs} <span className="text-[11px] text-slate-600 dark:text-slate-500 font-bold ml-0.5">({p.batter1?.balls || 0})</span>
                             </div>
                           </div>
 
                           <div className="flex-1 flex flex-col items-center pt-0.5">
                             <div className="flex items-baseline gap-1.5 mb-3">
                               <span className="text-[18px] font-black text-[#f5a623]">{p.runs}</span>
-                              <span className="text-[12px] font-bold text-slate-500">({p.balls})</span>
+                              <span className="text-[12px] font-bold text-slate-700 dark:text-slate-500">({p.balls})</span>
                             </div>
 
-                            <div className="w-[100px] h-[6px] bg-slate-800 flex overflow-hidden rounded-full ring-1 ring-white/10">
-                              <div className="h-full bg-[#76af43]" style={{ width: `${b1Pct}%` }}></div>
-                              <div className="h-full bg-[#b54242]" style={{ width: `${b2Pct}%` }}></div>
+                            <div className="w-[100px] h-[6px] bg-slate-200 dark:bg-slate-800 flex overflow-hidden rounded-full ring-1 ring-slate-300 dark:ring-white/10">
+                              <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400" style={{ width: `${b1Pct}%` }}></div>
+                              <div className="h-full bg-gradient-to-r from-rose-500 to-rose-400" style={{ width: `${b2Pct}%` }}></div>
                             </div>
                           </div>
 
                           <div className="w-1/3 text-right min-w-0">
-                            <div className="text-[14px] font-bold text-slate-200 truncate mb-1">
+                            <div className="text-[14px] font-bold text-rose-600 dark:text-rose-400 truncate mb-1">
                               {b2Name}
                             </div>
-                            <div className="text-[14px] font-black text-white leading-none">
-                              <span className="text-[11px] text-slate-500 font-bold mr-1">({p.batter2?.balls || 0})</span> {b2Runs}
+                            <div className="text-[14px] font-black text-slate-900 dark:text-white leading-none">
+                              <span className="text-[11px] text-slate-600 dark:text-slate-500 font-bold mr-1">({p.batter2?.balls || 0})</span> {b2Runs}
                             </div>
                           </div>
                         </div>

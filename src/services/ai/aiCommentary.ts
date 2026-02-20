@@ -31,8 +31,10 @@ export type CommentaryInput = {
     wickets?: number
     requiredRuns?: number
     oversRemaining?: number
-    isChase?: boolean
-  }
+    isChase?: boolean;
+    isSuperOver?: boolean;
+  };
+  nonStriker?: string;
 }
 
 export type ToneControl = 'normal' | 'excited' | 'matchTurning'
@@ -329,9 +331,22 @@ export function generateCommentary(
   let text = ''
   let alternatives: string[] = []
 
+  // Normalize wicketType for template lookup
+  let normalizedWicketType = wicketType;
+  if (wicketType) {
+    const wt = wicketType.toLowerCase();
+    if (wt === 'runout' || wt === 'run out') normalizedWicketType = 'Run Out';
+    else if (wt === 'caught') normalizedWicketType = 'Caught';
+    else if (wt === 'bowled') normalizedWicketType = 'Bowled';
+    else if (wt === 'lbw') normalizedWicketType = 'LBW';
+    else if (wt === 'stumped') normalizedWicketType = 'Stumped';
+    else if (wt === 'hitwicket' || wt === 'hit wicket') normalizedWicketType = 'Hit Wicket';
+    else if (wt.includes('& bowled') || wt.includes('and bowled') || wt === 'c&b') normalizedWicketType = 'Caught & Bowled';
+  }
+
   // Wicket commentary (highest priority)
-  if (wicketType && wicketType in WICKET_TEMPLATES) {
-    const templates = WICKET_TEMPLATES[wicketType as keyof typeof WICKET_TEMPLATES] as any;
+  if (normalizedWicketType && normalizedWicketType in WICKET_TEMPLATES) {
+    const templates = WICKET_TEMPLATES[normalizedWicketType as keyof typeof WICKET_TEMPLATES] as any;
     const toneTemplates = (templates[effectiveTone] || templates.normal || []) as string[];
     const allTemplates = [...toneTemplates, ...(templates.normal || [])];
 
@@ -341,11 +356,20 @@ export function generateCommentary(
       .replace(/{batsman}/g, batsman)
       .replace(/{bowler}/g, bowler);
 
+    // Add info about runs if completed (e.g. Run Out)
+    if (runs > 0) {
+      text += ` ${runs} run${runs > 1 ? 's' : ''} completed before the dismissal.`;
+    }
+
     // Generate 8-12 alternatives
     alternatives = allTemplates
       .filter((t: string) => t !== selected)
       .slice(0, 11)
-      .map((t: string) => t.replace(/{batsman}/g, batsman).replace(/{bowler}/g, bowler));
+      .map((t: string) => {
+        let alt = t.replace(/{batsman}/g, batsman).replace(/{bowler}/g, bowler);
+        if (runs > 0) alt += ` ${runs} run${runs > 1 ? 's' : ''} taken.`;
+        return alt;
+      });
 
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);

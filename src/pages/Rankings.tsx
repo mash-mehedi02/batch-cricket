@@ -60,7 +60,32 @@ export default function Rankings() {
     }
 
     useEffect(() => {
-        loadData()
+        // Subscribe to players for instant ranking updates
+        const unsubPlayers = playerService.subscribeAll((allPlayers) => {
+            setPlayers(allPlayers)
+        })
+
+        // Load other static-ish data normally
+        const loadInitialData = async () => {
+            try {
+                const [allSquads, allTournaments] = await Promise.all([
+                    squadService.getAll(),
+                    tournamentService.getAll()
+                ])
+                setSquads(allSquads)
+                setTournaments(allTournaments)
+            } catch (error) {
+                console.error('Error loading squads/tournaments:', error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        loadInitialData()
+
+        return () => {
+            unsubPlayers()
+        }
     }, [])
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -338,50 +363,43 @@ export default function Rankings() {
                                 <Link
                                     key={player.id}
                                     to={`/players/${player.id}`}
-                                    className="ranking-card group flex items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-[2rem] border border-slate-100 dark:border-white/5 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 relative overflow-hidden"
+                                    className="ranking-card group flex items-center gap-3 bg-white dark:bg-slate-900 p-2.5 px-4 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all duration-300 relative"
                                 >
-                                    {/* Rank */}
-                                    <div className="w-12 h-12 shrink-0 flex items-center justify-center">
-                                        {getRankBadge(actualIndex)}
+                                    {/* Rank Number - Far Left & Small */}
+                                    <div className="w-5 shrink-0 text-[11px] font-black text-slate-400 tabular-nums">
+                                        {actualIndex + 1}
                                     </div>
 
-                                    {/* Avatar */}
-                                    <div className="w-14 h-14 shrink-0 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-50 dark:border-white/5">
+                                    {/* Avatar - Slightly smaller */}
+                                    <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-50 dark:border-white/5">
                                         {player.photoUrl ? (
                                             <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <UserCircle className="text-slate-300 dark:text-slate-600" size={32} strokeWidth={1.5} />
+                                                <UserCircle className="text-slate-300 dark:text-slate-600" size={24} strokeWidth={1.5} />
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Info */}
+                                    {/* Info - Smaller name, no role */}
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase truncate group-hover:text-blue-600 transition-colors">
+                                        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase truncate group-hover:text-blue-600 transition-colors">
                                             {player.name}
                                         </h3>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{squadName}</span>
-                                            <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                                            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">
-                                                {(player.role || 'All Rounder').replace('-', ' ')}
-                                            </span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{squadName}</span>
                                         </div>
                                     </div>
 
-                                    {/* Points */}
-                                    <div className="text-right px-4">
-                                        <div className="text-2xl font-black text-slate-900 dark:text-white leading-none tabular-nums">
+                                    {/* Points - Compact */}
+                                    <div className="text-right">
+                                        <div className="text-lg font-black text-slate-900 dark:text-white leading-none tabular-nums">
                                             {points}
                                         </div>
-                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
-                                            {rankMode === 'overall' ? 'Points' : rankMode === 'batting' ? 'Batting' : 'Bowling'}
+                                        <div className="text-[8px] font-black text-slate-500/60 uppercase tracking-widest mt-0.5">
+                                            {rankMode === 'overall' ? 'PTS' : rankMode === 'batting' ? 'BAT' : 'BOWL'}
                                         </div>
                                     </div>
-
-                                    {/* Background Accent */}
-                                    <div className="absolute top-0 right-0 w-32 h-full bg-linear-to-l from-blue-500/5 to-transparent pointer-events-none"></div>
                                 </Link>
                             )
                         })

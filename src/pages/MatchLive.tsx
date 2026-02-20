@@ -85,11 +85,15 @@ export default function MatchLive() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
-  // Provide global function for child components (MatchSummary) to open settings
+  // Provide global functions for child components to interact with the parent
   useEffect(() => {
-    (window as any).openMatchSettings = () => setIsSettingsOpen(true)
-    return () => { delete (window as any).openMatchSettings }
-  }, [])
+    (window as any).openMatchSettings = () => setIsSettingsOpen(true);
+    (window as any).setActiveTab = (tabId: string) => setActiveTab(tabId);
+    return () => {
+      delete (window as any).openMatchSettings;
+      delete (window as any).setActiveTab;
+    }
+  }, [matchId]) // Re-bind if match changes
 
   // --- Match status and derived data (Must be declared before hooks) ---
   const statusLower = String(match?.status || '').toLowerCase()
@@ -411,10 +415,15 @@ export default function MatchLive() {
   const prettyWicket = (t: string) => {
     const k = String(t || '').toLowerCase().trim()
     if (!k) return 'OUT'
-    if (k === 'run-out') return 'RUN OUT'
-    if (k === 'hit-wicket') return 'HIT WICKET'
-    if (k === 'obstructing-field') return 'OBSTRUCT'
-    return k.toUpperCase()
+    if (k === 'run-out') return 'RUN OUT!!'
+    if (k === 'runout') return 'RUN OUT!!'
+    if (k === 'bowled') return 'BOWLED!!'
+    if (k === 'caught') return 'CAUGHT!!'
+    if (k === 'lbw') return 'LBW!!'
+    if (k === 'hit-wicket') return 'HIT WICKET!!'
+    if (k === 'stumped') return 'STUMPED!!'
+    if (k === 'obstructing-field') return 'OBSTRUCT!!'
+    return `${k.toUpperCase()}!!`
   }
 
   const computeCenterLabel = (ballDoc: any, innLast: any) => {
@@ -1181,6 +1190,8 @@ export default function MatchLive() {
         const badge = resultBadge(m, currentTeamKey)
         const scoreA = getScoreText(m, 'A')
         const scoreB = getScoreText(m, 'B')
+        let winnerText = '—'
+        let hasData = false
 
         if ((m as any).resultSummary) {
           winnerText = (m as any).resultSummary;

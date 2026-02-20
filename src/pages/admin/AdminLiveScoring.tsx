@@ -1,8 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db, functions } from '@/config/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '@/config/firebase';
 import { matchService } from '@/services/firestore/matches';
 import { playerService } from '@/services/firestore/players';
 import { addBall, BallUpdateResult } from '@/services/matchEngine/ballUpdateService';
@@ -15,9 +14,7 @@ import {
     RotateCcw,
     ArrowRightLeft,
     UserPlus,
-    ShieldAlert,
     Trophy,
-    Target,
     Activity,
     Megaphone,
     Send,
@@ -45,6 +42,7 @@ const AdminLiveScoring = () => {
     // Players State
     const [teamAPlayers, setTeamAPlayers] = useState<Player[]>([]);
     const [teamBPlayers, setTeamBPlayers] = useState<Player[]>([]);
+    const [inningsBalls, setInningsBalls] = useState<any[]>([]);
     const [playersLoaded, setPlayersLoaded] = useState(false);
 
     const [loading, setLoading] = useState(true);
@@ -73,6 +71,10 @@ const AdminLiveScoring = () => {
     const [manualCommentary, setManualCommentary] = useState('');
     const [potmId, setPotmId] = useState<string>('');
     const [suggestedPotm, setSuggestedPotm] = useState<Player | null>(null);
+    const [lastCommentary, setLastCommentary] = useState<string>('');
+    const [nextBowlerModalOpen, setNextBowlerModalOpen] = useState(false);
+    const [nextBowlerId, setNextBowlerId] = useState('');
+    const [batterTargetEnd, setBatterTargetEnd] = useState<'striker' | 'nonStriker' | null>(null);
 
     // Permissions check
     useEffect(() => {
@@ -111,14 +113,28 @@ const AdminLiveScoring = () => {
         const unsubInnASO = matchService.subscribeToInnings(matchId, 'teamA_super', (data) => setInningsASO(data));
         const unsubInnBSO = matchService.subscribeToInnings(matchId, 'teamB_super', (data) => setInningsBSO(data));
 
+        const unsubComm = commentaryService.subscribeToCommentary(matchId, (items) => {
+            if (items.length > 0) {
+                setLastCommentary(items[items.length - 1].text);
+            }
+        });
+
+        // Subscribe to current innings balls for fast local recalculation
+        const currentInningId = match?.currentBatting || 'teamA';
+        const unsubBalls = matchService.subscribeToBalls(matchId, currentInningId as any, (balls) => {
+            setInningsBalls(balls);
+        });
+
         return () => {
             unsubMatch();
             unsubInn && unsubInn();
             unsubInnB && unsubInnB();
             unsubInnASO && unsubInnASO();
             unsubInnBSO && unsubInnBSO();
+            unsubComm();
+            unsubBalls();
         };
-    }, [matchId]);
+    }, [matchId, match?.currentBatting]);
 
     // --- Player of the Match Logic ---
     useEffect(() => {
@@ -130,6 +146,21 @@ const AdminLiveScoring = () => {
             }
         }
     }, [finalizeModalOpen, match, inningsA, inningsB, teamAPlayers, teamBPlayers]);
+
+    // --- Auto-trigger select if missing ---
+    useEffect(() => {
+        if (match?.status === 'live' && !match.matchPhase?.toLowerCase().includes('break')) {
+            if (!selectedStriker && !nextBatterModalOpen) {
+                setBatterTargetEnd('striker');
+                setNextBatterModalOpen(true);
+            } else if (!selectedNonStriker && !nextBatterModalOpen) {
+                setBatterTargetEnd('nonStriker');
+                setNextBatterModalOpen(true);
+            } else if (!selectedBowler && !nextBowlerModalOpen) {
+                setNextBowlerModalOpen(true);
+            }
+        }
+    }, [match?.status, match?.matchPhase, selectedStriker, selectedNonStriker, selectedBowler, nextBatterModalOpen, nextBowlerModalOpen]);
 
     // --- Fetch Players Logic ---
     useEffect(() => {
@@ -263,35 +294,26 @@ const AdminLiveScoring = () => {
     };
 
     // --- Handlers ---
-    const handlePlayerAssign = async (field: 'currentStrikerId' | 'currentNonStrikerId' | 'currentBowlerId', value: string) => {
-        if (!matchId || !value) return;
 
-        // Prevent same batter at both ends
-        if (field === 'currentStrikerId' && value === match?.currentNonStrikerId) {
-            toast.error('Player already at non-striker end!');
-            return;
-        }
-        if (field === 'currentNonStrikerId' && value === match?.currentStrikerId) {
-            toast.error('Player already at striker end!');
-            return;
-        }
-
-        // ICC Rule: Same bowler cannot bowl consecutive overs
-        if (field === 'currentBowlerId' && match?.lastOverBowlerId === value) {
-            toast.error('Same bowler cannot bowl consecutive overs!');
-            return;
-        }
-
-        try {
-            await matchService.update(matchId, { [field]: value });
-        } catch (err) {
-            console.error("Failed to update player", err);
-            toast.error("Failed to assign player");
-        }
-    };
 
     const handleScoreClick = (r: number) => {
         setRunInput(r);
+    };
+
+    const handleSwapStrike = async () => {
+        if (!matchId || !selectedStriker || !selectedNonStriker) return;
+        setProcessing(true);
+        try {
+            await matchService.update(matchId, {
+                currentStrikerId: selectedNonStriker,
+                currentNonStrikerId: selectedStriker
+            });
+            toast.success('Strike Swapped!');
+        } catch (err: any) {
+            toast.error('Failed to swap strike');
+        } finally {
+            setProcessing(false);
+        }
     };
 
     const toggleExtra = (type: 'wide' | 'noBall' | 'bye' | 'legBye' | 'penalty') => {
@@ -326,14 +348,14 @@ const AdminLiveScoring = () => {
         try {
             console.log(`[AdminLiveScoring] Starting undo for ${inningKv}...`);
 
-            let balls = await matchService.getBalls(matchId, inningKv);
+            let balls = await matchService.getBalls(matchId, inningKv as any);
 
             // If current innings has no balls, try to undo from the previous innings
             if (balls.length === 0) {
                 if (inningKv === 'teamB' && (!inningsB || (inningsB.legalBalls || 0) === 0)) {
                     console.log("[AdminLiveScoring] No balls in Team B. Switching to Team A for undo.");
                     inningKv = 'teamA';
-                    balls = await matchService.getBalls(matchId, inningKv);
+                    balls = await matchService.getBalls(matchId, inningKv as any);
                 }
             }
 
@@ -366,13 +388,13 @@ const AdminLiveScoring = () => {
 
             // --- Database Sync ---
             // 1. Delete actual ball
-            await matchService.deleteBall(matchId, inningKv, ballToUndo.id);
+            await matchService.deleteBall(matchId, inningKv as any, ballToUndo.id);
 
             // 2. Delete linked commentary
             await commentaryService.deleteCommentaryForBall(matchId, ballToUndo.id);
 
             // 3. Recalculate stats - This updates the innings document and some match fields
-            const newStats = await recalculateInnings(matchId, inningKv, { useTransaction: false });
+            await recalculateInnings(matchId, inningKv as any, { useTransaction: false });
 
             // 4. Determine Match Document Reversion
             const updates: any = {
@@ -428,6 +450,38 @@ const AdminLiveScoring = () => {
             toast.error("Failed to undo last ball");
         } finally {
             setProcessing(false);
+        }
+    };
+
+    const triggerLiveNotification = async (message: string, eventIcon?: string) => {
+        if (!match || !matchId) return;
+
+        try {
+            const mAdminId = (match as any)?.adminId || (match as any)?.createdBy || 'admin';
+            const tournament = (match as any).tournamentName || (match as any).matchType || 'Match';
+
+            // Professional Title: Team1 vs Team2, MatchNo (Tournament)
+            const title = `${match.teamAName} vs ${match.teamBName}${match.matchNo ? `, ${match.matchNo}` : ''} (${tournament})`;
+
+            // Resolve Batting Team Logo
+            const battingTeamId = match.currentBatting === 'teamA' ? match.teamAId : match.teamBId;
+            const battingTeamLogo = match.currentBatting === 'teamA' ? (match as any).teamALogoUrl : (match as any).teamBLogoUrl;
+
+            await oneSignalService.sendToMatch(
+                matchId,
+                mAdminId,
+                title,
+                message,
+                undefined, // Default URL
+                eventIcon || battingTeamLogo,
+                [
+                    { id: 'open_match', text: 'Open Match', icon: 'ic_menu_view' },
+                    { id: 'turn_off', text: `Turn off for ${match.teamAName} vs ${match.teamBName}`, icon: 'ic_menu_close_clear_cancel' }
+                ],
+                `match_score_${matchId}` // Persistent collapse ID for score updates
+            );
+        } catch (err) {
+            console.error("[AdminLiveScoring] Notification helper failed:", err);
         }
     };
 
@@ -517,86 +571,96 @@ const AdminLiveScoring = () => {
         };
 
         try {
-            const result: BallUpdateResult = await addBall(matchId, inningKv, payload);
+            // Speed optimization: Pass local balls count to avoid getDocs(balls) in service
+            const result: BallUpdateResult = await addBall(matchId, inningKv as any, payload, {
+                sequence: inningsBalls.length + 1,
+                previousBalls: inningsBalls
+            });
             if (!result.success) throw new Error(result.error);
 
-            // Generate AI Commentary
-            try {
-                const strikerObj = battingTeamPlayersAll.find(p => p.id === selectedStriker);
-                const bowlerObj = bowlingTeamPlayersAll.find(p => p.id === selectedBowler);
+            // Execute commentary and notifications in BACKGROUND (don't await) 
+            // to make UI instant
+            (async () => {
+                try {
+                    const strikerObj = battingTeamPlayersAll.find(p => p.id === selectedStriker);
+                    const nonStrikerObj = battingTeamPlayersAll.find(p => p.id === selectedNonStriker);
+                    const bowlerObj = bowlingTeamPlayersAll.find(p => p.id === selectedBowler);
 
-                const ballInnings = result.inningsData;
-                const totalBallRuns = batRuns + wideVal + nbVal + byeVal + lbVal + penaltyVal;
-                const isLegalBall = !extras.wide && !extras.noBall;
-                const currentOverNumber = isLegalBall
-                    ? Math.floor(((ballInnings?.legalBalls || 1) - 1) / 6) + 1
-                    : Math.floor((ballInnings?.legalBalls || 0) / 6) + 1;
+                    const ballInnings = result.inningsData;
+                    const totalBallRuns = batRuns + wideVal + nbVal + byeVal + lbVal + penaltyVal;
+                    const isLegalBall = !extras.wide && !extras.noBall;
 
-                await commentaryService.generateAutoCommentary(matchId, inningKv, {
-                    runs: batRuns,
-                    totalRuns: totalBallRuns,
-                    ballType: extras.wide ? 'wide' : extras.noBall ? 'no-ball' : extras.bye ? 'bye' : extras.legBye ? 'leg-bye' : 'normal',
-                    wicketType: wicketData?.type || null,
-                    batsman: strikerObj?.name || 'Batter',
-                    bowler: bowlerObj?.name || 'Bowler',
-                    isBoundary: batRuns === 4 || batRuns === 6,
-                    isFour: batRuns === 4,
-                    isSix: batRuns === 6,
-                    over: ballInnings?.overs || '0.0',
-                    overNumber: currentOverNumber,
-                    ball: ballInnings?.ballsInCurrentOver || 0,
-                    ballDocId: result.ballId,
-                    matchContext: {
-                        currentScore: ballInnings?.totalRuns,
-                        wickets: ballInnings?.totalWickets,
+                    const currentLegalBalls = ballInnings?.legalBalls || 0;
+                    const currentOverNumber = isLegalBall
+                        ? Math.floor((currentLegalBalls - 1) / 6) + 1
+                        : Math.floor(currentLegalBalls / 6) + 1;
+
+                    // For commentary, even if a ball is wide, we want to show it as the X.Y ball of the over
+                    // If legalBalls = 24 (4.0 overs), and next ball is wide, it's the 1st ball of the 5th over (4.1)
+                    const overLabel = isLegalBall
+                        ? ballInnings?.overs
+                        : `${Math.floor(currentLegalBalls / 6)}.${(currentLegalBalls % 6) + 1}`;
+
+                    await commentaryService.generateAutoCommentary(matchId, inningKv as any, {
+                        runs: batRuns,
+                        totalRuns: totalBallRuns,
+                        ballType: extras.wide ? 'wide' : extras.noBall ? 'no-ball' : extras.bye ? 'bye' : extras.legBye ? 'leg-bye' : 'normal',
+                        wicketType: wicketData?.type || null,
+                        batsman: strikerObj?.name || 'Batter',
+                        nonStriker: nonStrikerObj?.name || 'Non-Striker',
+                        bowler: bowlerObj?.name || 'Bowler',
+                        isBoundary: batRuns === 4 || batRuns === 6,
+                        isFour: batRuns === 4,
+                        isSix: batRuns === 6,
+                        over: overLabel || '0.0',
+                        overNumber: currentOverNumber,
+                        ball: (currentLegalBalls % 6) + (isLegalBall ? 0 : 1),
+                        ballDocId: result.ballId,
+                        style: 'tv',
+                        matchContext: {
+                            currentScore: ballInnings?.totalRuns,
+                            wickets: ballInnings?.totalWickets,
+                        }
+                    });
+
+                    // Notifications (Frontend fallback since Cloud Functions require paid plan)
+                    const mAdminId = (match as any)?.adminId || (match as any)?.createdBy || 'admin';
+                    const inningData = result.inningsData;
+
+                    // 1. Wicket Notification
+                    if (wicketData) {
+                        const scoreMsg = `${inningData?.totalRuns || 0}/${inningData?.totalWickets || 0} (${inningData?.overs || '0.0'} ov)`;
+                        const wktMsg = `Wicket: ${strikerObj?.name || 'Batter'} is OUT! 🔴\n${scoreMsg}`;
+                        triggerLiveNotification(wktMsg);
                     }
-                });
 
-                // Notifications (Frontend fallback since Cloud Functions require paid plan)
-                const mAdminId = match.adminId || match.createdBy || 'admin';
-                const inningData = result.inningsData;
-
-                // 1. Wicket Notification
-                if (wicketData) {
-                    oneSignalService.sendToMatch(
-                        matchId,
-                        mAdminId,
-                        "WICKET! 🔴",
-                        `${strikerObj?.name || 'Batter'} is OUT! Score: ${inningData?.totalRuns || 0}/${inningData?.totalWickets || 0} (${inningData?.overs || '0.0'} ov)`
-                    );
-                }
-
-                // 2. Milestones (50/100)
-                const batsmanStats = inningData?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
-                if (batsmanStats) {
-                    const currentRuns = batsmanStats.runs || 0;
-                    const preRuns = currentRuns - batRuns;
-                    if (currentRuns >= 100 && preRuns < 100) {
-                        oneSignalService.sendToMatch(matchId, mAdminId, "CENTURY! 💯🏏", `${batsmanStats.batsmanName} scored a MASSIVE 100! 🌟`);
-                    } else if (currentRuns >= 50 && preRuns < 50) {
-                        oneSignalService.sendToMatch(matchId, mAdminId, "Milestone! 🏏✨", `${batsmanStats.batsmanName} reached 50 runs! 🔥`);
+                    // 2. Milestones (50/100)
+                    const batsmanStats = inningData?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
+                    if (batsmanStats) {
+                        const currentRuns = batsmanStats.runs || 0;
+                        const preRuns = currentRuns - batRuns;
+                        if (currentRuns >= 100 && preRuns < 100) {
+                            triggerLiveNotification(`CENTURY! 💯🏏\n${batsmanStats.batsmanName} scored a MASSIVE 100! 🌟`);
+                        } else if (currentRuns >= 50 && preRuns < 50) {
+                            triggerLiveNotification(`Milestone! 🏏✨\n${batsmanStats.batsmanName} reached 50 runs! 🔥`);
+                        }
                     }
+                } catch (commErr) {
+                    console.error("[AdminLiveScoring] Notification/Commentary failed:", commErr);
                 }
-            } catch (commErr) {
-                console.error("[AdminLiveScoring] Notification/Commentary failed:", commErr);
-            }
+            })();
 
             // Innings Completion Notification
-            const overLimit = (match?.overs || 5) * 6;
+            const overLimit = ((match as any)?.oversLimit || 5) * 6;
             const legalBallsAfter = result.inningsData?.legalBalls || 0;
             const wicketsAfter = result.inningsData?.totalWickets || 0;
             const isFinalBall = legalBallsAfter >= overLimit;
             const isFinalWicket = wicketsAfter >= (battingPlayingXI.length - 1);
 
             if (isFinalBall || isFinalWicket) {
-                const teamName = match.currentBatting === 'teamA' ? match.teamAName : match.teamBName;
-                const mAdminId = match.adminId || match.createdBy || 'admin';
-                oneSignalService.sendToMatch(
-                    matchId,
-                    mAdminId,
-                    "Innings Finished! ☕",
-                    `${teamName} finished at ${result.inningsData?.totalRuns}/${result.inningsData?.totalWickets} (${result.inningsData?.overs} ov)`
-                );
+                const teamName = match?.currentBatting === 'teamA' ? match?.teamAName : match?.teamBName;
+                const finishMsg = `Innings Finished! ☕\n${teamName} finished at ${result.inningsData?.totalRuns}/${result.inningsData?.totalWickets} (${result.inningsData?.overs} ov)`;
+                triggerLiveNotification(finishMsg);
             }
 
             // Strike Rotation & State Logic
@@ -631,6 +695,10 @@ const AdminLiveScoring = () => {
                 updates.lastOverBowlerId = selectedBowler;
                 nextBowler = '';
                 toast('Over Completed! Select new bowler', { icon: '🏏', style: { borderRadius: '10px', background: '#333', color: '#fff' } });
+
+                if (!isFinalBall && !isFinalWicket) {
+                    setTimeout(() => setNextBowlerModalOpen(true), 500);
+                }
             }
 
             // Update Match State if changed
@@ -641,6 +709,12 @@ const AdminLiveScoring = () => {
             if (Object.keys(updates).length > 0) {
                 await matchService.update(matchId, updates);
             }
+
+            // INSTANT UI UPDATE: Manually update local innings state to avoid 1-ball delay from subscription
+            if (inningKv === 'teamA') setInningsA(result.inningsData);
+            else if (inningKv === 'teamB') setInningsB(result.inningsData);
+            else if (inningKv === 'teamA_super') setInningsASO(result.inningsData);
+            else if (inningKv === 'teamB_super') setInningsBSO(result.inningsData);
 
             setRunInput(null);
             setExtras({ wide: false, noBall: false, bye: false, legBye: false, penalty: false });
@@ -683,21 +757,48 @@ const AdminLiveScoring = () => {
             return;
         }
 
-        const otherBatterId = !selectedStriker ? selectedNonStriker : selectedStriker;
+        const otherBatterId = batterTargetEnd === 'striker' ? selectedNonStriker : selectedStriker;
         if (nextBatterId === otherBatterId) {
             toast.error("Player already at crease!");
             return;
         }
 
         try {
-            const field = !selectedStriker ? 'currentStrikerId' : 'currentNonStrikerId';
+            const field = batterTargetEnd === 'striker' ? 'currentStrikerId' :
+                (batterTargetEnd === 'nonStriker' ? 'currentNonStrikerId' :
+                    (!selectedStriker ? 'currentStrikerId' : 'currentNonStrikerId'));
+
             await matchService.update(matchId, { [field]: nextBatterId });
             setNextBatterModalOpen(false);
             setNextBatterId('');
+            setBatterTargetEnd(null);
             toast.success("New batter arrived at crease");
         } catch (err) {
             console.error(err);
             toast.error("Failed to update next batter");
+        }
+    };
+
+    const handleNextBowlerConfirm = async () => {
+        if (!nextBowlerId || !matchId) {
+            toast.error("Please select the next bowler.");
+            return;
+        }
+        if (match?.lastOverBowlerId === nextBowlerId) {
+            toast.error("Same bowler cannot bowl consecutive overs!");
+            return;
+        }
+        try {
+            setProcessing(true);
+            await matchService.update(matchId, { currentBowlerId: nextBowlerId });
+            setNextBowlerModalOpen(false);
+            setNextBowlerId('');
+            toast.success("New bowler ready!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to update bowler");
+        } finally {
+            setProcessing(false);
         }
     };
 
@@ -708,16 +809,16 @@ const AdminLiveScoring = () => {
             const currentInn = match.currentBatting === 'teamB' ? inningsB : inningsA;
             await commentaryService.addManualCommentary(
                 matchId,
-                match.currentBatting || 'teamA',
+                (match.currentBatting as any) || 'teamA',
                 manualCommentary,
                 currentInn?.overs || '0.0',
                 0, 0, false, false
             );
 
             // Send Push Notification for manual highlight
-            const mAdminId = match.adminId || match.createdBy || 'admin';
-            oneSignalService.sendToMatch(matchId, mAdminId, "Live Update 📢", manualCommentary);
-
+            if (manualCommentary) {
+                triggerLiveNotification(`Live Update 📢\n${manualCommentary}`);
+            }
             setManualCommentary('');
             toast.success("Commentary added!");
         } catch (err) {
@@ -729,7 +830,7 @@ const AdminLiveScoring = () => {
     };
 
     const handleFinalizeConfirm = async () => {
-        if (!matchId) return;
+        if (!matchId || !match) return;
         setProcessing(true);
         try {
             // 1. Calculate Winner ID for the points table
@@ -743,35 +844,33 @@ const AdminLiveScoring = () => {
             const mainBR = Number(inningsB?.totalRuns || 0);
             const hasSO = match.isSuperOver && (soAR > 0 || soBR > 0);
 
-            if (hasSO) {
-                if (soAR > soBR) winnerSquadId = (match as any).teamASquadId || (match as any).teamAId || match.teamAId || null;
-                else if (soBR > soAR) winnerSquadId = (match as any).teamBSquadId || (match as any).teamBId || match.teamBId || null;
-                // If SO also tied, winnerId stays null (tie)
-            } else {
-                if (mainAR > mainBR) winnerSquadId = (match as any).teamASquadId || (match as any).teamAId || match.teamAId || null;
-                else if (mainBR > mainAR) winnerSquadId = (match as any).teamBSquadId || (match as any).teamBId || match.teamBId || null;
-                // If tied, winnerId stays null (tie)
+            if (hasSO && match) {
+                if (soAR > soBR) winnerSquadId = (match as any).teamASquadId || (match as any).teamAId || (match as any).teamA || undefined;
+                else if (soBR > soAR) winnerSquadId = (match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB || undefined;
+            } else if (match) {
+                if (mainAR > mainBR) winnerSquadId = (match as any).teamASquadId || (match as any).teamAId || (match as any).teamA || undefined;
+                else if (mainBR > mainAR) winnerSquadId = (match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB || undefined;
             }
 
             // 2. Update Match Status (Triggers stats sync in service)
             await matchService.update(matchId, {
                 status: 'finished',
                 matchPhase: 'finished',
-                playerOfTheMatch: potmId || suggestedPotm?.id || null,
+                playerOfTheMatch: potmId || suggestedPotm?.id || undefined,
                 resultSummary: finalResult,
-                winnerId: winnerSquadId
+                winnerId: winnerSquadId ? (winnerSquadId as string) : undefined
             });
 
             // 3. Send Push Notification for Match Result
-            const mAdminId = match.adminId || match.createdBy || 'admin';
-            oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🏆", finalResult);
-
+            if (finalResult) {
+                triggerLiveNotification(`Match Ended! 🏆\n${finalResult}`);
+            }
             // 4. Send Emails if requested
-            if (sendMailChecked) {
+            if (sendMailChecked && match) {
                 const emailToastId = toast.loading("Sending personalized scores to Playing XI...");
                 const emailResult = await emailService.sendMatchEndEmails(matchId, resultSummary);
 
-                if (emailResult.success) {
+                if (emailResult && emailResult.success) {
                     toast.success("Scores sent successfully!", { id: emailToastId });
                 } else {
                     toast.error("Match finished, but score emails failed.", { id: emailToastId });
@@ -826,13 +925,13 @@ const AdminLiveScoring = () => {
                 // DO NOT reset innings1Score/Wickets/Overs or target here,
                 // as they relate to the main match and are used for display/scorecard.
                 // The Super Over will manage its own score in the 'score' map and innings docs.
-                winnerId: null,
-                resultSummary: null
+                winnerId: undefined,
+                resultSummary: undefined
             });
 
-            // 5. Notification
-            oneSignalService.sendToMatch(matchId, match.adminId || 'admin', "SUPER OVER! ⚡", "A Super Over has been initiated! Get ready for the drama!");
-
+            if (matchId) {
+                triggerLiveNotification("SUPER OVER! ⚡\nA Super Over has been initiated! Get ready for the drama!");
+            }
             toast.success("Super Over Started!");
             setFinalizeModalOpen(false);
         } catch (err: any) {
@@ -856,858 +955,322 @@ const AdminLiveScoring = () => {
         );
     }, [match, inningsA, inningsB, inningsASO, inningsBSO]);
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 animate-spin text-blue-600" /></div>;
-    if (!match) return <div className="p-10 text-red-500 font-bold text-center">Match not found</div>;
+
+    if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}><Loader2 className="w-10 h-10 animate-spin text-teal-600" /></div>;
+    if (!match) return <div style={{ padding: '40px', color: 'red', fontWeight: 700, textAlign: 'center' }}>Match not found</div>;
+
+    const battingTeamName = isTeamB ? match.teamBName : match.teamAName;
+    const strikerStats = currentInnings?.batsmanStats?.find(b => b.batsmanId === selectedStriker);
+    const nonStrikerStats = currentInnings?.batsmanStats?.find(b => b.batsmanId === selectedNonStriker);
+    const bowlerStatsData = currentInnings?.bowlerStats?.find(b => b.bowlerId === selectedBowler);
+    const thisOverBalls = currentInnings?.currentOverBalls || [];
+    const totalExtras = currentInnings?.extras ? (currentInnings.extras.wides || 0) + (currentInnings.extras.noBalls || 0) + (currentInnings.extras.byes || 0) + (currentInnings.extras.legByes || 0) + (currentInnings.extras.penalty || 0) : 0;
+    const isBreakOrTied = match.matchPhase?.toLowerCase() === 'inningsbreak' || match.status?.toLowerCase() === 'inningsbreak' || match.matchPhase?.toLowerCase() === 'tied';
+    const kbtn = (bg: string, clr: string) => ({ display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, borderRadius: '8px', fontWeight: 800 as const, fontSize: '20px', border: 'none' as const, cursor: 'pointer' as const, background: bg, color: clr, transition: 'transform 0.1s', minHeight: '56px', width: '100%' });
 
     return (
-        <div className="max-w-5xl mx-auto p-4 lg:p-6 pb-32 bg-slate-50 min-h-screen text-slate-800 font-inter">
-            {/* --- TOP BAR: Match Status --- */}
-            <div className="bg-[#1e293b] text-white rounded-2xl shadow-xl p-5 mb-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Trophy size={120} />
-                </div>
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <div className="flex items-center gap-2 text-blue-300 font-bold text-xs uppercase tracking-widest mb-1">
-                            {(match as any).matchType || 'T20 Match'} • <span className={match.status === 'live' ? "text-emerald-500 animate-pulse text-[10px] font-black uppercase tracking-[0.2em]" : "text-amber-500 text-[10px] font-black uppercase tracking-[0.2em]"}>{match.status === 'InningsBreak' ? 'Innings Break' : match.status}</span>
-                        </div>
-                        <h1 className="text-2xl md:text-3xl font-black leading-tight tracking-tight flex items-center flex-wrap gap-2">
-                            <span className={match.currentBatting === 'teamA' ? 'text-white' : 'text-slate-500'}>{match.teamAName}</span>
-                            <span className="text-slate-500 text-lg mx-2">vs</span>
-                            <span className={match.currentBatting === 'teamB' ? 'text-white' : 'text-slate-500'}>{match.teamBName}</span>
-
-                            {(match.status !== 'InningsBreak' && match.status !== 'finished') && (
-                                <span className="ml-3 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-md border border-emerald-500/30">
-                                    {match.currentBatting === 'teamB' ? match.teamBName : match.teamAName} BATTING
-                                </span>
-                            )}
-
-                            {/* Manual Swap Button - Visible only before ball 1 */}
-                            {(!currentInnings || (currentInnings.legalBalls || 0) === 0) && (
-                                <button
-                                    onClick={() => {
-                                        if (window.confirm(`Switch batting team to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) {
-                                            const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
-                                            matchService.update(matchId as string, {
-                                                currentBatting: newBatting,
-                                                currentStrikerId: "",
-                                                currentNonStrikerId: "",
-                                                currentBowlerId: ""
-                                            });
-                                            toast.success(`Switched batting team to ${newBatting === 'teamA' ? match.teamAName : match.teamBName}`);
-                                        }
-                                    }}
-                                    className="ml-2 p-1.5 bg-white/10 hover:bg-white/20 rounded-md transition-colors text-white/60 hover:text-white"
-                                    title="Swap Batting Team"
-                                >
-                                    <SwitchCamera size={14} />
-                                </button>
-                            )}
-                        </h1>
-                        <div className="flex flex-col gap-2 mt-3">
-                            <div className="flex items-baseline gap-3">
-                                <div className="text-4xl font-black text-white tabular-nums tracking-tighter">
-                                    {currentInnings?.totalRuns || 0}/{currentInnings?.totalWickets || 0}
-                                </div>
-                                <div className="text-slate-400 font-medium text-lg">
-                                    ({currentInnings?.overs || '0.0'} ov)
-                                </div>
-                                {isSuper && (
-                                    <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded uppercase tracking-wider">Super Over</span>
-                                )}
-                            </div>
-
-                            {/* Main match score during Super Over */}
-                            {isSuper && (
-                                <div className="text-[11px] font-bold text-slate-400 flex flex-col gap-1 border-t border-white/5 pt-2">
-                                    <span className="uppercase tracking-widest text-[9px] text-blue-400 opacity-60">Main Match Score</span>
-                                    {match.mainMatchScore ? (
-                                        <div className="flex items-center gap-4 text-slate-300">
-                                            <span>{match.teamAName}: {match.mainMatchScore.teamA?.runs || 0}/{match.mainMatchScore.teamA?.wickets || 0} ({match.mainMatchScore.teamA?.overs || '0.0'})</span>
-                                            <div className="w-1 h-1 rounded-full bg-slate-600" />
-                                            <span>{match.teamBName}: {match.mainMatchScore.teamB?.runs || 0}/{match.mainMatchScore.teamB?.wickets || 0} ({match.mainMatchScore.teamB?.overs || '0.0'})</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-4 text-slate-300">
-                                            <span>{match.teamAName}: {inningsA?.totalRuns || 0}/{inningsA?.totalWickets || 0} ({inningsA?.overs || '0.0'})</span>
-                                            <div className="w-1 h-1 rounded-full bg-slate-600" />
-                                            <span>{match.teamBName}: {inningsB?.totalRuns || 0}/{inningsB?.totalWickets || 0} ({inningsB?.overs || '0.0'})</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 bg-white/5 rounded-xl p-3 backdrop-blur-sm border border-white/10">
-                        <div className="text-right">
-                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">CRR</div>
-                            <div className="text-xl font-mono font-bold text-emerald-400">{currentInnings?.currentRunRate || '0.00'}</div>
-                        </div>
-                        <div className="w-px h-8 bg-white/10"></div>
-                        <div className="text-right">
-                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Target</div>
-                            <div className="text-xl font-mono font-bold text-amber-400">{currentInnings?.target || '-'}</div>
-                        </div>
+        <div style={{ maxWidth: '480px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#e8ecf1', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
+            {/* HEADER */}
+            <div style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', color: '#fff', padding: '10px 14px 12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, opacity: 0.8 }}>{(match as any).tournamentName || (match as any).matchType || 'Live Match'}</span>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {match.status === 'live' && <span style={{ fontSize: '9px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px', letterSpacing: '1px' }}>● LIVE</span>}
+                        {(!currentInnings || (currentInnings.legalBalls || 0) === 0) && (
+                            <button onClick={() => { if (window.confirm(`Switch to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; matchService.update(matchId as string, { currentBatting: nb, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('Switched!'); } }} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '6px', padding: '4px', cursor: 'pointer' }}><SwitchCamera size={13} /></button>
+                        )}
                     </div>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ width: '100%', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px', opacity: 0.9 }}>
+                        {match.teamAName} <span style={{ opacity: 0.6, fontSize: '10px' }}>vs</span> {match.teamBName}
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '1px 6px', borderRadius: '4px', marginRight: '2px' }}>{battingTeamName}</span>
+                    <span style={{ fontSize: '32px', fontWeight: 900, letterSpacing: '-1px', lineHeight: 1 }}>{currentInnings?.totalRuns || 0}/{currentInnings?.totalWickets || 0}</span>
+                    <span style={{ fontSize: '15px', fontWeight: 500, opacity: 0.85 }}>({currentInnings?.overs || '0.0'}/{match.oversLimit || 20})</span>
+                    {isSuper && <span style={{ fontSize: '9px', fontWeight: 800, background: '#f59e0b', padding: '2px 6px', borderRadius: '6px' }}>SUPER OVER</span>}
+                </div>
+                {isSuper && <div style={{ fontSize: '10px', opacity: 0.65, marginTop: '2px' }}>Main: {match.teamAName} {match.mainMatchScore?.teamA?.runs || inningsA?.totalRuns || 0}/{match.mainMatchScore?.teamA?.wickets || inningsA?.totalWickets || 0} • {match.teamBName} {match.mainMatchScore?.teamB?.runs || inningsB?.totalRuns || 0}/{match.mainMatchScore?.teamB?.wickets || inningsB?.totalWickets || 0}</div>}
             </div>
 
-            {/* --- MAIN GRID --- */}
-            <div className="space-y-6">
-
-                {/* --- TOP: SCORING PAD --- */}
-                <div className="w-full">
-                    {(match.matchPhase?.toLowerCase() === 'inningsbreak' || match.status?.toLowerCase() === 'inningsbreak' || match.matchPhase?.toLowerCase() === 'tied') ? (
-                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden text-center p-12">
-                            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                {match.matchPhase?.toLowerCase() === 'tied' ? <Activity size={48} className="text-amber-500" /> : <Megaphone size={48} />}
+            {isBreakOrTied ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
+                    <div style={{ width: '64px', height: '64px', background: '#dbeafe', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                        {match.matchPhase?.toLowerCase() === 'tied' ? <Activity size={32} className="text-amber-500" /> : <Megaphone size={32} className="text-blue-600" />}
+                    </div>
+                    <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', margin: '0 0 4px' }}>{match.matchPhase?.toLowerCase() === 'tied' ? 'Match Tied!' : 'Innings Break'}</h2>
+                    <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px' }}>{match.matchPhase?.toLowerCase() === 'tied' ? 'Both teams scored equally!' : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished.`}</p>
+                    <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '12px 20px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '24px', marginBottom: '6px' }}><span style={{ fontWeight: 600, color: '#475569' }}>{match.teamAName}</span><span style={{ fontWeight: 800 }}>{inningsA?.totalRuns || 0}-{inningsA?.totalWickets || 0} <span style={{ fontSize: '12px', color: '#94a3b8' }}>({inningsA?.overs || '0.0'})</span></span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '24px' }}><span style={{ fontWeight: 600, color: '#475569' }}>{match.teamBName}</span><span style={{ fontWeight: 800 }}>{inningsB?.totalRuns || 0}-{inningsB?.totalWickets || 0} <span style={{ fontSize: '12px', color: '#94a3b8' }}>({inningsB?.overs || '0.0'})</span></span></div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                        {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={handleStartSuperOver} disabled={processing} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ Super Over</button>}
+                        {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={async () => { if (!matchId) return; if (!window.confirm('Finish as TIE?')) return; setProcessing(true); try { await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: undefined, resultSummary: 'Match Tied' }); toast.success('Tied!'); } catch (e: any) { toast.error(e.message); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '10px 20px', background: '#475569', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>🏆 Finish (Tied)</button>}
+                        {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && <button onClick={() => { if (confirm('Start 2nd Innings?')) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; const t = Number((match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('2nd Innings Started!'); } }} style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>▶ Start 2nd Innings</button>}
+                        {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && <button onClick={() => { if (confirm('Start SO 2nd Inn?')) { const cb = String(match.currentBatting || ''); const nb = cb.includes('teamA') ? 'teamB_super' : 'teamA_super'; const t = Number(currentInnings?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('SO 2nd Inn!'); } }} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ SO 2nd Inn</button>}
+                        {match.matchPhase?.toLowerCase() !== 'tied' && <button onClick={() => setFinalizeModalOpen(true)} style={{ padding: '10px 20px', background: '#1e293b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>Finalize</button>}
+                        <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ padding: '10px 20px', background: '#fef2f2', color: '#dc2626', fontWeight: 800, borderRadius: '12px', border: '1px solid #fecaca', cursor: 'pointer', fontSize: '13px' }}><RotateCcw size={14} /> Undo</button>
+                    </div>
+                </div>
+            ) : match.status?.toLowerCase() === 'finished' ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
+                    <div style={{ width: '64px', height: '64px', background: '#dcfce7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}><Trophy size={32} className="text-green-600" /></div>
+                    <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', margin: '0 0 4px' }}>Match Finished</h2>
+                    <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px' }}>{resultSummary}</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                        {calculateMatchWinner(match.teamAName, match.teamBName, inningsA, inningsB, match).isTied && <button onClick={handleStartSuperOver} disabled={processing} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ Super Over</button>}
+                        <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ padding: '10px 20px', background: '#fef2f2', color: '#dc2626', fontWeight: 800, borderRadius: '12px', border: '1px solid #fecaca', cursor: 'pointer', fontSize: '13px' }}><RotateCcw size={14} /> Undo</button>
+                        <button onClick={() => navigate('/admin/matches')} style={{ padding: '10px 20px', background: '#1e293b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>Back</button>
+                    </div>
+                </div>
+            ) : (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* BATSMAN + BOWLER */}
+                    <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', padding: '4px 12px', background: '#0d9488', color: '#fff' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 700, flex: 2 }}>BATSMAN</span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, textAlign: 'right', flex: 1 }}>BOWLER</span>
+                        </div>
+                        <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <div style={{ flex: 2 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                    <span style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #0d9488', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', fontWeight: 900, color: '#0d9488', flexShrink: 0 }}>●</span>
+                                    <div style={{ fontWeight: 800, fontSize: '15px', color: selectedStriker ? '#1e293b' : '#94a3b8', flex: 1, padding: '2px 0' }}>
+                                        {selectedStriker ? getPlayerName(selectedStriker) : 'Striker...'}
+                                    </div>
+                                </div>
+                                {strikerStats && <div style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b', marginLeft: '22px' }}>{strikerStats.runs}<sub style={{ fontSize: '11px', fontWeight: 500, color: '#94a3b8' }}>({strikerStats.balls})</sub> <span style={{ fontSize: '10px', fontWeight: 500, color: '#94a3b8', background: '#f1f5f9', padding: '1px 4px', borderRadius: '4px', marginLeft: '4px' }}>SR {strikerStats.strikeRate?.toFixed(1) || '0.0'}</span></div>}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                                    <span style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#94a3b8', flexShrink: 0 }}>○</span>
+                                    <div style={{ fontWeight: 700, fontSize: '14px', color: selectedNonStriker ? '#64748b' : '#cbd5e1', flex: 1, padding: '2px 0' }}>
+                                        {selectedNonStriker ? getPlayerName(selectedNonStriker) : 'Non-Striker...'}
+                                    </div>
+                                </div>
+                                {nonStrikerStats && <div style={{ fontSize: '16px', fontWeight: 800, color: '#475569', marginLeft: '22px' }}>{nonStrikerStats.runs}<sub style={{ fontSize: '10px', color: '#94a3b8' }}>({nonStrikerStats.balls})</sub></div>}
+                                <button onClick={handleSwapStrike} disabled={processing} style={{ marginLeft: '22px', marginTop: '4px', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 800, color: '#0d9488', background: '#f0fdfa', border: '1px solid #ccfbf1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><ArrowRightLeft size={11} /> SWAP STRIKE</button>
                             </div>
-                            <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">
-                                {match.matchPhase?.toLowerCase() === 'tied' ? "Match Tied!" : "Innings Break"}
-                            </h2>
-                            <p className="text-xl font-bold text-slate-600 mb-8">
-                                {match.matchPhase?.toLowerCase() === 'tied' ? "Both teams scored equally! Choose an option below." : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished their innings.`}
+                            <div style={{ flex: 1, textAlign: 'right', borderLeft: '1px solid #f1f5f9', paddingLeft: '8px' }}>
+                                <div style={{ fontWeight: 800, fontSize: '14px', color: selectedBowler ? '#1e293b' : '#dc2626', textAlign: 'right', padding: '2px 0' }}>
+                                    {selectedBowler ? getPlayerName(selectedBowler) : '⚠ SELECT BOWLER'}
+                                </div>
+                                {bowlerStatsData && <div style={{ marginTop: '4px' }}><div style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b' }}>{bowlerStatsData.wickets}/{bowlerStatsData.runsConceded}</div><div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>({bowlerStatsData.overs})</div></div>}
+                            </div>
+                        </div>
+                    </div>
+                    {/* THIS OVER */}
+                    <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 900, color: '#fff', background: '#0d9488', padding: '2px 8px', borderRadius: '10px', whiteSpace: 'nowrap', letterSpacing: '0.5px' }}>THIS OVER</span>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            {thisOverBalls.map((b: any, i: number) => (
+                                <div key={i} style={{
+                                    minWidth: '24px',
+                                    width: 'auto',
+                                    height: '24px',
+                                    borderRadius: '12px',
+                                    padding: b.value.length > 1 ? '0 5px' : '0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: b.value.length > 2 ? '9px' : '10px',
+                                    fontWeight: 900,
+                                    background: b.type === 'wicket' ? '#dc2626' : b.type === 'boundary' ? '#16a34a' : '#f1f5f9',
+                                    color: (b.type === 'wicket' || b.type === 'boundary') ? '#fff' : '#334155',
+                                    border: b.type === 'normal' ? '1px solid #e2e8f0' : 'none',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    whiteSpace: 'nowrap'
+                                }}>{b.value}</div>
+                            ))}
+                            {thisOverBalls.length === 0 && <span style={{ fontSize: '12px', color: '#94a3b8' }}>Waiting for ball...</span>}
+                        </div>
+                    </div>
+
+                    {/* LAST BALL COMMENTARY */}
+                    {lastCommentary && (
+                        <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '8px 12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                <Megaphone size={12} className="text-teal-600" />
+                                <span style={{ fontSize: '10px', fontWeight: 900, color: '#64748b', uppercase: 'true', letterSpacing: '0.5px' } as any}>LAST BALL COMMENTARY</span>
+                            </div>
+                            <p style={{ fontSize: '12px', fontWeight: 600, color: '#334155', margin: 0, lineHeight: 1.4, fontStyle: 'italic' }}>
+                                "{lastCommentary}"
                             </p>
-
-                            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Current Score</h3>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center gap-8">
-                                        <span className="font-bold text-slate-700">{match.teamAName}</span>
-                                        <span className="font-black text-slate-900">{inningsA?.totalRuns || 0}-{inningsA?.totalWickets || 0} <span className="text-slate-400 text-sm">({inningsA?.overs || '0.0'} ov)</span></span>
-                                    </div>
-                                    <div className="flex justify-between items-center gap-8">
-                                        <span className="font-bold text-slate-700">{match.teamBName}</span>
-                                        <span className="font-black text-slate-900">{inningsB?.totalRuns || 0}-{inningsB?.totalWickets || 0} <span className="text-slate-400 text-sm">({inningsB?.overs || '0.0'} ov)</span></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-                                {match.matchPhase?.toLowerCase() === 'tied' && (
-                                    <button
-                                        onClick={handleStartSuperOver}
-                                        disabled={processing}
-                                        className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
-                                    >
-                                        <Activity size={20} /> START SUPER OVER
-                                    </button>
-                                )}
-                                {match.matchPhase?.toLowerCase() === 'tied' && (
-                                    <button
-                                        onClick={async () => {
-                                            if (!matchId) return;
-                                            if (!window.confirm("Are you sure? This will finish the match as a TIE. No Super Over will be played.")) return;
-                                            setProcessing(true);
-                                            try {
-                                                await matchService.update(matchId, {
-                                                    status: 'finished',
-                                                    matchPhase: 'finished',
-                                                    winnerId: null,
-                                                    resultSummary: 'Match Tied'
-                                                });
-                                                const mAdminId = match.adminId || match.createdBy || 'admin';
-                                                oneSignalService.sendToMatch(matchId, mAdminId, "Match Ended! 🤝", "Match Tied!");
-                                                toast.success("Match finished as a Tie!");
-                                            } catch (err: any) {
-                                                toast.error("Failed: " + err.message);
-                                            } finally {
-                                                setProcessing(false);
-                                            }
-                                        }}
-                                        disabled={processing}
-                                        className="px-8 py-4 bg-slate-700 text-white font-black rounded-2xl hover:bg-slate-800 transition-all shadow-lg flex items-center gap-2"
-                                    >
-                                        <Trophy size={20} /> FINISH MATCH (TIED)
-                                    </button>
-                                )}
-                                {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && ((!inningsA || (inningsA.legalBalls || 0) === 0) || (!inningsB || (inningsB.legalBalls || 0) === 0)) && (
-                                    <button
-                                        onClick={() => {
-                                            if (confirm("Start 2nd Innings?")) {
-                                                const newBatting = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
-                                                const currentScore = (match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0;
-                                                const target = Number(currentScore) + 1;
-                                                matchService.update(matchId!, {
-                                                    status: 'live',
-                                                    matchPhase: 'SecondInnings',
-                                                    currentBatting: newBatting,
-                                                    target: target,
-                                                    currentStrikerId: '',
-                                                    currentNonStrikerId: '',
-                                                    currentBowlerId: ''
-                                                });
-
-                                                const mAdminId = match.adminId || match.createdBy || 'admin';
-                                                oneSignalService.sendToMatch(
-                                                    matchId!,
-                                                    mAdminId,
-                                                    "Second Innings Started ⚡",
-                                                    `Target: ${target} runs in ${match.overs || 20} overs.`
-                                                );
-
-                                                toast.success("Second Innings Started!");
-                                            }
-                                        }}
-                                        className="px-8 py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-lg"
-                                    >
-                                        Start 2nd Innings
-                                    </button>
-                                )}
-                                {/* Super Over: Start 2nd Super Over Innings */}
-                                {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && (
-                                    <button
-                                        onClick={() => {
-                                            if (confirm("Start 2nd Super Over Innings?")) {
-                                                // Switch from teamA_super to teamB_super or vice versa
-                                                const cb = String(match.currentBatting || '');
-                                                const newBatting = cb.includes('teamA') ? 'teamB_super' : 'teamA_super';
-                                                const soScore = currentInnings?.totalRuns || 0;
-                                                const target = Number(soScore) + 1;
-                                                matchService.update(matchId!, {
-                                                    status: 'live',
-                                                    matchPhase: 'SecondInnings',
-                                                    currentBatting: newBatting,
-                                                    target: target,
-                                                    currentStrikerId: '',
-                                                    currentNonStrikerId: '',
-                                                    currentBowlerId: ''
-                                                });
-
-                                                const mAdminId = match.adminId || match.createdBy || 'admin';
-                                                oneSignalService.sendToMatch(
-                                                    matchId!,
-                                                    mAdminId,
-                                                    "Super Over 2nd Innings ⚡",
-                                                    `Target: ${target} runs in 1 over.`
-                                                );
-
-                                                toast.success("Super Over 2nd Innings Started!");
-                                            }
-                                        }}
-                                        className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
-                                    >
-                                        <Activity size={20} /> Start SO 2nd Inn
-                                    </button>
-                                )}
-                                {match.matchPhase?.toLowerCase() !== 'tied' && (
-                                    <button
-                                        onClick={() => setFinalizeModalOpen(true)}
-                                        className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
-                                    >
-                                        Finalize Match
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ) : (match.status?.toLowerCase() === 'finished') ? (
-                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden text-center p-12">
-                            <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <Trophy size={48} />
-                            </div>
-                            <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2">Match Finished</h2>
-                            <p className="text-xl font-bold text-slate-600 mb-8">{getMatchResultString(match.teamAName, match.teamBName, inningsA, inningsB, match)}</p>
-
-                            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 inline-block min-w-[300px]">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Summary</h3>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center gap-8">
-                                        <span className="font-bold text-slate-700">{match.teamAName}</span>
-                                        <span className="font-black text-slate-900">{inningsA?.totalRuns}-{inningsA?.totalWickets} <span className="text-slate-400 text-sm">({inningsA?.overs} ov)</span></span>
-                                    </div>
-                                    <div className="flex justify-between items-center gap-8">
-                                        <span className="font-bold text-slate-700">{match.teamBName}</span>
-                                        <span className="font-black text-slate-900">{inningsB?.totalRuns}-{inningsB?.totalWickets} <span className="text-slate-400 text-sm">({inningsB?.overs} ov)</span></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-                                {calculateMatchWinner(match.teamAName, match.teamBName, inningsA, inningsB, match).isTied && (
-                                    <button
-                                        onClick={handleStartSuperOver}
-                                        disabled={processing}
-                                        className="px-8 py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center gap-2"
-                                    >
-                                        <Activity size={20} /> START SUPER OVER
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => setUndoModalOpen(true)}
-                                    disabled={processing}
-                                    className="px-8 py-4 bg-red-50 text-red-600 font-black rounded-2xl hover:bg-red-100 transition-all flex items-center gap-3 border border-red-100"
-                                >
-                                    <RotateCcw size={20} /> Undo Last Ball (Restore Match)
-                                </button>
-                                <button
-                                    onClick={() => navigate('/admin/matches')}
-                                    className="px-8 py-4 bg-slate-800 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-lg"
-                                >
-                                    Back to Dashboard
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden relative">
-                            {processing && (
-                                <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-50 flex items-center justify-center">
-                                    <div className="bg-white p-4 rounded-xl shadow-2xl flex items-center gap-3">
-                                        <Loader2 className="animate-spin text-blue-600" />
-                                        <span className="font-bold text-slate-700">Updating...</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Extras Toolbar */}
-                            <div className="flex border-b divide-x divide-slate-100">
-                                {['wide', 'noBall', 'bye', 'legBye', 'penalty'].map((type) => (
-                                    <button
-                                        key={type}
-                                        onClick={() => toggleExtra(type as any)}
-                                        className={`flex-1 py-4 font-bold text-[10px] sm:text-xs uppercase tracking-wider transition-all
-                                        ${extras[type as keyof typeof extras]
-                                                ? 'bg-slate-800 text-white shadow-inner'
-                                                : 'bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800'
-                                            }`}
-                                    >
-                                        {type.replace(/([A-Z])/g, ' $1').trim()}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Runs Grid - Modern & Large */}
-                            <div className="p-4 bg-slate-50 relative">
-                                {match.freeHit && (
-                                    <div className="absolute top-2 right-4 z-10 flex items-center gap-1.5 bg-yellow-400 text-yellow-950 px-3 py-1 rounded-full text-xs font-black animate-bounce shadow-lg border border-yellow-500 uppercase tracking-tighter">
-                                        <Activity size={14} /> FREE HIT
-                                    </div>
-                                )}
-                                <div className="grid grid-cols-4 gap-3 mb-4">
-                                    {[0, 1, 2, 3].map((r) => (
-                                        <button
-                                            key={r}
-                                            onClick={() => handleScoreClick(r)}
-                                            className={`h-20 sm:h-24 rounded-2xl font-black text-3xl sm:text-4xl shadow-sm border border-b-4 transition-all active:scale-95 active:border-b-0 active:translate-y-1
-                                            ${runInput === r
-                                                    ? 'bg-blue-600 border-blue-800 text-white ring-2 ring-offset-2 ring-blue-400 theme-transition'
-                                                    : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'}`}
-                                        >
-                                            {r}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {[4, 6].map((r) => (
-                                        <button
-                                            key={r}
-                                            onClick={() => handleScoreClick(r)}
-                                            className={`h-20 sm:h-24 rounded-2xl font-black text-3xl sm:text-4xl shadow-sm border border-b-4 transition-all active:scale-95 active:border-b-0 active:translate-y-1
-                                            ${runInput === r
-                                                    ? 'bg-indigo-600 border-indigo-800 text-white ring-2 ring-offset-2 ring-indigo-400'
-                                                    : 'bg-white border-slate-200 text-indigo-900 hover:border-indigo-200'}`}
-                                        >
-                                            {r}
-                                        </button>
-                                    ))}
-                                    <button
-                                        onClick={() => {
-                                            if (isInningsComplete) return;
-                                            if (match.freeHit) setWicketType('runout');
-                                            setWicketModalOpen(true);
-                                        }}
-                                        disabled={isInningsComplete || processing}
-                                        className={`h-20 sm:h-24 rounded-2xl font-black text-2xl sm:text-3xl shadow-sm border border-b-4 text-white flex flex-col items-center justify-center gap-1 transition-all active:scale-95
-                                            ${(isInningsComplete || processing)
-                                                ? 'bg-slate-300 border-slate-400 cursor-not-allowed opacity-50'
-                                                : 'bg-red-500 border-red-700 hover:bg-red-600 active:border-b-0 active:translate-y-1'}`}
-                                    >
-                                        <span>OUT</span>
-                                        <ShieldAlert size={16} className="opacity-80" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Submit Actions */}
-                            <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Selection</span>
-                                    <div className="flex items-baseline gap-1 animate-in fade-in slide-in-from-bottom-2">
-                                        <span className="text-2xl font-black text-slate-800">{runInput ?? '-'}</span>
-                                        <span className="text-sm font-bold text-slate-500">Run(s)</span>
-                                        {Object.entries(extras).filter(([_, v]) => v).length > 0 && (
-                                            <span className="ml-2 px-2 py-0.5 rounded bg-slate-800 text-white text-xs font-bold">
-                                                {Object.entries(extras).filter(([_, v]) => v).map(([k]) => k).join(', ')}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => { if (validateSubmission()) submitBall(); }}
-                                    disabled={processing || !selectedBowler}
-                                    className="pl-6 pr-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-2 transition-all active:scale-95"
-                                >
-                                    <CheckCircle size={20} />
-                                    {processing ? 'Processing...' : 'Submit Ball'}
-                                </button>
-                            </div>
                         </div>
                     )}
-                </div>
+                    {/* STATS BAR */}
+                    <div style={{ background: '#0d9488', padding: '3px 12px', textAlign: 'center' }}><span style={{ fontSize: '11px', fontWeight: 700, color: '#fff' }}>{match.matchPhase === 'FirstInnings' ? '1st Innings' : '2nd Innings'}{isSuper ? ' (Super Over)' : ''}</span></div>
+                    <div style={{ background: '#fff', padding: '5px 12px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', fontSize: '12px' }}>
+                        <div><span style={{ fontWeight: 800, color: '#0d9488' }}>Extras</span> <span style={{ fontWeight: 700, marginLeft: '4px' }}>{totalExtras}</span></div>
+                        {match.target ? <div><span style={{ fontWeight: 800, color: '#0d9488' }}>Target</span> <span style={{ fontWeight: 700, marginLeft: '4px' }}>{match.target}</span></div> : null}
+                        <div><span style={{ fontWeight: 800, color: '#0d9488' }}>CRR</span> <span style={{ fontWeight: 700, marginLeft: '4px' }}>{currentInnings?.currentRunRate || '0.00'}</span></div>
+                        <div><span style={{ fontWeight: 800, color: '#0d9488' }}>RRR</span> <span style={{ fontWeight: 700, marginLeft: '4px' }}>{currentInnings?.requiredRunRate?.toFixed(2) || '—'}</span></div>
+                    </div>
+                    {match.freeHit && <div style={{ background: '#fbbf24', padding: '5px', textAlign: 'center', fontWeight: 900, fontSize: '12px', color: '#78350f', letterSpacing: '1px', textTransform: 'uppercase' }}>⚡ FREE HIT ⚡</div>}
+                    {processing && <div style={{ position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.6)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ background: '#fff', padding: '16px 24px', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '10px' }}><Loader2 className="animate-spin text-teal-600" size={20} /><span style={{ fontWeight: 700, color: '#334155' }}>Updating...</span></div></div>}
 
-                {/* --- BOTTOM: PLAYERS & BOWLER --- */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Batsmen Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Activity size={16} className="text-blue-600" /> On Crease
-                            </h3>
-                            <button
-                                onClick={() => {
-                                    const temp = selectedStriker;
-                                    handlePlayerAssign('currentStrikerId', selectedNonStriker);
-                                    handlePlayerAssign('currentNonStrikerId', temp);
-                                }}
-                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 active:scale-95 transition-transform"
-                            >
-                                <ArrowRightLeft size={14} /> Swap
+                    {/* KEYPAD */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '6px', gap: '5px', background: '#e8ecf1' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '5px' }}>
+                            {[7, 5, 6, 4, 1].map(r => <button key={r} onClick={() => handleScoreClick(r)} disabled={processing || isInningsComplete} style={{ ...kbtn(runInput === r ? '#065f46' : r === 6 ? '#1e40af' : r === 4 ? '#16a34a' : '#94a3b8', '#fff'), fontSize: r === 6 || r === 4 ? '18px' : '16px', padding: '0', minHeight: '52px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: runInput === r ? 'inset 0 0 0 3px #10b981' : 'none' }}>{r}</button>)}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '5px' }}>
+                            <button onClick={() => { if (isInningsComplete) return; if (match.freeHit) setWicketType('runout'); setWicketModalOpen(true); }} disabled={processing || isInningsComplete} style={{ ...kbtn('#dc2626', '#fff'), fontSize: '18px', padding: '0', minHeight: '52px', opacity: (processing || isInningsComplete) ? 0.5 : 1 }}>W</button>
+                            {[3, 2, 0].map(r => <button key={r} onClick={() => handleScoreClick(r)} disabled={processing || isInningsComplete} style={{ ...kbtn(runInput === r ? '#065f46' : '#94a3b8', '#fff'), padding: '0', minHeight: '52px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: runInput === r ? 'inset 0 0 0 3px #10b981' : 'none' }}>{r}</button>)}
+                            <button onClick={() => setFinalizeModalOpen(true)} style={{ ...kbtn('#0f766e', '#fff'), fontSize: '14px', padding: '0', minHeight: '52px' }}>•••</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '5px' }}>
+                            <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ ...kbtn('#475569', '#fff'), fontSize: '10px', padding: '0', minHeight: '52px', letterSpacing: '0.5px' }}>UNDO</button>
+                            <button onClick={() => toggleExtra('legBye')} style={{ ...kbtn(extras.legBye ? '#0f766e' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>LB</button>
+                            <button onClick={() => toggleExtra('bye')} style={{ ...kbtn(extras.bye ? '#0f766e' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>BYE</button>
+                            <button onClick={() => toggleExtra('noBall')} style={{ ...kbtn(extras.noBall ? '#dc2626' : '#ef4444', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>NB</button>
+                            <button onClick={() => toggleExtra('wide')} style={{ ...kbtn(extras.wide ? '#0f766e' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>WD</button>
+                        </div>
+                        {/* SUBMIT BAR */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: '10px', padding: '8px 12px', marginTop: '2px', border: '1px solid #e2e8f0' }}>
+                            <div>
+                                <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selection</div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                    <span style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b' }}>{runInput ?? '-'}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Run(s)</span>
+                                    {Object.values(extras).some(v => v) && <span style={{ marginLeft: '6px', padding: '2px 8px', borderRadius: '6px', background: '#1e293b', color: '#fff', fontSize: '10px', fontWeight: 700 }}>{Object.entries(extras).filter(([_, v]) => v).map(([k]) => k).join(', ')}</span>}
+                                </div>
+                            </div>
+                            <button onClick={() => { if (validateSubmission()) submitBall(); }} disabled={processing || !selectedBowler || runInput === null} style={{ padding: '10px 24px', background: processing || !selectedBowler || runInput === null ? '#cbd5e1' : '#0d9488', color: '#fff', fontWeight: 800, fontSize: '14px', borderRadius: '10px', border: 'none', cursor: processing || !selectedBowler || runInput === null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: processing || !selectedBowler || runInput === null ? 'none' : '0 4px 12px rgba(13,148,136,0.3)' }}>
+                                <CheckCircle size={18} />{processing ? 'Wait...' : 'Submit'}
                             </button>
                         </div>
-
-                        <div className="p-4 space-y-4 flex-1">
-                            {/* Striker */}
-                            <div className="relative">
-                                <div className="flex justify-between items-end mb-1">
-                                    <label className="text-[10px] font-bold text-emerald-600 uppercase block pl-1">Striker (On Strike)</label>
-                                    {(() => {
-                                        const s = currentInnings?.batsmanStats?.find(b => b.batsmanId === selectedStriker);
-                                        return s ? (
-                                            <span className="text-[10px] font-mono text-slate-500">
-                                                {s.runs}({s.balls}) <span className="text-slate-300">|</span> 4s:{s.fours} 6s:{s.sixes}
-                                            </span>
-                                        ) : null;
-                                    })()}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-xs">S</div>
-                                    <select
-                                        className="flex-1 form-select bg-slate-50 border-slate-200 rounded-lg text-sm font-semibold focus:ring-blue-500 focus:border-blue-500"
-                                        value={selectedStriker}
-                                        onChange={(e) => handlePlayerAssign('currentStrikerId', e.target.value)}
-                                    >
-                                        <option value="">Select Striker...</option>
-                                        {battingPlayingXI.map(p => {
-                                            const isOut = dismissedIds.includes(p.id);
-                                            const isNS = p.id === selectedNonStriker;
-                                            return (
-                                                <option key={p.id} value={p.id} disabled={isOut || isNS}>
-                                                    {p.name} {isOut ? '(Out)' : ''} {isNS ? '(Non-Striker)' : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Non-Striker */}
-                            <div className="relative">
-                                <div className="flex justify-between items-end mb-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase block pl-1">Non-Striker</label>
-                                    {(() => {
-                                        const s = currentInnings?.batsmanStats?.find(b => b.batsmanId === selectedNonStriker);
-                                        return s ? (
-                                            <span className="text-[10px] font-mono text-slate-500">
-                                                {s.runs}({s.balls}) <span className="text-slate-300">|</span> 4s:{s.fours} 6s:{s.sixes}
-                                            </span>
-                                        ) : null;
-                                    })()}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-black text-xs">NS</div>
-                                    <select
-                                        className="flex-1 form-select bg-slate-50 border-slate-200 rounded-lg text-sm font-semibold text-slate-600 focus:ring-blue-500 focus:border-blue-500"
-                                        value={selectedNonStriker}
-                                        onChange={(e) => handlePlayerAssign('currentNonStrikerId', e.target.value)}
-                                    >
-                                        <option key="empty" value="">Select Non-Striker...</option>
-                                        {battingPlayingXI.map(p => {
-                                            const isOut = dismissedIds.includes(p.id);
-                                            const isStriker = p.id === selectedStriker;
-                                            return (
-                                                <option key={p.id} value={p.id} disabled={isOut || isStriker}>
-                                                    {p.name} {isOut ? '(Out)' : ''} {isStriker ? '(Striker)' : ''}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Bowler Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
-                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <Target size={16} className="text-red-600" /> Current Bowler
-                            </h3>
-                        </div>
-                        <div className="p-4 flex-1">
-                            <div className="mb-2 flex justify-end">
-                                {(() => {
-                                    const b = currentInnings?.bowlerStats?.find(b => b.bowlerId === selectedBowler);
-                                    return b ? (
-                                        <div className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                                            <span className="font-bold text-slate-900">{b.wickets}-{b.runsConceded}</span>
-                                            <span className="mx-1 text-slate-400">|</span>
-                                            {b.overs} ov
-                                            <span className="mx-1 text-slate-400">|</span>
-                                            Eco: {b.economy}
-                                        </div>
-                                    ) : null;
-                                })()}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-black text-xs">B</div>
-                                <select
-                                    className={`flex-1 form-select rounded-lg text-sm font-semibold focus:ring-red-500 focus:border-red-500 ${!selectedBowler ? 'border-red-300 bg-red-50 text-red-900 animate-pulse' : 'bg-slate-50 border-slate-200'}`}
-                                    value={selectedBowler}
-                                    onChange={(e) => handlePlayerAssign('currentBowlerId', e.target.value)}
-                                >
-                                    <option value="">{selectedBowler ? 'Change Bowler...' : '⚠ Select Bowler Required'}</option>
-                                    {bowlingPlayingXI.map(p => {
-                                        const isLastBowler = p.id === match.lastOverBowlerId;
-                                        return (
-                                            <option key={p.id} value={p.id} disabled={isLastBowler}>
-                                                {p.name} {isLastBowler ? '(Last Over)' : ''}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                        {/* Sync + Commentary */}
+                        <div style={{ marginTop: '4px', display: 'flex', gap: '6px' }}>
+                            <button onClick={async () => { setProcessing(true); try { await Promise.all([recalculateInnings(matchId!, 'teamA'), recalculateInnings(matchId!, 'teamB'), recalculateInnings(matchId!, 'teamA_super'), recalculateInnings(matchId!, 'teamB_super')]); toast.success('Synced!'); } catch (e) { console.error(e); toast.error('Sync failed'); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '8px 12px', background: '#dbeafe', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: 700, fontSize: '11px', color: '#2563eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><RotateCcw size={12} /> Sync</button>
+                            <div style={{ flex: 1, display: 'flex', gap: '4px' }}>
+                                <input value={manualCommentary} onChange={(e) => setManualCommentary(e.target.value)} placeholder="Announcement..." style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none' }} />
+                                <button onClick={handleManualCommentarySubmit} disabled={processing || !manualCommentary.trim()} style={{ padding: '8px 12px', background: '#0d9488', borderRadius: '8px', border: 'none', color: '#fff', cursor: 'pointer' }}><Send size={14} /></button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            {/* --- MATCH CONTROLS --- */}
-            <div className="mt-8 border-t border-slate-200 pt-8">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Game Management</h4>
-                <div className="flex flex-wrap gap-4">
-                    {/* These buttons shifted to the main status card for better workflow. 
-                        Keeping only utilities here to avoid confusion. */}
-
-                    <button
-                        onClick={async () => {
-                            if (!matchId) return;
-                            setProcessing(true);
-                            try {
-                                await Promise.all([
-                                    recalculateInnings(matchId, 'teamA'),
-                                    recalculateInnings(matchId, 'teamB'),
-                                    recalculateInnings(matchId, 'teamA_super'),
-                                    recalculateInnings(matchId, 'teamB_super')
-                                ]);
-                                toast.success("Historical data synced!");
-                            } catch (e) {
-                                console.error(e);
-                                toast.error("Failed to sync history");
-                            } finally {
-                                setProcessing(false);
-                            }
-                        }}
-                        disabled={processing}
-                        className="px-6 py-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 font-bold rounded-xl text-sm transition-colors flex items-center gap-2"
-                    >
-                        <RotateCcw size={16} /> Sync History
-                    </button>
-                    <button
-                        onClick={() => setUndoModalOpen(true)}
-                        disabled={processing}
-                        className="px-6 py-3 bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 font-bold rounded-xl text-sm transition-colors flex items-center gap-2"
-                    >
-                        <RotateCcw size={16} /> Undo Ball
-                    </button>
-                    <button
-                        onClick={() => setFinalizeModalOpen(true)}
-                        className="px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-sm transition-colors ml-auto shadow-lg"
-                    >
-                        Finalize Match
-                    </button>
-                </div>
-
-                {/* --- MANUAL COMMENTARY --- */}
-                <div className="mt-8 border-t border-slate-200 pt-8">
-                    <h4 className="text-xs font-bold text-slate-400 border-b border-slate-100 pb-2 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Megaphone size={14} /> Live Announcement
-                    </h4>
-                    <div className="flex gap-2">
-                        <textarea
-                            value={manualCommentary}
-                            onChange={(e) => setManualCommentary(e.target.value)}
-                            placeholder="Add a custom highlight or announcement... (e.g. Magnificent shot from Mehedi Hasan!)"
-                            className="flex-1 rounded-xl border-slate-200 text-sm font-medium focus:ring-blue-500 focus:border-blue-500 resize-none h-12 py-2.5 px-3"
-                        />
-                        <button
-                            onClick={handleManualCommentarySubmit}
-                            disabled={processing || !manualCommentary.trim()}
-                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white w-12 rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95"
-                        >
-                            <Send size={18} />
-                        </button>
-                    </div>
-                </div>
-            </div>
+            )}
 
             {/* WICKET MODAL */}
-            {
-                wicketModalOpen && (
-                    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="bg-red-600 p-4 text-center">
-                                <h2 className="text-white font-black text-xl uppercase tracking-widest flex items-center justify-center gap-2">
-                                    <ShieldAlert /> Wicket Fall
-                                </h2>
+            {wicketModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+                        <div style={{ background: '#dc2626', padding: '14px', textAlign: 'center' }}><h2 style={{ color: '#fff', fontWeight: 900, fontSize: '18px', margin: 0, letterSpacing: '1px' }}>🏏 WICKET</h2></div>
+                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Who is Out?</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <button onClick={() => setWhoIsOut('striker')} style={{ padding: '12px', border: whoIsOut === 'striker' ? '2px solid #dc2626' : '1px solid #e2e8f0', borderRadius: '10px', fontWeight: 700, fontSize: '13px', background: whoIsOut === 'striker' ? '#fef2f2' : '#fff', color: whoIsOut === 'striker' ? '#dc2626' : '#475569', cursor: 'pointer' }}>{getPlayerName(selectedStriker) || 'Striker'}</button>
+                                    <button onClick={() => setWhoIsOut('nonStriker')} style={{ padding: '12px', border: whoIsOut === 'nonStriker' ? '2px solid #dc2626' : '1px solid #e2e8f0', borderRadius: '10px', fontWeight: 700, fontSize: '13px', background: whoIsOut === 'nonStriker' ? '#fef2f2' : '#fff', color: whoIsOut === 'nonStriker' ? '#dc2626' : '#475569', cursor: 'pointer' }}>{getPlayerName(selectedNonStriker) || 'Non-Striker'}</button>
+                                </div>
                             </div>
-                            <div className="p-6 space-y-5">
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Method</label>
+                                <select value={wicketType} onChange={(e) => setWicketType(e.target.value)} disabled={match.freeHit} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: 600, fontSize: '14px' }}>
+                                    {match.freeHit ? <option value="runout">Run Out (Free Hit)</option> : <>{['caught', 'bowled', 'lbw', 'runout', 'stumped', 'hitWicket'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' $1')}</option>)}</>}
+                                </select>
+                            </div>
+                            {['caught', 'runout', 'stumped'].includes(wicketType) && (
                                 <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Who is Out?</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => setWhoIsOut('striker')}
-                                            className={`p-4 border rounded-xl font-bold text-sm transition-all ${whoIsOut === 'striker' ? 'bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200' : 'bg-white hover:bg-slate-50 text-slate-600'}`}
-                                        >
-                                            {getPlayerName(selectedStriker) || 'Striker'}
-                                        </button>
-                                        <button
-                                            onClick={() => setWhoIsOut('nonStriker')}
-                                            className={`p-4 border rounded-xl font-bold text-sm transition-all ${whoIsOut === 'nonStriker' ? 'bg-red-50 border-red-500 text-red-700 ring-2 ring-red-200' : 'bg-white hover:bg-slate-50 text-slate-600'}`}
-                                        >
-                                            {getPlayerName(selectedNonStriker) || 'Non-Striker'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Method</label>
-                                    <select
-                                        className="w-full form-select rounded-xl border-slate-200 font-semibold disabled:bg-slate-50"
-                                        value={wicketType}
-                                        onChange={(e) => setWicketType(e.target.value)}
-                                        disabled={match.freeHit}
-                                    >
-                                        {match.freeHit ? (
-                                            <option value="runout">Run Out (Free Hit)</option>
-                                        ) : (
-                                            <>
-                                                <option value="caught">Caught</option>
-                                                <option value="bowled">Bowled</option>
-                                                <option value="lbw">LBW</option>
-                                                <option value="runout">Run Out</option>
-                                                <option value="stumped">Stumped</option>
-                                                <option value="hitWicket">Hit Wicket</option>
-                                            </>
-                                        )}
+                                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Fielder</label>
+                                    <select value={fielderId} onChange={(e) => setFielderId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: 600 }}>
+                                        <option value="">Select Fielder...</option>
+                                        {bowlingPlayingXI.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                     </select>
                                 </div>
-
-                                {['caught', 'runout', 'stumped'].includes(wicketType) && (
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Fielder</label>
-                                        <select
-                                            className="w-full form-select rounded-xl border-slate-200 font-semibold"
-                                            value={fielderId}
-                                            onChange={(e) => setFielderId(e.target.value)}
-                                        >
-                                            <option value="">Select Fielder...</option>
-                                            {bowlingPlayingXI.map(p => (
-                                                <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Incoming Batter</label>
-                                    <select
-                                        className="w-full form-select rounded-xl border-blue-200 bg-blue-50 text-blue-900 font-bold"
-                                        value={nextBatterId}
-                                        onChange={(e) => setNextBatterId(e.target.value)}
-                                    >
-                                        <option value="">Select Batter...</option>
-                                        {availableBatters.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="flex gap-3 pt-2">
-                                    <button
-                                        onClick={() => setWicketModalOpen(false)}
-                                        className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleWicketConfirm}
-                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/30"
-                                    >
-                                        Confirm Wicket
-                                    </button>
-                                </div>
+                            )}
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                <button onClick={() => setWicketModalOpen(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#475569' }}>Cancel</button>
+                                <button onClick={handleWicketConfirm} style={{ flex: 1, padding: '12px', background: '#dc2626', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#fff' }}>Confirm OUT</button>
                             </div>
                         </div>
                     </div>
-                )
-            }
-
+                </div>
+            )}
             {/* NEXT BATTER MODAL */}
-            {
-                nextBatterModalOpen && (
-                    <div className="fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border-t-4 border-blue-600">
-                            <div className="p-6 space-y-5">
-                                <div className="text-center">
-                                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <UserPlus size={32} />
-                                    </div>
-                                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">New Batter</h2>
-                                    <p className="text-slate-500 text-sm font-medium">Select the next player to come to the crease</p>
-                                </div>
-
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block text-center">Incoming Batter</label>
-                                    <select
-                                        className="w-full form-select h-14 rounded-xl border-blue-200 bg-blue-50 text-blue-900 font-bold text-lg text-center"
-                                        value={nextBatterId}
-                                        onChange={(e) => setNextBatterId(e.target.value)}
-                                    >
-                                        <option value="">Choose Batter...</option>
-                                        {availableBatters.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <button
-                                    onClick={handleNextBatterConfirm}
-                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-95"
-                                >
-                                    Send to Crease
-                                </button>
+            {nextBatterModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', borderTop: '4px solid #0d9488' }}>
+                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ width: '48px', height: '48px', background: '#f0fdfa', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UserPlus size={24} className="text-teal-600" /></div>
+                            <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Next Batter</h2>
+                            <p style={{ fontSize: '12px', color: '#64748b', margin: '-8px 0 4px', fontWeight: 600 }}>{batterTargetEnd ? `Assigning ${batterTargetEnd.charAt(0).toUpperCase() + batterTargetEnd.slice(1)}` : 'Select next player'}</p>
+                            <select value={nextBatterId} onChange={(e) => setNextBatterId(e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #99f6e4', background: '#f0fdfa', fontWeight: 700, fontSize: '15px', textAlign: 'center' }}>
+                                <option value="">Choose Batter...</option>
+                                {availableBatters.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                <button onClick={() => { setNextBatterModalOpen(false); setBatterTargetEnd(null); }} style={{ flex: 1, padding: '14px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', color: '#475569', cursor: 'pointer' }}>Cancel</button>
+                                <button onClick={handleNextBatterConfirm} style={{ flex: 1, padding: '14px', background: '#0d9488', borderRadius: '10px', fontWeight: 700, border: 'none', color: '#fff', cursor: 'pointer' }}>Assign</button>
                             </div>
                         </div>
                     </div>
-                )
-            }
-
+                </div>
+            )}
+            {/* NEXT BOWLER MODAL */}
+            {nextBowlerModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', borderTop: '4px solid #0d9488' }}>
+                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ width: '48px', height: '48px', background: '#f0fdfa', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Activity size={24} className="text-teal-600" /></div>
+                            <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Next Bowler</h2>
+                            <select value={nextBowlerId} onChange={(e) => setNextBowlerId(e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #99f6e4', background: '#f0fdfa', fontWeight: 700, fontSize: '15px', textAlign: 'center' }}>
+                                <option value="">Choose Bowler...</option>
+                                {bowlingPlayingXI.map(p => { const isLast = p.id === match.lastOverBowlerId; return <option key={p.id} value={p.id} disabled={isLast}>{p.name}{isLast ? ' (Last Over)' : ''}</option>; })}
+                            </select>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                <button onClick={() => setNextBowlerModalOpen(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', color: '#475569', cursor: 'pointer' }}>Cancel</button>
+                                <button onClick={handleNextBowlerConfirm} disabled={processing} style={{ flex: 1, padding: '14px', background: '#0d9488', borderRadius: '10px', fontWeight: 700, border: 'none', color: '#fff', cursor: 'pointer' }}>{processing ? '...' : 'Assign'}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* FINALIZE MODAL */}
-            {
-                finalizeModalOpen && (
-                    <div className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-6">
-                                <h2 className="text-2xl font-black text-slate-800 mb-4">Finalize Match?</h2>
-                                <p className="text-slate-600 mb-6">This will end the match permanently and calculate statistics.</p>
-
-                                <label className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-1 w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                                        checked={sendMailChecked}
-                                        onChange={(e) => setSendMailChecked(e.target.checked)}
-                                    />
-                                    <div>
-                                        <span className="font-bold text-slate-800 block">Confirm & Send Mail</span>
-                                        <span className="text-xs text-slate-500 block">Send personalized match reports to all players in Playing XI.</span>
-                                    </div>
-                                </label>
-
-                                <div className="mt-6 space-y-4">
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block">Player of the Match</label>
-                                        <select
-                                            className="w-full form-select rounded-lg border-slate-200 text-sm font-semibold focus:ring-blue-500 focus:border-blue-500"
-                                            value={potmId}
-                                            onChange={(e) => setPotmId(e.target.value)}
-                                        >
-                                            <option value="">Select PotM...</option>
-                                            <optgroup label="Suggested (Winner)">
-                                                {suggestedPotm && <option value={suggestedPotm.id}>{suggestedPotm.name} (Auto-Calculated)</option>}
-                                            </optgroup>
-                                            <optgroup label={match.teamAName}>
-                                                {teamAPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </optgroup>
-                                            <optgroup label={match.teamBName}>
-                                                {teamBPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </optgroup>
-                                        </select>
-                                        <p className="mt-2 text-[10px] text-slate-400 italic">
-                                            {suggestedPotm ? `Calculated suggestion: ${suggestedPotm.name}` : "Pick the best performer from the winning team."}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 mt-6">
-                                    <button
-                                        onClick={() => setFinalizeModalOpen(false)}
-                                        className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-700"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleFinalizeConfirm}
-                                        disabled={processing}
-                                        className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 flex justify-center items-center gap-2"
-                                    >
-                                        {processing ? <Loader2 className="animate-spin" /> : 'Finalize Match'}
-                                    </button>
-                                </div>
+            {finalizeModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden' }}>
+                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Finalize Match?</h2>
+                            <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>This will end the match and calculate statistics.</p>
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px', background: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={sendMailChecked} onChange={(e) => setSendMailChecked(e.target.checked)} style={{ marginTop: '2px', width: '18px', height: '18px' }} />
+                                <div><span style={{ fontWeight: 700, color: '#1e293b', display: 'block' }}>Send Score Emails</span><span style={{ fontSize: '11px', color: '#64748b' }}>Send match reports to Playing XI</span></div>
+                            </label>
+                            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', border: '1px solid #e2e8f0' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Player of the Match</label>
+                                <select value={potmId} onChange={(e) => setPotmId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontWeight: 600 }}>
+                                    <option value="">Select PotM...</option>
+                                    {suggestedPotm && <option value={suggestedPotm.id}>{suggestedPotm.name} (Auto)</option>}
+                                    <optgroup label={match.teamAName}>{teamAPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+                                    <optgroup label={match.teamBName}>{teamBPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                <button onClick={() => setFinalizeModalOpen(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#475569' }}>Cancel</button>
+                                <button onClick={handleFinalizeConfirm} disabled={processing} style={{ flex: 1, padding: '12px', background: '#1e293b', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#fff' }}>{processing ? 'Processing...' : 'Finalize'}</button>
                             </div>
                         </div>
                     </div>
-                )
-            }
-
-            {/* UNDO CONFIRMATION MODAL */}
-            {
-                undoModalOpen && (
-                    <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-6 text-center">
-                                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <RotateCcw size={32} />
-                                </div>
-                                <h2 className="text-xl font-black text-slate-800 mb-2">Undo Last Ball?</h2>
-                                <p className="text-slate-500 text-sm mb-6">
-                                    This will revert the score, player stats, and commentary for the last ball. This action cannot be undone.
-                                </p>
-
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setUndoModalOpen(false)}
-                                        className="flex-1 py-3 bg-slate-100 font-bold rounded-xl text-slate-700 hover:bg-slate-200 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setUndoModalOpen(false);
-                                            executeUndo();
-                                        }}
-                                        className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-500/20 transition-colors"
-                                    >
-                                        Yes, Undo It
-                                    </button>
-                                </div>
+                </div>
+            )}
+            {/* UNDO MODAL */}
+            {undoModalOpen && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '360px', overflow: 'hidden' }}>
+                        <div style={{ padding: '24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '48px', height: '48px', background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><RotateCcw size={24} className="text-red-600" /></div>
+                            <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Undo Last Ball?</h2>
+                            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>This will revert score, stats, and commentary.</p>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '8px' }}>
+                                <button onClick={() => setUndoModalOpen(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#475569' }}>Cancel</button>
+                                <button onClick={() => { setUndoModalOpen(false); executeUndo(); }} style={{ flex: 1, padding: '12px', background: '#dc2626', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#fff' }}>Yes, Undo</button>
                             </div>
                         </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 };
 

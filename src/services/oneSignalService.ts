@@ -220,7 +220,10 @@ class OneSignalService {
         adminId: string,
         title: string,
         message: string,
-        url?: string
+        url?: string,
+        icon?: string,
+        buttons?: any[],
+        collapseId?: string
     ): Promise<boolean> {
         if (!ONESIGNAL_APP_ID) {
             console.error('[OneSignal] Missing APP ID in environment');
@@ -244,7 +247,10 @@ class OneSignalService {
                     tag: tag,
                     title: title,
                     message: message,
-                    url: targetUrl
+                    url: targetUrl,
+                    icon: icon,
+                    buttons: buttons,
+                    collapseId: collapseId || `match_${matchId}` // Default to matchId to replace previous score
                 })
             });
 

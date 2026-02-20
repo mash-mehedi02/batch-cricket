@@ -3,7 +3,7 @@
  * Handles ball additions with instant updates and over completion detection
  */
 
-import { collection, doc, getDocs, getDoc, Timestamp, runTransaction } from 'firebase/firestore'
+import { collection, doc, getDoc, Timestamp, runTransaction } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import { recalculateInnings } from './recalculateInnings'
 import { InningId } from '@/types'
@@ -56,18 +56,25 @@ export interface BallUpdateResult {
 export async function addBall(
   matchId: string,
   inningId: InningId,
-  ballData: Omit<BallData, 'matchId' | 'inningId' | 'innings' | 'sequence' | 'timestamp'>
+  ballData: Omit<BallData, 'matchId' | 'inningId' | 'innings' | 'sequence' | 'timestamp'>,
+  options?: { sequence?: number; previousBalls?: any[] }
 ): Promise<BallUpdateResult> {
   try {
     console.log('[BallUpdateService] Adding ball for match:', matchId, 'inning:', inningId);
 
-    // FIXED: Save balls under innings subcollection to match recalculateInnings expectations
-    // Path: matches/{matchId}/innings/{inningId}/balls/
     const ballsRef = collection(db, MATCHES_COLLECTION, matchId, 'innings', inningId, BALLS_SUBCOLLECTION)
 
-    // Get sequence number - count existing balls
-    const existingBallsSnapshot = await getDocs(ballsRef)
-    const sequence = existingBallsSnapshot.size + 1
+    // Calculate sequence: use passed sequence or max of previous + 1
+    let sequence = options?.sequence;
+    if (!sequence) {
+      if (options?.previousBalls && options.previousBalls.length > 0) {
+        sequence = Math.max(0, ...options.previousBalls.map((b: any) => b.sequence || 0)) + 1;
+      } else {
+        const { getCountFromServer } = await import('firebase/firestore');
+        const snapshot = await getCountFromServer(ballsRef);
+        sequence = snapshot.data().count + 1;
+      }
+    }
 
     console.log('[BallUpdateService] Sequence number:', sequence);
 
@@ -78,47 +85,42 @@ export async function addBall(
       inningId,
       sequence,
       timestamp: Timestamp.now(),
-      // Ensure innings field for queries
       innings: inningId,
     }
 
-    // Save ball in transaction
+    // Save ball in transaction for atomicity
     const ballDocRef = doc(ballsRef)
-
-    console.log('[BallUpdateService] Saving ball to Firestore...');
     await runTransaction(db, async (transaction) => {
       transaction.set(ballDocRef, completeBallData)
     })
 
-    console.log('[BallUpdateService] Ball saved successfully. ID:', ballDocRef.id);
+    // Speed optimization: Use previous balls + current ball to recalculate instantly
+    // avoiding the need to wait for Firestore indexing of the new ball.
+    const allBalls = options?.previousBalls ? [...options.previousBalls, completeBallData] : undefined;
 
-    // Immediately recalculate innings (this gives us updated stats)
-    console.log('[BallUpdateService] Recalculating innings...');
-    const inningsData = await recalculateInnings(matchId, inningId, { useTransaction: false })
+    const inningsData = await recalculateInnings(matchId, inningId, {
+      useTransaction: false,
+      balls: allBalls
+    })
 
     // Check if over is complete (6 legal balls)
     const overComplete = completeBallData.isLegal && (inningsData.legalBalls % 6 === 0) && inningsData.legalBalls > 0
 
-    // NEW: Sync to player profiles if match finished or innings completed
-    // This handles the "instant update" for career stats after a match
-    const { syncMatchToPlayerProfiles } = await import('../syncPlayerStats')
+      // SYNC: Fire and forget (don't await) to keep scoring instant
+      ; (async () => {
+        try {
+          const matchSnap = await getDoc(doc(db, MATCHES_COLLECTION, matchId))
+          const matchData = matchSnap.data()
+          const matchStatus = matchData?.status?.toLowerCase()
 
-    // We check if the match status is now 'finished' or if we should sync anyway
-    const matchSnap = await getDoc(doc(db, MATCHES_COLLECTION, matchId))
-    const matchData = matchSnap.data()
-    const matchStatus = matchData?.status?.toLowerCase()
-
-    if (matchStatus === 'finished' || matchStatus === 'completed') {
-      console.log('[BallUpdateService] Match finished, triggering player stats sync...');
-      await syncMatchToPlayerProfiles(matchId).catch(err => console.error('Sync error:', err))
-    }
-
-    // Status transitions and innings end detection are now handled automatically
-    // inside recalculateInnings() called above.
-
-    console.log('[BallUpdateService] Success! Over complete:', overComplete);
-
-    console.log('[BallUpdateService] Success! Over complete:', overComplete);
+          if (matchStatus === 'finished' || matchStatus === 'completed') {
+            const { syncMatchToPlayerProfiles } = await import('../syncPlayerStats')
+            await syncMatchToPlayerProfiles(matchId)
+          }
+        } catch (err) {
+          console.warn('[BallUpdateService] Background sync failed:', err)
+        }
+      })();
 
     return {
       success: true,
@@ -129,11 +131,6 @@ export async function addBall(
     }
   } catch (error: any) {
     console.error('[BallUpdateService] Error adding ball:', error)
-    console.error('[BallUpdateService] Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     return {
       success: false,
       error: error.message || 'Failed to add ball',

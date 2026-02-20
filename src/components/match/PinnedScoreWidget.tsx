@@ -1,84 +1,138 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { matchService } from '@/services/firestore/matches';
 import { Match, InningsStats } from '@/types';
 import { Link } from 'react-router-dom';
-import { X, Maximize2, Move } from 'lucide-react';
+import { X, Maximize2, ExternalLink } from 'lucide-react';
 
 export const PinnedScoreWidget: React.FC = () => {
     const [match, setMatch] = useState<Match | null>(null);
     const [innings, setInnings] = useState<InningsStats | null>(null);
     const [loading, setLoading] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
     const [showCloseZone, setShowCloseZone] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // Load pinned match id
+    // Load pinned match id and subscribe to updates
     useEffect(() => {
+        let unsubMatch: (() => void) | null = null;
+        let unsubInnings: (() => void) | null = null;
+
         const handleStorageChange = () => {
             const pinnedId = localStorage.getItem('pinnedMatchId');
             if (!pinnedId) {
                 setMatch(null);
+                setInnings(null);
+                if (unsubMatch) unsubMatch();
+                if (unsubInnings) unsubInnings();
                 return;
             }
+
             setLoading(true);
-            const unsubscribe = matchService.subscribeToMatch(pinnedId, (data) => {
+            unsubMatch = matchService.subscribeToMatch(pinnedId, (data) => {
                 setMatch(data);
                 if (data?.currentBatting) {
-                    const side = data.currentBatting === 'teamB' ? 'teamB' : 'teamA';
-                    matchService.getInnings(pinnedId, side).then(setInnings);
+                    const side = data.currentBatting.includes('teamB') ? 'teamB' : 'teamA';
+
+                    // Cleanup previous innings subscription if side changed
+                    if (unsubInnings) unsubInnings();
+
+                    unsubInnings = matchService.subscribeToInnings(pinnedId, side as any, (innData) => {
+                        setInnings(innData);
+                        setLoading(false);
+                    });
+                } else {
+                    setLoading(false);
                 }
-                setLoading(false);
             });
-            return () => unsubscribe();
         };
 
         handleStorageChange();
         window.addEventListener('storage', handleStorageChange);
-        // Custom event for same-window updates
         window.addEventListener('matchPinned', handleStorageChange);
+
         return () => {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('matchPinned', handleStorageChange);
+            if (unsubMatch) unsubMatch();
+            if (unsubInnings) unsubInnings();
         };
     }, []);
 
-    // Picture-in-Picture logic (for Outside App viewing)
-    const enterPiP = async () => {
-        if (!canvasRef.current || !videoRef.current) return;
+    // Draw high-fidelity PiP frame
+    useEffect(() => {
+        if (!match || !innings || !canvasRef.current) return;
 
-        // Draw score to canvas
         const ctx = canvasRef.current.getContext('2d');
         if (!ctx) return;
 
-        const draw = () => {
-            if (!ctx || !match || !innings) return;
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, 300, 200);
+        const drawFrame = () => {
+            if (!match || !innings) return;
+            const w = 400;
+            const h = 250;
+
+            // 1. Background (Rounded corners feel)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+
+            // 2. Dark Header (ANDR vs BEN style)
+            ctx.fillStyle = '#334155'; // slate-700
+            ctx.fillRect(0, 0, w, 60);
 
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 24px Arial';
-            ctx.fillText(`${match.teamAName} vs ${match.teamBName}`, 20, 40);
+            ctx.font = 'bold 22px Inter, Arial';
+            const teamText = `${match.teamAName} vs ${match.teamBName}`;
+            ctx.fillText(teamText.toUpperCase(), 20, 38);
 
-            ctx.fillStyle = '#3b82f6';
-            ctx.font = 'bold 48px Arial';
-            ctx.fillText(`${innings.totalRuns}-${innings.totalWickets}`, 20, 100);
+            // Match Type Badge
+            ctx.fillStyle = '#4ade80'; // emerald-400
+            ctx.fillRect(w - 70, 15, 50, 25);
+            ctx.fillStyle = '#064e3b';
+            ctx.font = 'black 14px Inter, Arial';
+            ctx.fillText('LIVE', w - 62, 33);
 
+            // 3. Body Content
+            // Team Logo Placeholder (Circle)
+            ctx.beginPath();
+            ctx.arc(50, 130, 30, 0, Math.PI * 2);
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fill();
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 24px Inter, Arial';
+            ctx.fillText((match as any).currentBatting === 'teamB' ? match.teamBName[0] : match.teamAName[0], 40, 140);
+
+            // Score
+            ctx.fillStyle = '#2563eb'; // blue-600
+            ctx.font = 'black 54px Inter, Arial';
+            const scoreText = `${innings.totalRuns}-${innings.totalWickets}`;
+            ctx.fillText(scoreText, 100, 145);
+
+            // Overs
+            ctx.fillStyle = '#64748b'; // slate-500
+            ctx.font = 'bold 24px Inter, Arial';
+            ctx.fillText(`${innings.overs} ov`, 110 + ctx.measureText(scoreText).width, 143);
+
+            // Footer - CRR & Info
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 20px Inter, Arial';
+            const crr = innings.crr || (innings.totalRuns / (parseFloat(innings.overs.split('.')[0] || '1') + (parseFloat(innings.overs.split('.')[1] || '0') / 6))).toFixed(2);
+            ctx.fillText(`CRR: ${crr}`, 100, 185);
+
+            // Toss/Status Info (Bottom line)
             ctx.fillStyle = '#94a3b8';
-            ctx.font = 'bold 20px Arial';
-            ctx.fillText(`Overs: ${innings.overs} | CRR: ${innings.crr}`, 20, 140);
-
-            if (match.result) {
-                ctx.fillStyle = '#10b981';
-                ctx.font = 'italic 18px Arial';
-                ctx.fillText(match.result, 20, 175);
-            }
+            ctx.font = 'italic 18px Inter, Arial';
+            const status = (match as any).resultSummary || (match as any).tossWinner ? `${(match as any).tossWinner} opted to ${(match as any).electedTo}` : 'Match in progress';
+            ctx.fillText(status, 25, 225);
         };
 
-        draw();
-        const stream = (canvasRef.current as any).captureStream(10);
+        drawFrame();
+    }, [match, innings]);
+
+    const enterPiP = async () => {
+        if (!videoRef.current || !canvasRef.current) return;
+
+        const stream = (canvasRef.current as any).captureStream(1); // 1 FPS is enough for scores
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
 
@@ -94,6 +148,7 @@ export const PinnedScoreWidget: React.FC = () => {
     const closeWidget = () => {
         localStorage.removeItem('pinnedMatchId');
         setMatch(null);
+        setInnings(null);
         window.dispatchEvent(new Event('matchPinned'));
     };
 
@@ -102,29 +157,26 @@ export const PinnedScoreWidget: React.FC = () => {
     return (
         <>
             <AnimatePresence>
-                {/* Close Zone at bottom */}
                 {showCloseZone && (
                     <motion.div
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-red-500/20 to-transparent flex items-center justify-center z-[9998] pointer-events-none"
+                        className="fixed bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-red-500/30 to-transparent flex items-center justify-center z-[9998] pointer-events-none"
                     >
-                        <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg border-2 border-white/20 animate-pulse">
-                            <X className="text-white" size={32} />
+                        <div className="w-20 h-20 rounded-full bg-red-600 flex items-center justify-center shadow-2xl border-4 border-white/20">
+                            <X className="text-white" size={40} />
                         </div>
                     </motion.div>
                 )}
 
-                {/* The Draggable Bubble */}
                 <motion.div
                     drag
                     dragMomentum={false}
                     onDragStart={() => setShowCloseZone(true)}
                     onDragEnd={(event, info) => {
                         setShowCloseZone(false);
-                        // If dropped near bottom-center, close it
-                        if (info.point.y > window.innerHeight - 100) {
+                        if (info.point.y > window.innerHeight - 120) {
                             closeWidget();
                         }
                     }}
@@ -134,51 +186,64 @@ export const PinnedScoreWidget: React.FC = () => {
                     exit={{ scale: 0, opacity: 0 }}
                 >
                     <div className="relative group">
-                        {/* Minimal Bubble UI */}
-                        <div className="w-20 h-20 bg-white dark:bg-slate-900 rounded-full shadow-2xl border-4 border-blue-500 overflow-hidden flex flex-col items-center justify-center text-center p-1">
-                            <span className="text-[10px] font-black leading-none text-slate-400 uppercase truncate w-full px-1">{match.teamAName}</span>
-                            <div className="flex flex-col items-center my-0.5">
-                                <span className="text-sm font-black text-blue-600 leading-none">{innings?.totalRuns || 0}-{innings?.totalWickets || 0}</span>
-                                <span className="text-[8px] font-bold text-slate-500">Overs: {innings?.overs || '0.0'}</span>
+                        {/* Premium Floating Widget UI */}
+                        <div className="w-28 h-28 bg-white dark:bg-[#0f172a] rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-[3px] border-blue-500 overflow-hidden flex flex-col p-1.5 transition-transform hover:scale-105">
+                            {/* Header */}
+                            <div className="bg-slate-100 dark:bg-slate-800 rounded-t-2xl py-1 px-2 text-center border-b border-slate-200 dark:border-white/5">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter truncate block">
+                                    {match.teamAName} vs {match.teamBName}
+                                </span>
                             </div>
-                            <span className="text-[10px] font-black leading-none text-slate-400 uppercase truncate w-full px-1">{match.teamBName}</span>
+
+                            {/* Main Body */}
+                            <div className="flex-1 flex flex-col items-center justify-center">
+                                <div className="text-lg font-black text-blue-600 leading-none mb-0.5">
+                                    {innings?.totalRuns || 0}-{innings?.totalWickets || 0}
+                                </div>
+                                <div className="text-[9px] font-bold text-slate-500 tabular-nums">
+                                    {innings?.overs || '0.0'} ov
+                                </div>
+                                {innings?.crr && (
+                                    <div className="text-[8px] font-medium text-slate-400 mt-0.5">
+                                        CRR: {innings.crr}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Floating "Live" Dot */}
+                            {match.status?.toLowerCase() === 'live' && (
+                                <div className="absolute top-8 right-2 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                            )}
                         </div>
 
-                        {/* Hover Actions */}
-                        <div className="absolute -top-2 -right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Hover Overlay Actions */}
+                        <div className="absolute -top-4 -right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100">
                             <button
                                 onClick={closeWidget}
-                                className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg transform hover:scale-110"
+                                className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-xl hover:bg-red-600 transition-colors"
                             >
-                                <X size={12} strokeWidth={3} />
+                                <X size={16} strokeWidth={3} />
                             </button>
                             <button
                                 onClick={enterPiP}
-                                className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg transform hover:scale-110"
+                                className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xl hover:bg-blue-700 transition-colors"
                                 title="Floating Window (Outside App)"
                             >
-                                <Maximize2 size={12} strokeWidth={3} />
+                                <Maximize2 size={16} strokeWidth={3} />
                             </button>
                             <Link
                                 to={`/match/${match.id}`}
-                                className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg transform hover:scale-110"
+                                className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xl hover:bg-emerald-600 transition-colors"
                             >
-                                <Move size={12} strokeWidth={3} />
+                                <ExternalLink size={16} strokeWidth={3} />
                             </Link>
                         </div>
-
-                        {/* Live Indicator */}
-                        {match.status?.toLowerCase() === 'live' && (
-                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-red-500 text-white px-1.5 rounded-full ring-2 ring-white">
-                                <span className="text-[7px] font-black uppercase tracking-tighter">LIVE</span>
-                            </div>
-                        )}
                     </div>
                 </motion.div>
             </AnimatePresence>
 
             {/* Hidden elements for PiP hack */}
-            <canvas ref={canvasRef} width="300" height="200" className="hidden" />
+            <canvas ref={canvasRef} width="400" height="250" className="hidden" />
             <video ref={videoRef} className="hidden" muted playsInline />
         </>
     );

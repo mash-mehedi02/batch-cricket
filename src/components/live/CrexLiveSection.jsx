@@ -14,12 +14,12 @@ import cricketBatIcon from '../../assets/cricket-bat.png'
 
 const getBallColorClass = (result) => {
   const r = String(result || '').toUpperCase();
-  if (r.includes('W')) return 'bg-rose-600 text-white shadow-rose-500/20';
-  if (r.includes('6')) return 'bg-emerald-600 text-white shadow-emerald-500/20 shadow-sm';
-  if (r.includes('4')) return 'bg-blue-600 text-white shadow-blue-500/20 shadow-sm';
-  if (r.includes('WD') || r.includes('NB')) return 'bg-amber-500 text-white shadow-amber-500/20 shadow-sm';
-  if (r === '0' || r === 'DOT' || r === '·') return 'bg-slate-400 dark:bg-slate-600 text-white';
-  return 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10';
+  if (r === 'W') return 'bg-[#b31a1a] text-white shadow-sm'; // Wicket: Rich Red
+  if (r.includes('6')) return 'bg-[#1a803e] text-white shadow-sm'; // Six: Vibrant Green
+  if (r.includes('4')) return 'bg-[#146abb] text-white shadow-sm'; // Four: Broadcast Blue
+
+  // Extras (wd, nb, lb, b) and regular runs (0, 1, 2, 3) get white background
+  return 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 shadow-sm';
 };
 
 const getBallResultLabel = (item) => {
@@ -32,8 +32,8 @@ const getBallResultLabel = (item) => {
   const isNb = upperText.includes('NO BALL') || upperText.includes('NO-BALL');
 
   if (isW) return 'W';
-  if (isWd) return 'wd';
-  if (isNb) return 'nb';
+  if (isWd) return r > 1 ? `wd+${r - 1}` : 'wd';
+  if (isNb) return r > 1 ? `nb+${r - 1}` : 'nb';
   return String(r);
 };
 
@@ -231,12 +231,12 @@ const CrexLiveSection = ({
 
   return (
     <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen pb-8">
-      <div className="max-w-4xl mx-auto px-0 sm:px-4 py-3 space-y-0.5">
+      <div className="max-w-4xl mx-auto px-0 sm:px-4 py-1 space-y-0.5">
 
         {/* 1. Timeline Strip - Reduced spacing */}
         {!onlyCommentary && recentOvers && (
-          <div className="px-4 py-1.5 overflow-hidden">
-            <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto scrollbar-hide py-1" ref={scrollRef}>
+          <div className="px-4 py-0.5 overflow-hidden">
+            <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto scrollbar-hide py-0.5" ref={scrollRef}>
               {[...recentOvers].map((over, idx) => {
                 const overTotal = over.totalRuns ?? over.total ?? 0
                 const isCurrentOver = idx === recentOvers.length - 1 && !over.isLocked;
@@ -253,9 +253,8 @@ const CrexLiveSection = ({
                           let val = String(b?.value || b?.label || b?.runsOffBat || b?.runs || '').trim() || '0'
                           if (val === '·') val = '0'
                           const isBoundary = val === '4' || val === '6';
-                          const isWicket = b?.type === 'wicket' || val === 'W' || val.toUpperCase().includes('OUT');
+                          const isWicket = b?.type === 'wicket' || val === 'W' || val.toUpperCase().includes('OUT') || String(val).includes('W');
 
-                          const baseDot = `w-7 h-7 rounded-full flex items-center justify-center font-semibold shrink-0 border transition-all text-[10px]`
                           let dotStyle = "bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800 shadow-sm"
 
                           if (isBoundary) dotStyle = val === '4'
@@ -265,8 +264,16 @@ const CrexLiveSection = ({
                           if (isWicket) dotStyle = "bg-rose-600 text-white border-rose-500 shadow-sm";
 
                           return (
-                            <div key={bIdx} className={`${baseDot} ${dotStyle}`}>
-                              {val.toUpperCase().includes('WIDE') ? 'wd' : val.toUpperCase().includes('NO BALL') ? 'nb' : val}
+                            <div key={bIdx}
+                              className={`${dotStyle} h-7 rounded-full flex items-center justify-center font-black shrink-0 border transition-all whitespace-nowrap`}
+                              style={{
+                                minWidth: '1.75rem',
+                                width: 'auto',
+                                padding: val.length > 1 ? '0 5px' : '0',
+                                fontSize: val.length > 2 ? '8px' : '10px'
+                              }}
+                            >
+                              {val}
                             </div>
                           )
                         })}
@@ -297,7 +304,7 @@ const CrexLiveSection = ({
 
         {/* 2. Win Probability - Reference Mockup Accurate */}
         {!isFinishedMatch && !onlyCommentary && (
-          <div className="bg-white dark:bg-[#0f172a] px-5 py-2.5 border-b border-slate-100 dark:border-white/5 space-y-1.5">
+          <div className="bg-white dark:bg-[#0f172a] px-5 py-1.5 border-b border-slate-100 dark:border-white/5 space-y-1.5">
             {/* Top Row: Names & Centered Label */}
             <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 tracking-wide">
               <span className="shrink-0">{formatShortTeamName(teamAName)}</span>
@@ -595,7 +602,7 @@ const CrexLiveSection = ({
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#060b16]">
+          <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#060b16] no-scrollbar">
             <div className="max-w-4xl mx-auto py-2">
               {activeCommentaryFilter === 'overs' ? (
                 <div className="space-y-0 bg-white dark:bg-[#0f172a]">
@@ -604,29 +611,41 @@ const CrexLiveSection = ({
                       return (
                         <div key={`break-${idx}`} className="py-6 flex items-center gap-4 px-8 bg-slate-50 dark:bg-[#060b16]">
                           <div className="h-px flex-1 bg-slate-900/10 dark:bg-white/10" />
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">End of Over {item.overNo}</span>
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">End of Over {item.overNum}</span>
                           <div className="h-px flex-1 bg-slate-900/10 dark:bg-white/10" />
                         </div>
                       );
                     }
 
                     return (
-                      <div key={`over-${idx}`} className="px-5 py-4 flex items-center justify-between border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
-                        <div className="flex items-center gap-6 flex-1 min-w-0">
-                          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 w-10">Ov {item.overNum}</span>
-                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                            {item.balls.map((b, bi) => {
-                              const resLabel = getBallResultLabel(b);
-                              return (
-                                <div key={bi} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 shadow-sm ${getBallColorClass(resLabel)}`}>
-                                  {resLabel}
-                                </div>
-                              );
-                            })}
+                      <div key={`over-${idx}`} className="border-b border-slate-100 dark:border-white/5 overflow-hidden">
+                        <div className="px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors bg-white dark:bg-[#0f172a] cursor-pointer group">
+                          <div className="flex items-center gap-6 flex-1 min-w-0">
+                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 w-10">Ov {item.overNum}</span>
+                            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                              {item.balls.map((b, bi) => {
+                                const resLabel = getBallResultLabel(b);
+                                return (
+                                  <div key={bi}
+                                    className={`h-7 rounded-full flex items-center justify-center font-black shrink-0 shadow-sm whitespace-nowrap ${getBallColorClass(resLabel)}`}
+                                    style={{
+                                      minWidth: '1.75rem',
+                                      width: 'auto',
+                                      padding: resLabel.length > 1 ? '0 6px' : '0',
+                                      fontSize: resLabel.length > 2 ? '8px' : '10px'
+                                    }}
+                                  >
+                                    {resLabel}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-200 tabular-nums">= {item.totalRuns}</span>
+                            <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors" />
                           </div>
                         </div>
-                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 tabular-nums">= {item.totalRuns}</span>
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
                       </div>
                     );
                   })}
@@ -656,6 +675,7 @@ const CrexLiveSection = ({
                     currentBatchInningId = item.inningId;
                     Object.keys(playerTracker).forEach(k => delete playerTracker[k]);
                     Object.keys(bowlerTracker).forEach(k => delete bowlerTracker[k]);
+                    playerTracker._overBalls = [];
                   }
 
                   // Initialize trackers
@@ -689,35 +709,63 @@ const CrexLiveSection = ({
                     if (!isWide && !isNoBall) bowlerTracker[item.bowler].balls += 1;
                   }
 
+                  // Keep track of who is currently at the crease (last seen pair)
+                  if (item.batsman) {
+                    playerTracker._currentStriker = item.batsman;
+                  }
+                  // item.nonStriker is not always available in commentary docs, 
+                  // but we can try to guess or use the last one seen that isn't the current striker
+                  if (item.nonStriker && item.nonStriker !== item.batsman) {
+                    playerTracker._currentNonStriker = item.nonStriker;
+                  } else if (item.batsman && playerTracker._currentStriker && playerTracker._lastStriker && playerTracker._lastStriker !== item.batsman) {
+                    playerTracker._currentNonStriker = playerTracker._lastStriker;
+                  }
+                  playerTracker._lastStriker = item.batsman;
+
                   const overStr = String(item.over || '0.0');
                   const [ov, b] = overStr.split('.');
                   const overNum = parseInt(ov);
                   const ballNum = parseInt(b);
 
+                  // Collect ball for timeline
+                  if (!playerTracker._overBalls) playerTracker._overBalls = [];
+                  playerTracker._overBalls.push(item);
+
                   // 1. Push Ball/Wicket/Entry FIRST
-                  if (item.text?.toLowerCase().includes('is in at')) {
+                  if (item.manual) {
+                    groupedCommentary.push({ type: 'announcement', ...item });
+                  } else if (item.text?.toLowerCase().includes('is in at')) {
                     groupedCommentary.push({ type: 'entry', text: item.text, player: item.batsman });
                   } else {
                     groupedCommentary.push({ type: 'ball', ...item });
                   }
 
-                  if (item.isWicket) {
+                  if (item.isWicket && !item.manual) {
                     const stats = playerTracker[item.batsman] || { runs: 0, balls: 0 };
                     groupedCommentary.push({
                       type: 'wicket-card',
                       ...item,
+                      wickets: runningTotalWickets,
                       batterRuns: stats.runs,
-                      batterBalls: stats.balls
+                      batterBalls: stats.balls,
+                      matchScore: `${runningTotalRuns}/${runningTotalWickets}`,
+                      overStr: item.over
                     });
                   }
 
                   // 2. Detect Over boundaries AFTER pushing the ball
-                  // Trigger summary on the actual completion ball (.6 or .0)
-                  const isLastOfOver = ballNum === 6 || (ballNum === 0 && overNum > 0);
+                  // Trigger summary only on a LEGAL ball that completes an over
+                  const isLastOfOver = !item.manual && !isWide && !isNoBall && (ballNum === 0 && overNum > 0);
 
                   if (isLastOfOver) {
                     const bStats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
                     const bowlerOvers = `${Math.floor(bStats.balls / 6)}.${bStats.balls % 6}`;
+
+                    // Capture current batters
+                    const sName = playerTracker._currentStriker;
+                    const nsName = playerTracker._currentNonStriker;
+                    const sStats = sName ? playerTracker[sName] : null;
+                    const nsStats = nsName ? playerTracker[nsName] : null;
 
                     groupedCommentary.push({
                       type: 'over-summary',
@@ -729,14 +777,19 @@ const CrexLiveSection = ({
                       inningId: item.inningId,
                       bowler: item.bowler,
                       bowlerFigure: `${bStats.wickets}-${bStats.runs} (${bowlerOvers})`,
-                      striker: item.batsman,
+                      striker: sName,
+                      strikerStats: sStats ? `${sStats.runs}(${sStats.balls})` : null,
+                      nonStriker: nsName,
+                      nonStrikerStats: nsStats ? `${nsStats.runs}(${nsStats.balls})` : null,
                       overRuns: overRuns,
                       inningLabel: formatShortTeamName(item.inningId === 'teamA' ? teamAName : teamBName),
+                      overBalls: [...playerTracker._overBalls]
                     });
 
                     // Reset accumulators
                     overRuns = 0;
                     overWickets = 0;
+                    playerTracker._overBalls = [];
                   }
                 });
 
@@ -749,33 +802,45 @@ const CrexLiveSection = ({
                   );
                 }
 
+                const allGrouped = groupedCommentary.reverse();
+                const limitedGrouped = (onlyCommentary || activeCommentaryFilter !== 'all') ? allGrouped : allGrouped.slice(0, 10);
+                const hasMore = allGrouped.length > 10 && !onlyCommentary && activeCommentaryFilter === 'all';
+
                 return (
                   <div className="divide-y divide-slate-100 dark:divide-white/5 bg-slate-50 dark:bg-[#060b16]">
-                    {groupedCommentary.reverse().map((node, idx) => {
+                    {limitedGrouped.map((node, idx) => {
                       if (node.type === 'over-summary') {
                         return (
-                          <div key={`ov-${idx}`} className="mx-4 my-4 bg-white dark:bg-white/[0.04] rounded-2xl border border-slate-200 dark:border-white/10 p-4 space-y-4 shadow-sm">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-tighter">END OF OVER {node.overNum}</span>
-                                <div className="h-4 w-px bg-slate-200 dark:bg-white/10" />
-                                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                  Score: <span className="text-slate-900 dark:text-white">{node.totalScore}</span>
-                                </div>
+                          <div key={`ov-${idx}`} className="mx-4 my-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                            <div className="px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/50 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                              <div className="flex items-center gap-4">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">OV {node.overNum}</span>
+                                <span className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{node.overRuns} Runs</span>
+                              </div>
+                              <div className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest">
+                                {node.inningLabel} {node.totalScore}
                               </div>
                             </div>
-                            <div className="bg-slate-50 dark:bg-white/[0.03] rounded-xl p-3 flex items-center justify-between border border-slate-100 dark:border-white/5">
-                              <div className="space-y-0.5">
-                                <div className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Innings</div>
-                                <div className="text-[10px] font-black text-slate-900 dark:text-slate-300 uppercase">
-                                  {node.inningLabel || '—'}
-                                </div>
+
+                            <div className="p-4 grid grid-cols-[1fr_auto] gap-10">
+                              <div className="space-y-3">
+                                {node.striker && (
+                                  <div className="flex items-center justify-between min-w-[140px]">
+                                    <span className="text-[13px] font-bold text-blue-600 dark:text-blue-400 pr-4">{node.striker}</span>
+                                    <span className="text-[13px] font-black text-slate-900 dark:text-white tabular-nums">{node.strikerStats || '0(0)'}</span>
+                                  </div>
+                                )}
+                                {node.nonStriker && (
+                                  <div className="flex items-center justify-between min-w-[140px]">
+                                    <span className="text-[13px] font-bold text-blue-600 dark:text-blue-400 pr-4">{node.nonStriker}</span>
+                                    <span className="text-[13px] font-black text-slate-900 dark:text-white tabular-nums">{node.nonStrikerStats || '0(0)'}</span>
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-right space-y-0.5">
-                                <div className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Runs</div>
-                                <div className="text-base font-black text-blue-600 dark:text-blue-400">
-                                  {node.overRuns}
-                                </div>
+
+                              <div className="border-l border-slate-100 dark:border-slate-800 pl-8 flex flex-col justify-center text-right">
+                                <span className="text-[13px] font-bold text-blue-600 dark:text-blue-400">{node.bowler}</span>
+                                <span className="text-[13px] font-black text-slate-900 dark:text-white tabular-nums">{node.bowlerFigure}</span>
                               </div>
                             </div>
                           </div>
@@ -784,15 +849,59 @@ const CrexLiveSection = ({
 
                       if (node.type === 'entry') {
                         return (
-                          <div key={`entry-${idx}`} className="mx-4 my-3 bg-white dark:bg-[#1C252E] border border-slate-100 dark:border-transparent rounded-2xl p-4 flex items-center gap-4 text-slate-900 dark:text-white shadow-lg overflow-hidden relative">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl -mr-16 -mt-16"></div>
-                            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-white/10 flex items-center justify-center p-1 shrink-0">
-                              <span className="text-lg font-black text-slate-300 dark:text-white/20">{node.player?.[0] || 'P'}</span>
+                          <div key={`entry-${idx}`} className="mx-4 my-2">
+                            <div className="bg-[#1e1e1e] rounded-2xl p-5 text-white shadow-xl relative overflow-hidden">
+                              <div className="flex justify-between items-start mb-6">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">New Batter In</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CAREER SUMMARY</span>
+                              </div>
+                              <div className="flex items-center gap-6">
+                                <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                  <span className="text-2xl font-black text-slate-600">{node.player?.[0]}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xl font-black truncate">{node.player}</div>
+                                  <div className="text-[11px] font-bold text-slate-400 mt-0.5">Rank #— (Batter)</div>
+                                </div>
+                                <div className="flex gap-4 text-right">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase">Mts</span>
+                                    <span className="text-sm font-black text-white">—</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase">Inns</span>
+                                    <span className="text-sm font-black text-white">—</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase">Avg</span>
+                                    <span className="text-sm font-black text-white">—</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase">SR</span>
+                                    <span className="text-sm font-black text-white">—</span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="min-w-0 z-10">
-                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">New Batter In</div>
-                              <div className="text-lg font-black truncate text-slate-900 dark:text-white">{node.player || 'Player'}</div>
-                              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1">{node.text}</div>
+                            <div className="px-5 py-3 text-[13px] font-bold text-slate-900 dark:text-white leading-relaxed">
+                              {node.player} is in at the crease.
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (node.type === 'announcement') {
+                        return (
+                          <div key={`ann-${idx}`} className="px-5 py-4 flex gap-6 bg-slate-100/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/[0.08] transition-colors">
+                            <div className="flex flex-col items-center shrink-0 pt-1 w-10">
+                              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                                <span className="text-sm">📢</span>
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0 flex items-center">
+                              <div className="text-[14px] font-black text-blue-600 dark:text-blue-400 leading-relaxed italic">
+                                {node.text}
+                              </div>
                             </div>
                           </div>
                         );
@@ -800,17 +909,38 @@ const CrexLiveSection = ({
 
                       if (node.type === 'wicket-card') {
                         return (
-                          <div key={`wkt-${idx}`} className="mx-4 my-3 bg-rose-600 rounded-2xl p-4 flex items-center gap-4 text-white shadow-lg shadow-rose-200/50">
-                            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                              <span className="text-xl font-black italic">OUT</span>
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-lg font-black truncate">{node.batsman}</div>
-                              <div className="text-[11px] font-bold text-rose-100 flex items-center gap-2">
-                                <span>{node.batterRuns} Runs</span>
-                                <span className="w-1 h-1 rounded-full bg-rose-300"></span>
-                                <span>{node.batterBalls} Balls</span>
+                          <div key={`wkt-${idx}`} className="mx-4 my-3">
+                            <div className="bg-[#8b1c1c] rounded-2xl p-5 text-white shadow-xl relative overflow-hidden flex items-center gap-5">
+                              <div className="w-16 h-16 rounded-full bg-white/10 flex flex-col items-center justify-center border-2 border-white/20 shrink-0">
+                                <span className="text-[10px] font-black uppercase tracking-tighter mb-0.5 text-white/60">OUT</span>
+                                <span className="text-2xl font-black italic">!</span>
                               </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="text-xl font-black truncate">{node.batsman}</div>
+                                  <div className="bg-black/20 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-white/90">Wkt #{node.wickets || '—'}</div>
+                                </div>
+
+                                <div className="text-[11px] font-bold text-white/60 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                  <span>{node.matchScore}</span>
+                                  <span className="w-1 h-1 rounded-full bg-white/20"></span>
+                                  <span>Over {node.overStr}</span>
+                                </div>
+
+                                <div className="flex gap-6">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-white/40 uppercase tracking-tighter">Runs(Balls)</span>
+                                    <span className="text-base font-black text-white tabular-nums">{node.batterRuns}({node.batterBalls})</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-white/40 uppercase tracking-tighter">SR</span>
+                                    <span className="text-base font-black text-white tabular-nums">{node.batterBalls > 0 ? (node.batterRuns / node.batterBalls * 100).toFixed(1) : '0.0'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="px-5 py-4 text-[13px] font-medium text-slate-700 dark:text-slate-300 leading-relaxed italic border-b border-slate-100 dark:border-white/5">
+                              {node.text}
                             </div>
                           </div>
                         );
@@ -839,22 +969,48 @@ const CrexLiveSection = ({
                       return (
                         <div
                           key={`ball-${idx}`}
-                          className="px-4 py-5 flex gap-4 bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.01] transition-colors"
+                          className="px-5 py-6 flex gap-6 bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.01] transition-colors"
                         >
-                          <div className="flex flex-col items-center gap-2 shrink-0 pt-1">
-                            <span className="text-[11px] font-bold text-slate-500 tabular-nums w-8 text-center">{item.overNum}</span>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 shadow-sm ${getBallColorClass(resLabel)}`}>
+                          <div className="flex flex-col items-center shrink-0 pt-1 w-10">
+                            <span className="text-[11px] font-black text-slate-400 tabular-nums text-center mb-1.5">{item.over}</span>
+                            <div className={`h-8 rounded-full flex items-center justify-center font-black shrink-0 shadow-sm whitespace-nowrap ${getBallColorClass(resLabel)}`}
+                              style={{
+                                minWidth: '2rem',
+                                width: 'auto',
+                                padding: resLabel.length > 1 ? '0 5px' : '0',
+                                fontSize: resLabel.length > 2 ? '8px' : '10px'
+                              }}
+                            >
                               {resLabel}
                             </div>
                           </div>
-                          <div className="flex-1 space-y-1.5 min-w-0">
-                            <div className="text-[13px] font-bold leading-relaxed text-slate-900 dark:text-slate-100 pr-2">
-                              {item.text || 'No commentary available for this ball.'}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="text-[14px] font-black text-slate-900 dark:text-white leading-tight">
+                              {item.bowler && item.batsman ? (
+                                <span>{item.bowler} to {item.batsman}, </span>
+                              ) : null}
+                              <span className="font-medium text-slate-700 dark:text-slate-300">{item.text}</span>
                             </div>
                           </div>
                         </div>
                       );
                     })}
+
+                    {hasMore && (
+                      <div className="p-6 text-center bg-white dark:bg-[#0f172a] border-t border-slate-100 dark:border-white/5">
+                        <button
+                          onClick={() => {
+                            if (typeof window !== 'undefined' && window.setActiveTab) {
+                              window.setActiveTab('commentary');
+                            }
+                          }}
+                          className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2 mx-auto"
+                        >
+                          See All Commentary
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

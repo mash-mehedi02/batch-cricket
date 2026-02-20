@@ -89,6 +89,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     // --- Auto Player of the Match Calculation ---
     const calculatedPomId = useMemo(() => {
         if ((match as any).playerOfMatchId) return (match as any).playerOfMatchId
+
         let bestId = '';
         let maxPoints = -1;
         const playerPoints = new Map<string, number>();
@@ -97,15 +98,28 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
             const c = playerPoints.get(id) || 0;
             playerPoints.set(id, c + pts);
         }
-        teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
-        teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
-        teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
-        teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+
+        // Only calculate for the winning team if we know it
+        // winnerSide is 'A' or 'B'
+        if (winnerSide === 'A') {
+            teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
+            teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+        } else if (winnerSide === 'B') {
+            teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
+            teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+        } else {
+            // Fallback: search both teams if winner is undetermined
+            teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
+            teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+            teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
+            teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+        }
+
         playerPoints.forEach((pts, id) => {
             if (pts > maxPoints) { maxPoints = pts; bestId = id; }
         });
         return bestId;
-    }, [match, teamAInnings, teamBInnings])
+    }, [match, teamAInnings, teamBInnings, winnerSide])
 
     const savePom = async (id: string) => {
         await matchService.update(match.id, { playerOfMatchId: id } as any)
@@ -293,11 +307,18 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                 <span className="text-[9px] font-black text-slate-500 tracking-tighter uppercase">OVER {over.overNumber}</span>
                                                 <div className="flex items-center gap-1">
                                                     {(over.balls || []).map((ball: any, bi: number) => (
-                                                        <div key={bi} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
-                                                            ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
-                                                                ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                    'bg-slate-800 text-slate-300 border-slate-700'
-                                                            }`}>
+                                                        <div key={bi}
+                                                            className={`h-7 rounded-full flex items-center justify-center font-black border transition-all whitespace-nowrap ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
+                                                                ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                                                    ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
+                                                                        'bg-slate-800 text-slate-300 border-slate-700'
+                                                                }`}
+                                                            style={{
+                                                                minWidth: '1.75rem',
+                                                                width: 'auto',
+                                                                padding: String(ball.value).length > 1 ? '0 5px' : '0',
+                                                                fontSize: String(ball.value).length > 2 ? '8px' : '10px'
+                                                            }}>
                                                             {ball.value === '·' ? '0' : ball.value}
                                                         </div>
                                                     ))}
@@ -315,11 +336,18 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                 <span className="text-[9px] font-black text-slate-500 tracking-tighter uppercase">OV {Math.floor(parseFloat(timelineInns.overs || '0')) + 1}</span>
                                                 <div className="flex items-center gap-1">
                                                     {timelineInns.currentOverBalls.map((ball: any, bi: number) => (
-                                                        <div key={bi} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
-                                                            ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
-                                                                ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                    'bg-slate-800 text-slate-300 border-slate-700'
-                                                            }`}>
+                                                        <div key={bi}
+                                                            className={`h-7 rounded-full flex items-center justify-center font-black border transition-all whitespace-nowrap ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
+                                                                ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                                                    ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
+                                                                        'bg-slate-800 text-slate-300 border-slate-700'
+                                                                }`}
+                                                            style={{
+                                                                minWidth: '1.75rem',
+                                                                width: 'auto',
+                                                                padding: String(ball.value).length > 1 ? '0 5px' : '0',
+                                                                fontSize: String(ball.value).length > 2 ? '8px' : '10px'
+                                                            }}>
                                                             {ball.value === '·' ? '0' : ball.value}
                                                         </div>
                                                     ))}

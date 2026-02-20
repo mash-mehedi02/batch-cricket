@@ -264,7 +264,8 @@ export function parseBallEvent(ball: any): BallEvent & {
 function ballToBadge(ball: ReturnType<typeof parseBallEvent>): { value: string; type: OverBall['type'] } {
   // 1. Wickets take precedence
   if (ball.isWicket) {
-    return { value: 'W', type: 'wicket' }
+    const runs = ball.runs || 0
+    return { value: runs > 0 ? `W+${runs}` : 'W', type: 'wicket' }
   }
 
   // 2. Extra types
@@ -489,16 +490,16 @@ export async function recalculateInnings(
 
     let nextBallIsFreeHit = false
 
-    // Process each ball chronologically
-    balls.forEach((ball) => {
+    // Process each ball chronologically - ensure each ball is fully parsed
+    balls.forEach((rawBall) => {
+      const ball = parseBallEvent(rawBall)
       const isCurrentBallFreeHit = ball.freeHit === true || nextBallIsFreeHit
 
-      // Normalize Ball Data (handle nested wicket objects from V2 engine)
-      const wicketObj = (ball as any).wicket
-      const isBallWicket = !!(wicketObj && wicketObj.type) || ball.isWicket === true
-      const ballWicketType = (wicketObj && wicketObj.type) || ball.wicketType || 'Out'
-      const ballDismissedId = (wicketObj && wicketObj.dismissedPlayerId) || ball.dismissedBatsmanId || ball.batsmanId
-      const ballCreditBowler = wicketObj ? wicketObj.creditedToBowler : (ball.creditRunsToBowler !== false)
+      // Normalize Ball Data
+      const isBallWicket = ball.isWicket === true
+      const ballWicketType = ball.wicketType || 'Out'
+      const ballDismissedId = ball.dismissedBatsmanId || ball.batsmanId
+      const ballCreditBowler = ball.creditRunsToBowler !== false
 
       // ICC Rule: Determine if ball is legal (wide and no-ball are NOT legal)
       const isWide =

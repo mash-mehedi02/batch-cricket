@@ -44,7 +44,7 @@ export function subscribeToCommentary(
 export async function generateAutoCommentary(
   matchId: string,
   inningId: 'teamA' | 'teamB',
-  input: CommentaryInput & { ballDocId?: string; sequence?: number; style?: 'tv' | 'simple'; overNumber?: number; totalRuns?: number }
+  input: CommentaryInput & { ballDocId?: string; sequence?: number; style?: 'tv' | 'simple'; overNumber?: number; totalRuns?: number; nonStriker?: string }
 ): Promise<string> {
   const tone: any = (input.isFour || input.isSix || input.wicketType) ? 'excited' : 'normal'
   const result = generateCommentary(input, tone)
@@ -71,6 +71,7 @@ export async function generateAutoCommentary(
     isWicket: Boolean(input.wicketType),
     isBoundary: input.isBoundary || false,
     batsman: input.batsman || '',
+    nonStriker: input.nonStriker || '',
     bowler: input.bowler || '',
     tone: result.tone,
     isHighlight: result.isHighlight,

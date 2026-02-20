@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { title, message, tag, appId, url } = req.body;
+    const { title, message, tag, appId, url, icon, buttons, collapseId } = req.body;
     const restKey = process.env.ONESIGNAL_REST_API_KEY;
 
     if (!restKey || !appId) {
@@ -42,7 +42,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ],
                 headings: { en: title },
                 contents: { en: message },
-                url: url
+                url: url,
+                large_icon: icon, // Professional team logo
+                buttons: buttons, // Action buttons like "Open Match"
+                collapse_id: collapseId, // Makes notifications dynamic (replaces previous score)
+                android_group: 'match_updates',
+                thread_id: collapseId, // iOS equivalent for grouping
+
+                // Heads-up display (popup) settings
+                priority: 10, // High priority for immediate popup
+                android_visibility: 1, // Public
+                android_accent_color: '0D9488', // Teal accent matching app theme
+                android_led_color: '0D9488',
+                huawei_priority: 10,
+
+                // Ensure it makes sound/vibrates to trigger the popup
+                vibration_pattern: [200, 200, 200],
+                android_channel_id: 'match_alerts' // Ensure this channel has high importance in Android settings
             })
         });
 

@@ -1,0 +1,14 @@
+export declare function calculateBattingAverage(runs: number, dismissals: number): string;
+export declare function calculateStrikeRate(runs: number, balls: number): string;
+export declare function calculateBowlingAverage(runsConceded: number, wickets: number): string;
+export declare function calculateEconomy(runsConceded: number, overs: string | number): string;
+export declare function calculateBowlingStrikeRate(balls: number, wickets: number): string;
+export declare function ballsToOvers(balls?: number): string;
+export declare function oversToBalls(oversValue?: string | number): number;
+export declare function calculateNRR(runsScored: number, oversFaced: string | number, runsConceded: number, oversBowled: string | number): string;
+export declare function calculatePoints(wins: number, ties: number): number;
+export declare function calculatePlayerCareerStats(matchPerformances?: any[]): any;
+export declare function calculatePointsTable(squads?: any[], matches?: any[]): any[];
+export declare function calculateBattingPoints(stats: any): number;
+export declare function calculateBowlingPoints(stats: any): number;
+export declare function calculateFantasyPoints(stats: any): number;
