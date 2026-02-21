@@ -4,7 +4,7 @@
  * This is the ONLY file that needs to be changed for different schools
  */
 
-import schoolLogo from '@/assets/school_logo.png'
+import schoolLogo from '@/assets/logo-final.png'
 
 export const schoolConfig = {
   // School Identity

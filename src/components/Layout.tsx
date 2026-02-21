@@ -7,6 +7,7 @@ import React, { ReactNode } from 'react'
 import BottomNav from './common/BottomNav'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import schoolConfig from '@/config/school'
+import schoolLogo from '@/assets/logo-final.png'
 import { Search, Command } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
 import GlobalLoginSheet from './common/GlobalLoginSheet'
@@ -51,9 +52,9 @@ export default function Layout({ children }: LayoutProps) {
           <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-[var(--status-bar-height)]">
             <div className="flex justify-between items-center h-14">
               <div className="flex items-center gap-4 md:gap-10 min-w-0 flex-1">
-                <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group shrink-0 min-w-0">
-                  <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8 object-contain shrink-0" />
-                  <span className="text-xs sm:text-lg md:text-xl font-extrabold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent truncate">
+                <Link to="/" className="flex items-center gap-1 group shrink-0 min-w-0">
+                  <img src={schoolLogo} alt="Logo" className="h-8 sm:h-10 w-auto object-contain shrink-0 transition-transform group-hover:scale-105" />
+                  <span className="text-sm sm:text-xl md:text-2xl font-black bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent truncate tracking-tight">
                     {schoolConfig.appName}
                   </span>
                 </Link>

@@ -98,20 +98,29 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
                 }
 
                 console.log('[NotificationSettingsSheet] Subscribing to match...');
-                await oneSignalService.subscribeToMatch(matchId, adminId)
+                await oneSignalService.subscribeToMatch(matchId)
                 toast.success('Match notifications enabled')
             } else {
                 // Disable notifications
                 console.log('[NotificationSettingsSheet] Unsubscribing from match...');
-                await oneSignalService.unsubscribeFromMatch(matchId, adminId)
+                await oneSignalService.unsubscribeFromMatch(matchId)
                 toast.success('Match notifications disabled')
             }
 
             setSettings(prev => ({ ...prev, enabled: newValue }))
             saveSettings(newValue, settings.tournament)
-        } catch (error) {
+        } catch (error: any) {
             console.error('[NotificationSettingsSheet] Failed to toggle match notifications:', error)
-            toast.error('Failed to update notifications')
+
+            const errMsg = error?.message || '';
+            if (errMsg.includes('AbortError') || errMsg.includes('Registration failed')) {
+                toast.error('Push Registration Failed. Please disable Ad-blockers or check your connection.', { duration: 5000 })
+            } else {
+                toast.error('Failed to update notifications')
+            }
+
+            // Revert UI state on error
+            loadSettings()
         } finally {
             setLoading(false)
         }

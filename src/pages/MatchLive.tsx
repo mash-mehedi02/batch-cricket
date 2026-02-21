@@ -28,7 +28,7 @@ import MatchInfo from '@/pages/MatchInfo'
 import MatchSummary from '@/components/match/MatchSummary'
 import { MatchSettingsSheet } from '@/components/match/MatchSettingsSheet'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
-import { MapPin, Info, Users, Hash, ChevronDown, Pin, PinOff, LayoutDashboard } from 'lucide-react'
+import { MapPin, Info, Users, Hash, ChevronDown, Pin, LayoutDashboard } from 'lucide-react'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 import { useTranslation } from '@/hooks/useTranslation'
@@ -62,9 +62,11 @@ export default function MatchLive() {
   const [ballEventType, setBallEventType] = useState<'4' | '6' | 'wicket' | 'normal'>('normal')
   const [animationEvent, setAnimationEvent] = useState<string>('')
   const [showAnimation, setShowAnimation] = useState<boolean>(false)
-  const [expandedTeamIdx, setExpandedTeamIdx] = useState<number | null>(null)
+  const [displayedInnings, setDisplayedInnings] = useState<InningsStats | null>(null)
   const [isPinned, setIsPinned] = useState(false)
   const prevBallKeyRef = useRef<string | null>(null)
+  const isAnimatingRef = useRef(false)
+  const scoreTimerRef = useRef<any>(null)
 
   useEffect(() => {
     const pinnedId = localStorage.getItem('pinnedMatchId')
@@ -232,6 +234,14 @@ export default function MatchLive() {
     else setCurrentInnings(teamAInnings)
   }, [match, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings])
 
+  // Synchronize displayedInnings initially only once when match loads
+  useEffect(() => {
+    if (currentInnings && !displayedInnings) {
+      setDisplayedInnings(currentInnings)
+      prevBallKeyRef.current = `${currentInnings.legalBalls || 0}_${currentInnings.totalRuns || 0}_${currentInnings.totalWickets || 0}`;
+    }
+  }, [currentInnings, displayedInnings])
+
   // Load balls for commentary
   useEffect(() => {
     if (!match || !matchId) return
@@ -318,7 +328,7 @@ export default function MatchLive() {
     const strikerId = match?.currentStrikerId || '';
     if (!strikerId) return null;
 
-    const batsman = currentInnings?.batsmanStats?.find((b) => b.batsmanId === strikerId)
+    const batsman = (displayedInnings || currentInnings)?.batsmanStats?.find((b) => b.batsmanId === strikerId)
     const player = playersMap.get(strikerId)
 
     return {
@@ -331,13 +341,13 @@ export default function MatchLive() {
       sixes: batsman?.sixes || 0,
       strikeRate: batsman?.strikeRate || (batsman?.balls ? (batsman.runs / batsman.balls) * 100 : 0) || 0,
     }
-  }, [currentInnings, match, playersMap])
+  }, [displayedInnings, currentInnings, match, playersMap])
 
   const nonStriker = useMemo(() => {
     const nonStrikerId = match?.currentNonStrikerId || '';
     if (!nonStrikerId) return null;
 
-    const batsman = currentInnings?.batsmanStats?.find((b) => b.batsmanId === nonStrikerId)
+    const batsman = (displayedInnings || currentInnings)?.batsmanStats?.find((b) => b.batsmanId === nonStrikerId)
     const player = playersMap.get(nonStrikerId)
 
     return {
@@ -350,14 +360,15 @@ export default function MatchLive() {
       sixes: batsman?.sixes || 0,
       strikeRate: batsman?.strikeRate || (batsman?.balls ? (batsman.runs / batsman.balls) * 100 : 0) || 0,
     }
-  }, [currentInnings, match, playersMap])
+  }, [displayedInnings, currentInnings, match, playersMap])
 
   const bowler = useMemo(() => {
-    if (!currentInnings || !currentInnings.bowlerStats || currentInnings.bowlerStats.length === 0) return null
+    const inn = displayedInnings || currentInnings;
+    if (!inn || !inn.bowlerStats || inn.bowlerStats.length === 0) return null
 
     // Find by ID first, fallback to the very last entry in bowlerStats (the person who bowled last)
-    const bowlerStats = currentInnings.bowlerStats.find(b => b.bowlerId === currentInnings.currentBowlerId) ||
-      currentInnings.bowlerStats[currentInnings.bowlerStats.length - 1]
+    const bowlerStats = inn.bowlerStats.find(b => b.bowlerId === inn.currentBowlerId) ||
+      inn.bowlerStats[inn.bowlerStats.length - 1]
 
     if (!bowlerStats) return null
     const ballsBowled = Number((bowlerStats as any).ballsBowled || (bowlerStats as any).balls || 0)
@@ -374,18 +385,19 @@ export default function MatchLive() {
       overs,
       economy: bowlerStats.economy || 0,
     }
-  }, [currentInnings, playersMap])
+  }, [displayedInnings, currentInnings, playersMap])
 
   const lastWicket = useMemo(() => {
-    if (!currentInnings || !currentInnings.fallOfWickets || currentInnings.fallOfWickets.length === 0) return null
+    const inn = displayedInnings || currentInnings;
+    if (!inn || !inn.fallOfWickets || inn.fallOfWickets.length === 0) return null
 
     // Find the latest valid FOW entry (sometimes the very last one might be incomplete during live transition)
-    const fows = [...currentInnings.fallOfWickets].reverse()
-    const lastFow = fows.find(f => f.batsmanId && f.batsmanId !== 'None') || currentInnings.fallOfWickets[currentInnings.fallOfWickets.length - 1]
+    const fows = [...inn.fallOfWickets].reverse()
+    const lastFow = fows.find(f => f.batsmanId && f.batsmanId !== 'None') || inn.fallOfWickets[inn.fallOfWickets.length - 1]
 
     if (!lastFow) return null
 
-    const pStats = currentInnings.batsmanStats?.find(b => b.batsmanId === lastFow.batsmanId)
+    const pStats = inn.batsmanStats?.find(b => b.batsmanId === lastFow.batsmanId)
     const pRegistry = playersMap.get(lastFow.batsmanId)
 
     // Robust name resolution
@@ -539,10 +551,6 @@ export default function MatchLive() {
     const isOversFinished = totalLegalBalls >= oversLimit * 6
     const isInningsEnded = isAllOut || isOversFinished
 
-    const currentBallKey = `${lastBallDoc?.id || ''}_${lastBallDoc?.sequence || ''}_${inn?.legalBalls || 0}_${inn?.totalRuns || 0}`;
-    const isNewBallUpdate = prevBallKeyRef.current !== null && prevBallKeyRef.current !== currentBallKey && !isFinishedMatch && !isInningsEnded;
-    prevBallKeyRef.current = currentBallKey;
-
     const performUpdate = () => {
       // Detect if we should show Innings Break or Match Completed
       if (isFinishedMatch) {
@@ -633,11 +641,36 @@ export default function MatchLive() {
       }
     };
 
-    if (isNewBallUpdate) {
+    const activeBallKey = `${inn?.legalBalls || 0}_${inn?.totalRuns || 0}_${inn?.totalWickets || 0}`;
+    const isBallChanged = prevBallKeyRef.current !== null && prevBallKeyRef.current !== activeBallKey && !isFinishedMatch && !isInningsEnded;
+
+    // Only trigger new ball logic if not already animating or it's a truly different ball
+    if (isBallChanged && !isAnimatingRef.current) {
+      prevBallKeyRef.current = activeBallKey;
+      isAnimatingRef.current = true;
       setCenterEventText('BALL');
-      t1 = window.setTimeout(performUpdate, 1200);
-    } else {
+      setBallAnimating(true);
+
+      t1 = window.setTimeout(() => {
+        performUpdate();
+
+        const cleanBase = String(base || '').trim();
+        const isBigEvent = isWicketLabel || cleanBase === '4' || cleanBase === '6';
+        const scoreboardDelay = isBigEvent ? 4500 : 3000;
+
+        if (scoreTimerRef.current) window.clearTimeout(scoreTimerRef.current);
+        scoreTimerRef.current = window.setTimeout(() => {
+          setDisplayedInnings(inn);
+          isAnimatingRef.current = false;
+          setBallAnimating(false);
+          scoreTimerRef.current = null;
+        }, scoreboardDelay);
+      }, 1500);
+    } else if (!isAnimatingRef.current && !scoreTimerRef.current) {
+      // Regular update (score correction, etc.) - only if no animation is blocking
+      prevBallKeyRef.current = activeBallKey;
       performUpdate();
+      setDisplayedInnings(inn);
     }
 
     return () => {
@@ -647,6 +680,7 @@ export default function MatchLive() {
       if (t4) window.clearTimeout(t4)
       if (t5) window.clearTimeout(t5)  // Clear wicket timer
       if ((window as any)._wicketClearTimer) window.clearTimeout((window as any)._wicketClearTimer)  // Clear wicket clear timer
+      if ((window as any)._scoreUpdateTimer) window.clearTimeout((window as any)._scoreUpdateTimer)  // Clear score update timer
       if (intervalId) window.clearInterval(intervalId)
     }
   }, [
@@ -1615,6 +1649,7 @@ export default function MatchLive() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'commentary':
+        const effInningsComm = displayedInnings || currentInnings;
         return (
           <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen">
             <CrexLiveSection
@@ -1622,24 +1657,24 @@ export default function MatchLive() {
               striker={striker as any}
               nonStriker={nonStriker as any}
               currentBowler={bowler as any}
-              partnership={(currentInnings as any)?.partnership}
+              partnership={effInningsComm?.partnership}
               lastWicket={lastWicket}
-              recentOvers={(currentInnings as any)?.recentOvers || []}
+              recentOvers={effInningsComm?.recentOvers || []}
               commentary={commentary as any}
               activeCommentaryFilter={activeCommentaryFilter as any}
               onCommentaryFilterChange={(id: string) => setActiveCommentaryFilter(id)}
-              currentRunRate={(currentInnings as any)?.currentRunRate || 0}
-              requiredRunRate={(currentInnings as any)?.requiredRunRate || null}
-              currentRuns={(currentInnings as any)?.totalRuns || 0}
-              currentOvers={(currentInnings as any)?.overs || '0.0'}
+              currentRunRate={effInningsComm?.currentRunRate || 0}
+              requiredRunRate={effInningsComm?.requiredRunRate || null}
+              currentRuns={effInningsComm?.totalRuns || 0}
+              currentOvers={effInningsComm?.overs || '0.0'}
               oversLimit={match.oversLimit || 20}
               target={chaseInfo.target}
               runsNeeded={chaseInfo.runsNeeded}
-              ballsRemaining={(currentInnings as any)?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number((currentInnings as any)?.legalBalls || 0))}
+              ballsRemaining={effInningsComm?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number(effInningsComm?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}
-              currentInnings={(match.currentBatting || 'teamA') as any}
-              currentWickets={(currentInnings as any)?.totalWickets || 0}
+              currentInnings={effInningsComm as any}
+              currentWickets={effInningsComm?.totalWickets || 0}
               teamAName={teamAName}
               teamBName={teamBName}
               teamAInnings={teamAInnings}
@@ -1690,6 +1725,7 @@ export default function MatchLive() {
       default:
       case 'live':
         if (isUpcomingMatch && !isPastStart) return renderUpcoming()
+        const effInningsLive = displayedInnings || currentInnings;
         return (
           <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen">
             <CrexLiveSection
@@ -1697,24 +1733,24 @@ export default function MatchLive() {
               striker={striker as any}
               nonStriker={nonStriker as any}
               currentBowler={bowler as any}
-              partnership={(currentInnings as any)?.partnership}
+              partnership={effInningsLive?.partnership}
               lastWicket={lastWicket}
-              recentOvers={(currentInnings as any)?.recentOvers || []}
+              recentOvers={effInningsLive?.recentOvers || []}
               commentary={commentary as any}
               activeCommentaryFilter={activeCommentaryFilter as any}
               onCommentaryFilterChange={(id: string) => setActiveCommentaryFilter(id)}
-              currentRunRate={(currentInnings as any)?.currentRunRate || 0}
-              requiredRunRate={(currentInnings as any)?.requiredRunRate || null}
-              currentRuns={(currentInnings as any)?.totalRuns || 0}
-              currentOvers={(currentInnings as any)?.overs || '0.0'}
+              currentRunRate={effInningsLive?.currentRunRate || 0}
+              requiredRunRate={effInningsLive?.requiredRunRate || null}
+              currentRuns={effInningsLive?.totalRuns || 0}
+              currentOvers={effInningsLive?.overs || '0.0'}
               oversLimit={match.oversLimit || 20}
               target={chaseInfo.target}
               runsNeeded={chaseInfo.runsNeeded}
-              ballsRemaining={(currentInnings as any)?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number((currentInnings as any)?.legalBalls || 0))}
+              ballsRemaining={effInningsLive?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number(effInningsLive?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}
-              currentInnings={currentInnings}
-              currentWickets={(currentInnings as any)?.totalWickets || 0}
+              currentInnings={effInningsLive}
+              currentWickets={effInningsLive?.totalWickets || 0}
               teamAName={teamAName}
               teamBName={teamBName}
               teamAInnings={teamAInnings}
@@ -1793,7 +1829,7 @@ export default function MatchLive() {
             teamBName={teamBName}
             teamASquad={teamASquad}
             teamBSquad={teamBSquad}
-            currentInnings={currentInnings}
+            currentInnings={displayedInnings || currentInnings}
             teamAInnings={teamAInnings}
             teamBInnings={teamBInnings}
             isFinishedMatch={isFinishedMatch}
@@ -1803,7 +1839,7 @@ export default function MatchLive() {
             ballAnimating={ballAnimating}
             ballEventType={ballEventType}
             lastBall={null}
-            recentOvers={(currentInnings as any)?.recentOvers || []}
+            recentOvers={(displayedInnings || currentInnings)?.recentOvers || []}
           />
         </div>
       )}

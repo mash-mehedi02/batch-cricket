@@ -302,28 +302,37 @@ const CrexLiveSection = ({
           </div>
         )}
 
-        {/* 2. Win Probability - Reference Mockup Accurate */}
+        {/* 2. Win Probability - Slim & Professional */}
         {!isFinishedMatch && !onlyCommentary && (
-          <div className="bg-white dark:bg-[#0f172a] px-5 py-1.5 border-b border-slate-100 dark:border-white/5 space-y-1.5">
-            {/* Top Row: Names & Centered Label */}
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 tracking-wide">
-              <span className="shrink-0">{formatShortTeamName(teamAName)}</span>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-3.5 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-[7px] leading-none">i</span>
-                <span className="uppercase text-[9px] font-bold text-slate-500">Realtime Win %</span>
-              </div>
-              <span className="shrink-0">{formatShortTeamName(teamBName)}</span>
+          <div className="bg-white dark:bg-[#0f172a] px-5 py-2 border-b border-slate-100 dark:border-white/5 space-y-1.5">
+            {/* Middle Row: Team Names - Batting team always on Left */}
+            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
+              <span className="shrink-0">
+                {formatShortTeamName((currentInnings?.inningId || (match && match.currentBatting)) === 'teamB' ? teamBName : teamAName)}
+              </span>
+              <span className="shrink-0">
+                {formatShortTeamName((currentInnings?.inningId || (match && match.currentBatting)) === 'teamB' ? teamAName : teamBName)}
+              </span>
             </div>
 
-            {/* Bottom Row: Proportions & Bar */}
-            <div className="flex items-center gap-4">
-              <span className="text-base font-black text-slate-900 dark:text-white tabular-nums w-10">{teamAProb}%</span>
-              <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full flex overflow-hidden">
-                <div className="h-full bg-rose-600 transition-all duration-1000 shadow-[0_0_8px_rgba(225,29,72,0.3)]" style={{ width: `${teamAProb}%` }}></div>
-                <div className="h-full bg-blue-600 transition-all duration-1000 shadow-[0_0_8px_rgba(37,99,235,0.3)]" style={{ width: `${teamBProb}%` }}></div>
-              </div>
-              <span className="text-base font-black text-slate-900 dark:text-white tabular-nums w-10 text-right">{teamBProb}%</span>
-            </div>
+            {/* Bottom Row: Odds Bar */}
+            {(() => {
+              const isTeamABatting = (currentInnings?.inningId || (match && match.currentBatting)) === 'teamA';
+              const leftProb = isTeamABatting ? teamAProb : teamBProb;
+              const rightProb = isTeamABatting ? teamBProb : teamAProb;
+
+              return (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-black text-slate-900 dark:text-white tabular-nums w-8">{leftProb}%</span>
+                  <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full flex overflow-hidden ring-2 ring-slate-50 dark:ring-white/[0.01]">
+                    {/* Batting team color (Left) and Bowling team color (Right) */}
+                    <div className="h-full bg-blue-600 transition-all duration-1000 shadow-[1px_0_4px_rgba(37,99,235,0.3)] relative z-10" style={{ width: `${leftProb}%` }}></div>
+                    <div className="h-full bg-rose-600 transition-all duration-1000" style={{ width: `${rightProb}%` }}></div>
+                  </div>
+                  <span className="text-sm font-black text-slate-900 dark:text-white tabular-nums w-8 text-right">{rightProb}%</span>
+                </div>
+              );
+            })()}
           </div>
         )}
 

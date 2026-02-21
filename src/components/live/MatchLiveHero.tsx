@@ -44,14 +44,6 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     showAnimation = false,
 }) => {
     const { t } = useTranslation()
-    const scrollRef = useRef<HTMLDivElement>(null)
-
-    // Auto-scroll timeline
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollLeft = scrollRef.current.scrollWidth
-        }
-    }, [recentOvers])
 
     const eventTextRef = useRef<HTMLSpanElement>(null);
     const cricketBallRef = useRef<HTMLDivElement>(null);
@@ -309,22 +301,22 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
             <div className={`text-white overflow-hidden shadow-sm transition-all duration-300 ${scorecardAnimationClass}`}>
                 {/* 1. Main Score Header - 60/40 Split - Enlarged for better visibility */}
                 <div className="flex items-stretch min-h-[110px] md:min-h-[130px] border-b border-white/5 bg-gradient-to-r from-transparent to-black/5 relative">
-                    {/* Slanted Divider with Lighting Effect */}
-                    <div className="absolute top-0 bottom-0 left-[62%] w-[1.5px] bg-gradient-to-b from-transparent via-white/20 to-transparent -skew-x-[12deg] z-20 shadow-[0_0_12px_rgba(148,225,212,0.3)]" />
+                    {/* Slanted Divider with Lighting Effect - Adjusted for better responsiveness */}
+                    <div className="absolute top-0 bottom-0 left-[62%] sm:left-[60%] w-[1.5px] bg-gradient-to-b from-transparent via-white/20 to-transparent -skew-x-[12deg] z-20 shadow-[0_0_12px_rgba(148,225,212,0.3)]" />
 
-                    {/* LEFT: Team Score (62%) */}
-                    <div className="w-[62%] p-3 sm:p-5 flex items-center gap-4 sm:gap-6 relative">
+                    {/* LEFT: Team Score (62%) - Reduced padding on mobile */}
+                    <div className="w-[62%] sm:w-[60%] p-2 xs:p-3 sm:p-5 flex items-center gap-3 sm:gap-6 relative min-w-0">
                         {/* Team Logo with sophisticated shadow */}
                         {(() => {
                             const squadId = currentSquad?.id || (currentSquad as any)?.squadId;
                             const isValidSquadId = squadId && typeof squadId === 'string' && squadId !== 'undefined' && squadId !== 'null' && squadId.trim() !== '';
 
                             const LogoContent = (
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a2333] border border-white/10 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(0,0,0,0.5)] overflow-hidden hover:scale-105 transition-all duration-500 relative ring-4 ring-white/5">
+                                <div className="w-13 h-13 min-[400px]:w-16 min-[400px]:h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a2333] border border-white/10 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(0,0,0,0.5)] overflow-hidden hover:scale-105 transition-all duration-500 relative ring-4 ring-white/5 shrink-0">
                                     {logoUrl ? (
-                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1.5" alt="" />
+                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1" alt="" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-2xl font-black uppercase">
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl sm:text-2xl font-black uppercase">
                                             {currentTeamName.charAt(0)}
                                         </div>
                                     )}
@@ -358,19 +350,19 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     </div>
                                 )}
                             </div>
-                            <div className="flex items-baseline gap-2.5">
-                                <span className={`text-4xl sm:text-6xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass}`}>
+                            <div className="flex items-baseline gap-1.5 sm:gap-2.5 overflow-hidden">
+                                <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-6xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>
                                     {runs}-{wkts}
                                 </span>
-                                <span className="text-base sm:text-xl font-black text-slate-500/80 tabular-nums uppercase">
+                                <span className="text-[13px] min-[400px]:text-base sm:text-xl font-black text-slate-500/80 tabular-nums uppercase shrink-0">
                                     {(isChasing && wkts >= 10) || isFinishedMatch ? 'Final' : `${overs}`}
                                 </span>
                             </div>
                         </div>
                     </div>
 
-                    {/* RIGHT: Event Badge (40%) */}
-                    <div className="w-[38%] p-3 flex items-center justify-center bg-black/20 relative overflow-hidden">
+                    {/* RIGHT: Event Badge (38%) */}
+                    <div className="w-[38%] sm:w-[40%] p-2 sm:p-3 flex items-center justify-center bg-black/20 relative overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none" />
 
                         {showBoundaryAnim && isFour ? (

@@ -28,6 +28,21 @@ if (typeof window !== 'undefined') {
     originalError.apply(console, args)
   }
 
+  // Catch unhandled rejections from SDKs (like OneSignal or Firebase)
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason?.toString() || ''
+    if (
+      reason.includes('indexedDB') ||
+      reason.includes('QuotaExceededError') ||
+      reason.includes('UnknownError') ||
+      reason.includes('backing store')
+    ) {
+      // These are usually storage restriction errors we can't fix but want to ignore
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  })
+
   // Also suppress unhandled errors from extensions
   window.addEventListener('error', (event) => {
     const message = event.message || ''
