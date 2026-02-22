@@ -214,5 +214,10 @@ service cloud.firestore {
       allow read: if isSuperAdmin();
       allow create: if isAdmin() || isSuperAdmin();
     }
+
+    match /matchVotes/{matchId} {
+      allow read: if true;
+      allow create, update: if true;
+    }
   }
 }

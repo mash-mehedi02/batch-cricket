@@ -26,6 +26,7 @@ import MatchPlayingXI from '@/pages/MatchPlayingXI'
 import MatchGraphs from '@/pages/MatchGraphs'
 import MatchInfo from '@/pages/MatchInfo'
 import MatchSummary from '@/components/match/MatchSummary'
+import MatchVoting from '@/components/live/MatchVoting'
 import { MatchSettingsSheet } from '@/components/match/MatchSettingsSheet'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import { MapPin, Info, Users, Hash, ChevronDown, Pin, LayoutDashboard } from 'lucide-react'
@@ -1597,6 +1598,16 @@ export default function MatchLive() {
                 <p className="text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{match.oversLimit || 20} Overs</p>
               </div>
             </div>
+          </div>
+
+          <div className="max-w-md mx-auto mb-12">
+            <MatchVoting
+              matchId={matchId || match.id}
+              teamAName={teamAName}
+              teamBName={teamBName}
+              teamABatch={teamASquad?.batch}
+              teamBBatch={teamBSquad?.batch}
+            />
           </div>
 
           {/* 5. Points Table Preview */}

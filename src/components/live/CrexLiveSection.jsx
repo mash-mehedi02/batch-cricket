@@ -9,6 +9,7 @@ import { ChevronRight, ChevronDown, MapPin, Info, Users, Hash } from 'lucide-rea
 import { calculateWinProbability } from '../../services/ai/winProbabilityEngine'
 import TournamentPointsTable from '../../pages/TournamentPointsTable'
 import { formatShortTeamName } from '../../utils/teamName'
+import MatchVoting from './MatchVoting'
 
 import cricketBatIcon from '../../assets/cricket-bat.png'
 
@@ -351,8 +352,8 @@ const CrexLiveSection = ({
 
         {!onlyCommentary && (
           <div className="bg-white dark:bg-[#0f172a] border-y border-slate-100 dark:border-white/5 divide-y divide-slate-50 dark:divide-white/5">
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
+            <div className="p-4 space-y-4 pb-3">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-white/[0.03] px-4 py-2 -mx-4 -mt-4 mb-2">
                 <span>BATTER</span>
                 <div className="flex gap-6 pr-1">
                   <span className="w-10 text-right">R (B)</span>
@@ -416,8 +417,8 @@ const CrexLiveSection = ({
                 </div>
               </div>
             </div>
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight border-t border-slate-100 dark:border-white/5 pt-4">
+            <div className="p-0 space-y-4">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-white/[0.03] px-4 py-2 border-y border-slate-100 dark:border-white/5">
                 <span>BOWLER</span>
                 <div className="flex gap-6 pr-1">
                   <span className="w-10 text-right">W-R</span>
@@ -426,7 +427,7 @@ const CrexLiveSection = ({
                 </div>
               </div>
               {currentBowler && (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between px-4 pb-4">
                   <div className="flex items-center gap-2">
                     {(currentBowler?.bowlerId || currentBowler?.id) && String(currentBowler?.bowlerId || currentBowler?.id) !== 'undefined' ? (
                       <Link to={`/players/${currentBowler?.bowlerId || currentBowler?.id}`} className="text-sm font-bold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -439,11 +440,20 @@ const CrexLiveSection = ({
                   <div className="flex gap-6 pr-1 text-sm font-bold text-slate-800 dark:text-slate-200 items-center">
                     <span className="w-10 text-right font-black text-slate-900 dark:text-white">{currentBowler.wickets || 0}-{currentBowler.runsConceded || 0}</span>
                     <span className="w-10 text-center text-slate-500 dark:text-slate-400 font-bold">{currentBowler.overs || 0}</span>
-                    <span className="text-slate-500 dark:text-slate-400 font-bold text-[11px]">{(currentBowler.economy || 0).toFixed(1)}</span>
+                    <span className="w-10 text-right text-slate-500 dark:text-slate-400 font-bold text-[11px]">{(currentBowler.economy || 0).toFixed(1)}</span>
                   </div>
                 </div>
               )}
             </div>
+            {match?.id && match.status !== 'finished' && (
+              <MatchVoting
+                matchId={match.id}
+                teamAName={match.teamAName || 'Team A'}
+                teamBName={match.teamBName || 'Team B'}
+                teamABatch={teamASquad?.batch}
+                teamBBatch={teamBSquad?.batch}
+              />
+            )}
           </div>
         )}
 
