@@ -255,9 +255,9 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                             const isValidSquadId = squadId && typeof squadId === 'string' && squadId !== 'undefined' && squadId !== 'null' && squadId.trim() !== '';
 
                             const LogoContent = (
-                                <div className="w-13 h-13 min-[400px]:w-16 min-[400px]:h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a2333] border border-white/10 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(0,0,0,0.5)] overflow-hidden hover:scale-105 transition-all duration-500 relative ring-4 ring-white/5 shrink-0">
+                                <div className="w-14 h-14 min-[400px]:w-16 min-[400px]:h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a2333] border border-white/10 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-500 relative ring-4 ring-white/5 shrink-0">
                                     {logoUrl ? (
-                                        <img src={logoUrl} className="w-full min-w-full min-h-full object-cover p-1" alt="" />
+                                        <img src={logoUrl} className="w-full h-full object-contain p-1.5" alt="" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl sm:text-2xl font-black uppercase">
                                             {currentTeamName.charAt(0)}

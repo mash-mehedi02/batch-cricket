@@ -105,19 +105,30 @@ export default function TournamentCountdownPopup() {
     const DigitCard = ({ value, color }: { value: string, color: string }) => (
         <div style={{
             position: 'relative',
-            width: '38px',
-            height: '52px',
-            background: color,
+            width: '28px',
+            height: '40px',
+            background: `linear-gradient(180deg, ${color} 0%, ${color}dd 100%)`,
             borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '32px',
-            fontWeight: 'bold',
+            fontSize: '22px',
+            fontWeight: '900',
             color: '#fff',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
-            overflow: 'hidden'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.1)'
         }}>
+            {/* Gloss effect */}
+            <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '50%',
+                background: 'rgba(255,255,255,0.08)',
+                zIndex: 1
+            }} />
             {/* Center Split Line */}
             <div style={{
                 position: 'absolute',
@@ -125,25 +136,28 @@ export default function TournamentCountdownPopup() {
                 left: 0,
                 right: 0,
                 height: '1px',
-                background: 'rgba(0,0,0,0.2)',
+                background: 'rgba(0,0,0,0.3)',
                 zIndex: 2
             }} />
-            {/* Split dots on sides */}
-            <div style={{ position: 'absolute', left: '-2px', top: '50%', transform: 'translateY(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: 'rgba(255,255,255,0.4)', zIndex: 3 }} />
-            <div style={{ position: 'absolute', right: '-2px', top: '50%', transform: 'translateY(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: 'rgba(255,255,255,0.4)', zIndex: 3 }} />
-            {value}
+            <span style={{ position: 'relative', zIndex: 3, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{value}</span>
         </div>
     )
 
     const TimeUnit = ({ value, label, color }: { value: number, label: string, color: string }) => {
         const str = String(value).padStart(2, '0')
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', gap: '4px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '3px' }}>
                     <DigitCard value={str[0]} color={color} />
                     <DigitCard value={str[1]} color={color} />
                 </div>
-                <div style={{ fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</div>
+                <div style={{
+                    fontSize: '9px',
+                    fontWeight: '800',
+                    color: 'rgba(255,255,255,0.5)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                }}>{label}</div>
             </div>
         )
     }
@@ -151,6 +165,7 @@ export default function TournamentCountdownPopup() {
     return (
         <div
             onClick={handleClose}
+            className="hide-in-screenshot"
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -158,129 +173,137 @@ export default function TournamentCountdownPopup() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '20px',
-                background: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
+                padding: '16px',
+                background: 'rgba(2, 6, 23, 0.7)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
                 opacity: closing ? 0 : 1,
-                transition: 'opacity 0.4s ease',
+                transition: 'opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
         >
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     width: '100%',
-                    maxWidth: '440px',
-                    background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-                    borderRadius: '32px',
+                    maxWidth: '400px',
+                    background: 'linear-gradient(165deg, #1e293b 0%, #0f172a 100%)',
+                    borderRadius: '28px',
                     overflow: 'hidden',
-                    boxShadow: '0 0 100px rgba(0,0,0,0.5), 0 25px 50px rgba(0,0,0,0.5)',
-                    border: '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: '0 0 80px rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.1)',
                     transform: closing ? 'scale(0.9) translateY(20px)' : 'scale(1) translateY(0)',
                     opacity: closing ? 0 : 1,
                     transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     animation: 'popupSlideIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    position: 'relative'
                 }}
             >
-                {/* Content */}
-                <div style={{ padding: '40px 24px 32px', position: 'relative', textAlign: 'center' }}>
+                {/* Decorative Elements */}
+                <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '150px', height: '150px', background: 'rgba(20,184,166,0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
+                <div style={{ position: 'absolute', bottom: '-50px', left: '-50px', width: '150px', height: '150px', background: 'rgba(59,130,246,0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
 
-                    {/* Header with School Branding */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '30px' }}>
-                        <img src={schoolConfig.logo} alt="School" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                <div style={{ padding: '32px 20px 24px', position: 'relative', textAlign: 'center', zIndex: 10 }}>
+
+                    {/* School Branding */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
+                        <img src={schoolConfig.logo} alt="School" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
                         <div style={{ textAlign: 'left' }}>
-                            <div style={{ fontSize: '9px', fontWeight: 800, color: '#14b8a6', textTransform: 'uppercase' }}>Official Tournament</div>
-                            <div style={{ fontSize: '13px', fontWeight: 900, color: '#fff' }}>{schoolConfig.name}</div>
+                            <div style={{ fontSize: '8px', fontWeight: '900', color: '#14b8a6', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Official Tournament</div>
+                            <div style={{ fontSize: '12px', fontWeight: '800', color: 'rgba(255,255,255,0.9)' }}>{schoolConfig.name}</div>
                         </div>
                     </div>
 
                     {/* Tournament Logo & Name */}
                     {config.tournamentLogo && (
-                        <div style={{ width: '80px', height: '80px', borderRadius: '24px', margin: '0 auto 16px', border: '2px solid rgba(20,184,166,0.3)', padding: '4px', background: 'rgba(255,255,255,0.03)' }}>
-                            <img src={config.tournamentLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '18px' }} />
+                        <div style={{
+                            width: '74px',
+                            height: '74px',
+                            borderRadius: '20px',
+                            margin: '0 auto 16px',
+                            border: '1.5px solid rgba(20,184,166,0.3)',
+                            padding: '4px',
+                            background: 'rgba(255,255,255,0.05)',
+                            boxShadow: '0 8px 16px rgba(0,0,0,0.2)'
+                        }}>
+                            <img src={config.tournamentLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '15px' }} />
                         </div>
                     )}
-                    <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginBottom: '4px', letterSpacing: '-0.01em' }}>{config.tournamentName}</h2>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#14b8a6', fontSize: '13px', fontWeight: 700, marginBottom: '32px' }}>
-                        <Calendar size={14} /> {formatDate(config.startDate)}
+                    <h2 style={{ fontSize: '20px', fontWeight: '950', color: '#fff', marginBottom: '6px', letterSpacing: '-0.02em', lineHeight: '1.2' }}>{config.tournamentName}</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#14b8a6', fontSize: '12px', fontWeight: '800', marginBottom: '28px' }}>
+                        <Calendar size={13} strokeWidth={2.5} /> {formatDate(config.startDate)}
                     </div>
 
-                    {/* TIME REMAINING SECTION - Exact Reference Design */}
+                    {/* TIME REMAINING SECTION */}
                     <div style={{
-                        background: '#2b3945',
-                        padding: '24px 16px',
-                        borderRadius: '20px',
+                        background: 'rgba(15, 23, 42, 0.4)',
+                        padding: '20px 12px',
+                        borderRadius: '24px',
                         border: '1px solid rgba(255,255,255,0.05)',
-                        boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.2)'
+                        boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.2)'
                     }}>
-                        {/* Title with Lines */}
-                        <div style={{ position: 'relative', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ position: 'absolute', left: 0, top: '50%', width: '25%', borderBottom: '1px dashed rgba(255,255,255,0.15)' }} />
-                            <div style={{ position: 'absolute', right: 0, top: '50%', width: '25%', borderBottom: '1px dashed rgba(255,255,255,0.15)' }} />
+                        <div style={{ position: 'relative', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ position: 'absolute', left: '10%', right: '10%', top: '50%', height: '1px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }} />
                             <span style={{
-                                fontSize: '16px',
-                                fontWeight: 800,
-                                color: '#f8fafc',
+                                fontSize: '13px',
+                                fontWeight: '900',
+                                color: 'rgba(255,255,255,0.8)',
                                 textTransform: 'uppercase',
-                                letterSpacing: '0.15em',
-                                background: '#2b3945',
-                                padding: '0 15px',
+                                letterSpacing: '0.2em',
+                                background: '#1c2635',
+                                padding: '0 12px',
                                 zIndex: 1
                             }}>
                                 Time Remaining
                             </span>
                         </div>
 
-                        {/* Countdown Grid */}
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px' }}>
+                        {/* Countdown Grid - Optimized Gaps */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '6px' }}>
                             <TimeUnit value={timeLeft.days} label="Days" color="#f59e0b" />
-                            <div style={{ marginTop: '16px', fontSize: '24px', fontWeight: 900, color: 'rgba(255,255,255,0.3)' }}>:</div>
-                            <TimeUnit value={timeLeft.hours} label="Hours" color="#84cc16" />
-                            <div style={{ marginTop: '16px', fontSize: '24px', fontWeight: 900, color: 'rgba(255,255,255,0.3)' }}>:</div>
-                            <TimeUnit value={timeLeft.minutes} label="Minutes" color="#ef4444" />
-                            <div style={{ marginTop: '16px', fontSize: '24px', fontWeight: 900, color: 'rgba(255,255,255,0.3)' }}>:</div>
-                            <TimeUnit value={timeLeft.seconds} label="Seconds" color="#a855f7" />
+                            <div style={{ marginTop: '10px', fontSize: '18px', fontWeight: '900', color: 'rgba(255,255,255,0.2)' }}>:</div>
+                            <TimeUnit value={timeLeft.hours} label="Hrs" color="#84cc16" />
+                            <div style={{ marginTop: '10px', fontSize: '18px', fontWeight: '900', color: 'rgba(255,255,255,0.2)' }}>:</div>
+                            <TimeUnit value={timeLeft.minutes} label="Mins" color="#ef4444" />
+                            <div style={{ marginTop: '10px', fontSize: '18px', fontWeight: '900', color: 'rgba(255,255,255,0.2)' }}>:</div>
+                            <TimeUnit value={timeLeft.seconds} label="Secs" color="#a855f7" />
                         </div>
                     </div>
 
-                    {/* Let's Go Button */}
-                    <button
-                        onClick={handleClose}
-                        style={{
-                            width: '100%',
-                            marginTop: '32px',
-                            padding: '16px',
-                            background: 'linear-gradient(135deg, #14b8a6, #0d9488)',
-                            border: 'none',
-                            borderRadius: '16px',
-                            color: '#fff',
-                            fontSize: '14px',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.1em',
-                            boxShadow: '0 10px 25px rgba(20,184,166,0.3)',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)'; e.currentTarget.style.boxShadow = '0 15px 30px rgba(20,184,166,0.4)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0) scale(1)'; e.currentTarget.style.boxShadow = '0 10px 25px rgba(20,184,166,0.3)'; }}
-                    >
-                        Enter Platform
-                    </button>
-
-                    {/* Small Close Link */}
-                    <button
-                        onClick={handleClose}
-                        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)', fontSize: '10px', marginTop: '16px', cursor: 'pointer', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}
-                    >
-                        Skip for now
-                    </button>
+                    {/* Buttons */}
+                    <div style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <button
+                            onClick={handleClose}
+                            style={{
+                                width: '100%',
+                                padding: '15px',
+                                background: 'linear-gradient(135deg, #14b8a6, #0d9488)',
+                                border: 'none',
+                                borderRadius: '14px',
+                                color: '#fff',
+                                fontSize: '13px',
+                                fontWeight: '900',
+                                cursor: 'pointer',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.12em',
+                                boxShadow: '0 8px 20px rgba(20,184,166,0.3)',
+                                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                            }}
+                        >
+                            Enter Platform
+                        </button>
+                        <button
+                            onClick={handleClose}
+                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '11px', cursor: 'pointer', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '8px' }}
+                        >
+                            Skip for now
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <style>{`
                 @keyframes popupSlideIn {
-                    from { opacity: 0; transform: scale(0.9) translateY(40px); }
+                    from { opacity: 0; transform: scale(0.95) translateY(20px); }
                     to { opacity: 1; transform: scale(1) translateY(0); }
                 }
             `}</style>

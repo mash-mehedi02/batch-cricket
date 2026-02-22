@@ -139,7 +139,8 @@ service cloud.firestore {
     }
 
     match /settings/{id} {
-      allow read, write: if isAdmin() && (isOwner(resource.data) || request.resource.data.adminId == request.auth.uid);
+      allow read: if true;
+      allow write: if isAdmin() && (isOwner(resource.data) || request.resource.data.adminId == request.auth.uid);
     }
 
     match /player_secrets/{playerId} {
