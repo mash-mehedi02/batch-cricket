@@ -311,15 +311,15 @@ export default function Home() {
                   <div className="h-px w-8 sm:w-32 border-b border-dashed border-white/20" />
                 </div>
 
-                {/* Flip Clock Grid - Fully Responsive scaling */}
-                <div className="mx-auto max-w-[340px] sm:max-w-2xl bg-white/5 backdrop-blur-md px-4 py-4 sm:px-12 rounded-3xl border border-white/5 shadow-2xl">
-                  <div className="flex items-start justify-center gap-2 sm:gap-6 lg:gap-8">
+                {/* Flip Clock Grid - Fixed Overflow */}
+                <div className="mx-auto w-full max-w-[360px] sm:max-w-3xl lg:max-w-4xl bg-white/5 backdrop-blur-md px-3 sm:px-10 py-4 sm:py-8 rounded-3xl border border-white/10 shadow-2xl">
+                  <div className="flex items-start justify-center gap-1.5 sm:gap-6 lg:gap-8 overflow-visible">
                     <HeroTimeUnit value={timeLeft.days} label="Days" color="#f59e0b" />
-                    <div className="pt-2 sm:pt-4 text-xs sm:text-2xl font-black text-white/10 animate-pulse">:</div>
+                    <div className="pt-3 sm:pt-4 text-xs sm:text-2xl font-black text-white/20 animate-pulse">:</div>
                     <HeroTimeUnit value={timeLeft.hours} label="Hrs" color="#84cc16" />
-                    <div className="pt-2 sm:pt-4 text-xs sm:text-2xl font-black text-white/10 animate-pulse">:</div>
+                    <div className="pt-3 sm:pt-4 text-xs sm:text-2xl font-black text-white/20 animate-pulse">:</div>
                     <HeroTimeUnit value={timeLeft.minutes} label="Min" color="#ef4444" />
-                    <div className="pt-2 sm:pt-4 text-xs sm:text-2xl font-black text-white/10 animate-pulse">:</div>
+                    <div className="pt-3 sm:pt-4 text-xs sm:text-2xl font-black text-white/20 animate-pulse">:</div>
                     <HeroTimeUnit value={timeLeft.seconds} label="Sec" color="#a855f7" />
                   </div>
                 </div>

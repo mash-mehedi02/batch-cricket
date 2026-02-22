@@ -6,8 +6,10 @@ import { Match, InningsStats, Tournament } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
+import { squadService } from '@/services/firestore/squads'
 import { getMatchResultString } from '@/utils/matchWinner'
 import { formatShortTeamName } from '@/utils/teamName'
+import { formatDateLabel, coerceToDate } from '@/utils/date'
 import { Zap, Trophy, Edit3, Calendar, Users, MapPin, ChevronRight, Bell, Settings, BarChart2, Table } from 'lucide-react'
 
 interface MatchSummaryProps {
@@ -39,18 +41,45 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     const [isEditingPom, setIsEditingPom] = useState(false)
     const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([])
     const [tournament, setTournament] = useState<Tournament | null>(null)
+    const [squadsMap, setSquadsMap] = useState<Map<string, any>>(new Map())
 
     useEffect(() => {
         if (match.tournamentId) {
-            matchService.getByTournament(match.tournamentId).then(matches => {
+            matchService.getByTournament(match.tournamentId).then(async matches => {
+                const tA = match.teamAId;
+                const tB = match.teamBId;
+
                 const upcoming = matches
-                    .filter(m => m.status === 'upcoming' && m.id !== match.id)
+                    .filter(m =>
+                        m.status === 'upcoming' &&
+                        m.id !== match.id &&
+                        (m.teamAId === tA || m.teamAId === tB || m.teamBId === tA || m.teamBId === tB)
+                    )
                     .slice(0, 3)
                 setUpcomingMatches(upcoming)
+
+                // Fetch squad logos
+                const squadIds = new Set<string>();
+                upcoming.forEach(um => {
+                    squadIds.add(um.teamAId);
+                    squadIds.add(um.teamBId);
+                });
+                if (squadIds.size > 0) {
+                    const loadedSquads = new Map();
+                    await Promise.all(Array.from(squadIds).map(async sid => {
+                        const sq = await squadService.getById(sid);
+                        if (sq) loadedSquads.set(sid, sq);
+                    }));
+                    setSquadsMap(prev => {
+                        const next = new Map(prev);
+                        loadedSquads.forEach((v, k) => next.set(k, v));
+                        return next;
+                    });
+                }
             })
             tournamentService.getById(match.tournamentId).then(setTournament)
         }
-    }, [match.tournamentId, match.id])
+    }, [match.tournamentId, match.id, match.teamAId, match.teamBId])
 
     // --- Helpers ---
     const getPlayer = (id: string) => playersMap.get(id) || { name: 'Unknown', photoUrl: null }
@@ -291,7 +320,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
             {/* Over Highlights/Balls Timeline */}
             {/* Over Highlights/Balls Timeline - Live Tab Style */}
-            <div className="bg-[#0f172a] border-b border-white/5 py-2.5 px-4 overflow-x-auto scrollbar-hide">
+            <div className="bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-white/5 py-2.5 px-4 overflow-x-auto scrollbar-hide">
                 <div className="max-w-4xl mx-auto flex items-center min-w-max">
                     <div className="flex items-center gap-4">
                         {(() => {
@@ -303,7 +332,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                 <div className="flex items-center gap-4">
                                     {overs.map((over: any, idx: number) => (
                                         <div key={idx} className="flex items-center gap-3">
-                                            {idx > 0 && <div className="h-4 w-px bg-white/10 mx-1"></div>}
+                                            {idx > 0 && <div className="h-4 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>}
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[9px] font-black text-slate-500 tracking-tighter uppercase">OVER {over.overNumber}</span>
                                                 <div className="flex items-center gap-1">
@@ -312,7 +341,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                             className={`h-7 rounded-full flex items-center justify-center font-black border transition-all whitespace-nowrap ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
                                                                 ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
                                                                     ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                        'bg-slate-800 text-slate-300 border-slate-700'
+                                                                        'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                                                                 }`}
                                                             style={{
                                                                 minWidth: '1.75rem',
@@ -332,7 +361,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                     {/* Handle current partial over if exist */}
                                     {timelineInns.currentOverBalls && timelineInns.currentOverBalls.length > 0 && (
                                         <div className="flex items-center gap-3">
-                                            <div className="h-4 w-px bg-white/10 mx-1"></div>
+                                            <div className="h-4 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[9px] font-black text-slate-500 tracking-tighter uppercase">OV {Math.floor(parseFloat(timelineInns.overs || '0')) + 1}</span>
                                                 <div className="flex items-center gap-1">
@@ -341,7 +370,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                             className={`h-7 rounded-full flex items-center justify-center font-black border transition-all whitespace-nowrap ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
                                                                 ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
                                                                     ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                        'bg-slate-800 text-slate-300 border-slate-700'
+                                                                        'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                                                                 }`}
                                                             style={{
                                                                 minWidth: '1.75rem',
@@ -470,22 +499,35 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                             {upcomingMatches.map(m => (
                                 <Link key={m.id} to={`/matches/${m.id}`} className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-100 dark:border-white/5 p-5 block hover:border-blue-500/20 transition-colors relative shadow-sm">
                                     <div className="flex items-center justify-between mb-4">
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{m.venue || 'TBA'}</div>
-                                        <Bell size={14} className="text-slate-600" />
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{m.venue || 'TBA'}</div>
+                                            <div className="text-[9px] font-black text-blue-600/60 dark:text-blue-400/60 uppercase tracking-tight">
+                                                {m.date ? formatDateLabel(m.date) : 'Date TBA'}
+                                            </div>
+                                        </div>
+                                        <Bell size={14} className="text-slate-400" />
                                     </div>
                                     <div className="flex items-center justify-between gap-4">
                                         <div className="space-y-3 flex-1">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-1 flex items-center justify-center shrink-0">
-                                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-300">{getAbbr(m.teamAName)}</span>
+                                                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                                                    {squadsMap.get(m.teamAId)?.logoUrl ? (
+                                                        <img src={squadsMap.get(m.teamAId).logoUrl} className="w-full h-full object-contain" alt="" />
+                                                    ) : (
+                                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-300">{getAbbr(m.teamAName)}</span>
+                                                    )}
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{m.teamAName}</span>
+                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 leading-none">{m.teamAName}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-1 flex items-center justify-center shrink-0">
-                                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-300">{getAbbr(m.teamBName)}</span>
+                                                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                                                    {squadsMap.get(m.teamBId)?.logoUrl ? (
+                                                        <img src={squadsMap.get(m.teamBId).logoUrl} className="w-full h-full object-contain" alt="" />
+                                                    ) : (
+                                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-300">{getAbbr(m.teamBName)}</span>
+                                                    )}
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{m.teamBName}</span>
+                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 leading-none">{m.teamBName}</span>
                                             </div>
                                         </div>
                                         <div className="pl-4 border-l border-white/10 text-right min-w-[80px]">

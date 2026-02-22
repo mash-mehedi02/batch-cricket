@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useMemo } from 'react'
 import { Match, InningsStats } from '@/types'
 import fourIcon from '../../assets/four.png'
 import sixIcon from '../../assets/six.png'
+import batIcon from '../../assets/cricket-bat.png'
+import ballIcon from '../../assets/cricket-ball.png'
 import { Link } from 'react-router-dom'
 import { useTranslation } from '@/hooks/useTranslation'
 import { formatShortTeamName } from '@/utils/teamName'
@@ -79,7 +81,8 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         }
     }
 
-    const tossText = tossWinnerName ? formatShortTeamName(tossWinnerName) : '';
+    const tossWinnerDecision = (m.electedTo || m.tossDecision || '').toLowerCase();
+    const tossText = tossWinnerName ? `${formatShortTeamName(tossWinnerName)} opt to ${tossWinnerDecision === 'bowl' ? 'bowl' : 'bat'}` : '';
 
     const isInningsBreak = match.status === 'InningsBreak';
     const isTied = (match as any).matchPhase === 'Tied';
@@ -102,6 +105,12 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         (match.matchPhase === 'InningsBreak' && match.currentBatting === battedFirst) ||
         match.status === 'finished';
 
+    const matchOvers = Number(match.oversLimit || 20);
+    const maxBalls = matchOvers * 6;
+    const ballsBowled = totalLegals;
+    const remainingBallsFirstInnings = maxBalls - ballsBowled;
+    const shouldShowBallsLeftFirstInnings = !isSecondInnings && !isFinishedMatch && !isInningsBreak && remainingBallsFirstInnings <= 12 && remainingBallsFirstInnings > 0;
+
     let targetScore = 0;
     if (isSecondInnings) {
         targetScore = Number(match?.target || inn?.target || 0);
@@ -119,9 +128,12 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
     // --- Event Label Logic ---
     const isPlayerEntering = !isFinishedMatch && !isInningsBreak && targetScore > 0 && totalLegals === 0
+    // Special Case: 1st Inning Start (show Toss Info)
+    const isFirstInningStart = !isFinishedMatch && totalLegals === 0 && targetScore === 0 && tossWinnerName;
+
     let displayEvent = isFinishedMatch
         ? (resultSummary || t('match_completed').toUpperCase())
-        : (isTied ? t('waiting_super_over').toUpperCase() : (isSuperOver && totalLegals === 0 ? t('waiting_super_over').toUpperCase() : (isInningsBreak ? t('innings_break').toUpperCase() : (centerEventText || '—'))))
+        : (isTied ? t('waiting_super_over').toUpperCase() : (isSuperOver && totalLegals === 0 ? t('waiting_super_over').toUpperCase() : (isInningsBreak ? t('innings_break').toUpperCase() : (isFirstInningStart ? tossText : (centerEventText || '—')))))
 
     // Special Case: 2nd Innings Start (Player Entering)
     if (isPlayerEntering) {
@@ -228,7 +240,6 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
     const isChasing = targetScore > 0;
     const runsNeeded = isChasing ? Math.max(0, targetScore - runs) : (targetScore > 0 ? targetScore : 0);
-    const matchOvers = match.oversLimit || 20;
     const remainingBalls = Math.max(0, (matchOvers * 6) - totalLegals);
 
     const liveReqRunRate = (remainingBalls > 0 && targetScore > 0)
@@ -316,6 +327,18 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                             <div className="flex flex-col items-center animate-in zoom-in duration-300 z-10 w-full justify-center">
                                 <img src={sixIcon} className="h-24 w-auto object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]" alt="6" />
                             </div>
+                        ) : isFirstInningStart ? (
+                            <div className="flex flex-col items-center justify-center gap-2 z-10 w-full animate-in fade-in zoom-in duration-500">
+                                <span className="text-[14px] sm:text-lg font-black text-amber-300 uppercase tracking-tight text-center leading-tight drop-shadow-md">
+                                    {tossWinnerName} <br />
+                                    <span className="text-white">opt to {tossWinnerDecision === 'bowl' ? 'bowl' : 'bat'}</span>
+                                </span>
+                                <img
+                                    src={tossWinnerDecision === 'bowl' ? ballIcon : batIcon}
+                                    className="h-6 sm:h-8 w-auto object-contain drop-shadow-lg"
+                                    alt="toss-icon"
+                                />
+                            </div>
                         ) : (
                             <div className={`relative z-10 text-center flex items-center justify-center w-full px-2 ${eventColorClass}`}>
 
@@ -371,10 +394,21 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
                             {(!targetScore || targetScore === 0) && !isInningsBreak && (
                                 <div className={`flex items-center gap-2 ${targetScore > 0 ? 'pl-4 border-l border-white/10' : ''}`}>
-                                    <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">{t('toss')}:</span>
-                                    <span className="text-xs font-medium text-slate-200 uppercase leading-none">
-                                        {tossText || (twid ? formatShortTeamName(twid) : '-')}
-                                    </span>
+                                    {shouldShowBallsLeftFirstInnings ? (
+                                        <>
+                                            <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">Balls Left:</span>
+                                            <span className="text-xs font-black text-amber-500 leading-none animate-pulse">
+                                                {remainingBallsFirstInnings}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">{t('toss')}:</span>
+                                            <span className="text-xs font-medium text-slate-200 uppercase leading-none">
+                                                {tossWinnerName ? formatShortTeamName(tossWinnerName) : (twid ? formatShortTeamName(twid) : '-')}
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>

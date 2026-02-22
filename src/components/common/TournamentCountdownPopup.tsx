@@ -289,26 +289,27 @@ export default function TournamentCountdownPopup() {
 
                     {/* FLIP SECTION */}
                     <div style={{
-                        background: 'rgba(0, 0, 0, 0.2)',
-                        padding: '28px 16px',
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        padding: '28px 10px',
                         borderRadius: '24px',
                         border: '1px solid rgba(255,255,255,0.05)',
-                        boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.3)'
+                        boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.3)',
+                        width: '100%',
                     }}>
                         <div style={{ position: 'relative', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <div style={{ position: 'absolute', left: '15%', right: '15%', top: '50%', height: '1px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }} />
-                            <span style={{ fontSize: '14px', fontWeight: '900', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.2em', background: '#1e293b', padding: '0 16px', zIndex: 1 }}>
+                            <span style={{ fontSize: '13px', fontWeight: '900', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.15em', background: '#1e293b', padding: '0 12px', zIndex: 1 }}>
                                 Time Remaining
                             </span>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '5px' }}>
                             <TimeUnit value={timeLeft.days} label="Days" color="#f59e0b" />
-                            <div style={{ marginTop: '12px', fontSize: '20px', fontWeight: '900', color: 'rgba(255,255,255,0.2)' }}>:</div>
+                            <div style={{ marginTop: '12px', fontSize: '16px', fontWeight: '900', color: 'rgba(255,255,255,0.15)' }}>:</div>
                             <TimeUnit value={timeLeft.hours} label="Hours" color="#84cc16" />
-                            <div style={{ marginTop: '12px', fontSize: '20px', fontWeight: '900', color: 'rgba(255,255,255,0.2)' }}>:</div>
+                            <div style={{ marginTop: '12px', fontSize: '16px', fontWeight: '900', color: 'rgba(255,255,255,0.15)' }}>:</div>
                             <TimeUnit value={timeLeft.minutes} label="Mins" color="#ef4444" />
-                            <div style={{ marginTop: '12px', fontSize: '20px', fontWeight: '900', color: 'rgba(255,255,255,0.2)' }}>:</div>
+                            <div style={{ marginTop: '12px', fontSize: '16px', fontWeight: '900', color: 'rgba(255,255,255,0.15)' }}>:</div>
                             <TimeUnit value={timeLeft.seconds} label="Secs" color="#a855f7" />
                         </div>
                     </div>
