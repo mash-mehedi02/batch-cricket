@@ -90,6 +90,15 @@ const CrexLiveSection = ({
     const lastBall = lastOver?.balls?.[lastOver.balls.length - 1];
     const lastBallEvent = lastBall?.value || lastBall?.runsOffBat || lastBall?.runs;
 
+    // Comparison logic for "At this stage"
+    const parseOversToBalls = (ovStr) => {
+      const [ovParts, bParts] = (ovStr || '0.0').toString().split('.');
+      return (Number(ovParts) * 6) + Number(bParts || 0);
+    };
+    const cBalls = parseOversToBalls(currentOvers);
+    const defInn = battingTeamSide === 'teamA' ? teamBInnings : teamAInnings;
+    const stageScore = defInn?.oversProgress?.slice().reverse().find(p => (p.balls || parseOversToBalls(p.over)) <= cBalls);
+
     return calculateWinProbability({
       currentRuns: Number(currentRuns || 0),
       wickets: Number(currentInnings?.totalWickets || 0),
@@ -98,7 +107,11 @@ const CrexLiveSection = ({
       oversLimit: Number(oversLimit || 20),
       battingTeamSide,
       lastBallEvent,
-      isFinishedMatch
+      isFinishedMatch,
+      partnershipRuns: partnership?.runs || 0,
+      partnershipBalls: partnership?.balls || 0,
+      recentOvers: recentOvers || [],
+      firstInningsStageScore: stageScore ? { runs: stageScore.runs, wickets: stageScore.wickets } : undefined
     });
   }, [currentRuns, currentInnings?.totalWickets, currentInnings?.inningId, currentOvers, target, oversLimit, isFinishedMatch, recentOvers]);
 

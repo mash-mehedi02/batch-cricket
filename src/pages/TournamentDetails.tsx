@@ -4,7 +4,7 @@
  * Ads and Videos removed as requested.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { matchService } from '@/services/firestore/matches'
@@ -17,7 +17,7 @@ import { getMatchResultString } from '@/utils/matchWinner'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { ArrowLeft, Bell, ChevronDown, Share2, ChevronRight, Check } from 'lucide-react'
+import { ArrowLeft, Bell, Share2, ChevronRight, Check } from 'lucide-react'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 import { memo } from 'react'
 import { useAuthStore } from '@/store/authStore'
@@ -25,6 +25,8 @@ import { oneSignalService } from '@/services/oneSignalService'
 import { db } from '@/config/firebase'
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import toast from 'react-hot-toast'
+import { useScreenshotShare } from '@/hooks/useScreenshotShare'
+import ShareModal from '@/components/common/ShareModal'
 
 type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats'
 
@@ -142,6 +144,18 @@ export default function TournamentDetails() {
   }, [tournamentId])
 
   const [scrolled, setScrolled] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [screenshotImage, setScreenshotImage] = useState('')
+  const pageRef = useRef<HTMLDivElement>(null)
+
+  const { longPressProps, captureScreenshot } = useScreenshotShare({
+    onScreenshotReady: (img) => {
+      setScreenshotImage(img)
+      setIsShareModalOpen(true)
+    },
+    captureRef: pageRef,
+    delay: 1000
+  })
 
   useEffect(() => {
     const handleScroll = () => {
@@ -192,15 +206,22 @@ export default function TournamentDetails() {
   if (!tournamentData) return null
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24">
+    <div
+      ref={pageRef}
+      {...longPressProps}
+      className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24"
+    >
       {/* 1. Sticky Top Bar - Clean & Stable */}
       <div
-        className={`bg-[#050B18] text-white sticky top-0 z-50 transition-all duration-300 border-b border-white/5 ${scrolled ? 'shadow-2xl' : ''}`}
+        className={`hide-in-screenshot bg-[#050B18] text-white sticky top-0 z-50 transition-all duration-300 border-b border-white/5 ${scrolled ? 'shadow-2xl' : ''}`}
       >
         <div className="max-w-4xl mx-auto px-5">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <button onClick={() => navigate('/tournaments')} className="p-1 -ml-1 hover:bg-white/10 rounded-full transition-colors shrink-0">
+              <button
+                onClick={() => navigate('/tournaments')}
+                className="hide-in-screenshot p-1 -ml-1 hover:bg-white/10 rounded-full transition-colors shrink-0"
+              >
                 <ArrowLeft size={24} />
               </button>
               <h1 className={`text-sm font-bold text-white truncate tracking-tight transition-all duration-300 ${scrolled ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
@@ -210,7 +231,7 @@ export default function TournamentDetails() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleFollow}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing
+                className={`hide-in-screenshot flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing
                   ? 'bg-blue-600 text-white'
                   : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
                   }`}
@@ -218,7 +239,10 @@ export default function TournamentDetails() {
                 {isFollowing ? <Check size={14} /> : <Bell size={14} className="fill-white" />}
                 <span>{isFollowing ? 'Following' : 'Follow'}</span>
               </button>
-              <button className="p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all">
+              <button
+                onClick={captureScreenshot}
+                className="hide-in-screenshot p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all"
+              >
                 <Share2 size={16} />
               </button>
             </div>
@@ -277,6 +301,12 @@ export default function TournamentDetails() {
       <div className="max-w-4xl mx-auto px-5">
         {content}
       </div>
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        image={screenshotImage}
+        title="Share Tournament"
+      />
     </div>
   )
 }
@@ -288,7 +318,6 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
 
   const featuredMatches = useMemo(() => {
     const statusLower = (m: Match) => String(m.status || '').toLowerCase().trim()
-    const now = Date.now()
 
     // 1. Most recent Live/InningsBreak match
     const live = matches.filter(m => {

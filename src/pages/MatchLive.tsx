@@ -32,6 +32,8 @@ import { MapPin, Info, Users, Hash, ChevronDown, Pin, LayoutDashboard } from 'lu
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 import { useTranslation } from '@/hooks/useTranslation'
+import { useScreenshotShare } from '@/hooks/useScreenshotShare'
+import ShareModal from '@/components/common/ShareModal'
 
 export default function MatchLive() {
   const { matchId } = useParams<{ matchId: string }>()
@@ -58,8 +60,6 @@ export default function MatchLive() {
   const [now, setNow] = useState<Date>(() => new Date())
   const [centerEventText, setCenterEventText] = useState<string>('')
   const [isWicketDisplay, setIsWicketDisplay] = useState<boolean>(false)
-  const [ballAnimating, setBallAnimating] = useState(false)
-  const [ballEventType, setBallEventType] = useState<'4' | '6' | 'wicket' | 'normal'>('normal')
   const [animationEvent, setAnimationEvent] = useState<string>('')
   const [showAnimation, setShowAnimation] = useState<boolean>(false)
   const [displayedInnings, setDisplayedInnings] = useState<InningsStats | null>(null)
@@ -86,6 +86,18 @@ export default function MatchLive() {
   }
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [screenshotImage, setScreenshotImage] = useState('')
+  const pageRef = useRef<HTMLDivElement>(null)
+
+  const { longPressProps } = useScreenshotShare({
+    onScreenshotReady: (img) => {
+      setScreenshotImage(img)
+      setIsShareModalOpen(true)
+    },
+    captureRef: pageRef,
+    delay: 1000 // Slightly longer to avoid accidental triggers
+  })
 
   // Provide global functions for child components to interact with the parent
   useEffect(() => {
@@ -567,23 +579,17 @@ export default function MatchLive() {
         if (isWicketLabel) {
           const wType = (innLast as any)?.wicketType || base || 'OUT';
           setIsWicketDisplay(true)
-          setCenterEventText('WICKET')  // Show 'WICKET' first
+          setCenterEventText(wType)
 
           // Trigger the wicket animation
           setAnimationEvent('WICKET')
           setShowAnimation(true)
 
-          // After 2 seconds, show the wicket type in red
-          t5 = window.setTimeout(() => {
-            setCenterEventText(wType)
-            // After another 2 seconds, clear only the animation overlay, keep the event indicator
-            const timerId = window.setTimeout(() => {
-              setShowAnimation(false) // Clear the animation overlay only
-              setShowBoundaryAnim(false)
-            }, 2000);
-            // Store timerId in a way we can clear it
-            (window as any)._wicketClearTimer = timerId;
-          }, 2000)
+          const timerId = window.setTimeout(() => {
+            setShowAnimation(false)
+            setShowBoundaryAnim(false)
+          }, 2000);
+          (window as any)._wicketClearTimer = timerId;
         } else {
           setCenterEventText(base || '')
           setIsWicketDisplay(false)
@@ -642,35 +648,16 @@ export default function MatchLive() {
     };
 
     const activeBallKey = `${inn?.legalBalls || 0}_${inn?.totalRuns || 0}_${inn?.totalWickets || 0}`;
-    const isBallChanged = prevBallKeyRef.current !== null && prevBallKeyRef.current !== activeBallKey && !isFinishedMatch && !isInningsEnded;
 
-    // Only trigger new ball logic if not already animating or it's a truly different ball
-    if (isBallChanged && !isAnimatingRef.current) {
-      prevBallKeyRef.current = activeBallKey;
-      isAnimatingRef.current = true;
-      setCenterEventText('BALL');
-      setBallAnimating(true);
+    // Update state immediately for instant feedback
+    prevBallKeyRef.current = activeBallKey;
+    performUpdate();
+    setDisplayedInnings(inn);
+    isAnimatingRef.current = false;
 
-      t1 = window.setTimeout(() => {
-        performUpdate();
-
-        const cleanBase = String(base || '').trim();
-        const isBigEvent = isWicketLabel || cleanBase === '4' || cleanBase === '6';
-        const scoreboardDelay = isBigEvent ? 4500 : 3000;
-
-        if (scoreTimerRef.current) window.clearTimeout(scoreTimerRef.current);
-        scoreTimerRef.current = window.setTimeout(() => {
-          setDisplayedInnings(inn);
-          isAnimatingRef.current = false;
-          setBallAnimating(false);
-          scoreTimerRef.current = null;
-        }, scoreboardDelay);
-      }, 1500);
-    } else if (!isAnimatingRef.current && !scoreTimerRef.current) {
-      // Regular update (score correction, etc.) - only if no animation is blocking
-      prevBallKeyRef.current = activeBallKey;
-      performUpdate();
-      setDisplayedInnings(inn);
+    if (scoreTimerRef.current) {
+      window.clearTimeout(scoreTimerRef.current);
+      scoreTimerRef.current = null;
     }
 
     return () => {
@@ -1783,7 +1770,11 @@ export default function MatchLive() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#060b16]">
+    <div
+      ref={pageRef}
+      {...longPressProps}
+      className="min-h-screen bg-slate-50 dark:bg-[#060b16]"
+    >
       {/* 1. Page Header (Sticky) */}
       <PageHeader
         title={<span className="text-[11px] sm:text-lg">{isUpcomingMatch ? `${firstName} vs ${secondName}` : `${teamAName} vs ${teamBName}`}</span>}
@@ -1836,10 +1827,7 @@ export default function MatchLive() {
             resultSummary={calculatedResultSummary || resultSummary}
             centerEventText={centerEventText || '—'}
             showBoundaryAnim={showBoundaryAnim}
-            ballAnimating={ballAnimating}
-            ballEventType={ballEventType}
             lastBall={null}
-            recentOvers={(displayedInnings || currentInnings)?.recentOvers || []}
           />
         </div>
       )}
@@ -1872,6 +1860,13 @@ export default function MatchLive() {
         onClose={() => setIsSettingsOpen(false)}
         matchId={matchId || ''}
         matchTitle={`${teamAName} vs ${teamBName}`}
+      />
+
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        image={screenshotImage}
+        title="Share Live Score"
       />
     </div>
   )

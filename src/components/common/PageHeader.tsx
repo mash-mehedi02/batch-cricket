@@ -17,7 +17,7 @@ export default function PageHeader({
     return (
         <>
             {/* Header Content - Premium Indigo/Dark Theme */}
-            <div className="relative z-[100] pt-[var(--status-bar-height)] pb-2.5 flex items-center justify-between px-4 bg-[#050B18] border-b border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] transition-all duration-300">
+            <div className="hide-in-screenshot relative z-[100] pt-[var(--status-bar-height)] pb-2.5 flex items-center justify-between px-4 bg-[#050B18] border-b border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] transition-all duration-300">
 
                 {/* Background Accent */}
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-blue-600/5 to-transparent pointer-events-none"></div>
@@ -26,7 +26,7 @@ export default function PageHeader({
                 <div className="flex items-center gap-4 flex-1 min-w-0 relative z-10">
                     <button
                         onClick={() => backLink ? navigate(backLink) : navigate(-1)}
-                        className="group relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-95 bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 shadow-lg backdrop-blur-sm shrink-0"
+                        className="hide-in-screenshot group relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 active:scale-95 bg-white/5 border border-white/5 text-white hover:bg-white/10 hover:border-white/10 shadow-lg backdrop-blur-sm shrink-0"
                     >
                         <ArrowLeft size={20} className="transition-transform group-hover:-translate-x-0.5" />
                     </button>
@@ -50,7 +50,7 @@ export default function PageHeader({
                 </div>
 
                 {/* Right Content */}
-                <div className="pointer-events-auto flex items-center gap-1.5 relative z-10">
+                <div className="hide-in-screenshot pointer-events-auto flex items-center gap-1.5 relative z-10">
                     {rightContent}
                 </div>
             </div>

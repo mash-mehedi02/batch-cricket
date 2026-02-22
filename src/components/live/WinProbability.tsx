@@ -15,6 +15,7 @@ interface WinProbabilityProps {
     teamBName?: string
     batsmenForm?: Array<{ playerId: string; average: number; strikeRate: number }>
     remainingBowlers?: Array<{ playerId: string; economy: number; average: number }>
+    partnership?: { runs: number; balls: number }
 }
 
 const WinProbability: React.FC<WinProbabilityProps> = ({
@@ -27,6 +28,7 @@ const WinProbability: React.FC<WinProbabilityProps> = ({
     teamBName = 'Team B',
     batsmenForm = [],
     remainingBowlers = [],
+    partnership = { runs: 0, balls: 0 }
 }) => {
     // Calculate win probability using engine
     const probability = calculateWinProbability({
@@ -35,9 +37,10 @@ const WinProbability: React.FC<WinProbabilityProps> = ({
         legalBalls: balls,
         target,
         oversLimit,
-        batsmenForm,
-        remainingBowlers,
-    })
+        partnershipRuns: partnership.runs,
+        partnershipBalls: partnership.balls,
+        battingTeamSide: 'teamA' // Default fallback
+    });
 
     const normalizedA = probability.defendingTeamWinProb
     const normalizedB = probability.chasingTeamWinProb

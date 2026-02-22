@@ -258,7 +258,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
           <div className="mt-10 flex flex-wrap gap-6 pt-6 border-t border-slate-100 dark:border-white/5">
             <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full ${firstSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
-              <span className="text-xs font-black uppercase text-slate-300 tracking-wider">{firstName}</span>
+              <span className="text-xs font-black uppercase text-slate-600 dark:text-slate-300 tracking-wider">{firstName}</span>
             </div>
             <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full ${secondSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
@@ -365,7 +365,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
           <div className="mt-10 flex flex-wrap gap-6 pt-6 border-t border-slate-100 dark:border-white/5">
             <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full ${firstSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />
-              <span className="text-xs font-black uppercase text-slate-300 tracking-wider">{firstName}</span>
+              <span className="text-xs font-black uppercase text-slate-600 dark:text-slate-300 tracking-wider">{firstName}</span>
             </div>
             <div className="flex items-center gap-3">
               <div className={`w-3 h-3 rounded-full ${secondSide === 'teamA' ? 'bg-[#0ea5e9]' : 'bg-[#f97316]'}`} />

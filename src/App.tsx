@@ -81,7 +81,7 @@ function App() {
       <ScrollToTop />
       <Routes>
         {/* Login Route - Redirect to Home with popup trigger */}
-        <Route path="/login" element={<Navigate to="/?login=true" replace />} />
+        <Route path="/login" element={<Navigate to="/menu?login=true" replace />} />
         <Route path="/admin/auth" element={<Login />} />
         <Route path="/search" element={<Search />} />
 

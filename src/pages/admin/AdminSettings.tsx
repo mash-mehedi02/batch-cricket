@@ -8,10 +8,11 @@ import { useAuthStore } from '@/store/authStore'
 import { checkIfAdmin } from '@/utils/createAdmin'
 import { debugAdminPermissions, forceRefreshAuthToken, printAdminDebugInfo } from '@/utils/debugAdmin'
 import toast from 'react-hot-toast'
-import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database, Lock, Key, Save } from 'lucide-react'
-import { auth } from '@/config/firebase'
+import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database, Lock, Key, Save, Timer, ToggleLeft, ToggleRight, Image, Calendar, Trophy } from 'lucide-react'
+import { auth, db } from '@/config/firebase'
 import { updatePassword, signOut } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 export default function AdminSettings() {
   const { user } = useAuthStore()
@@ -25,6 +26,15 @@ export default function AdminSettings() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+
+  // Countdown Popup State
+  const [cpEnabled, setCpEnabled] = useState(false)
+  const [cpName, setCpName] = useState('')
+  const [cpSubtitle, setCpSubtitle] = useState('')
+  const [cpLogo, setCpLogo] = useState('')
+  const [cpDate, setCpDate] = useState('')
+  const [cpSaving, setCpSaving] = useState(false)
+  const [cpFetching, setCpFetching] = useState(true)
 
   // Check if user is admin on load
   useEffect(() => {
@@ -47,6 +57,30 @@ export default function AdminSettings() {
     } else {
       setChecking(false)
     }
+  }, [user])
+
+  // Fetch Countdown Popup Settings
+  useEffect(() => {
+    const fetchCP = async () => {
+      if (!user) return
+      try {
+        const docRef = doc(db, 'settings', 'countdownPopup')
+        const snap = await getDoc(docRef)
+        if (snap.exists()) {
+          const data = snap.data()
+          setCpEnabled(!!data.enabled)
+          setCpName(data.tournamentName || '')
+          setCpSubtitle(data.subtitle || '')
+          setCpLogo(data.tournamentLogo || '')
+          setCpDate(data.startDate || '')
+        }
+      } catch (err) {
+        console.error('Failed to fetch countdown settings:', err)
+      } finally {
+        setCpFetching(false)
+      }
+    }
+    fetchCP()
   }, [user])
 
   const copyToClipboard = (text: string, label: string) => {
@@ -241,6 +275,155 @@ export default function AdminSettings() {
             </p>
           </form>
         </div>
+      </div>
+
+      {/* Countdown Popup Settings */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+          <div className="h-10 w-10 bg-amber-100 rounded-full flex items-center justify-center">
+            <Timer className="h-5 w-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-gray-900">Countdown Popup</h2>
+            <p className="text-xs text-gray-500">Show a tournament countdown when users open the app</p>
+          </div>
+          {cpFetching ? (
+            <div className="h-9 w-20 bg-gray-100 rounded-lg animate-pulse" />
+          ) : (
+            <button
+              onClick={async () => {
+                if (!cpEnabled) {
+                  // Turning ON — validate
+                  if (!cpName.trim() || !cpDate.trim()) {
+                    toast.error('Fill tournament name & date before enabling')
+                    return
+                  }
+                }
+                const newVal = !cpEnabled
+                setCpEnabled(newVal)
+                try {
+                  await setDoc(doc(db, 'settings', 'countdownPopup'), {
+                    enabled: newVal,
+                    tournamentName: cpName.trim(),
+                    subtitle: cpSubtitle.trim(),
+                    tournamentLogo: cpLogo.trim(),
+                    startDate: cpDate,
+                  })
+                  toast.success(newVal ? 'Popup enabled' : 'Popup disabled')
+                } catch {
+                  toast.error('Failed to update')
+                  setCpEnabled(!newVal)
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${cpEnabled ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+            >
+              {cpEnabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />}
+              {cpEnabled ? 'ON' : 'OFF'}
+            </button>
+          )}
+        </div>
+
+        {cpFetching ? (
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="space-y-2">
+                  <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+                  <div className="h-10 w-full bg-gray-50 border border-gray-100 rounded-lg animate-pulse" />
+                </div>
+              ))}
+            </div>
+            <div className="h-10 w-32 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+        ) : (
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                  <Trophy className="inline h-3 w-3 mr-1" />Tournament Name *
+                </label>
+                <input
+                  type="text"
+                  value={cpName}
+                  onChange={(e) => setCpName(e.target.value)}
+                  placeholder="SMA Batch Cricket 2026 (Season 2)"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                  Subtitle
+                </label>
+                <input
+                  type="text"
+                  value={cpSubtitle}
+                  onChange={(e) => setCpSubtitle(e.target.value)}
+                  placeholder="The Ultimate Cricket Showdown"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                  <Image className="inline h-3 w-3 mr-1" />Logo URL
+                </label>
+                <input
+                  type="url"
+                  value={cpLogo}
+                  onChange={(e) => setCpLogo(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                  <Calendar className="inline h-3 w-3 mr-1" />Start Date *
+                </label>
+                <input
+                  type="date"
+                  value={cpDate}
+                  onChange={(e) => setCpDate(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition-all text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            {cpLogo && (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <img src={cpLogo} alt="Preview" className="w-12 h-12 rounded-lg object-cover border border-gray-200" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                <span className="text-xs text-gray-500">Logo preview</span>
+              </div>
+            )}
+
+            <button
+              onClick={async () => {
+                if (!cpName.trim() || !cpDate.trim()) {
+                  toast.error('Tournament name and date are required')
+                  return
+                }
+                setCpSaving(true)
+                try {
+                  await setDoc(doc(db, 'settings', 'countdownPopup'), {
+                    enabled: cpEnabled,
+                    tournamentName: cpName.trim(),
+                    subtitle: cpSubtitle.trim(),
+                    tournamentLogo: cpLogo.trim(),
+                    startDate: cpDate,
+                  })
+                  toast.success('Countdown popup settings saved!')
+                } catch {
+                  toast.error('Failed to save settings')
+                } finally {
+                  setCpSaving(false)
+                }
+              }}
+              disabled={cpSaving}
+              className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-all text-sm shadow-md disabled:opacity-50 active:scale-95"
+            >
+              <Save className="h-4 w-4" />
+              {cpSaving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Advanced / Troubleshooting Section */}

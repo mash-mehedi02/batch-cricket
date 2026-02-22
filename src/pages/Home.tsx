@@ -14,10 +14,41 @@ import { Match, Squad } from '@/types'
 import MatchCardSkeleton from '@/components/skeletons/MatchCardSkeleton'
 import MatchCard from '@/components/match/MatchCard'
 import { PinnedScoreWidget } from '@/components/match/PinnedScoreWidget'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db } from '@/config/firebase'
 import { coerceToDate } from '@/utils/date'
 import { formatShortTeamName } from '@/utils/teamName'
 import schoolConfig from '@/config/school'
 import heroStumps from '@/assets/hero_stumps.png'
+import HangingCountdownCard from '@/components/common/HangingCountdownCard'
+
+const HeroDigit = ({ value, color }: { value: string, color: string }) => (
+  <div className="relative w-7 h-11 sm:w-11 sm:h-16 lg:w-14 lg:h-18 flex items-center justify-center rounded-lg text-white font-black text-lg sm:text-3xl lg:text-4xl shadow-xl border border-white/5 transition-all" style={{ backgroundColor: color }}>
+    {/* Center Split line */}
+    <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-black/20 z-10" />
+    {/* Split dots */}
+    <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-[#0f172a] border border-white/5 z-20" />
+    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-[#0f172a] border border-white/5 z-20" />
+
+    <span className="relative z-0 drop-shadow-lg">{value}</span>
+
+    {/* Subtle top glare */}
+    <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-md" />
+  </div>
+)
+
+const HeroTimeUnit = ({ value, label, color }: { value: number, label: string, color: string }) => {
+  const str = String(value).padStart(2, '0')
+  return (
+    <div className="flex flex-col items-center gap-1.5 sm:gap-2.5">
+      <div className="flex gap-1 sm:gap-1.5">
+        <HeroDigit value={str[0]} color={color} />
+        <HeroDigit value={str[1]} color={color} />
+      </div>
+      <span className="text-[8px] sm:text-[11px] lg:text-xs font-black text-white/30 uppercase tracking-[0.1em] sm:tracking-[0.2em]">{label}</span>
+    </div>
+  )
+}
 
 export default function Home() {
   const [liveMatches, setLiveMatches] = useState<Match[]>([])
@@ -27,12 +58,52 @@ export default function Home() {
   const [squads, setSquads] = useState<Squad[]>([])
   const [tournamentsMap, setTournamentsMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [cpConfig, setCpConfig] = useState<{ enabled: boolean, startDate: string, tournamentName: string } | null>(null)
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
 
   useEffect(() => {
     // Subscribe to squads
     const unsubscribeSquads = squadService.subscribeAll(setSquads)
     return () => unsubscribeSquads()
   }, [])
+
+  useEffect(() => {
+    // Real-time Countdown Config listener
+    const docRef = doc(db, 'settings', 'countdownPopup')
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        setCpConfig({
+          enabled: !!data.enabled,
+          startDate: data.startDate || '',
+          tournamentName: data.tournamentName || ''
+        })
+      }
+    }, (err) => {
+      console.warn('Failed to subscribe to hero countdown:', err)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!cpConfig?.enabled || !cpConfig?.startDate) return
+
+    const calc = () => {
+      const target = new Date(cpConfig.startDate + 'T00:00:00').getTime()
+      const now = Date.now()
+      const diff = Math.max(0, target - now)
+      setTimeLeft({
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((diff / (1000 * 60)) % 60),
+        seconds: Math.floor((diff / 1000) % 60),
+      })
+    }
+    calc()
+    const ival = setInterval(calc, 1000)
+    return () => clearInterval(ival)
+  }, [cpConfig])
 
   useEffect(() => {
     const loadMatches = async () => {
@@ -121,8 +192,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] font-sans">
-      {/* MODERN HERO SECTION - Adjusted Height 50vh */}
-      <div className="h-[50vh] min-h-[350px] relative bg-[#0f172a] text-white flex flex-col pt-6">
+      {/* MODERN HERO SECTION - Adjusted Height for content */}
+      <div className={`relative bg-[#0f172a] text-white flex flex-col pt-6 transition-all duration-500 ${cpConfig?.enabled ? 'min-h-[550px] sm:min-h-[650px] pb-32' : 'h-[50vh] min-h-[350px]'}`}>
 
         {/* Background Gradients Wrapper - Contained to prevent overflow */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -133,16 +204,16 @@ export default function Home() {
         <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 flex-1 flex flex-col">
 
           {/* Header */}
-          <div className="flex flex-col items-center mb-4 sm:mb-6 shrink-0">
-            <div className="flex items-center gap-3 bg-white/5 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10 shadow-lg">
+          <div className="flex flex-col items-center mb-6 shrink-0">
+            <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
               <img
                 src={schoolConfig.logo}
                 alt="Logo"
-                className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-md"
+                className="w-10 h-10 object-contain drop-shadow-md hover:scale-110 transition-transform cursor-pointer"
               />
-              <div className="flex flex-col">
-                <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-0.5">Official App</span>
-                <span className="text-xs sm:text-sm font-bold text-white leading-none tracking-wide">{schoolConfig.name}</span>
+              <div className="text-left">
+                <span className="block text-[10px] text-teal-400 font-black uppercase tracking-widest leading-none mb-1">Official App</span>
+                <span className="block text-sm font-black text-white leading-none tracking-wide">{schoolConfig.name}</span>
               </div>
             </div>
           </div>
@@ -150,22 +221,58 @@ export default function Home() {
           {/* Hero Content Grid - Fill remaining space */}
           <div className="flex-1 flex flex-col items-center justify-center text-center pb-8">
 
-            <h2 className="text-teal-400 font-bold tracking-[0.2em] uppercase text-[10px] sm:text-xs mb-1 sm:mb-2">The Ultimate Platform</h2>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-2 drop-shadow-xl">
-              CRICKET <span className="text-teal-500">LIVE</span>
-            </h1>
-            <p className="text-blue-200/80 text-[10px] sm:text-xs font-medium tracking-wide max-w-md mx-auto mb-4 sm:mb-6">
-              {schoolConfig.tagline}
-            </p>
+            {cpConfig?.enabled ? (
+              <div className="animate-in fade-in zoom-in duration-700">
+                {/* Reference Design Header */}
+                <div className="flex items-center justify-center gap-4 sm:gap-8 mb-6 sm:mb-8">
+                  <div className="h-px w-12 sm:w-32 lg:w-48 border-b border-dashed border-white/30" />
+                  <span className="text-[11px] sm:text-sm lg:text-base font-black uppercase tracking-[0.4em] text-white drop-shadow-md">Time Remaining</span>
+                  <div className="h-px w-12 sm:w-32 lg:w-48 border-b border-dashed border-white/30" />
+                </div>
+
+                {/* Flip Clock Grid - Fully Responsive scaling */}
+                <div className="mx-auto max-w-[340px] sm:max-w-2xl lg:max-w-4xl bg-[#2b3945]/20 backdrop-blur-md px-6 py-4 sm:px-12 sm:py-10 rounded-3xl border border-white/5 shadow-2xl">
+                  <div className="flex items-start justify-center gap-2 sm:gap-6 lg:gap-8">
+                    <HeroTimeUnit value={timeLeft.days} label="Days" color="#f59e0b" />
+                    <div className="pt-2 sm:pt-4 text-base sm:text-4xl font-black text-white/10 animate-pulse">:</div>
+                    <HeroTimeUnit value={timeLeft.hours} label="Hours" color="#84cc16" />
+                    <div className="pt-2 sm:pt-4 text-base sm:text-4xl font-black text-white/10 animate-pulse">:</div>
+                    <HeroTimeUnit value={timeLeft.minutes} label="Mins" color="#ef4444" />
+                    <div className="pt-2 sm:pt-4 text-base sm:text-4xl font-black text-white/10 animate-pulse">:</div>
+                    <HeroTimeUnit value={timeLeft.seconds} label="Secs" color="#a855f7" />
+                  </div>
+                </div>
+
+                <div className="mt-6 sm:mt-10">
+                  <div className="inline-block px-4 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20 mb-3">
+                    <p className="text-[10px] sm:text-xs font-black text-teal-400 uppercase tracking-[0.2em]">Upcoming Tournament</p>
+                  </div>
+                  <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight drop-shadow-2xl max-w-2xl px-4 text-center">{cpConfig.tournamentName}</h1>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-teal-400 font-bold tracking-[0.2em] uppercase text-[10px] sm:text-xs mb-1 sm:mb-2">The Ultimate Platform</h2>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight mb-2 drop-shadow-xl">
+                  CRICKET <span className="text-teal-500">LIVE</span>
+                </h1>
+                <p className="text-blue-200/80 text-[10px] sm:text-xs font-medium tracking-wide max-w-md mx-auto mb-4 sm:mb-6">
+                  {schoolConfig.tagline}
+                </p>
+              </>
+            )}
 
             {/* Hero Image - Scaled to fit */}
-            <div className="relative w-full max-w-[320px] sm:max-w-sm md:max-w-md aspect-video flex items-center justify-center">
-              <img
-                src={heroStumps}
-                alt="Cricket Stumps"
-                className="w-full h-full object-contain filter drop-shadow-2xl"
-              />
-            </div>
+            {!cpConfig?.enabled && (
+              <div className="relative w-full max-w-[320px] sm:max-w-sm md:max-w-md aspect-video flex items-center justify-center">
+                <HangingCountdownCard />
+                <img
+                  src={heroStumps}
+                  alt="Cricket Stumps"
+                  className="w-full h-full object-contain filter drop-shadow-2xl"
+                />
+              </div>
+            )}
           </div>
         </div>
 

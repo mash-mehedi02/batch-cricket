@@ -138,14 +138,22 @@ const AdminLiveScoring = () => {
 
     // --- Player of the Match Logic ---
     useEffect(() => {
-        if (finalizeModalOpen && match && inningsA && inningsB && teamAPlayers.length > 0 && teamBPlayers.length > 0) {
+        const shouldCalculate = (finalizeModalOpen || match?.status === 'finished') && match && inningsA && inningsB && teamAPlayers.length > 0 && teamBPlayers.length > 0;
+        if (shouldCalculate) {
             const suggested = calculatePotM(match, inningsA, inningsB, teamAPlayers, teamBPlayers);
             if (suggested) {
                 setSuggestedPotm(suggested);
-                if (!potmId) setPotmId(suggested.id);
+                // IF no manual choice yet, default to auto-suggestion
+                if (!potmId && !match.playerOfTheMatch) {
+                    setPotmId(suggested.id);
+                    // Auto-save if match is finished and no PotM set yet
+                    if (match.status === 'finished' && !match.playerOfTheMatch && matchId) {
+                        matchService.update(matchId, { playerOfTheMatch: suggested.id }).catch(() => { });
+                    }
+                }
             }
         }
-    }, [finalizeModalOpen, match, inningsA, inningsB, teamAPlayers, teamBPlayers]);
+    }, [finalizeModalOpen, match?.status, match, inningsA, inningsB, teamAPlayers, teamBPlayers, potmId]);
 
     // --- Auto-trigger select if missing ---
     useEffect(() => {
@@ -853,10 +861,12 @@ const AdminLiveScoring = () => {
             }
 
             // 2. Update Match Status (Triggers stats sync in service)
+            const chosenPotmId = potmId || suggestedPotm?.id || undefined;
+
             await matchService.update(matchId, {
                 status: 'finished',
                 matchPhase: 'finished',
-                playerOfTheMatch: potmId || suggestedPotm?.id || undefined,
+                playerOfTheMatch: chosenPotmId,
                 resultSummary: finalResult,
                 winnerId: winnerSquadId ? (winnerSquadId as string) : undefined
             });
@@ -1018,6 +1028,51 @@ const AdminLiveScoring = () => {
                     <div style={{ width: '64px', height: '64px', background: '#dcfce7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}><Trophy size={32} className="text-green-600" /></div>
                     <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', margin: '0 0 4px' }}>Match Finished</h2>
                     <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px' }}>{resultSummary}</p>
+
+                    {/* Player of the Match Section */}
+                    <div style={{ width: '100%', maxWidth: '320px', background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', borderRadius: '16px', padding: '16px', border: '1px solid #fde68a', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', justifyContent: 'center' }}>
+                            <Trophy size={16} style={{ color: '#d97706' }} />
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Player of the Match</span>
+                        </div>
+                        {(() => {
+                            const currentPotmId = match.playerOfTheMatch || (match as any).playerOfMatchId || potmId || '';
+                            const currentPotmName = currentPotmId ? getPlayerName(currentPotmId) : 'Not Selected';
+                            const isAuto = currentPotmId && suggestedPotm && currentPotmId === suggestedPotm.id;
+                            return (
+                                <>
+                                    {currentPotmId && (
+                                        <div style={{ fontSize: '16px', fontWeight: 900, color: '#92400e', marginBottom: '10px' }}>
+                                            🏆 {currentPotmName}
+                                            {isAuto && <span style={{ fontSize: '10px', fontWeight: 700, background: '#d97706', color: '#fff', padding: '2px 6px', borderRadius: '6px', marginLeft: '8px', verticalAlign: 'middle' }}>Auto</span>}
+                                        </div>
+                                    )}
+                                    <select
+                                        value={currentPotmId}
+                                        onChange={async (e) => {
+                                            const newId = e.target.value;
+                                            setPotmId(newId);
+                                            if (matchId) {
+                                                try {
+                                                    await matchService.update(matchId, { playerOfTheMatch: newId || undefined });
+                                                    toast.success(newId ? `PotM: ${getPlayerName(newId)}` : 'PotM cleared');
+                                                } catch (err: any) {
+                                                    toast.error('Failed to update PotM');
+                                                }
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #fde68a', fontWeight: 700, background: '#fff', color: '#1e293b', outline: 'none', fontSize: '13px', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2392400e\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '14px' }}
+                                    >
+                                        <option value="">Select Player...</option>
+                                        {suggestedPotm && <option value={suggestedPotm.id}>⭐ {suggestedPotm.name} (Best Performer)</option>}
+                                        <optgroup label={match.teamAName}>{teamAPlayers.map(p => <option key={p.id} value={p.id}>{p.name}{suggestedPotm && p.id === suggestedPotm.id ? ' 🏆' : ''}</option>)}</optgroup>
+                                        <optgroup label={match.teamBName}>{teamBPlayers.map(p => <option key={p.id} value={p.id}>{p.name}{suggestedPotm && p.id === suggestedPotm.id ? ' 🏆' : ''}</option>)}</optgroup>
+                                    </select>
+                                </>
+                            );
+                        })()}
+                    </div>
+
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
                         {calculateMatchWinner(match.teamAName, match.teamBName, inningsA, inningsB, match).isTied && <button onClick={handleStartSuperOver} disabled={processing} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ Super Over</button>}
                         <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ padding: '10px 20px', background: '#fef2f2', color: '#dc2626', fontWeight: 800, borderRadius: '12px', border: '1px solid #fecaca', cursor: 'pointer', fontSize: '13px' }}><RotateCcw size={14} /> Undo</button>
@@ -1228,27 +1283,49 @@ const AdminLiveScoring = () => {
             )}
             {/* FINALIZE MODAL */}
             {finalizeModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden' }}>
-                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Finalize Match?</h2>
-                            <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>This will end the match and calculate statistics.</p>
-                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px', background: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd', cursor: 'pointer' }}>
-                                <input type="checkbox" checked={sendMailChecked} onChange={(e) => setSendMailChecked(e.target.checked)} style={{ marginTop: '2px', width: '18px', height: '18px' }} />
-                                <div><span style={{ fontWeight: 700, color: '#1e293b', display: 'block' }}>Send Score Emails</span><span style={{ fontSize: '11px', color: '#64748b' }}>Send match reports to Playing XI</span></div>
-                            </label>
-                            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', border: '1px solid #e2e8f0' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Player of the Match</label>
-                                <select value={potmId} onChange={(e) => setPotmId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontWeight: 600 }}>
-                                    <option value="">Select PotM...</option>
-                                    {suggestedPotm && <option value={suggestedPotm.id}>{suggestedPotm.name} (Auto)</option>}
-                                    <optgroup label={match.teamAName}>{teamAPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
-                                    <optgroup label={match.teamBName}>{teamBPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
-                                </select>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} className="animate-in fade-in duration-300">
+                    <div style={{ background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '380px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }} className="animate-in zoom-in-95 duration-300">
+                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '8px' }}>
+                                <div style={{ width: '56px', height: '56px', background: '#f0fdf4', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <CheckCircle size={32} className="text-emerald-500" />
+                                </div>
+                                <div style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
+                                    <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.025em' }}>Finalize Match?</h2>
+                                    <p style={{ color: '#64748b', fontSize: '14px', margin: 0, fontWeight: 500 }}>Confirm ending the match and calculating final data.</p>
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                                <button onClick={() => setFinalizeModalOpen(false)} style={{ flex: 1, padding: '12px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#475569' }}>Cancel</button>
-                                <button onClick={handleFinalizeConfirm} disabled={processing} style={{ flex: 1, padding: '12px', background: '#1e293b', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', color: '#fff' }}>{processing ? 'Processing...' : 'Finalize'}</button>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                    <input type="checkbox" checked={sendMailChecked} onChange={(e) => setSendMailChecked(e.target.checked)} style={{ width: '20px', height: '20px', borderRadius: '6px', cursor: 'pointer', accentColor: '#10b981' }} />
+                                    <div style={{ flex: 1 }}>
+                                        <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px', display: 'block' }}>Email Scorecards</span>
+                                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Notify all players of results</span>
+                                    </div>
+                                </label>
+
+                                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                        <Trophy size={14} className="text-amber-500" />
+                                        <label style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Player of the Match</label>
+                                    </div>
+                                    <select
+                                        value={potmId}
+                                        onChange={(e) => setPotmId(e.target.value)}
+                                        style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontWeight: 700, background: '#fff', color: '#0f172a', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
+                                    >
+                                        <option value="">Auto Select Winner...</option>
+                                        {suggestedPotm && <option value={suggestedPotm.id}>{suggestedPotm.name.toUpperCase()} (Top Perf)</option>}
+                                        <optgroup label={match.teamAName}>{teamAPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+                                        <optgroup label={match.teamBName}>{teamBPlayers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                                <button onClick={() => setFinalizeModalOpen(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', borderRadius: '14px', fontWeight: 800, border: 'none', cursor: 'pointer', color: '#475569', fontSize: '14px' }}>Cancel</button>
+                                <button onClick={handleFinalizeConfirm} disabled={processing} style={{ flex: 1, padding: '14px', background: '#0f172a', borderRadius: '14px', fontWeight: 800, border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', boxShadow: '0 10px 15px -3px rgba(15, 23, 42, 0.4)' }}>{processing ? 'Calculating...' : 'Confirm'}</button>
                             </div>
                         </div>
                     </div>

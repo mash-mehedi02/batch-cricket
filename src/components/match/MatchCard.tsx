@@ -98,7 +98,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
             const diff = targetDate.getTime() - now.getTime()
 
             if (diff <= 0) {
-                setTimeLeft('Starts soon')
+                setTimeLeft('WAITING FOR GAME')
                 return
             }
 
@@ -108,13 +108,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
             const mins = Math.floor((totalSecs % 3600) / 60)
             const secs = totalSecs % 60
 
-            let parts = []
-            if (days > 0) parts.push(`${days}d`)
-            if (hours > 0 || days > 0) parts.push(`${hours}h`)
-            parts.push(`${mins}m`)
-            parts.push(`${secs}s`)
+            const pad = (n: number) => String(n).padStart(2, '0')
 
-            setTimeLeft(parts.join(' '))
+            let timeStr = `${pad(hours)}h:${pad(mins)}m:${pad(secs)}s`
+            if (days > 0) {
+                timeStr = `${days}d ${timeStr}`
+            }
+
+            setTimeLeft(timeStr)
         }
 
         updateCountdown()
@@ -227,6 +228,97 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
         return battedFirst === 'teamA' ? (['teamA', 'teamB'] as const) : (['teamB', 'teamA'] as const)
     })()
 
+    if (isUpcoming) {
+        const matchDate = coerceToDate(match.date)
+        const dateStr = matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'
+
+        return (
+            <Link to={`/match/${match.id}`} className="block group relative">
+                <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm border border-slate-200 dark:border-white/5 overflow-hidden transition-all hover:shadow-md h-full flex flex-col relative">
+                    {/* Notification Bell - Nudged Up & Right */}
+                    <div className="absolute top-1 right-1 z-30">
+                        <NotificationBell
+                            matchId={match.id}
+                            adminId={(match as any).adminId || 'default'}
+                            tournamentId={match.tournamentId}
+                        />
+                    </div>
+
+                    {/* Top Section - Slim & Professional */}
+                    <div className="pt-3 px-4 text-center">
+                        <h3 className="text-[14px] sm:text-[16px] font-black text-slate-800 dark:text-slate-100 tracking-tight leading-tight mb-0.5 pr-6">
+                            {tournamentName || fetchedTournamentName || 'Tournament Series'}
+                        </h3>
+                        <div className="h-[0.5px] border-t border-dashed border-slate-300 dark:border-white/10 w-[80%] mx-auto my-1.5" />
+                        <p className="text-[8px] sm:text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                            {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'T' + match.oversLimit} . ` : ''}{dateStr} - {match.time || 'TBD'}
+                        </p>
+                    </div>
+
+                    {/* Team Showdown - Exact Compact Logo Pods */}
+                    <div className="flex-1 flex items-center justify-between w-full relative overflow-hidden py-3">
+                        {/* Team A - Left Slim Pod */}
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                            <div className="h-10 sm:h-12 w-16 sm:w-20 bg-gradient-to-r from-slate-300 via-slate-200 to-transparent dark:from-slate-800 dark:to-transparent rounded-r-full flex items-center justify-start shrink-0">
+                                <div className="ml-0.5 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-600 relative z-10 translate-x-1 sm:translate-x-2">
+                                    {teamALogo ? (
+                                        <img src={teamALogo} alt={teamAName} className="w-full h-full object-contain p-1" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black bg-indigo-600">
+                                            {teamAName.charAt(0)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <span className="text-[13px] sm:text-[15px] font-black text-slate-900 dark:text-white truncate uppercase tracking-tighter">
+                                {teamAName}
+                            </span>
+                        </div>
+
+                        {/* VS Center Badge - Ultra Compact */}
+                        <div className="shrink-0 px-1 z-20">
+                            <div className="bg-slate-200/80 dark:bg-white/5 px-2 py-0.5 rounded-md border border-slate-300 dark:border-white/10 italic text-center">
+                                <span className="text-[12px] sm:text-[14px] font-black text-slate-600 dark:text-slate-500 italic">VS</span>
+                            </div>
+                        </div>
+
+                        {/* Team B - Right Slim Pod */}
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 justify-end">
+                            <span className="text-[13px] sm:text-[15px] font-black text-slate-900 dark:text-white truncate uppercase tracking-tighter text-right">
+                                {teamBName}
+                            </span>
+                            <div className="h-10 sm:h-12 w-16 sm:w-20 bg-gradient-to-l from-slate-300 via-slate-200 to-transparent dark:from-slate-800 dark:to-transparent rounded-l-full flex items-center justify-end shrink-0">
+                                <div className="mr-0.5 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center overflow-hidden border border-slate-200 dark:border-slate-600 relative z-10 -translate-x-1 sm:-translate-x-2">
+                                    {teamBLogo ? (
+                                        <img src={teamBLogo} alt={teamBName} className="w-full h-full object-contain p-1" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black bg-rose-500">
+                                            {teamBName.charAt(0)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Venue - Minimal */}
+                    <div className="px-4 pb-2 text-center">
+                        <p className="text-[8px] sm:text-[9px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest">
+                            {match.venue || 'Venue TBD'}
+                        </p>
+                    </div>
+
+                    {/* Slim Countdown Footer */}
+                    <div className="bg-[#fefce8] dark:bg-amber-950/20 py-1.5 text-center border-t border-amber-100 dark:border-white/5">
+                        <p className="text-[11px] sm:text-[13px] font-black text-slate-800 dark:text-amber-500 uppercase flex items-center justify-center gap-2">
+                            Starts In: <span className="tabular-nums font-black">{timeLeft}</span>
+                        </p>
+                    </div>
+                </div>
+            </Link>
+        )
+    }
+
     return (
         <div className="bg-white dark:bg-[#0f172a] rounded-xl shadow-sm border border-slate-100 dark:border-white/5 overflow-hidden hover:shadow-md transition-all group relative">
             <div className="px-4 py-2 flex justify-between items-center bg-slate-50/20 dark:bg-white/[0.02] border-b border-slate-50 dark:border-white/5">
@@ -284,7 +376,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                             </span>
                                             {(isLive || isFinished || isInningsBreak) && inn && (
                                                 <div className="flex items-baseline gap-1.5 tabular-nums">
-                                                    <span className="text-[16px] font-black text-slate-900 dark:text-white leading-none">
+                                                    <span className="text-[16px] font-medium text-slate-900 dark:text-white leading-none">
                                                         {inn.totalRuns}-{inn.totalWickets}
                                                     </span>
                                                     {soInn && (Number(soInn.totalRuns || 0) > 0 || Number(soInn.totalWickets || 0) > 0) && (

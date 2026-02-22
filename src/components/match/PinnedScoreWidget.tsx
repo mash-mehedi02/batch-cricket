@@ -197,7 +197,7 @@ export const PinnedScoreWidget: React.FC = () => {
 
                             {/* Main Body */}
                             <div className="flex-1 flex flex-col items-center justify-center">
-                                <div className="text-lg font-black text-blue-600 leading-none mb-0.5">
+                                <div className="text-lg font-medium text-blue-600 leading-none mb-0.5">
                                     {innings?.totalRuns || 0}-{innings?.totalWickets || 0}
                                 </div>
                                 <div className="text-[9px] font-bold text-slate-500 tabular-nums">

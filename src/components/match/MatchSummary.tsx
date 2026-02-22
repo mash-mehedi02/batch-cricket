@@ -86,9 +86,10 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
         return 'B';
     }, [match])
 
-    // --- Auto Player of the Match Calculation ---
+    // --- Player of the Match Calculation ---
     const calculatedPomId = useMemo(() => {
-        if ((match as any).playerOfMatchId) return (match as any).playerOfMatchId
+        if (match.playerOfTheMatch) return match.playerOfTheMatch;
+        if ((match as any).playerOfMatchId) return (match as any).playerOfMatchId;
 
         let bestId = '';
         let maxPoints = -1;
@@ -122,7 +123,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     }, [match, teamAInnings, teamBInnings, winnerSide])
 
     const savePom = async (id: string) => {
-        await matchService.update(match.id, { playerOfMatchId: id } as any)
+        await matchService.update(match.id, { playerOfTheMatch: id } as any)
         setIsEditingPom(false)
     }
 
@@ -242,7 +243,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                             <div className="min-w-0">
                                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter truncate">{getAbbr(leftName)}</div>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-lg font-black text-white leading-none tabular-nums">
+                                    <span className="text-lg font-medium text-white leading-none tabular-nums">
                                         {leftInns?.totalRuns || '0'}-{leftInns?.totalWickets || '0'}
                                     </span>
                                     <span className="text-[9px] text-slate-500 font-black">({leftInns?.overs || '0.0'})</span>
@@ -265,7 +266,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                     {rightInns && (
                                         <span className="text-[9px] text-slate-500 font-black">({rightInns?.overs || '0.0'})</span>
                                     )}
-                                    <span className="text-lg font-black text-white leading-none tabular-nums">
+                                    <span className="text-lg font-medium text-white leading-none tabular-nums">
                                         {rightInns?.totalRuns || '0'}-{rightInns?.totalWickets || '0'}
                                     </span>
                                     {winnerSide === (firstBatSide === 'A' ? 'B' : 'A') && <Trophy className="w-2.5 h-2.5 text-amber-500 inline-block ml-0.5 mb-0.5" />}
@@ -366,66 +367,78 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 {/* POM - Screenshot Style High Fidelity */}
                 {pomPlayer && (
                     <div className="relative animate-in zoom-in-95 duration-500">
-                        <div className="bg-white dark:bg-white/[0.04] rounded-[1.5rem] p-4 flex items-center justify-between shadow-sm border border-slate-100 dark:border-white/10 relative overflow-hidden h-[100px]">
-                            <div className="flex items-center gap-5 relative z-10 min-w-0">
-                                <PlayerAvatar
-                                    photoUrl={pomPlayer.photoUrl || (pomPlayer as any).photo}
-                                    name={pomPlayer.name}
-                                    size="xl"
-                                    className="w-16 h-16 md:w-20 md:h-20 border-4 border-white/10 shadow-sm bg-slate-800"
-                                />
-                                <div className="min-w-0">
-                                    <Link to={`/players/${calculatedPomId}`} className="text-lg md:text-xl font-black text-slate-900 dark:text-white truncate block leading-tight hover:text-blue-500 transition-colors">
-                                        {pomPlayer.name}
-                                    </Link>
-                                    <div className="text-[9px] font-black text-slate-500 mt-1 uppercase tracking-[0.15em]">Player of the Match</div>
-                                </div>
-                            </div>
+                        {/* Golden accent border */}
+                        <div className="rounded-[1.6rem] p-[1.5px] bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 shadow-lg shadow-amber-500/10">
+                            <div className="bg-white dark:bg-[#0f172a] rounded-[1.5rem] p-4 flex items-center justify-between relative overflow-hidden h-[100px]">
+                                {/* Subtle golden shimmer */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/[0.04] via-transparent to-amber-500/[0.04] pointer-events-none" />
 
-                            <div className="text-right flex flex-col items-end gap-0.5 relative z-10 shrink-0 ml-4">
-                                <div className="text-lg md:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
-                                    {pomStats?.bat && (pomStats.bat.runs > 0 || pomStats.bat.balls > 0) && (
-                                        <span>{pomStats.bat.runs} ({pomStats.bat.balls})</span>
-                                    )}
-                                </div>
-                                <div className="text-[12px] md:text-[13px] font-bold text-slate-400 tabular-nums">
-                                    {pomStats?.bowl && (pomStats.bowl.wickets > 0 || parseFloat(String(pomStats.bowl.overs || 0)) > 0) && (
-                                        <span>{pomStats.bowl.wickets}-{pomStats.bowl.runsConceded} ({pomStats.bowl.overs})</span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {(user as any)?.isAdmin && (
-                                <button onClick={() => setIsEditingPom(true)} className="absolute top-4 right-4 p-2 text-slate-600 hover:text-blue-400 transition-colors">
-                                    <Edit3 size={16} />
-                                </button>
-                            )}
-
-                            {isEditingPom && (
-                                <div className="absolute inset-0 bg-[#060b16]/95 z-30 flex items-center justify-center p-6 rounded-[2rem] animate-in fade-in duration-300 backdrop-blur-sm">
-                                    <div className="w-full max-w-md bg-[#0f172a] p-8 rounded-3xl shadow-2xl border border-white/10">
-                                        <h4 className="text-lg font-black text-white mb-4 uppercase tracking-tight">Select Performer</h4>
-                                        <select
-                                            className="w-full bg-slate-800 border border-white/10 rounded-2xl px-5 py-4 text-sm font-black text-white shadow-inner focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
-                                            onChange={(e) => savePom(e.target.value)}
-                                            value={calculatedPomId || ''}
-                                        >
-                                            <option value="">Auto Select Performer</option>
-                                            {[...(teamAInnings?.batsmanStats || []), ...(teamAInnings?.bowlerStats || []),
-                                            ...(teamBInnings?.batsmanStats || []), ...(teamBInnings?.bowlerStats || [])]
-                                                .filter((v, i, a) => a.findIndex(t => ((t as any).batsmanId || (t as any).bowlerId) === ((v as any).batsmanId || (v as any).bowlerId)) === i)
-                                                .map(p => {
-                                                    const id = (p as any).batsmanId || (p as any).bowlerId
-                                                    const pl = getPlayer(id)
-                                                    return <option key={id} value={id}>{pl.name}</option>
-                                                })}
-                                        </select>
-                                        <div className="mt-6 flex justify-end">
-                                            <button onClick={() => setIsEditingPom(false)} className="px-6 py-2 text-sm font-black text-slate-500 hover:text-slate-300 uppercase tracking-widest transition-colors">Cancel</button>
+                                <div className="flex items-center gap-5 relative z-10 min-w-0">
+                                    <div className="relative">
+                                        <PlayerAvatar
+                                            photoUrl={pomPlayer.photoUrl || (pomPlayer as any).photo}
+                                            name={pomPlayer.name}
+                                            size="xl"
+                                            className="w-16 h-16 md:w-20 md:h-20 border-2 border-amber-400/30 shadow-sm bg-slate-800"
+                                        />
+                                        {/* Trophy badge */}
+                                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-full flex items-center justify-center border-2 border-white dark:border-[#0f172a] shadow-sm">
+                                            <Trophy className="w-3 h-3 text-white" />
                                         </div>
                                     </div>
+                                    <div className="min-w-0">
+                                        <Link to={`/players/${calculatedPomId}`} className="text-lg md:text-xl font-black text-slate-900 dark:text-white truncate block leading-tight hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                                            {pomPlayer.name}
+                                        </Link>
+                                        <div className="text-[9px] font-black text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-[0.15em]">Player of the Match</div>
+                                    </div>
                                 </div>
-                            )}
+
+                                <div className="text-right flex flex-col items-end gap-0.5 relative z-10 shrink-0 ml-4">
+                                    <div className="text-lg md:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
+                                        {pomStats?.bat && (pomStats.bat.runs > 0 || pomStats.bat.balls > 0) && (
+                                            <span>{pomStats.bat.runs} ({pomStats.bat.balls})</span>
+                                        )}
+                                    </div>
+                                    <div className="text-[12px] md:text-[13px] font-bold text-slate-400 tabular-nums">
+                                        {pomStats?.bowl && (pomStats.bowl.wickets > 0 || parseFloat(String(pomStats.bowl.overs || 0)) > 0) && (
+                                            <span>{pomStats.bowl.wickets}-{pomStats.bowl.runsConceded} ({pomStats.bowl.overs})</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {(user as any)?.isAdmin && (
+                                    <button onClick={() => setIsEditingPom(true)} className="hide-in-screenshot absolute top-4 right-4 p-2 text-slate-400 hover:text-amber-500 transition-colors z-20">
+                                        <Edit3 size={16} />
+                                    </button>
+                                )}
+
+                                {isEditingPom && (
+                                    <div className="absolute inset-0 bg-white/95 dark:bg-[#0f172a]/95 z-30 flex items-center justify-center p-4 rounded-[1.5rem] animate-in fade-in duration-300 backdrop-blur-sm">
+                                        <div className="w-full">
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white mb-3 uppercase tracking-tight text-center">Select Performer</h4>
+                                            <select
+                                                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white shadow-inner focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none"
+                                                onChange={(e) => savePom(e.target.value)}
+                                                value={calculatedPomId || ''}
+                                            >
+                                                <option value="">Auto Select Performer</option>
+                                                {[...(teamAInnings?.batsmanStats || []), ...(teamAInnings?.bowlerStats || []),
+                                                ...(teamBInnings?.batsmanStats || []), ...(teamBInnings?.bowlerStats || [])]
+                                                    .filter((v, i, a) => a.findIndex(t => ((t as any).batsmanId || (t as any).bowlerId) === ((v as any).batsmanId || (v as any).bowlerId)) === i)
+                                                    .map(p => {
+                                                        const id = (p as any).batsmanId || (p as any).bowlerId
+                                                        const pl = getPlayer(id)
+                                                        return <option key={id} value={id}>{pl.name}</option>
+                                                    })}
+                                            </select>
+                                            <div className="mt-3 flex justify-center">
+                                                <button onClick={() => setIsEditingPom(false)} className="px-6 py-2 text-xs font-black text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 uppercase tracking-widest transition-colors">Cancel</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -446,7 +459,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
                 {/* Next Matches */}
                 {upcomingMatches.length > 0 && (
-                    <div className="space-y-4">
+                    <div className="hide-in-screenshot space-y-4">
                         <div className="flex items-center justify-between px-2">
                             <h3 className="text-base font-black text-slate-900 dark:text-white">Next Matches</h3>
                             <Link to={`/tournaments/${match.tournamentId}`} className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
@@ -487,7 +500,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 )}
 
                 {/* Tournament Navigation */}
-                <div className="py-2 text-center">
+                <div className="hide-in-screenshot py-2 text-center">
                     <Link to={`/tournaments/${match.tournamentId}`} className="text-[12px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-500 tracking-wider uppercase transition-colors">
                         All Matches from {tournament?.name || 'Tournament'}
                     </Link>
@@ -541,7 +554,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                     </div>
                 </div>
 
-                <div className="py-6 px-2">
+                <div className="hide-in-screenshot py-6 px-2">
                     <button
                         onClick={() => (window as any).openMatchSettings && (window as any).openMatchSettings()}
                         className="flex items-center gap-3 text-slate-500 hover:text-blue-400 transition-colors w-full text-left"

@@ -3,7 +3,7 @@
  * Screenshot-based design with dark green header, tabs, recent form, career stats
  */
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { clsx } from 'clsx'
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where, updateDoc, serverTimestamp } from 'firebase/firestore'
@@ -28,6 +28,8 @@ import { uploadImage } from '@/services/cloudinary/uploader'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
 import { calculateBattingPoints, calculateBowlingPoints } from '@/utils/statsCalculator'
 import { playerService } from '@/services/firestore/players'
+import { useScreenshotShare } from '@/hooks/useScreenshotShare'
+import ShareModal from '@/components/common/ShareModal'
 
 const detectPlatform = (url: string): 'instagram' | 'facebook' | 'x' | 'linkedin' | null => {
   const lower = url.toLowerCase()
@@ -132,6 +134,18 @@ export default function PlayerProfile() {
   const [activeTab, setActiveTab] = useState('overview')
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
   const [isEditing, setIsEditing] = useState(false)
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [screenshotImage, setScreenshotImage] = useState('')
+  const pageRef = useRef<HTMLDivElement>(null)
+
+  const { longPressProps } = useScreenshotShare({
+    onScreenshotReady: (img) => {
+      setScreenshotImage(img)
+      setIsShareModalOpen(true)
+    },
+    captureRef: pageRef,
+    delay: 1000
+  })
 
   // Claim & Edit States
   const { user } = useAuthStore()
@@ -741,13 +755,13 @@ export default function PlayerProfile() {
 
   // Internal component for career grid cells
   const StatCell = ({ label, value, highlight, labelSmall, matchId }: { label: string, value: any, highlight?: boolean, labelSmall?: boolean, matchId?: string }) => {
-    const className = clsx("flex flex-col items-center justify-center py-7 px-1 text-center transition-all", matchId && "hover:bg-slate-50 dark:hover:bg-white/[0.03] cursor-pointer group")
+    const className = clsx("flex flex-col items-center justify-center py-5 px-1 text-center transition-all", matchId && "hover:bg-slate-50 dark:hover:bg-white/[0.03] cursor-pointer group")
     const content = (
       <>
-        <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-sky-600 dark:text-sky-400 group-hover:text-sky-700 dark:group-hover:text-sky-300' : 'text-slate-800 dark:text-slate-100'}`}>
+        <div className={`text-xl font-bold mb-0.5 ${highlight ? 'text-sky-600 dark:text-sky-400 group-hover:text-sky-700 dark:group-hover:text-sky-300' : 'text-slate-800 dark:text-slate-100'}`}>
           {value}
         </div>
-        <div className={`${labelSmall ? 'text-[11px]' : 'text-[13px]'} font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight`}>
+        <div className={`${labelSmall ? 'text-[10px]' : 'text-[11px]'} font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter`}>
           {label}
         </div>
       </>
@@ -769,7 +783,11 @@ export default function PlayerProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] relative pb-24 text-slate-900 dark:text-white">
+    <div
+      ref={pageRef}
+      {...longPressProps}
+      className="min-h-screen bg-slate-50 dark:bg-[#060b16] relative pb-24 text-slate-900 dark:text-white"
+    >
       <PageHeader
         title={player.name}
         subtitle={squadName || "Player Profile"}
@@ -892,47 +910,47 @@ export default function PlayerProfile() {
           <div className="space-y-8">
             {recentForm.length > 0 && (
               <div className="animate-in slide-in-from-bottom-4 duration-700 mb-8">
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                    Recent Form <span className="text-slate-400 dark:text-slate-500 font-bold text-sm ml-1">(Last 10)</span>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                    Recent Form <span className="text-slate-400 dark:text-slate-500 font-bold text-xs ml-1">(Last 10)</span>
                   </h3>
-                  <button onClick={() => setActiveTab('matches')} className="text-blue-600 dark:text-blue-400 text-sm font-bold hover:underline">
+                  <button onClick={() => setActiveTab('matches')} className="text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline">
                     See More
                   </button>
                 </div>
-                <div className="flex flex-nowrap overflow-x-auto gap-3 pb-2 scrollbar-none">
+                <div className="flex flex-nowrap overflow-x-auto gap-2.5 pb-2 scrollbar-none">
                   {recentForm.map((form, idx) => (
                     <Link
                       key={idx}
                       to={`/match/${form.matchId}`}
-                      className="group flex flex-col justify-center items-center p-4 bg-white dark:bg-[#0f172a] rounded-2xl shrink-0 min-w-[125px] h-[105px] text-center shadow-sm border border-slate-100 dark:border-white/5 transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/20"
+                      className="group flex flex-col justify-center items-center p-3 bg-white dark:bg-[#0f172a] rounded-2xl shrink-0 min-w-[110px] h-[95px] text-center shadow-sm border border-slate-100 dark:border-white/5 transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/20"
                     >
-                      <div className="flex items-baseline justify-center gap-1.5 mb-2">
+                      <div className="flex items-baseline justify-center gap-1 mb-1.5">
                         {viewMode === 'batting' ? (
                           <>
-                            <span className="text-slate-800 dark:text-slate-100 text-2xl font-bold relative leading-none">
+                            <span className="text-slate-800 dark:text-slate-100 text-xl font-bold relative leading-none">
                               {form.runs}
                               {form.isNotOut && (
-                                <span className="absolute -top-1 -right-3 text-[14px] font-bold text-slate-900 dark:text-white">
+                                <span className="absolute -top-1 -right-2.5 text-[12px] font-bold text-slate-900 dark:text-white">
                                   *
                                 </span>
                               )}
                             </span>
-                            <span className="text-[12px] font-bold text-slate-600 dark:text-slate-400 leading-none">({form.balls})</span>
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 leading-none">({form.balls})</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-slate-800 dark:text-slate-100 text-2xl font-bold leading-none">
+                            <span className="text-slate-800 dark:text-slate-100 text-xl font-bold leading-none">
                               {form.wickets}
                             </span>
                             <span className="text-slate-400 font-bold leading-none mx-0.5">-</span>
-                            <span className="text-slate-800 dark:text-slate-100 text-xl font-bold leading-none">
+                            <span className="text-slate-800 dark:text-slate-100 text-lg font-bold leading-none">
                               {form.runsConceded}
                             </span>
                           </>
                         )}
                       </div>
-                      <div className="text-slate-600 dark:text-slate-400 text-[11px] font-bold uppercase tracking-tight truncate w-full px-1">
+                      <div className="text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase tracking-tight truncate w-full px-1">
                         {formatShortTeamName(form.opponent)}
                       </div>
                     </Link>
@@ -1521,30 +1539,36 @@ export default function PlayerProfile() {
       </div>
 
       {/* Floating Toggle FAB (CREX Style) - HORIZONTAL BOTTOM RIGHT */}
-      <div className="fixed bottom-6 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-1 shadow-2xl border border-white/10 flex flex-row items-center gap-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="hide-in-screenshot fixed bottom-6 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100">
         <button
           onClick={() => setViewMode('batting')}
-          className={`w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
-            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-110'
+          className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
+            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-105'
             : 'hover:bg-white/5 opacity-50'
             }`}
           title="Batting Stats"
         >
-          <img src={cricketBatIcon} alt="Batting" className="w-7 h-7 object-contain" />
+          <img src={cricketBatIcon} alt="Batting" className="w-5 h-5 object-contain" />
         </button>
         <button
           onClick={() => setViewMode('bowling')}
-          className={`w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'bowling'
-            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-110'
+          className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'bowling'
+            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-105'
             : 'hover:bg-white/5 opacity-50'
             }`}
           title="Bowling Stats"
         >
-          <img src={cricketBallIcon} alt="Bowling" className="w-7 h-7 object-contain" />
+          <img src={cricketBallIcon} alt="Bowling" className="w-5 h-5 object-contain" />
         </button>
       </div>
 
 
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        image={screenshotImage}
+        title="Share Profile"
+      />
     </div>
   )
 }

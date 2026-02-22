@@ -19,7 +19,7 @@ interface MatchTabsProps {
 export default function MatchTabs({ tabs, activeTab, onTabChange, stickyTop = '64px' }: MatchTabsProps) {
   return (
     <div
-      className="bg-[#0f172a] backdrop-blur-md border-b border-white/5 sticky z-40 shadow-lg"
+      className="hide-in-screenshot bg-[#0f172a] backdrop-blur-md border-b border-white/5 sticky z-40 shadow-lg"
       style={{ top: stickyTop }}
     >
       <div className="max-w-7xl mx-auto px-2">

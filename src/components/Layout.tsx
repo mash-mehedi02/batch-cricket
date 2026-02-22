@@ -11,6 +11,7 @@ import schoolLogo from '@/assets/logo-final.png'
 import { Search, Command } from 'lucide-react'
 import { Toaster } from 'react-hot-toast'
 import GlobalLoginSheet from './common/GlobalLoginSheet'
+import TournamentCountdownPopup from './common/TournamentCountdownPopup'
 
 interface LayoutProps {
   children: ReactNode
@@ -43,6 +44,7 @@ export default function Layout({ children }: LayoutProps) {
     <div className={`min-h-screen transition-colors duration-300 ${isDetailPage ? 'bg-[#060b16]' : 'bg-slate-50 dark:bg-[#060b16]'}`}>
       <Toaster position="bottom-center" toastOptions={{ duration: 3000 }} />
       <GlobalLoginSheet />
+      <TournamentCountdownPopup />
       {/* Navigation - Professional Header - Hidden on Detail Pages & Menu Page */}
       {!isDetailPage && !isMenuPage && (
         <nav className={`z-50 backdrop-blur-xl border-b sticky top-0 transition-colors duration-300 ${isHome
@@ -146,10 +148,11 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
 
 
-                {/* Mobile Menu Button - Navigates to dedicated page */}
+
+                {/* Mobile Menu Button */}
                 <Link
                   to="/menu"
-                  className="md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+                  className={`md:hidden p-2 rounded-lg transition-colors ${isHome ? 'text-slate-300 hover:text-white hover:bg-white/10' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />

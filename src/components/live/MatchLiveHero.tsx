@@ -19,10 +19,7 @@ interface MatchLiveHeroProps {
     isFinishedMatch: boolean
     resultSummary?: string
     centerEventText: string
-    ballAnimating: boolean
-    ballEventType: '4' | '6' | 'wicket' | 'normal'
     lastBall: any
-    recentOvers: any[]
     showBoundaryAnim?: boolean
     showAnimation?: boolean
 }
@@ -39,7 +36,6 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     isFinishedMatch,
     resultSummary,
     centerEventText,
-    recentOvers,
     showBoundaryAnim,
     showAnimation = false,
 }) => {
@@ -166,60 +162,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         gsap.killTweensOf(el);
         if (ball) gsap.killTweensOf(ball);
 
-        if (resultMain === 'BALL') {
-            // "BALL" precursor animation - Energy building style
-            const tl = gsap.timeline();
-
-            tl.fromTo(el,
-                { scale: 0.4, opacity: 0, filter: 'blur(15px)', y: 30 },
-                {
-                    scale: 1,
-                    opacity: 1,
-                    filter: 'blur(0px)',
-                    y: 0,
-                    duration: 0.4,
-                    ease: 'power3.out'
-                }
-            );
-
-            if (ball) {
-                // Balanced flight: 1.2s total
-                gsap.fromTo(ball,
-                    { x: -400, y: -60, opacity: 0, rotation: 0 },
-                    {
-                        duration: 1.2,
-                        x: 400,
-                        opacity: 1,
-                        rotation: 360,
-                        ease: "none",
-                        onComplete: () => {
-                            gsap.set(ball, { opacity: 0 });
-                        }
-                    }
-                );
-
-                // Bounce: hits y:0 at 0.6s mark
-                gsap.fromTo(ball,
-                    { y: -60 },
-                    {
-                        duration: 0.35,
-                        y: 0,
-                        ease: "power2.in",
-                        repeat: 1,
-                        yoyo: true,
-                        delay: 0.25, // 0.25 + 0.35 = 0.6s (Center of 1.2s)
-                    }
-                );
-            }
-
-            tl.to(el, {
-                scale: 1.1,
-                duration: 0.3,
-                ease: 'sine.inOut',
-                repeat: -1,
-                yoyo: true
-            });
-        } else if (resultMain && resultMain !== '—') {
+        if (resultMain && resultMain !== '—' && resultMain !== 'BALL') {
             // Actual result animation - Impactful pop style
             gsap.fromTo(el,
                 { scale: 2.5, opacity: 0, filter: 'blur(20px)', rotationX: -90 },
@@ -351,7 +294,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 )}
                             </div>
                             <div className="flex items-baseline gap-1.5 sm:gap-2.5 overflow-hidden">
-                                <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-6xl font-black tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>
+                                <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-6xl font-medium tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>
                                     {runs}-{wkts}
                                 </span>
                                 <span className="text-[13px] min-[400px]:text-base sm:text-xl font-black text-slate-500/80 tabular-nums uppercase shrink-0">
@@ -375,19 +318,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                             </div>
                         ) : (
                             <div className={`relative z-10 text-center flex items-center justify-center w-full px-2 ${eventColorClass}`}>
-                                {/* Animated Cricket Ball */}
-                                {resultMain === 'BALL' && (
-                                    <div
-                                        ref={cricketBallRef}
-                                        className="absolute w-8 h-8 rounded-full bg-gradient-to-br from-slate-50 to-slate-300 shadow-2xl z-20 pointer-events-none opacity-0"
-                                        style={{
-                                            border: '2px dashed rgba(0,0,0,0.15)',
-                                            boxShadow: 'inset -4px -4px 8px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.3)'
-                                        }}
-                                    >
-                                        <div className="absolute top-1/2 left-0 w-full h-[1px] bg-black/10 rotate-0"></div>
-                                    </div>
-                                )}
+
 
                                 <div className="flex flex-col items-center justify-center gap-1.5">
                                     <span

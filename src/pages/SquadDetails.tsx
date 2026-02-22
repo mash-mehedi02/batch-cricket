@@ -11,6 +11,8 @@ import PageHeader from '@/components/common/PageHeader'
 import MatchCard from '@/components/match/MatchCard'
 import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
 import { Trophy, Medal, ChevronRight } from 'lucide-react'
+import { useScreenshotShare } from '@/hooks/useScreenshotShare'
+import ShareModal from '@/components/common/ShareModal'
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
@@ -25,6 +27,18 @@ export default function SquadDetails() {
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [loadingAchievements, setLoadingAchievements] = useState(false)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [screenshotImage, setScreenshotImage] = useState('')
+  const pageRef = useRef<HTMLDivElement>(null)
+
+  const { longPressProps } = useScreenshotShare({
+    onScreenshotReady: (img) => {
+      setScreenshotImage(img)
+      setIsShareModalOpen(true)
+    },
+    captureRef: pageRef,
+    delay: 1000
+  })
   const liveMatchRef = useRef<HTMLDivElement>(null)
   const upcomingRef = useRef<HTMLDivElement>(null)
 
@@ -157,7 +171,11 @@ export default function SquadDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050B18] text-slate-900 dark:text-white pb-20 transition-colors duration-300">
+    <div
+      ref={pageRef}
+      {...longPressProps}
+      className="min-h-screen bg-white dark:bg-[#050B18] text-slate-900 dark:text-white pb-20 transition-colors duration-300"
+    >
       <PageHeader title={squad.name} subtitle={`Batch ${squad.batch || squad.year}`} />
 
       <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-100 dark:bg-slate-900">
@@ -396,6 +414,12 @@ export default function SquadDetails() {
           </div>
         )}
       </div>
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        image={screenshotImage}
+        title="Share Squad"
+      />
     </div>
   )
 }

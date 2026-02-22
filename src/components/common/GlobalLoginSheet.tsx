@@ -17,8 +17,15 @@ export default function GlobalLoginSheet() {
     // Trigger open based on URL param or local state
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        if (params.get('login') === 'true') {
+        // Only allow automatic trigger on Menu or Account pages
+        const allowedPages = ['/menu', '/account', '/tournaments', '/squads', '/players'];
+        const isAllowedPage = allowedPages.includes(location.pathname);
+
+        if (params.get('login') === 'true' && (isAllowedPage || location.pathname === '/')) {
+            // Note: Keeping '/' for now but restricted by Navigate in App.tsx
+            // If the user lands here, we open it, but the primary entry is now /menu
             setIsOpen(true);
+
             // Clean up the URL
             const newParams = new URLSearchParams(location.search);
             newParams.delete('login');

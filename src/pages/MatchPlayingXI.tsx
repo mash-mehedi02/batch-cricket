@@ -352,7 +352,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
                     <div className="mt-16">
                       <div className="flex items-center gap-4 mb-8">
                         <h3 className="text-xs font-medium text-slate-500 uppercase tracking-[0.3em] whitespace-nowrap">On Bench</h3>
-                        <div className="h-px bg-white/5 w-full" />
+                        <div className="h-px bg-slate-200 dark:bg-white/5 w-full" />
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:gap-4 opacity-80 filter grayscale-[0.3]">
                         {selectedTeam === 'A' ? (
