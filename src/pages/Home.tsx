@@ -22,30 +22,111 @@ import schoolConfig from '@/config/school'
 import heroStumps from '@/assets/hero_stumps.png'
 import HangingCountdownCard from '@/components/common/HangingCountdownCard'
 
-const HeroDigit = ({ value, color }: { value: string, color: string }) => (
-  <div className="relative w-7 h-11 sm:w-11 sm:h-16 lg:w-14 lg:h-18 flex items-center justify-center rounded-lg text-white font-black text-lg sm:text-3xl lg:text-4xl shadow-xl border border-white/5 transition-all" style={{ backgroundColor: color }}>
-    {/* Center Split line */}
-    <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-black/20 z-10" />
-    {/* Split dots */}
-    <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-[#0f172a] border border-white/5 z-20" />
-    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-1 h-1 rounded-full bg-[#0f172a] border border-white/5 z-20" />
+const HeroFlipDigit = ({ digit, color }: { digit: string, color: string }) => {
+  const [displayDigit, setDisplayDigit] = useState(digit)
+  const [nextDigit, setNextDigit] = useState(digit)
+  const [isFlipping, setIsFlipping] = useState(false)
 
-    <span className="relative z-0 drop-shadow-lg">{value}</span>
+  useEffect(() => {
+    if (digit !== nextDigit) {
+      setNextDigit(digit)
+      setIsFlipping(true)
+      const timer = setTimeout(() => {
+        setDisplayDigit(digit)
+        setIsFlipping(false)
+      }, 700)
+      return () => clearTimeout(timer)
+    }
+  }, [digit, nextDigit])
 
-    {/* Subtle top glare */}
-    <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-md" />
-  </div>
-)
+  const commonStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    width: '100%',
+    height: '50%',
+    overflow: 'hidden',
+    background: color,
+    color: '#fff',
+    fontSize: '24px',
+    fontWeight: '900',
+    textAlign: 'center',
+    display: 'flex',
+    justifyContent: 'center',
+    backfaceVisibility: 'hidden',
+    WebkitBackfaceVisibility: 'hidden',
+  }
+
+  const topStyle: React.CSSProperties = {
+    ...commonStyle,
+    top: 0,
+    alignItems: 'flex-end',
+    borderTopLeftRadius: '8px',
+    borderTopRightRadius: '8px',
+    borderBottom: '1px solid rgba(0,0,0,0.15)',
+  }
+
+  const bottomStyle: React.CSSProperties = {
+    ...commonStyle,
+    bottom: 0,
+    alignItems: 'flex-start',
+    borderBottomLeftRadius: '8px',
+    borderBottomRightRadius: '8px',
+  }
+
+  return (
+    <div className="relative w-8 h-12 sm:w-12 sm:h-18 lg:w-16 lg:h-22 perspective-[500px] rounded-lg shadow-xl shadow-black/30 overflow-hidden bg-black/20">
+      {/* 1. UPPER BACK */}
+      <div style={{ ...topStyle, zIndex: 1 }}>
+        <span style={{ transform: 'translateY(50%)' }}>{nextDigit}</span>
+      </div>
+
+      {/* 2. LOWER BACK */}
+      <div style={{ ...bottomStyle, zIndex: 1 }}>
+        <span style={{ transform: 'translateY(-50%)' }}>{displayDigit}</span>
+      </div>
+
+      {/* 3. UPPER FLAP */}
+      <div style={{
+        ...topStyle,
+        zIndex: isFlipping ? 3 : 2,
+        transformOrigin: 'bottom',
+        transition: isFlipping ? 'transform 0.35s ease-in' : 'none',
+        transform: isFlipping ? 'rotateX(-90deg)' : 'rotateX(0deg)',
+        background: `linear-gradient(180deg, ${color} 0%, ${color}dd 100%)`
+      }}>
+        <span style={{ transform: 'translateY(50%)' }}>{displayDigit}</span>
+      </div>
+
+      {/* 4. LOWER FLAP */}
+      <div style={{
+        ...bottomStyle,
+        zIndex: isFlipping ? 4 : 2,
+        transformOrigin: 'top',
+        transition: isFlipping ? 'transform 0.35s ease-out 0.35s' : 'none',
+        transform: isFlipping ? 'rotateX(0deg)' : 'rotateX(90deg)',
+        background: `linear-gradient(180deg, ${color} 0%, ${color}dd 100%)`
+      }}>
+        <span style={{ transform: 'translateY(-50%)' }}>{nextDigit}</span>
+      </div>
+
+      {/* Split Line */}
+      <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-black/30 z-10" />
+
+      {/* Gloss Overlay */}
+      <div className="absolute inset-0 z-11 pointer-events-none rounded-lg border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+    </div>
+  )
+}
 
 const HeroTimeUnit = ({ value, label, color }: { value: number, label: string, color: string }) => {
   const str = String(value).padStart(2, '0')
   return (
-    <div className="flex flex-col items-center gap-1.5 sm:gap-2.5">
-      <div className="flex gap-1 sm:gap-1.5">
-        <HeroDigit value={str[0]} color={color} />
-        <HeroDigit value={str[1]} color={color} />
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
+      <div className="flex gap-1 sm:gap-1.5 lg:gap-2">
+        <HeroFlipDigit digit={str[0]} color={color} />
+        <HeroFlipDigit digit={str[1]} color={color} />
       </div>
-      <span className="text-[8px] sm:text-[11px] lg:text-xs font-black text-white/30 uppercase tracking-[0.1em] sm:tracking-[0.2em]">{label}</span>
+      <span className="text-[8px] sm:text-[11px] lg:text-xs font-black text-white/40 uppercase tracking-[0.2em]">{label}</span>
     </div>
   )
 }
