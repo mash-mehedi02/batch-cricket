@@ -274,7 +274,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] font-sans">
       {/* MODERN HERO SECTION - Adjusted Height for content */}
-      <div className={`relative bg-[#0f172a] text-white flex flex-col pt-6 transition-all duration-500 ${cpConfig?.enabled ? 'min-h-[550px] sm:min-h-[650px] pb-32' : 'h-[50vh] min-h-[350px]'}`}>
+      <div className={`relative bg-[#0f172a] text-white flex flex-col pt-6 transition-all duration-500 ${cpConfig?.enabled ? 'min-h-[450px] sm:min-h-[580px] pb-24' : 'h-[45vh] min-h-[350px]'}`}>
 
         {/* Background Gradients Wrapper - Contained to prevent overflow */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -285,7 +285,7 @@ export default function Home() {
         <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 flex-1 flex flex-col">
 
           {/* Header */}
-          <div className="flex flex-col items-center mb-6 shrink-0">
+          <div className="flex flex-col items-center mb-4 shrink-0">
             <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
               <img
                 src={schoolConfig.logo}
@@ -299,36 +299,36 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Hero Content Grid - Fill remaining space */}
-          <div className="flex-1 flex flex-col items-center justify-center text-center pb-8">
+          {/* Hero Content Grid - Pull content up */}
+          <div className="flex-1 flex flex-col items-center justify-start pt-4 sm:pt-8 text-center pb-4">
 
             {cpConfig?.enabled ? (
-              <div className="animate-in fade-in zoom-in duration-700">
+              <div className="animate-in fade-in zoom-in duration-700 w-full">
                 {/* Reference Design Header */}
-                <div className="flex items-center justify-center gap-4 sm:gap-8 mb-6 sm:mb-8">
-                  <div className="h-px w-12 sm:w-32 lg:w-48 border-b border-dashed border-white/30" />
-                  <span className="text-[11px] sm:text-sm lg:text-base font-black uppercase tracking-[0.4em] text-white drop-shadow-md">Time Remaining</span>
-                  <div className="h-px w-12 sm:w-32 lg:w-48 border-b border-dashed border-white/30" />
+                <div className="flex items-center justify-center gap-2 sm:gap-8 mb-3 sm:mb-8">
+                  <div className="h-px w-8 sm:w-32 border-b border-dashed border-white/20" />
+                  <span className="text-[9px] sm:text-xs font-black uppercase tracking-[0.3em] text-white/40">Time Remaining</span>
+                  <div className="h-px w-8 sm:w-32 border-b border-dashed border-white/20" />
                 </div>
 
                 {/* Flip Clock Grid - Fully Responsive scaling */}
-                <div className="mx-auto max-w-[340px] sm:max-w-2xl lg:max-w-4xl bg-[#2b3945]/20 backdrop-blur-md px-6 py-4 sm:px-12 sm:py-10 rounded-3xl border border-white/5 shadow-2xl">
+                <div className="mx-auto max-w-[340px] sm:max-w-2xl bg-white/5 backdrop-blur-md px-4 py-4 sm:px-12 rounded-3xl border border-white/5 shadow-2xl">
                   <div className="flex items-start justify-center gap-2 sm:gap-6 lg:gap-8">
                     <HeroTimeUnit value={timeLeft.days} label="Days" color="#f59e0b" />
-                    <div className="pt-2 sm:pt-4 text-base sm:text-4xl font-black text-white/10 animate-pulse">:</div>
-                    <HeroTimeUnit value={timeLeft.hours} label="Hours" color="#84cc16" />
-                    <div className="pt-2 sm:pt-4 text-base sm:text-4xl font-black text-white/10 animate-pulse">:</div>
-                    <HeroTimeUnit value={timeLeft.minutes} label="Mins" color="#ef4444" />
-                    <div className="pt-2 sm:pt-4 text-base sm:text-4xl font-black text-white/10 animate-pulse">:</div>
-                    <HeroTimeUnit value={timeLeft.seconds} label="Secs" color="#a855f7" />
+                    <div className="pt-2 sm:pt-4 text-xs sm:text-2xl font-black text-white/10 animate-pulse">:</div>
+                    <HeroTimeUnit value={timeLeft.hours} label="Hrs" color="#84cc16" />
+                    <div className="pt-2 sm:pt-4 text-xs sm:text-2xl font-black text-white/10 animate-pulse">:</div>
+                    <HeroTimeUnit value={timeLeft.minutes} label="Min" color="#ef4444" />
+                    <div className="pt-2 sm:pt-4 text-xs sm:text-2xl font-black text-white/10 animate-pulse">:</div>
+                    <HeroTimeUnit value={timeLeft.seconds} label="Sec" color="#a855f7" />
                   </div>
                 </div>
 
-                <div className="mt-6 sm:mt-10">
-                  <div className="inline-block px-4 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/20 mb-3">
-                    <p className="text-[10px] sm:text-xs font-black text-teal-400 uppercase tracking-[0.2em]">Upcoming Tournament</p>
+                <div className="mt-3 sm:mt-8 px-2">
+                  <div className="inline-block px-3 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 mb-2">
+                    <p className="text-[8px] sm:text-xs font-black text-teal-400 uppercase tracking-[0.2em]">Upcoming Tournament</p>
                   </div>
-                  <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight drop-shadow-2xl max-w-2xl px-4 text-center">{cpConfig.tournamentName}</h1>
+                  <h1 className="text-xl sm:text-4xl font-black text-white tracking-tight drop-shadow-2xl max-w-2xl mx-auto leading-tight">{cpConfig.tournamentName}</h1>
                 </div>
               </div>
             ) : (
