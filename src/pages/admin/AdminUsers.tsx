@@ -534,7 +534,7 @@ export default function AdminUsers() {
                                                 </td>
                                                 <td className="px-6 py-6">
                                                     <div className="flex items-center gap-2">
-                                                        {user.playerProfile?.isRegisteredPlayer ? (
+                                                        {(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer) ? (
                                                             <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
                                                                 <CheckCircle2 className="w-3 h-3" />
                                                                 <span className="text-[10px] font-black uppercase tracking-wider">Setup Complete</span>
@@ -548,7 +548,7 @@ export default function AdminUsers() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-6">
-                                                    {user.linkedPlayerId ? (
+                                                    {(user.linkedPlayerId || user.playerId) ? (
                                                         <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-3">
                                                             <div className="p-1.5 bg-blue-600 text-white rounded-lg">
                                                                 <UserCheck className="w-3.5 h-3.5" />
@@ -556,7 +556,7 @@ export default function AdminUsers() {
                                                             <div className="flex flex-col">
                                                                 <span className="text-[9px] font-black text-blue-900 uppercase tracking-tighter">Active Player</span>
                                                                 <span className="text-[10px] font-bold text-blue-600 truncate max-w-[120px]">
-                                                                    {squads.find(s => s.playerIds?.includes(user.linkedPlayerId!))?.name || 'In Squad'}
+                                                                    {squads.find(s => s.playerIds?.includes((user.linkedPlayerId || user.playerId)!))?.name || 'In Squad'}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -565,16 +565,16 @@ export default function AdminUsers() {
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-6 text-right">
-                                                    {user.linkedPlayerId ? (
+                                                    {(user.linkedPlayerId || user.playerId) ? (
                                                         <button
-                                                            onClick={() => navigate(`/admin/players/${user.linkedPlayerId}/edit`)}
+                                                            onClick={() => navigate(`/admin/players/${user.linkedPlayerId || user.playerId}/edit`)}
                                                             className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-all active:scale-95"
                                                         >
                                                             Edit Profile
                                                         </button>
                                                     ) : (
                                                         <button
-                                                            disabled={!user.playerProfile?.isRegisteredPlayer}
+                                                            disabled={!(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer)}
                                                             onClick={() => {
                                                                 setSelectedUser(user);
                                                                 setShowSquadModal(true);

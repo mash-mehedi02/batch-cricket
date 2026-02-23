@@ -37,7 +37,6 @@ export default function HeroScoreboard({ match, innings }: HeroScoreboardProps) 
             <span className="text-base font-semibold text-white">{battingTeam} 2nd Inn</span>
             {isLive && (
               <div className="flex items-center gap-2 ml-4">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                 <span className="text-xs font-bold text-red-300 uppercase tracking-wider">LIVE</span>
               </div>
             )}

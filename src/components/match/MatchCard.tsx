@@ -273,7 +273,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     <div className="shrink-0 flex items-center justify-center px-1">
                         {isLive ? (
                             <div className="bg-red-500/10 px-3 py-1 rounded-full flex items-center gap-1.5 border border-red-500/20 shadow-sm">
-                                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                                 <span className="text-[11px] font-black text-red-600 dark:text-red-500 tracking-tighter">LIVE</span>
                             </div>
                         ) : (

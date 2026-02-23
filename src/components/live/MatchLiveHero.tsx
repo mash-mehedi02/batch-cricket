@@ -295,14 +295,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                         <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Super Over</span>
                                     </div>
                                 )}
-                                {(match as any).stage === 'knockout' && (
-                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                                            {String((match as any).round || '').replace('_', ' ')}
-                                        </span>
-                                    </div>
-                                )}
+
                             </div>
                             <div className="flex items-baseline gap-1.5 sm:gap-2.5 overflow-hidden">
                                 <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-6xl font-medium tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>

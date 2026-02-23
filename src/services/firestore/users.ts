@@ -52,7 +52,9 @@ export const userService = {
     async linkToPlayer(uid: string, playerId: string): Promise<void> {
         const docRef = doc(db, COLLECTIONS.USERS, uid)
         await updateDoc(docRef, {
+            playerId: playerId,
             linkedPlayerId: playerId,
+            isRegisteredPlayer: true,
             'playerProfile.isRegisteredPlayer': true,
             updatedAt: serverTimestamp()
         })

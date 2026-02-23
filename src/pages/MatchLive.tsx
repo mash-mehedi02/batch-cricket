@@ -335,10 +335,39 @@ export default function MatchLive() {
     return () => cleanup?.()
   }, [match])
 
+  const lastWicket = useMemo(() => {
+    const inn = displayedInnings || currentInnings;
+    if (!inn || !inn.fallOfWickets || inn.fallOfWickets.length === 0) return null
+    const fows = [...inn.fallOfWickets].reverse()
+    const lastFow = fows.find(f => f.batsmanId && f.batsmanId !== 'None') || inn.fallOfWickets[inn.fallOfWickets.length - 1]
+    if (!lastFow) return null
+
+    const pStats = inn.batsmanStats?.find(b => b.batsmanId === lastFow.batsmanId)
+    const pRegistry = playersMap.get(lastFow.batsmanId)
+    const resolvedName = ((pStats?.batsmanName && pStats.batsmanName !== 'None' ? pStats.batsmanName : '') || (lastFow.batsmanName && lastFow.batsmanName !== 'None' ? lastFow.batsmanName : '') || (pRegistry?.name && pRegistry.name !== 'None' ? pRegistry.name : '') || 'Batter')
+
+    return {
+      batsmanId: lastFow.batsmanId,
+      batsmanName: resolvedName,
+      runs: pStats?.runs ?? 0,
+      balls: pStats?.balls ?? 0,
+      fours: pStats?.fours ?? 0,
+      sixes: pStats?.sixes ?? 0,
+      dismissal: lastFow.dismissal || pStats?.dismissal || 'Out'
+    }
+  }, [displayedInnings, currentInnings, playersMap])
+
   // Prepare data for components
   const striker = useMemo(() => {
-    // Master Match Document is the single source of truth for who is at crease
-    const strikerId = match?.currentStrikerId || '';
+    let strikerId = match?.currentStrikerId || '';
+    let isOut = false;
+
+    // "Mute" behavior: If striker is empty, show the person who just got out
+    if (!strikerId && lastWicket && lastWicket.batsmanId !== (match?.currentNonStrikerId || '')) {
+      strikerId = lastWicket.batsmanId;
+      isOut = true;
+    }
+
     if (!strikerId) return null;
 
     const batsman = (displayedInnings || currentInnings)?.batsmanStats?.find((b) => b.batsmanId === strikerId)
@@ -346,18 +375,27 @@ export default function MatchLive() {
 
     return {
       id: strikerId,
-      name: batsman?.batsmanName || player?.name || 'Batter',
+      name: (isOut ? lastWicket?.batsmanName : (batsman?.batsmanName || player?.name)) || 'Batter',
       photo: player?.photoUrl || null,
-      runs: batsman?.runs || 0,
-      balls: batsman?.balls || 0,
-      fours: batsman?.fours || 0,
-      sixes: batsman?.sixes || 0,
-      strikeRate: batsman?.strikeRate || (batsman?.balls ? (batsman.runs / batsman.balls) * 100 : 0) || 0,
+      runs: (isOut ? lastWicket?.runs : (batsman?.runs)) || 0,
+      balls: (isOut ? lastWicket?.balls : (batsman?.balls)) || 0,
+      fours: (isOut ? lastWicket?.fours : (batsman?.fours)) || 0,
+      sixes: (isOut ? lastWicket?.sixes : (batsman?.sixes)) || 0,
+      strikeRate: (isOut ? ((lastWicket?.runs || 0) / (lastWicket?.balls || 1)) * 100 : (batsman?.strikeRate || (batsman?.balls ? (batsman.runs / batsman.balls) * 100 : 0))) || 0,
+      isOut
     }
-  }, [displayedInnings, currentInnings, match, playersMap])
+  }, [displayedInnings, currentInnings, match, playersMap, lastWicket])
 
   const nonStriker = useMemo(() => {
-    const nonStrikerId = match?.currentNonStrikerId || '';
+    let nonStrikerId = match?.currentNonStrikerId || '';
+    let isOut = false;
+
+    // "Mute" behavior: If non-striker is empty, show the person who just got out
+    if (!nonStrikerId && lastWicket && lastWicket.batsmanId !== (match?.currentStrikerId || '')) {
+      nonStrikerId = lastWicket.batsmanId;
+      isOut = true;
+    }
+
     if (!nonStrikerId) return null;
 
     const batsman = (displayedInnings || currentInnings)?.batsmanStats?.find((b) => b.batsmanId === nonStrikerId)
@@ -365,15 +403,16 @@ export default function MatchLive() {
 
     return {
       id: nonStrikerId,
-      name: batsman?.batsmanName || player?.name || 'Batter',
+      name: (isOut ? lastWicket?.batsmanName : (batsman?.batsmanName || player?.name)) || 'Batter',
       photo: player?.photoUrl || null,
-      runs: batsman?.runs || 0,
-      balls: batsman?.balls || 0,
-      fours: batsman?.fours || 0,
-      sixes: batsman?.sixes || 0,
-      strikeRate: batsman?.strikeRate || (batsman?.balls ? (batsman.runs / batsman.balls) * 100 : 0) || 0,
+      runs: (isOut ? lastWicket?.runs : (batsman?.runs)) || 0,
+      balls: (isOut ? lastWicket?.balls : (batsman?.balls)) || 0,
+      fours: (isOut ? lastWicket?.fours : (batsman?.fours)) || 0,
+      sixes: (isOut ? lastWicket?.sixes : (batsman?.sixes)) || 0,
+      strikeRate: (isOut ? ((lastWicket?.runs || 0) / (lastWicket?.balls || 1)) * 100 : (batsman?.strikeRate || (batsman?.balls ? (batsman.runs / batsman.balls) * 100 : 0))) || 0,
+      isOut
     }
-  }, [displayedInnings, currentInnings, match, playersMap])
+  }, [displayedInnings, currentInnings, match, playersMap, lastWicket])
 
   const bowler = useMemo(() => {
     const inn = displayedInnings || currentInnings;
@@ -400,38 +439,7 @@ export default function MatchLive() {
     }
   }, [displayedInnings, currentInnings, playersMap])
 
-  const lastWicket = useMemo(() => {
-    const inn = displayedInnings || currentInnings;
-    if (!inn || !inn.fallOfWickets || inn.fallOfWickets.length === 0) return null
 
-    // Find the latest valid FOW entry (sometimes the very last one might be incomplete during live transition)
-    const fows = [...inn.fallOfWickets].reverse()
-    const lastFow = fows.find(f => f.batsmanId && f.batsmanId !== 'None') || inn.fallOfWickets[inn.fallOfWickets.length - 1]
-
-    if (!lastFow) return null
-
-    const pStats = inn.batsmanStats?.find(b => b.batsmanId === lastFow.batsmanId)
-    const pRegistry = playersMap.get(lastFow.batsmanId)
-
-    // Robust name resolution
-    const resolvedName = (
-      (pStats?.batsmanName && pStats.batsmanName !== 'None' ? pStats.batsmanName : '') ||
-      (lastFow.batsmanName && lastFow.batsmanName !== 'None' ? lastFow.batsmanName : '') ||
-      (pRegistry?.name && pRegistry.name !== 'None' ? pRegistry.name : '') ||
-      'Batter'
-    )
-
-    // Construct a complete object
-    return {
-      batsmanId: lastFow.batsmanId,
-      batsmanName: resolvedName,
-      runs: pStats?.runs ?? 0,
-      balls: pStats?.balls ?? 0,
-      fours: pStats?.fours ?? 0,
-      sixes: pStats?.sixes ?? 0,
-      dismissal: lastFow.dismissal || pStats?.dismissal || 'Out'
-    }
-  }, [currentInnings, playersMap])
 
   const lastBallDoc = useMemo(() => {
     return Array.isArray(balls) && balls.length > 0 ? (balls[balls.length - 1] as any) : null

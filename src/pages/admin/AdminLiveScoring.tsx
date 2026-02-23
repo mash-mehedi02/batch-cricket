@@ -18,7 +18,8 @@ import {
     Activity,
     Megaphone,
     Send,
-    SwitchCamera
+    SwitchCamera,
+    X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { getMatchResultString, calculateMatchWinner } from '@/utils/matchWinner';
@@ -156,6 +157,9 @@ const AdminLiveScoring = () => {
     }, [finalizeModalOpen, match?.status, match, inningsA, inningsB, teamAPlayers, teamBPlayers, potmId]);
 
     // --- Auto-trigger select if missing ---
+    // DISABLED: User requested no auto-popup on entry. 
+    // Manual selection enabled via clicking on names.
+    /*
     useEffect(() => {
         if (match?.status === 'live' && !match.matchPhase?.toLowerCase().includes('break')) {
             if (!selectedStriker && !nextBatterModalOpen) {
@@ -169,27 +173,49 @@ const AdminLiveScoring = () => {
             }
         }
     }, [match?.status, match?.matchPhase, selectedStriker, selectedNonStriker, selectedBowler, nextBatterModalOpen, nextBowlerModalOpen]);
+    */
 
     // --- Fetch Players Logic ---
     useEffect(() => {
         const fetchPlayers = async () => {
             if (!match) return;
             try {
-                // Determine team IDs using robust resolution
+                // 1. Determine team IDs
                 const teamAId = (match as any).teamASquadId || (match as any).teamAId || (match as any).teamA || '';
                 const teamBId = (match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB || '';
 
                 if (!teamAId || !teamBId) {
-                    console.warn("[AdminLiveScoring] Missing team IDs for player fetch");
+                    console.warn("[AdminLiveScoring] Missing team IDs");
                     return;
                 }
 
-                const [pA, pB] = await Promise.all([
+                // 2. Initial Squad Fetch
+                let [pA, pB] = await Promise.all([
                     playerService.getBySquad(String(teamAId)),
                     playerService.getBySquad(String(teamBId))
                 ]);
-                setTeamAPlayers(pA);
-                setTeamBPlayers(pB);
+
+                // 3. ROBUSTNESS: Ensure players in Playing XI are included
+                // Sometimes players are in the XI but not correctly linked to the squadId in Firestore
+                const xiA = match.teamAPlayingXI || [];
+                const xiB = match.teamBPlayingXI || [];
+
+                const missingA = xiA.filter(id => !pA.some(p => p.id === id));
+                const missingB = xiB.filter(id => !pB.some(p => p.id === id));
+
+                if (missingA.length > 0) {
+                    console.log(`[AdminLiveScoring] Fetching ${missingA.length} missing players for Team A`);
+                    const extraA = await playerService.getByIds(missingA);
+                    pA = [...pA, ...extraA];
+                }
+                if (missingB.length > 0) {
+                    console.log(`[AdminLiveScoring] Fetching ${missingB.length} missing players for Team B`);
+                    const extraB = await playerService.getByIds(missingB);
+                    pB = [...pB, ...extraB];
+                }
+
+                setTeamAPlayers(sortPlayersByRole(pA));
+                setTeamBPlayers(sortPlayersByRole(pB));
                 setPlayersLoaded(true);
             } catch (error) {
                 console.error("Error fetching players:", error);
@@ -258,28 +284,61 @@ const AdminLiveScoring = () => {
     const bowlingTeamPlayersAll = isTeamB ? teamAPlayers : teamBPlayers;
 
     // Resolve Real Player Objects based on Playing XI IDs
-    const resolvePlayers = (playerIds: string[], sourceList: Player[]) => {
-        return (playerIds || []).map(id => sourceList.find(p => p.id === id)).filter(Boolean) as Player[];
+
+
+    const sortPlayersByRole = (players: Player[]) => {
+        return [...players].sort((a, b) => {
+            const roleA = (a.role || '').toLowerCase();
+            const roleB = (b.role || '').toLowerCase();
+
+            const getPriority = (r: string) => {
+                if (r.includes('batsman') || r.includes('batter')) return 1;
+                if (r.includes('keeper') || r === 'wk') return 2;
+                if (r.includes('all-rounder') || r.includes('all rounder') || r.includes('allrounder')) return 3;
+                if (r.includes('bowler')) return 4;
+                return 99;
+            };
+
+            const priorityA = getPriority(roleA);
+            const priorityB = getPriority(roleB);
+
+            if (priorityA !== priorityB) return priorityA - priorityB;
+            return (a.name || '').localeCompare(b.name || '');
+        });
     };
 
-    const battingPlayingXI = resolvePlayers(
-        isTeamB ? match?.teamBPlayingXI || [] : match?.teamAPlayingXI || [],
-        battingTeamPlayersAll
-    );
-    const bowlingPlayingXI = resolvePlayers(
-        isTeamB ? match?.teamAPlayingXI || [] : match?.teamBPlayingXI || [],
-        bowlingTeamPlayersAll
-    );
+    const resolvePlayers = (playerIds: string[], sourceList: Player[]) => {
+        const list = (playerIds || []).map(id => sourceList.find(p => p.id === id)).filter(Boolean) as Player[];
+        return sortPlayersByRole(list);
+    };
+
+    const battingPlayingXI = useMemo(() => {
+        const xiIds = isTeamB ? match?.teamBPlayingXI : match?.teamAPlayingXI;
+        // FALLBACK: If no specific Playing XI is set, show all players from the squad
+        if (!xiIds || xiIds.length === 0) return battingTeamPlayersAll;
+        const resolved = resolvePlayers(xiIds, battingTeamPlayersAll);
+        // If resolved list is empty (IDs didn't match), also fall back to all players
+        return resolved.length > 0 ? resolved : battingTeamPlayersAll;
+    }, [match, isTeamB, battingTeamPlayersAll]);
+
+    const bowlingPlayingXI = useMemo(() => {
+        const xiIds = isTeamB ? match?.teamAPlayingXI : match?.teamBPlayingXI;
+        // FALLBACK: If no specific Playing XI is set, show all players from the squad
+        if (!xiIds || xiIds.length === 0) return bowlingTeamPlayersAll;
+        const resolved = resolvePlayers(xiIds, bowlingTeamPlayersAll);
+        // If resolved list is empty (IDs didn't match), also fall back to all players
+        return resolved.length > 0 ? resolved : bowlingTeamPlayersAll;
+    }, [match, isTeamB, bowlingTeamPlayersAll]);
 
     const dismissedIds = useMemo(() => {
         return currentInnings?.fallOfWickets?.map(w => w.batsmanId) || [];
     }, [currentInnings]);
 
     const availableBatters = useMemo(() => {
-        if (!currentInnings || !battingPlayingXI) return [];
+        if (!battingPlayingXI) return [];
         const atCrease = [match?.currentStrikerId, match?.currentNonStrikerId].filter(Boolean);
         return battingPlayingXI.filter(p => !atCrease.includes(p.id!) && !dismissedIds.includes(p.id));
-    }, [currentInnings, battingPlayingXI, match, dismissedIds]);
+    }, [battingPlayingXI, match, dismissedIds]);
 
     const isAllOut = useMemo(() => {
         if (!currentInnings || !battingPlayingXI.length) return false;
@@ -465,19 +524,17 @@ const AdminLiveScoring = () => {
         if (!match || !matchId) return;
 
         try {
-            const mAdminId = (match as any)?.adminId || (match as any)?.createdBy || 'admin';
             const tournament = (match as any).tournamentName || (match as any).matchType || 'Match';
 
             // Professional Title: Team1 vs Team2, MatchNo (Tournament)
             const title = `${match.teamAName} vs ${match.teamBName}${match.matchNo ? `, ${match.matchNo}` : ''} (${tournament})`;
 
             // Resolve Batting Team Logo
-            const battingTeamId = match.currentBatting === 'teamA' ? match.teamAId : match.teamBId;
             const battingTeamLogo = match.currentBatting === 'teamA' ? (match as any).teamALogoUrl : (match as any).teamBLogoUrl;
 
             await oneSignalService.sendToMatch(
                 matchId,
-                mAdminId,
+                (match as any)?.adminId || (match as any)?.createdBy || 'admin',
                 title,
                 message,
                 undefined, // Default URL
@@ -631,19 +688,15 @@ const AdminLiveScoring = () => {
                         }
                     });
 
-                    // Notifications (Frontend fallback since Cloud Functions require paid plan)
-                    const mAdminId = (match as any)?.adminId || (match as any)?.createdBy || 'admin';
-                    const inningData = result.inningsData;
-
                     // 1. Wicket Notification
                     if (wicketData) {
-                        const scoreMsg = `${inningData?.totalRuns || 0}/${inningData?.totalWickets || 0} (${inningData?.overs || '0.0'} ov)`;
+                        const scoreMsg = `${ballInnings?.totalRuns || 0}/${ballInnings?.totalWickets || 0} (${ballInnings?.overs || '0.0'} ov)`;
                         const wktMsg = `Wicket: ${strikerObj?.name || 'Batter'} is OUT! 🔴\n${scoreMsg}`;
                         triggerLiveNotification(wktMsg);
                     }
 
                     // 2. Milestones (50/100)
-                    const batsmanStats = inningData?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
+                    const batsmanStats = ballInnings?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
                     if (batsmanStats) {
                         const currentRuns = batsmanStats.runs || 0;
                         const preRuns = currentRuns - batRuns;
@@ -983,9 +1036,9 @@ const AdminLiveScoring = () => {
             {/* HEADER */}
             <div style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', color: '#fff', padding: '10px 14px 12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, opacity: 0.8 }}>{(match as any).tournamentName || (match as any).matchType || 'Live Match'}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, opacity: 0.8 }}> </span>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {match.status === 'live' && <span style={{ fontSize: '9px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px', letterSpacing: '1px' }}>● LIVE</span>}
+                        {match.status === 'live' && <span style={{ fontSize: '9px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px', letterSpacing: '1px' }}>LIVE</span>}
                         {(!currentInnings || (currentInnings.legalBalls || 0) === 0) && (
                             <button onClick={() => { if (window.confirm(`Switch to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; matchService.update(matchId as string, { currentBatting: nb, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('Switched!'); } }} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '6px', padding: '4px', cursor: 'pointer' }}><SwitchCamera size={13} /></button>
                         )}
@@ -1082,33 +1135,107 @@ const AdminLiveScoring = () => {
             ) : (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* BATSMAN + BOWLER */}
-                    <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-                        <div style={{ display: 'flex', padding: '4px 12px', background: '#0d9488', color: '#fff' }}>
-                            <span style={{ fontSize: '10px', fontWeight: 700, flex: 2 }}>BATSMAN</span>
-                            <span style={{ fontSize: '10px', fontWeight: 700, textAlign: 'right', flex: 1 }}>BOWLER</span>
+                    <div style={{ background: '#fff', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ display: 'flex', padding: '6px 14px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.5px' }}>🏏 BATTING STATUS</span>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.5px' }}>⚡ BOWLING</span>
                         </div>
                         <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                             <div style={{ flex: 2 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                                     <span style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #0d9488', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', fontWeight: 900, color: '#0d9488', flexShrink: 0 }}>●</span>
-                                    <div style={{ fontWeight: 800, fontSize: '15px', color: selectedStriker ? '#1e293b' : '#94a3b8', flex: 1, padding: '2px 0' }}>
-                                        {selectedStriker ? getPlayerName(selectedStriker) : 'Striker...'}
+                                    <div style={{ flex: 1 }}>
+                                        {selectedStriker ? (
+                                            <div
+                                                onClick={() => { setBatterTargetEnd('striker'); setNextBatterModalOpen(true); }}
+                                                style={{ fontWeight: 800, fontSize: '15px', color: '#1e293b', cursor: 'pointer', padding: '2px 0' }}
+                                            >
+                                                {getPlayerName(selectedStriker)}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={selectedStriker}
+                                                onChange={(e) => { if (e.target.value) matchService.update(matchId!, { currentStrikerId: e.target.value }); }}
+                                                style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #0d9488', background: '#f0fdfa', fontWeight: 700, fontSize: '13px', color: '#0d9488', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%230d9488\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '12px' }}
+                                            >
+                                                <option value="">Select Striker...</option>
+                                                {(battingPlayingXI || []).filter(p => p.id !== selectedNonStriker && !dismissedIds.includes(p.id!)).map(p => <option key={p.id} value={p.id}>{p.name} ({p.role || 'P'})</option>)}
+                                            </select>
+                                        )}
                                     </div>
                                 </div>
                                 {strikerStats && <div style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b', marginLeft: '22px' }}>{strikerStats.runs}<sub style={{ fontSize: '11px', fontWeight: 500, color: '#94a3b8' }}>({strikerStats.balls})</sub> <span style={{ fontSize: '10px', fontWeight: 500, color: '#94a3b8', background: '#f1f5f9', padding: '1px 4px', borderRadius: '4px', marginLeft: '4px' }}>SR {strikerStats.strikeRate?.toFixed(1) || '0.0'}</span></div>}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
                                     <span style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', color: '#94a3b8', flexShrink: 0 }}>○</span>
-                                    <div style={{ fontWeight: 700, fontSize: '14px', color: selectedNonStriker ? '#64748b' : '#cbd5e1', flex: 1, padding: '2px 0' }}>
-                                        {selectedNonStriker ? getPlayerName(selectedNonStriker) : 'Non-Striker...'}
+                                    <div style={{ flex: 1 }}>
+                                        {selectedNonStriker ? (
+                                            <div
+                                                onClick={() => { setBatterTargetEnd('nonStriker'); setNextBatterModalOpen(true); }}
+                                                style={{ fontWeight: 700, fontSize: '14px', color: '#64748b', cursor: 'pointer', padding: '2px 0' }}
+                                            >
+                                                {getPlayerName(selectedNonStriker)}
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={selectedNonStriker}
+                                                onChange={(e) => { if (e.target.value) matchService.update(matchId!, { currentNonStrikerId: e.target.value }); }}
+                                                style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #94a3b8', background: '#f8fafc', fontWeight: 700, fontSize: '13px', color: '#64748b', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2364748b\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '12px' }}
+                                            >
+                                                <option value="">Select Non-Striker...</option>
+                                                {(battingPlayingXI || []).filter(p => p.id !== selectedStriker && !dismissedIds.includes(p.id!)).map(p => <option key={p.id} value={p.id}>{p.name} ({p.role || 'P'})</option>)}
+                                            </select>
+                                        )}
                                     </div>
                                 </div>
                                 {nonStrikerStats && <div style={{ fontSize: '16px', fontWeight: 800, color: '#475569', marginLeft: '22px' }}>{nonStrikerStats.runs}<sub style={{ fontSize: '10px', color: '#94a3b8' }}>({nonStrikerStats.balls})</sub></div>}
-                                <button onClick={handleSwapStrike} disabled={processing} style={{ marginLeft: '22px', marginTop: '4px', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 800, color: '#0d9488', background: '#f0fdfa', border: '1px solid #ccfbf1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><ArrowRightLeft size={11} /> SWAP STRIKE</button>
+
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleSwapStrike(); }}
+                                    disabled={processing}
+                                    style={{
+                                        marginLeft: '22px',
+                                        marginTop: '10px',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        color: '#0d9488',
+                                        background: '#f0fdfa',
+                                        border: '1.5px solid #ccfbf1',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 2px 4px rgba(13, 148, 136, 0.05)'
+                                    }}
+                                    onMouseOver={(e) => { e.currentTarget.style.background = '#ccfbf1'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                    onMouseOut={(e) => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                >
+                                    <ArrowRightLeft size={13} strokeWidth={2.5} />
+                                    SWAP STRIKE
+                                </button>
                             </div>
-                            <div style={{ flex: 1, textAlign: 'right', borderLeft: '1px solid #f1f5f9', paddingLeft: '8px' }}>
-                                <div style={{ fontWeight: 800, fontSize: '14px', color: selectedBowler ? '#1e293b' : '#dc2626', textAlign: 'right', padding: '2px 0' }}>
-                                    {selectedBowler ? getPlayerName(selectedBowler) : '⚠ SELECT BOWLER'}
-                                </div>
+                            <div
+                                style={{ flex: 1, textAlign: 'right', borderLeft: '1px solid #f1f5f9', paddingLeft: '8px' }}
+                            >
+                                {selectedBowler ? (
+                                    <div
+                                        onClick={() => setNextBowlerModalOpen(true)}
+                                        style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b', textAlign: 'right', padding: '2px 0', cursor: 'pointer' }}
+                                    >
+                                        {getPlayerName(selectedBowler)}
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedBowler}
+                                        onChange={(e) => { if (e.target.value) matchService.update(matchId!, { currentBowlerId: e.target.value }); }}
+                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1px solid #ef4444', background: '#fff', fontWeight: 700, fontSize: '12px', color: '#dc2626', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23dc2626\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center', backgroundSize: '10px' }}
+                                    >
+                                        <option value="">Bowler...</option>
+                                        {bowlingPlayingXI.map(p => { const isLast = p.id === match.lastOverBowlerId; return <option key={p.id} value={p.id} disabled={isLast}>{p.name}{isLast ? ' (Last)' : ''}</option>; })}
+                                    </select>
+                                )}
                                 {bowlerStatsData && <div style={{ marginTop: '4px' }}><div style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b' }}>{bowlerStatsData.wickets}/{bowlerStatsData.runsConceded}</div><div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>({bowlerStatsData.overs})</div></div>}
                             </div>
                         </div>
@@ -1209,7 +1336,13 @@ const AdminLiveScoring = () => {
             {/* WICKET MODAL */}
             {wicketModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', position: 'relative' }}>
+                        <button
+                            onClick={() => setWicketModalOpen(false)}
+                            style={{ position: 'absolute', top: '10px', right: '12px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}
+                        >
+                            <X size={16} />
+                        </button>
                         <div style={{ background: '#dc2626', padding: '14px', textAlign: 'center' }}><h2 style={{ color: '#fff', fontWeight: 900, fontSize: '18px', margin: 0, letterSpacing: '1px' }}>🏏 WICKET</h2></div>
                         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                             <div>
@@ -1245,7 +1378,13 @@ const AdminLiveScoring = () => {
             {/* NEXT BATTER MODAL */}
             {nextBatterModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', borderTop: '4px solid #0d9488' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', borderTop: '4px solid #0d9488', position: 'relative' }}>
+                        <button
+                            onClick={() => { setNextBatterModalOpen(false); setBatterTargetEnd(null); }}
+                            style={{ position: 'absolute', top: '12px', right: '12px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}
+                        >
+                            <X size={16} />
+                        </button>
                         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
                             <div style={{ width: '48px', height: '48px', background: '#f0fdfa', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UserPlus size={24} className="text-teal-600" /></div>
                             <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Next Batter</h2>
@@ -1265,7 +1404,13 @@ const AdminLiveScoring = () => {
             {/* NEXT BOWLER MODAL */}
             {nextBowlerModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', borderTop: '4px solid #0d9488' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '400px', overflow: 'hidden', borderTop: '4px solid #0d9488', position: 'relative' }}>
+                        <button
+                            onClick={() => setNextBowlerModalOpen(false)}
+                            style={{ position: 'absolute', top: '12px', right: '12px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}
+                        >
+                            <X size={16} />
+                        </button>
                         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
                             <div style={{ width: '48px', height: '48px', background: '#f0fdfa', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Activity size={24} className="text-teal-600" /></div>
                             <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Next Bowler</h2>
@@ -1284,7 +1429,13 @@ const AdminLiveScoring = () => {
             {/* FINALIZE MODAL */}
             {finalizeModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} className="animate-in fade-in duration-300">
-                    <div style={{ background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '380px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }} className="animate-in zoom-in-95 duration-300">
+                    <div style={{ background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '380px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', position: 'relative' }} className="animate-in zoom-in-95 duration-300">
+                        <button
+                            onClick={() => setFinalizeModalOpen(false)}
+                            style={{ position: 'absolute', top: '16px', right: '16px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', zIndex: 10 }}
+                        >
+                            <X size={18} />
+                        </button>
                         <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '8px' }}>
                                 <div style={{ width: '56px', height: '56px', background: '#f0fdf4', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1334,7 +1485,13 @@ const AdminLiveScoring = () => {
             {/* UNDO MODAL */}
             {undoModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '360px', overflow: 'hidden' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '360px', overflow: 'hidden', position: 'relative' }}>
+                        <button
+                            onClick={() => setUndoModalOpen(false)}
+                            style={{ position: 'absolute', top: '12px', right: '12px', background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}
+                        >
+                            <X size={16} />
+                        </button>
                         <div style={{ padding: '24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                             <div style={{ width: '48px', height: '48px', background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><RotateCcw size={24} className="text-red-600" /></div>
                             <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Undo Last Ball?</h2>

@@ -186,6 +186,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               // Mark user as registered player in the session
               userData.isRegisteredPlayer = true;
               userData.playerId = playerId; // Link to the specific player doc
+              userData.linkedPlayerId = playerId; // Sync with alternative field name
               userData.autoFillProfile = playerData;
 
               // If they are not an admin, give them the 'player' role instead of 'viewer'
@@ -214,14 +215,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           photoURL: (userData.isRegisteredPlayer ? userData.autoFillProfile?.photoUrl : null) || existingData.photoURL || user.photoURL || null,
           isRegisteredPlayer: userData.isRegisteredPlayer || existingData.isRegisteredPlayer || false,
           playerId: userData.playerId || existingData.playerId || null,
+          linkedPlayerId: userData.linkedPlayerId || existingData.linkedPlayerId || userData.playerId || existingData.playerId || null,
           autoFillProfile: userData.autoFillProfile || null, // data from matched player doc
           lastLogin: serverTimestamp(),
           role: userRole,
         };
 
         // If newly linked or missing playerProfile on user doc, sync it now
-        if (userData.isRegisteredPlayer && userData.autoFillProfile && (!existingData.playerProfile || !existingData.playerId)) {
+        if (userData.isRegisteredPlayer && userData.autoFillProfile && (!existingData.playerProfile || !existingData.playerId || !existingData.playerProfile.isRegisteredPlayer)) {
           userData.playerProfile = {
+            ...(existingData.playerProfile || {}),
             name: userData.autoFillProfile.name || userData.displayName,
             role: userData.autoFillProfile.role || 'batsman',
             battingStyle: userData.autoFillProfile.battingStyle || 'right-handed',
@@ -231,6 +234,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             setupAt: serverTimestamp()
           };
           userData.playerId = userData.playerId || userData.autoFillProfile.id;
+          userData.linkedPlayerId = userData.playerId;
         }
 
         const updates: any = {
@@ -242,7 +246,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         if (userData.isRegisteredPlayer) {
           updates.isRegisteredPlayer = true;
-          if (userData.playerId) updates.playerId = userData.playerId;
+          if (userData.playerId) {
+            updates.playerId = userData.playerId;
+            updates.linkedPlayerId = userData.playerId;
+          }
           if (userData.playerProfile) updates.playerProfile = userData.playerProfile;
         }
 
@@ -265,6 +272,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isRegisteredPlayer: true,
             setupAt: serverTimestamp()
           };
+        }
+
+        // Also ensure linkedPlayerId is mirrored for new accounts
+        if (userData.playerId) {
+          userData.linkedPlayerId = userData.playerId;
         }
 
         await setDoc(userRef, userData);
@@ -377,7 +389,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (docSnap.exists()) {
             const data = docSnap.data() as User
             console.log("[AuthStore] Profile Loaded. Role:", data.role);
-            set({ user: data, loading: false })
+
+            // If the user document exists but they aren't marked as a registered player,
+            // we should re-run processLogin to see if an admin has added their email
+            // to the player database since their last login.
+            if (!data.isRegisteredPlayer || !data.playerId) {
+              console.log("[AuthStore] User is not yet linked or missing Player ID. Checking for match...");
+              await get().processLogin(firebaseUser);
+            } else {
+              set({ user: data, loading: false })
+            }
           } else {
             console.log("[AuthStore] Auth session exists but no Firestore profile. Processing...");
             await get().processLogin(firebaseUser);

@@ -5,7 +5,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import ProjectedScoreTable from './ProjectedScoreTable'
-import { ChevronRight, ChevronDown, MapPin, Info, Users, Hash } from 'lucide-react'
+import { ChevronRight, ChevronDown, MapPin, Info, Users, Hash, Trophy, Zap } from 'lucide-react'
 import { calculateWinProbability } from '../../services/ai/winProbabilityEngine'
 import TournamentPointsTable from '../../pages/TournamentPointsTable'
 import { formatShortTeamName } from '../../utils/teamName'
@@ -382,25 +382,25 @@ const CrexLiveSection = ({
                   );
 
                   return stableBatters.map((p, i) => (
-                    <div key={`${p.id || p.playerId || 'p'}-${i}`} className="flex items-center justify-between">
+                    <div key={`${p.id || p.playerId || 'p'}-${i}`} className={`flex items-center justify-between transition-all duration-500 ${p.isOut ? 'opacity-75 grayscale-[0.2]' : ''}`}>
                       <div className="flex items-center gap-2">
                         {(p.id || p.playerId || p.batsmanId) && String(p.id || p.playerId || p.batsmanId) !== 'undefined' ? (
-                          <Link to={`/players/${p.id || p.playerId || p.batsmanId}`} className="text-sm font-bold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                          <Link to={`/players/${p.id || p.playerId || p.batsmanId}`} className={`text-sm font-bold transition-colors ${p.isOut ? 'text-slate-600 line-through decoration-red-500/70' : 'text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400'}`}>
                             {p.name}
                           </Link>
                         ) : (
-                          <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{p.name}</span>
+                          <span className={`text-sm font-bold ${p.isOut ? 'text-slate-600' : 'text-slate-800 dark:text-slate-200'}`}>{p.name}</span>
                         )}
-                        {p.id === striker?.id && <img src={cricketBatIcon} className="w-4 h-4 opacity-40 ml-1" alt="" />}
+                        {p.id === striker?.id && !p.isOut && <img src={cricketBatIcon} className="w-4 h-4 opacity-40 ml-1" alt="" />}
                       </div>
-                      <div className="flex gap-6 pr-1 text-sm font-bold text-slate-800 dark:text-slate-200 items-baseline">
+                      <div className={`flex gap-6 pr-1 text-sm font-bold items-baseline ${p.isOut ? 'text-slate-600' : 'text-slate-800 dark:text-slate-200'}`}>
                         <div className="w-10 text-right flex items-baseline justify-end gap-1">
-                          <span className="text-base font-black text-slate-900 dark:text-white">{p.runs || 0}</span>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500">({p.balls || 0})</span>
+                          <span className={`text-base font-black ${p.isOut ? 'text-slate-700' : 'text-slate-900 dark:text-white'}`}>{p.runs || 0}</span>
+                          <span className="text-[10px] opacity-80">({p.balls || 0})</span>
                         </div>
-                        <span className="w-6 text-center text-slate-500 dark:text-slate-300 font-bold">{p.fours || 0}</span>
-                        <span className="w-6 text-center text-slate-500 dark:text-slate-300 font-bold">{p.sixes || 0}</span>
-                        <span className="w-10 text-right text-slate-400 dark:text-slate-400 font-bold text-[11px]">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
+                        <span className="w-6 text-center opacity-80 font-bold">{p.fours || 0}</span>
+                        <span className="w-6 text-center opacity-80 font-bold">{p.sixes || 0}</span>
+                        <span className="w-10 text-right opacity-60 font-bold text-[11px]">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
                       </div>
                     </div>
                   ));
@@ -698,8 +698,53 @@ const CrexLiveSection = ({
                 const playerTracker = {};
                 const bowlerTracker = {};
 
+                const pushInningsSummary = (finalRuns, finalWickets, finalOvers, innId, batters, bowlers) => {
+                  const sortedBatters = Object.entries(batters)
+                    .filter(([name]) => !name.startsWith('_'))
+                    .map(([name, stats]) => ({ name, ...stats }))
+                    .sort((a, b) => b.runs - a.runs)
+                    .slice(0, 3);
+
+                  const sortedBowlers = Object.entries(bowlers)
+                    .map(([name, stats]) => {
+                      const ovs = `${Math.floor(stats.balls / 6)}.${stats.balls % 6}`;
+                      return { name, ...stats, overs: ovs };
+                    })
+                    .sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)
+                    .slice(0, 3);
+
+                  const label = formatShortTeamName(innId === 'teamA' ? teamAName : teamBName);
+
+                  groupedCommentary.push({
+                    type: 'innings-summary',
+                    inningId: innId,
+                    totalScore: `${finalRuns}/${finalWickets}`,
+                    overs: finalOvers,
+                    label: label,
+                    topBatters: sortedBatters,
+                    topBowlers: sortedBowlers
+                  });
+                };
+
+                let prevInningId = null;
+                let lastTotalRuns = 0;
+                let lastTotalWickets = 0;
+                let lastOvers = '0.0';
+                let lastBatters = {};
+                let lastBowlers = {};
+
                 chronologicalCommentary.forEach((item, idx) => {
+                  const overStr = String(item.over || '0.0');
+                  const [ov, b] = overStr.split('.');
+                  const overNum = parseInt(ov);
+                  const ballNum = parseInt(b);
+
                   if (item.inningId !== currentBatchInningId) {
+                    // Before we reset, if we had a previous innings, push its summary
+                    if (currentBatchInningId && lastTotalRuns > 0) {
+                      pushInningsSummary(runningTotalRuns, runningTotalWickets, lastOvers, currentBatchInningId, { ...playerTracker }, { ...bowlerTracker });
+                    }
+
                     runningTotalRuns = 0;
                     runningTotalWickets = 0;
                     overRuns = 0;
@@ -745,8 +790,6 @@ const CrexLiveSection = ({
                   if (item.batsman) {
                     playerTracker._currentStriker = item.batsman;
                   }
-                  // item.nonStriker is not always available in commentary docs, 
-                  // but we can try to guess or use the last one seen that isn't the current striker
                   if (item.nonStriker && item.nonStriker !== item.batsman) {
                     playerTracker._currentNonStriker = item.nonStriker;
                   } else if (item.batsman && playerTracker._currentStriker && playerTracker._lastStriker && playerTracker._lastStriker !== item.batsman) {
@@ -754,10 +797,10 @@ const CrexLiveSection = ({
                   }
                   playerTracker._lastStriker = item.batsman;
 
-                  const overStr = String(item.over || '0.0');
-                  const [ov, b] = overStr.split('.');
-                  const overNum = parseInt(ov);
-                  const ballNum = parseInt(b);
+                  // Update last known state for finish detection
+                  lastTotalRuns = runningTotalRuns;
+                  lastTotalWickets = runningTotalWickets;
+                  lastOvers = overStr;
 
                   // Collect ball for timeline
                   if (!playerTracker._overBalls) playerTracker._overBalls = [];
@@ -786,14 +829,12 @@ const CrexLiveSection = ({
                   }
 
                   // 2. Detect Over boundaries AFTER pushing the ball
-                  // Trigger summary only on a LEGAL ball that completes an over
                   const isLastOfOver = !item.manual && !isWide && !isNoBall && (ballNum === 0 && overNum > 0);
 
                   if (isLastOfOver) {
                     const bStats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
                     const bowlerOvers = `${Math.floor(bStats.balls / 6)}.${bStats.balls % 6}`;
 
-                    // Capture current batters
                     const sName = playerTracker._currentStriker;
                     const nsName = playerTracker._currentNonStriker;
                     const sStats = sName ? playerTracker[sName] : null;
@@ -818,12 +859,16 @@ const CrexLiveSection = ({
                       overBalls: [...playerTracker._overBalls]
                     });
 
-                    // Reset accumulators
                     overRuns = 0;
                     overWickets = 0;
                     playerTracker._overBalls = [];
                   }
                 });
+
+                // FINAL SUMMARY: After the loop, push the last innings summary
+                if (currentBatchInningId && lastTotalRuns > 0) {
+                  pushInningsSummary(lastTotalRuns, lastTotalWickets, lastOvers, currentBatchInningId, playerTracker, bowlerTracker);
+                }
 
                 if (groupedCommentary.length === 0) {
                   return (
@@ -933,6 +978,96 @@ const CrexLiveSection = ({
                             <div className="flex-1 min-w-0 flex items-center">
                               <div className="text-[14px] font-black text-blue-600 dark:text-blue-400 leading-relaxed italic">
                                 {node.text}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (node.type === 'innings-summary') {
+                        return (
+                          <div key={`inn-sum-${idx}`} className="mx-4 my-8">
+                            <div className="bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden relative">
+                              {/* Background Glow */}
+                              <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-[80px]"></div>
+                              <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-[80px]"></div>
+
+                              {/* Header Area */}
+                              <div className="px-7 pt-7 pb-5 border-b border-white/5 relative">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
+                                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em]">Match Analysis</span>
+                                  </div>
+                                  <span className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black text-white/40 uppercase tracking-widest border border-white/5">Auto Generated</span>
+                                </div>
+                                <div className="flex items-end justify-between">
+                                  <div>
+                                    <h2 className="text-[28px] font-black text-white italic tracking-tighter uppercase leading-none">
+                                      {node.label} <span className="text-white/40 not-italic font-medium lowercase">inns</span>
+                                    </h2>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-4xl font-black text-white leading-none tabular-nums tracking-tighter">{node.totalScore}</div>
+                                    <div className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] mt-2 italic">{node.overs} OVERS</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Summary Grid */}
+                              <div className="p-7 grid grid-cols-2 gap-10 relative">
+                                {/* Batting Performance */}
+                                <div className="space-y-5">
+                                  <div className="flex items-center gap-2.5">
+                                    <Trophy size={14} className="text-blue-400" />
+                                    <span className="text-[11px] font-black text-blue-400 uppercase tracking-[0.15em]">Leading Batters</span>
+                                  </div>
+                                  <div className="space-y-4">
+                                    {node.topBatters.length > 0 ? node.topBatters.map((b, bi) => (
+                                      <div key={bi} className="flex items-center justify-between group">
+                                        <div className="flex flex-col min-w-0">
+                                          <span className="text-[13px] font-black text-white/90 group-hover:text-white transition-colors truncate">{b.name}</span>
+                                          <span className="text-[9px] font-bold text-white/30 truncate">S/R: {(b.runs / (b.balls || 1) * 100).toFixed(1)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0 pl-3">
+                                          <span className="text-lg font-black text-white tracking-tighter">{b.runs}</span>
+                                          <span className="text-[11px] font-bold text-white/20 tabular-nums">({b.balls})</span>
+                                        </div>
+                                      </div>
+                                    )) : (
+                                      <div className="py-4 text-[11px] font-bold text-white/20 uppercase tracking-widest text-center border border-dashed border-white/5 rounded-xl">No Data</div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Bowling Performance */}
+                                <div className="space-y-5 border-l border-white/5 pl-10">
+                                  <div className="flex items-center gap-2.5">
+                                    <Zap size={14} className="text-emerald-400" />
+                                    <span className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.15em]">Top Bowlers</span>
+                                  </div>
+                                  <div className="space-y-4">
+                                    {node.topBowlers.length > 0 ? node.topBowlers.map((bw, bwi) => (
+                                      <div key={bwi} className="flex items-center justify-between group">
+                                        <div className="flex flex-col min-w-0">
+                                          <span className="text-[13px] font-black text-white/90 group-hover:text-white transition-colors truncate">{bw.name}</span>
+                                          <span className="text-[9px] font-bold text-white/30 truncate">Eco: {(bw.runs / (bw.balls / 6 || 1)).toFixed(1)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0 pl-3">
+                                          <span className="text-lg font-black text-white tracking-tighter">{bw.wickets}-{bw.runs}</span>
+                                          <span className="text-[11px] font-bold text-white/20 tabular-nums">({bw.overs})</span>
+                                        </div>
+                                      </div>
+                                    )) : (
+                                      <div className="py-4 text-[11px] font-bold text-white/20 uppercase tracking-widest text-center border border-dashed border-white/5 rounded-xl">No Data</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Footer Action */}
+                              <div className="px-7 py-4 bg-white/[0.03] border-t border-white/5 flex items-center justify-center">
+                                <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">End of {node.label} Innings</span>
                               </div>
                             </div>
                           </div>
