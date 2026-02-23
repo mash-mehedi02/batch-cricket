@@ -27,10 +27,6 @@ export interface WinProbabilityOutput {
   bowlingWinProb: number
   defendingTeamWinProb: number
   chasingTeamWinProb: number
-  recommendedBowler?: {
-    playerId: string
-    reason: string
-  }
 }
 
 /**
@@ -47,10 +43,6 @@ export function calculateWinProbability(input: WinProbabilityInput): WinProbabil
     battingTeamSide,
     lastBallEvent,
     isFinishedMatch,
-    partnershipRuns,
-    partnershipBalls,
-    recentOvers,
-    firstInningsStageScore
   } = input
 
   const maxBalls = oversLimit * 6
@@ -59,8 +51,9 @@ export function calculateWinProbability(input: WinProbabilityInput): WinProbabil
   const isChasing = !!(target && target > 0)
 
   // Stage calculation (how far into the match)
-  const progressRatio = legalBalls / maxBalls
+  const progressRatio = Math.min(1, legalBalls / maxBalls)
 
+  // Base Win Probability
   let battingWinPercent = 50
 
   if (isFinishedMatch) {
@@ -71,106 +64,86 @@ export function calculateWinProbability(input: WinProbabilityInput): WinProbabil
     }
   } else if (!isChasing) {
     // --- FIRST INNINGS LOGIC ---
-    const currentCRR = legalBalls > 12 ? (currentRuns / (legalBalls / 6)) : 8.5
-    // Defensive weighting: early wickets hurt more
-    const wicketImpact = Math.pow(wicketsRemaining / 10, 0.8)
-    const projectedTotal = currentRuns + (ballsRemaining / 6) * currentCRR * (0.7 + 0.3 * wicketImpact)
+    // Reference CRR: 8.5 is par. 
+    const currentCRR = legalBalls > 6 ? (currentRuns / (legalBalls / 6)) : 8.5
 
-    // Gap vs Standard Par (170 for 20 overs)
-    const standardPar = 8.5 * oversLimit
-    const gap = projectedTotal - standardPar
-    battingWinPercent = 100 / (1 + Math.exp(-gap / 15))
+    // Resource Factor: How many wickets and balls are left
+    const wicketFactor = Math.pow(wicketsRemaining / 10, 0.7)
+    const ballsFactor = ballsRemaining / maxBalls
+
+    // Projected score based on current pace vs ability to accelerate
+    const accelerationPotential = 1.2 * wicketFactor * ballsFactor
+    const expectedFinalRuns = currentRuns + (ballsRemaining / 6) * (currentCRR * 0.8 + 8.5 * 0.2 + accelerationPotential)
+
+    // Compare to standard par for the format
+    const formatPar = 8.5 * oversLimit
+    const gap = expectedFinalRuns - formatPar
+
+    // Logistic curve for 1st innings (SD = 18 runs)
+    battingWinPercent = 100 / (1 + Math.exp(-gap / 18))
   } else {
     // --- SECOND INNINGS LOGIC (THE CHASE) ---
     const runsNeeded = (target || 0) - currentRuns
-    const rrr = ballsRemaining > 0 ? (runsNeeded / ballsRemaining) * 6 : 100
+    const rrr = ballsRemaining > 0 ? (runsNeeded / ballsRemaining) * 6 : (runsNeeded > 0 ? 100 : 0)
     const crr = legalBalls > 0 ? (currentRuns / (legalBalls / 6)) : 0
 
-    // 1. BASE CAPABILITY (How fast can they score?)
-    // Betting sites use a variable capability: 10 wickets = high, 1 wicket = low
-    // Base capability for a modern team is around 9.5 RPO in T20
-    const baseCapability = 9.5
-    const resourceFactor = Math.pow(wicketsRemaining / 10, 0.85) * (1 + (ballsRemaining / maxBalls) * 0.15)
-    const teamCapability = baseCapability * resourceFactor
+    // 1. DYNAMIC CAPABILITY
+    // Scales based on wickets remaining
+    const resourceWeight = Math.pow(wicketsRemaining / 10, 0.8)
+    const baseCapability = 9.8
+    const teamCapability = baseCapability * resourceWeight
 
-    // 2. LOGISTIC GAP CALCULATION plus Momentum & Partnership
-    // gap = capability - rrr
-    let gap = (teamCapability - rrr)
+    // 2. GAP CALCULATION (Capability vs Requirement)
+    const gap = teamCapability - rrr
 
-    // Momentum Adjustment: Recent RPO
-    if (recentOvers && recentOvers.length > 0) {
-      const lastOverRuns = recentOvers[recentOvers.length - 1]?.totalRuns || 0
-      if (lastOverRuns > 12) gap += 0.5
-      else if (lastOverRuns < 3) gap -= 0.5
+    // 3. LOGISTIC SENSITIVITY (Alpha)
+    // alpha increases as balls decrease
+    const matchTypeFactor = Math.sqrt(oversLimit / 20)
+    const alpha = (2.0 + (Math.pow(progressRatio, 1.5) * 8)) * matchTypeFactor
+
+    battingWinPercent = 100 / (1 + Math.exp(-gap * (alpha / 5)))
+
+    // 4. CLUTCH ZONE (Last 12 balls or < 15 runs needed)
+    if (ballsRemaining <= 12 || runsNeeded <= 15) {
+      const runRatePressure = rrr / 6 // runs per ball
+
+      let situationalProb = 50
+      if (runRatePressure <= 0.5) situationalProb = 95 - (runRatePressure * 20)
+      else if (runRatePressure <= 1.5) situationalProb = 90 - (runRatePressure - 0.5) * 60
+      else situationalProb = Math.max(5, 30 / runRatePressure)
+
+      if (wicketsRemaining === 1) situationalProb *= 0.6
+      else if (wicketsRemaining === 2) situationalProb *= 0.85
+
+      const blendWeight = Math.pow(1 - (ballsRemaining / 12), 2)
+      battingWinPercent = (battingWinPercent * (1 - blendWeight)) + (situationalProb * blendWeight)
     }
 
-    // 3. PRESSURE MULTIPLIER (Volatility increases at the death)
-    // multiplier = 2.5 (start) to 12.5 (end)
-    const multiplier = 2.5 + (Math.pow(progressRatio, 2) * 10)
-
-    battingWinPercent = 100 / (1 + Math.exp(-gap * (multiplier / 5)))
-
-    // --- CLUTCH FINISH OVERRIDE (CRITICAL FIX) ---
-    // In the last over (or 2), logistic curves become unreliable for tiny run counts.
-    if (ballsRemaining <= 12 && runsNeeded <= 12) {
-      // If needing 1 run in 1 ball, it's roughly a 50-60% chance (considering dots/wickets vs runs)
-      // If needing 1 run in 6 balls, it's 95%+
-      const runsPerBall = runsNeeded / ballsRemaining
-
-      let clutchProb = 50 // Base for 1 rpb
-
-      if (runsPerBall < 1) clutchProb = 100 - (runsPerBall * 50)
-      else clutchProb = 50 / runsPerBall
-
-      // Adjust for wickets - if 9 down, penalty is heavy
-      if (wicketsRemaining === 1) clutchProb -= 20
-      else if (wicketsRemaining === 2) clutchProb -= 5
-
-      // Blend the logistic result with the clutch math
-      const weight = 1 - (ballsRemaining / 12) // Weight increases as balls decrease
-      battingWinPercent = (battingWinPercent * (1 - weight)) + (clutchProb * weight)
-    }
-
-    // 4. "AT THIS STAGE" NUDGE
-    // If they are ahead of the 1st innings score at this stage, they get a boost
-    if (firstInningsStageScore) {
-      const runsAhead = currentRuns - firstInningsStageScore.runs
-      const comparisonNudge = Math.max(-10, Math.min(10, runsAhead / 2))
-      battingWinPercent += comparisonNudge
-    }
-
-    // 5. HARD RECOVERIES / SAFETY
-    if (runsNeeded === 1 && ballsRemaining >= 1 && wicketsRemaining > 1) {
-      battingWinPercent = Math.max(battingWinPercent, 70) // If 1 run needed, it's always high unless 10th wicket
-    }
-    if (runsNeeded <= ballsRemaining && wicketsRemaining >= 3) {
-      battingWinPercent = Math.max(battingWinPercent, 85)
-    }
-
-    // 6. IMPOSSIBILITY CLAMPS
-    if (runsNeeded > ballsRemaining * 6) battingWinPercent = 0.1
-    if (wicketsRemaining === 0) battingWinPercent = 0.1
+    // 5. SAFETY NETS
+    if (runsNeeded <= 0) battingWinPercent = 100
+    if (runsNeeded === 1 && ballsRemaining >= 2 && wicketsRemaining > 1) battingWinPercent = Math.max(battingWinPercent, 90)
   }
 
-  // --- MOMENTUM & BALL IMPACT ---
-  // Unlike earlier logic, we don't subtract flat 12% for a wicket if they only need 5 runs.
+  // --- LAST BALL EVENT STABILIZATION ---
   if (lastBallEvent !== undefined && !isFinishedMatch) {
     const event = String(lastBallEvent).toLowerCase()
 
     if (event.includes('w') || event.includes('out')) {
-      // Wicket impact is significant ONLY if the RRR is high or wickets are low
-      const rrr = isChasing ? ((target || 0) - currentRuns) / (ballsRemaining / 6) : 0
-      const wicketPain = (rrr > 8 || wicketsRemaining < 4) ? 15 : 5
-      battingWinPercent -= wicketPain * (0.5 + progressRatio)
+      const impactScale = (1.1 - progressRatio) * (15 / (wicketsRemaining + 1))
+      battingWinPercent -= Math.min(12, 5 * impactScale)
     } else if (event.includes('6')) {
-      battingWinPercent += 6 * (0.5 + progressRatio)
+      battingWinPercent += 2 * (1 - progressRatio)
     } else if (event.includes('4')) {
-      battingWinPercent += 3 * (0.5 + progressRatio)
+      battingWinPercent += 1 * (1 - progressRatio)
     }
   }
 
-  // Final Smoothing & Clamp
-  battingWinPercent = Math.max(0.5, Math.min(99.5, battingWinPercent))
+  // FINAL REFINEMENT
+  const runsNeededFinal = (target || 0) - currentRuns
+  if (isChasing && runsNeededFinal > ballsRemaining * 6) battingWinPercent = 0
+  if (wicketsRemaining === 0) battingWinPercent = 0
+
+  battingWinPercent = Math.max(1, Math.min(99, battingWinPercent))
   const bowlingWinPercent = 100 - battingWinPercent
 
   return {
@@ -195,8 +168,6 @@ function getProbabilityExplanation(prob: number): string {
   if (prob >= 5) return 'Bowlers have almost secured victory.'
   return 'Match is virtually over for the batting side.'
 }
-
-const CRR_BENCHMARK = 8.5 // Exported for visibility but used internally as 8.5 in logic
 
 /**
  * Calculate projected score (Deterministic)
