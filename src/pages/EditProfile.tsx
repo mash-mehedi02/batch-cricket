@@ -449,102 +449,109 @@ export default function EditProfilePage() {
                         />
                     </div>
 
-                    {/* Playing Role */}
-                    <div>
-                        <label className={labelClass}>Playing Role</label>
-                        <select
-                            value={form.role}
-                            onChange={(e) => setForm(prev => ({ ...prev, role: e.target.value as PlayerRole }))}
-                            className={selectClass}
-                        >
-                            <option value="batsman">Batsman</option>
-                            <option value="bowler">Bowler</option>
-                            <option value="all-rounder">All-Rounder</option>
-                            <option value="wicket-keeper">Wicket Keeper</option>
-                        </select>
-                    </div>
-
-                    {/* Batting Style */}
-                    <div>
-                        <label className={labelClass}>Batting Style</label>
-                        <select
-                            value={form.battingStyle}
-                            onChange={(e) => setForm(prev => ({ ...prev, battingStyle: e.target.value as BattingStyle }))}
-                            className={selectClass}
-                        >
-                            <option value="right-handed">Right Handed</option>
-                            <option value="left-handed">Left Handed</option>
-                        </select>
-                    </div>
-
-                    {/* Bowling Style */}
-                    <div>
-                        <label className={labelClass}>Bowling Style</label>
-                        <select
-                            value={form.bowlingStyle}
-                            onChange={(e) => setForm(prev => ({ ...prev, bowlingStyle: e.target.value as BowlingStyle }))}
-                            className={selectClass}
-                        >
-                            <option value="right-arm-fast">Right Arm Fast</option>
-                            <option value="right-arm-medium">Right Arm Medium</option>
-                            <option value="right-arm-off-spin">Right Arm Off Spin</option>
-                            <option value="right-arm-leg-spin">Right Arm Leg Spin</option>
-                            <option value="left-arm-fast">Left Arm Fast</option>
-                            <option value="left-arm-medium">Left Arm Medium</option>
-                            <option value="left-arm-orthodox">Left Arm Orthodox</option>
-                            <option value="left-arm-chinaman">Left Arm Chinaman</option>
-                            <option value="slow-left-arm-orthodox">Slow Left Arm Orthodox</option>
-                        </select>
-                    </div>
-
-                    {/* Social Links */}
-                    <div>
-                        <label className={labelClass}>Social Links (Max 3)</label>
-                        <div className="space-y-3">
-                            {/* Add Link */}
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={newLinkUrl}
-                                    onChange={(e) => setNewLinkUrl(e.target.value)}
-                                    placeholder="Paste profile URL..."
-                                    className={`${inputClass} text-sm`}
-                                />
-                                <button
-                                    onClick={handleAddLink}
-                                    className="w-12 flex items-center justify-center rounded-xl bg-teal-500 text-white hover:bg-teal-600 transition-colors"
+                    {/* Player Specific Fields (Only for Approved Players/Admins) */}
+                    {(user.role === 'player' || user.role === 'admin' || user.role === 'super_admin') && (
+                        <>
+                            {/* Playing Role */}
+                            <div>
+                                <label className={labelClass}>Playing Role</label>
+                                <select
+                                    value={form.role}
+                                    onChange={(e) => setForm(prev => ({ ...prev, role: e.target.value as PlayerRole }))}
+                                    className={selectClass}
                                 >
-                                    <Plus size={20} />
-                                </button>
+                                    <option value="batsman">Batsman</option>
+                                    <option value="bowler">Bowler</option>
+                                    <option value="all-rounder">All-Rounder</option>
+                                    <option value="wicket-keeper">Wicket Keeper</option>
+                                </select>
                             </div>
 
-                            {/* Link List */}
-                            {form.socialLinks.map((link, index) => (
-                                <div key={index} className={`flex items-center gap-3 p-3 rounded-lg border ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-slate-700' : 'bg-white shadow-sm'}`}>
-                                        {link.platform === 'facebook' && <Facebook size={16} className="text-blue-600" />}
-                                        {link.platform === 'instagram' && <Instagram size={16} className="text-pink-600" />}
-                                        {link.platform === 'x' && <Twitter size={16} className="text-black dark:text-white" />}
-                                        {link.platform === 'linkedin' && <Linkedin size={16} className="text-blue-700" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                                            {link.username}
-                                        </p>
-                                        <p className={`text-xs truncate ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                                            {link.platform}
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleRemoveLink(index)}
-                                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                            {/* Batting Style */}
+                            <div>
+                                <label className={labelClass}>Batting Style</label>
+                                <select
+                                    value={form.battingStyle}
+                                    onChange={(e) => setForm(prev => ({ ...prev, battingStyle: e.target.value as BattingStyle }))}
+                                    className={selectClass}
+                                >
+                                    <option value="right-handed">Right Handed</option>
+                                    <option value="left-handed">Left Handed</option>
+                                </select>
+                            </div>
+
+                            {/* Bowling Style - Hide if role is batsman */}
+                            {form.role !== 'batsman' && (
+                                <div>
+                                    <label className={labelClass}>Bowling Style</label>
+                                    <select
+                                        value={form.bowlingStyle}
+                                        onChange={(e) => setForm(prev => ({ ...prev, bowlingStyle: e.target.value as BowlingStyle }))}
+                                        className={selectClass}
                                     >
-                                        <Trash2 size={16} />
-                                    </button>
+                                        <option value="right-arm-fast">Right Arm Fast</option>
+                                        <option value="right-arm-medium">Right Arm Medium</option>
+                                        <option value="right-arm-off-spin">Right Arm Off Spin</option>
+                                        <option value="right-arm-leg-spin">Right Arm Leg Spin</option>
+                                        <option value="left-arm-fast">Left Arm Fast</option>
+                                        <option value="left-arm-medium">Left Arm Medium</option>
+                                        <option value="left-arm-orthodox">Left Arm Orthodox</option>
+                                        <option value="left-arm-chinaman">Left Arm Chinaman</option>
+                                        <option value="slow-left-arm-orthodox">Slow Left Arm Orthodox</option>
+                                    </select>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
+                            )}
+
+                            {/* Social Links */}
+                            <div>
+                                <label className={labelClass}>Social Links (Max 3)</label>
+                                <div className="space-y-3">
+                                    {/* Add Link */}
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newLinkUrl}
+                                            onChange={(e) => setNewLinkUrl(e.target.value)}
+                                            placeholder="Paste profile URL..."
+                                            className={`${inputClass} text-sm`}
+                                        />
+                                        <button
+                                            onClick={handleAddLink}
+                                            className="w-12 flex items-center justify-center rounded-xl bg-teal-500 text-white hover:bg-teal-600 transition-colors"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </div>
+
+                                    {/* Link List */}
+                                    {form.socialLinks.map((link, index) => (
+                                        <div key={index} className={`flex items-center gap-3 p-3 rounded-lg border ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-slate-700' : 'bg-white shadow-sm'}`}>
+                                                {link.platform === 'facebook' && <Facebook size={16} className="text-blue-600" />}
+                                                {link.platform === 'instagram' && <Instagram size={16} className="text-pink-600" />}
+                                                {link.platform === 'x' && <Twitter size={16} className="text-black dark:text-white" />}
+                                                {link.platform === 'linkedin' && <Linkedin size={16} className="text-blue-700" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-medium truncate ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                    {link.username}
+                                                </p>
+                                                <p className={`text-xs truncate ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                    {link.platform}
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveLink(index)}
+                                                className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     {/* Date of Birth */}
                     <div>

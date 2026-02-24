@@ -375,15 +375,17 @@ export async function updatePlayerClaimEmail(playerId: string, newEmail: string)
     }
 
     const email = newEmail.trim().toLowerCase()
+
+    // === STEP 1: Duplicate email check (STRICT) ===
+    // If taken, we throw error IMMEDIATELY and do NOT touch anything else.
+    const isTaken = await isEmailRegistered(email, playerId)
+    if (isTaken) {
+        throw new Error('This email is already assigned to another player profile. Update cancelled.')
+    }
+
     const maskedEmail = maskEmail(email)
     const adminUid = auth.currentUser.uid
     const adminEmail = auth.currentUser.email || ''
-
-    // === STEP 1: Duplicate email check (STRICT) ===
-    const isTaken = await isEmailRegistered(email, playerId)
-    if (isTaken) {
-        throw new Error('This email is already assigned to another player. Duplicate emails are not allowed.')
-    }
 
     // === STEP 2: Fetch current player data ===
     const playerRef = doc(db, 'players', playerId)

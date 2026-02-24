@@ -226,7 +226,7 @@ export default function MenuPage() {
                     </Link>
 
                     {/* Player Registration (Conditional) */}
-                    {user && !user.isRegisteredPlayer && user.role !== 'admin' && user.role !== 'super_admin' && (
+                    {user && user.role !== 'player' && user.role !== 'admin' && user.role !== 'super_admin' && (
                         <Link
                             to="/register-player"
                             className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}

@@ -373,21 +373,23 @@ export default function RegisterPlayerPage() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block italic">Bowling</label>
-                                    <select
-                                        value={form.bowlingStyle}
-                                        onChange={e => setForm({ ...form, bowlingStyle: e.target.value as BowlingStyle })}
-                                        className="w-full px-3 py-3 rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900 text-[10px] font-black uppercase outline-none focus:border-blue-500 transition-all"
-                                    >
-                                        <option value="right-arm-medium">RA Medium</option>
-                                        <option value="right-arm-fast">RA Fast</option>
-                                        <option value="right-arm-spin">RA Spin</option>
-                                        <option value="left-arm-medium">LA Medium</option>
-                                        <option value="left-arm-fast">LA Fast</option>
-                                        <option value="left-arm-spin">LA Spin</option>
-                                    </select>
-                                </div>
+                                {form.role !== 'batsman' && (
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block italic">Bowling</label>
+                                        <select
+                                            value={form.bowlingStyle}
+                                            onChange={e => setForm({ ...form, bowlingStyle: e.target.value as BowlingStyle })}
+                                            className="w-full px-3 py-3 rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900 text-[10px] font-black uppercase outline-none focus:border-blue-500 transition-all"
+                                        >
+                                            <option value="right-arm-medium">RA Medium</option>
+                                            <option value="right-arm-fast">RA Fast</option>
+                                            <option value="right-arm-spin">RA Spin</option>
+                                            <option value="left-arm-medium">LA Medium</option>
+                                            <option value="left-arm-fast">LA Fast</option>
+                                            <option value="left-arm-spin">LA Spin</option>
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

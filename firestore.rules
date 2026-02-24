@@ -131,12 +131,16 @@ service cloud.firestore {
       
       allow update: if (isAdmin() && isOwner(resource.data)) || (
         isAuthenticated() && (
-          // Allow owner to update their profile (excluding ALL sensitive fields)
+          // CASE 1: Updating an already owned profile (limited fields)
           (resource.data.ownerUid == request.auth.uid && 
            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
              'id', 'squadId', 'claimed', 'ownerUid', 'email', 'maskedEmail',
              'createdAt', 'createdBy', 'adminId', 'adminEmail'
-           ]))
+           ])) ||
+          // CASE 2: Securely claiming an unclaimed profile
+          (resource.data.ownerUid == null && 
+           request.resource.data.ownerUid == request.auth.uid &&
+           request.resource.data.claimed == true)
         )
       );
     }
@@ -150,11 +154,13 @@ service cloud.firestore {
     // ======================================================
 
     match /player_secrets/{playerId} {
+      // Allow read if user is authenticated and is either admin OR the email matches
       allow read: if isAuthenticated() && (
-        (isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data)) || 
-        request.auth.token.email.lower() == resource.data.email.lower()
+        isAdmin() || 
+        (resource == null || request.auth.token.email.lower() == resource.data.email.lower())
       );
-      allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data);
+      
+      allow write: if isAdmin();
     }
 
     // ======================================================

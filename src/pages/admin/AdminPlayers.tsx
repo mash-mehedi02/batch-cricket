@@ -60,6 +60,8 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [emailChecking, setEmailChecking] = useState(false)
+  const [duplicateEmailError, setDuplicateEmailError] = useState('')
 
 
   useEffect(() => {
@@ -184,6 +186,10 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
       newErrors.squadId = 'Please select a squad'
     }
 
+    if (duplicateEmailError) {
+      newErrors.email = duplicateEmailError;
+    }
+
     // Email required for create mode or edit mode
     // Email optional but must be valid if provided
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -201,6 +207,36 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
+
+  // Real-time email check
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (formData.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        setEmailChecking(true);
+        try {
+          const isTaken = await isEmailRegistered(formData.email, mode === 'edit' ? id : undefined);
+          if (isTaken) {
+            setDuplicateEmailError('This email is already used by another player.');
+            setErrors(prev => ({ ...prev, email: 'This email is already used by another player.' }));
+          } else {
+            setDuplicateEmailError('');
+            setErrors(prev => {
+              const { email, ...rest } = prev;
+              return rest;
+            });
+          }
+        } catch (err) {
+          console.error('Email check failed:', err);
+        } finally {
+          setEmailChecking(false);
+        }
+      } else {
+        setDuplicateEmailError('');
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.email, id, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -403,10 +439,18 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   setFormData({ ...formData, email: e.target.value });
                   if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
                 }}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.email || duplicateEmailError ? 'border-red-500 bg-red-50/10' : 'border-gray-300'}`}
                 placeholder="Enter player's personal email"
               />
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+              {emailChecking && <p className="text-xs text-blue-500 mt-1 animate-pulse">Checking email availability...</p>}
+              {(errors.email || duplicateEmailError) && (
+                <p className="text-red-500 text-sm mt-1 font-bold flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {errors.email || duplicateEmailError}
+                </p>
+              )}
               {mode === 'edit' && formData.claimed && (
                 <p className="text-xs text-amber-600 mt-1 font-bold">
                   ⚠️ Profile claimed. Changing this email will reset the claim and the player will need to re-claim.
@@ -623,7 +667,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-200">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || emailChecking || !!duplicateEmailError}
               className="px-6 py-3 bg-teal-600 text-white rounded-lg font-semibold hover:bg-teal-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
             >
               {saving ? (

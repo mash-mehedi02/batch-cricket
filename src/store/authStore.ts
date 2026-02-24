@@ -177,213 +177,123 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let userRole: any = 'viewer';
       if (userSnap.exists()) {
         const storedRole = userSnap.data().role;
-        if (storedRole === 'admin' || storedRole === 'super_admin' || storedRole === 'player') {
+        // Keep special roles, otherwise default to viewer for identity check
+        if (storedRole === 'admin' || storedRole === 'super_admin') {
           userRole = storedRole;
-        } else {
-          userRole = 'viewer';
         }
       }
 
       const isNewUser = !userSnap.exists();
-      let userData: any = {
-        uid: user.uid,
-        email: user.email || null,
-        displayName: user.displayName || null,
-        photoURL: user.photoURL || null,
-        role: userRole,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-      };
+      let emailMatchPlayer: any = null;
+      let emailMatchPlayerId: string | null = null;
 
-      // --- SECURE AUTO-LINK & IDENTITY SYNC ---
-      // Enforces strict ownership rules:
-      // 1. Email match + ownerUid is null → allow claim
-      // 2. Email match + ownerUid === current UID → allow access
-      // 3. Email match + ownerUid belongs to someone else → DENY (no stealing)
-      // 4. No email match → viewer only (no player link)
-      // 5. Stale link revocation if email no longer matches
+      // --- STEP 1: IDENTITY LOOKUP (STRICT EMAIL MAPPING) ---
       if (user.email) {
-        try {
-          const emailLower = user.email.toLowerCase().trim();
+        const emailLower = user.email.toLowerCase().trim();
+        console.log("[AuthStore] Querying player_secrets for:", emailLower);
+        const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
+        const secretsSnap = await getDocs(q);
 
-          // 1. Check if this email is registered in player_secrets
-          const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
-          const secretsSnap = await getDocs(q);
+        if (!secretsSnap.empty) {
+          emailMatchPlayerId = secretsSnap.docs[0].id;
+          const playerSnap = await getDoc(doc(db, 'players', emailMatchPlayerId));
 
-          if (!secretsSnap.empty) {
-            const playerId = secretsSnap.docs[0].id;
-            console.log("[AuthStore] Identity Match Found:", emailLower, "-> Player:", playerId);
+          if (playerSnap.exists()) {
+            const playerData = playerSnap.data();
 
-            const playerRef = doc(db, 'players', playerId);
-            const playerSnap = await getDoc(playerRef);
+            // SECURITY RULE: Ensure this UID is either the owner or the profile is unclaimed
+            if (!playerData.ownerUid || playerData.ownerUid === user.uid) {
+              emailMatchPlayer = playerData;
+              console.log("[AuthStore] Secure Match Found:", emailMatchPlayerId);
 
-            if (playerSnap.exists()) {
-              const playerData = playerSnap.data();
-
-              // RULE 3: If ownerUid exists AND belongs to someone else → DENY
-              if (playerData.ownerUid && playerData.ownerUid !== user.uid) {
-                console.warn("[AuthStore] SECURITY: Player", playerId, "is owned by", playerData.ownerUid, "(not this user:", user.uid, "). Access DENIED.");
-                // Do NOT link. Treat as viewer.
-              }
-              // RULE 2: Already claimed by this user → allow access
-              else if (playerData.claimed && playerData.ownerUid === user.uid) {
-                console.log("[AuthStore] Already claimed by this user. Access granted.");
-                userData.isRegisteredPlayer = true;
-                userData.playerId = playerId;
-                userData.linkedPlayerId = playerId;
-                userData.autoFillProfile = playerData;
-
-                if (userRole === 'viewer') {
-                  userRole = 'player';
-                  userData.role = 'player';
-                }
-              }
-              // RULE 1: Not claimed yet (ownerUid is null) → claim it
-              else if (!playerData.ownerUid) {
-                console.log("[AuthStore] Unclaimed player found. Claiming for user:", user.uid);
-                await updateDoc(playerRef, {
+              // Claim it if unclaimed
+              if (!playerData.ownerUid) {
+                console.log("[AuthStore] Attempting to claim player profile:", emailMatchPlayerId);
+                await updateDoc(doc(db, 'players', emailMatchPlayerId), {
                   claimed: true,
                   ownerUid: user.uid,
                   lastVerifiedAt: serverTimestamp(),
                   updatedAt: serverTimestamp()
                 });
+                console.log("[AuthStore] Profile claim successful.");
                 toast.success('Player profile linked!', { icon: '🔗' });
-
-                userData.isRegisteredPlayer = true;
-                userData.playerId = playerId;
-                userData.linkedPlayerId = playerId;
-                userData.autoFillProfile = playerData;
-
-                if (userRole === 'viewer') {
-                  userRole = 'player';
-                  userData.role = 'player';
-                }
               }
-            }
-          } else {
-            // RULE 4 & 5: No email match → check for stale links to revoke
-            if (userSnap.exists() && userSnap.data().isRegisteredPlayer) {
-              const linkedPid = userSnap.data().linkedPlayerId || userSnap.data().playerId;
-              if (linkedPid) {
-                // Verify the linked player still has this user's email
-                const linkedSecretRef = doc(db, 'player_secrets', linkedPid);
-                const linkedSecretSnap = await getDoc(linkedSecretRef);
 
-                const linkedEmail = linkedSecretSnap.exists() ? linkedSecretSnap.data()?.email?.toLowerCase() : null;
-
-                if (linkedEmail !== emailLower) {
-                  console.log("[AuthStore] REVOCATION: Email changed by admin. Revoking player access.");
-                  userData.isRegisteredPlayer = false;
-                  userData.playerId = null;
-                  userData.linkedPlayerId = null;
-                  userData.playerProfile = null;
-                  if (userRole === 'player') {
-                    userRole = 'viewer';
-                    userData.role = 'viewer';
-                  }
-                } else {
-                  // Email still matches, keep access
-                  userData.isRegisteredPlayer = true;
-                  userData.playerId = linkedPid;
-                  userData.linkedPlayerId = linkedPid;
-                }
-              }
+              if (userRole === 'viewer') userRole = 'player';
+            } else {
+              console.warn("[AuthStore] SECURITY: Player is owned by another UID. Skipping link.");
             }
           }
-        } catch (linkErr) {
-          console.warn("[AuthStore] Identity sync failed:", linkErr);
         }
       }
 
-      if (!isNewUser) {
-        const existingData: any = userSnap.data();
-        console.log("[AuthStore] Profile found. Maintaining existing profile data.");
+      // --- STEP 2: CONSTRUCT FINAL USER DATA ---
+      // We start with minimum required fields
+      let finalUserData: any = {
+        uid: user.uid,
+        email: user.email || null,
+        displayName: user.displayName || null,
+        photoURL: user.photoURL || null,
+        role: userRole,
+        lastLogin: serverTimestamp(),
+      };
 
-        userData = {
-          ...existingData,
-          uid: user.uid,
-          email: existingData.email || user.email || null,
-          // Prioritize official player name over Google name/existing name
-          displayName: (userData.isRegisteredPlayer ? userData.autoFillProfile?.name : null) || existingData.displayName || user.displayName || null,
-          photoURL: (userData.isRegisteredPlayer ? userData.autoFillProfile?.photoUrl : null) || existingData.photoURL || user.photoURL || null,
-          isRegisteredPlayer: userData.isRegisteredPlayer || existingData.isRegisteredPlayer || false,
-          playerId: userData.playerId || existingData.playerId || null,
-          linkedPlayerId: userData.linkedPlayerId || existingData.linkedPlayerId || userData.playerId || existingData.playerId || null,
-          autoFillProfile: userData.autoFillProfile || null, // data from matched player doc
-          lastLogin: serverTimestamp(),
-          role: userRole,
-        };
-
-        // If newly linked or missing playerProfile on user doc, sync it now
-        if (userData.isRegisteredPlayer && userData.autoFillProfile && (!existingData.playerProfile || !existingData.playerId || !existingData.playerProfile.isRegisteredPlayer)) {
-          userData.playerProfile = {
-            ...(existingData.playerProfile || {}),
-            name: userData.autoFillProfile.name || userData.displayName,
-            role: userData.autoFillProfile.role || 'batsman',
-            battingStyle: userData.autoFillProfile.battingStyle || 'right-handed',
-            bowlingStyle: userData.autoFillProfile.bowlingStyle || 'right-arm-medium',
-            photoUrl: userData.autoFillProfile.photoUrl || (userData as any).photoURL,
-            isRegisteredPlayer: true,
-            setupAt: serverTimestamp()
-          };
-          userData.playerId = userData.playerId || userData.autoFillProfile.id;
-          userData.linkedPlayerId = userData.playerId;
-        }
-
-        const updates: any = {
-          lastLogin: serverTimestamp(),
-          photoURL: userData.photoURL || null,
-          displayName: userData.displayName || null,
-          role: userRole,
-          isRegisteredPlayer: userData.isRegisteredPlayer || false,
-          playerId: userData.playerId || null,
-          linkedPlayerId: userData.linkedPlayerId || null,
-          playerProfile: userData.playerProfile || null
-        };
-
-        // FORCE SYNC: If the player ID has changed (admin reassigned email), 
-        // we MUST overwrite the name and profile to avoid showing the old person's data.
-        if (userData.playerId !== existingData.playerId) {
-          console.log("[AuthStore] Player ID Change detected. Forcing metadata sync.");
-          updates.displayName = userData.autoFillProfile?.name || updates.displayName;
-          updates.photoURL = userData.autoFillProfile?.photoUrl || updates.photoURL;
-        }
-
-        updateDoc(userRef, updates).catch(e => console.error("[AuthStore] Login Update Warn:", e));
-
+      if (isNewUser) {
+        finalUserData.createdAt = serverTimestamp();
       } else {
-        console.log("[AuthStore] New account. Role:", userRole);
+        // Merge with existing data but we will selectively overwrite identity fields
+        finalUserData = { ...userSnap.data(), ...finalUserData };
+      }
 
-        // Finalize userData for new accounts
-        userData.displayName = userData.autoFillProfile?.name || userData.displayName;
-        userData.photoURL = userData.autoFillProfile?.photoUrl || userData.photoURL;
+      // --- STEP 3: FORCE IDENTITY OVERWRITE ---
+      // If we have a valid email match, NOTHING in the old record matters.
+      // We overwrite everything related to player identity.
+      if (emailMatchPlayer) {
+        console.log("[AuthStore] Overwriting profile with identity from:", emailMatchPlayerId);
+        finalUserData.isRegisteredPlayer = true;
+        finalUserData.playerId = emailMatchPlayerId;
+        finalUserData.linkedPlayerId = emailMatchPlayerId;
+        finalUserData.displayName = emailMatchPlayer.name || finalUserData.displayName;
+        finalUserData.photoURL = emailMatchPlayer.photoUrl || finalUserData.photoURL;
+        finalUserData.role = userRole;
 
-        if (userData.isRegisteredPlayer && userData.autoFillProfile) {
-          userData.playerProfile = {
-            name: userData.autoFillProfile.name,
-            role: userData.autoFillProfile.role,
-            battingStyle: userData.autoFillProfile.battingStyle,
-            bowlingStyle: userData.autoFillProfile.bowlingStyle,
-            photoUrl: userData.autoFillProfile.photoUrl,
-            isRegisteredPlayer: true,
-            setupAt: serverTimestamp()
-          };
-        }
+        // Sync playerProfile object
+        finalUserData.playerProfile = {
+          ...(finalUserData.playerProfile || {}),
+          name: emailMatchPlayer.name,
+          role: emailMatchPlayer.role || 'batsman',
+          isRegisteredPlayer: true,
+          photoUrl: emailMatchPlayer.photoUrl,
+          squadId: emailMatchPlayer.squadId,
+          battingStyle: emailMatchPlayer.battingStyle,
+          bowlingStyle: emailMatchPlayer.bowlingStyle
+        };
+      } else {
+        // NO MATCH: Revoke all player permissions and clear IDs
+        console.log("[AuthStore] No email match. Cleaning up player identity.");
+        finalUserData.isRegisteredPlayer = false;
+        finalUserData.playerId = null;
+        finalUserData.linkedPlayerId = null;
+        finalUserData.playerProfile = null;
+        if (finalUserData.role === 'player') finalUserData.role = 'viewer';
+      }
 
-        // Also ensure linkedPlayerId is mirrored for new accounts
-        if (userData.playerId) {
-          userData.linkedPlayerId = userData.playerId;
-        }
-
-        await setDoc(userRef, userData);
+      // --- STEP 4: SAVE TO FIRESTORE ---
+      console.log("[AuthStore] Finalizing User Document update...");
+      if (isNewUser) {
+        await setDoc(userRef, finalUserData);
+        console.log("[AuthStore] User document created.");
+      } else {
+        await updateDoc(userRef, finalUserData);
+        console.log("[AuthStore] User document updated.");
       }
 
       set({
-        user: userData as User,
+        user: finalUserData as User,
         loading: false,
       });
-      console.log("[AuthStore] Login Process Complete. Role:", userData.role);
 
+      console.log("[AuthStore] Identity Processing Complete. Final Role:", finalUserData.role);
       return isNewUser;
 
     } catch (error: any) {
@@ -502,21 +412,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             console.log("[AuthStore] REAL-TIME Update: User Role =", data.role);
 
             // If user is a player, we always verify identity sync to catch admin changes
-            // (e.g. if admin changed the player email associated with this user)
             const emailLower = firebaseUser.email?.toLowerCase().trim();
             const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
             const secretsSnap = await getDocs(q);
             const verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
 
-            // IDENTITY CHECK: If currently linked ID doesn't match current email's secret ID
+            // IDENTITY CHECK: If admin changed the email or unlinked the player
+            // we force a LOGOUT to ensure security and prevent ghost access.
             if (data.isRegisteredPlayer && data.playerId !== verifiedPlayerId) {
-              console.log("[AuthStore] Identity mismatch detected in real-time. Re-syncing...");
-              await get().processLogin(firebaseUser);
-            } else {
-              set({ user: data, loading: false });
+              console.warn("[AuthStore] Identity mismatch/revocation detected. Force Logout.");
+              toast.error("Your profile access has been updated. Please login again.", { id: 'auth-revoked' });
+              await get().logout();
+              return;
             }
+
+            set({ user: data, loading: false });
           } else {
-            // Document doesn't exist yet, process login to create it
             console.log("[AuthStore] No user profile found. Creating...");
             await get().processLogin(firebaseUser);
           }
