@@ -195,7 +195,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         lastLogin: serverTimestamp(),
       };
 
-      // --- AUTO-LINK & IDENTITY SYNC ---
+      // --- SECURE AUTO-LINK & IDENTITY SYNC ---
+      // Enforces strict ownership rules:
+      // 1. Email match + ownerUid is null → allow claim
+      // 2. Email match + ownerUid === current UID → allow access
+      // 3. Email match + ownerUid belongs to someone else → DENY (no stealing)
+      // 4. No email match → viewer only (no player link)
+      // 5. Stale link revocation if email no longer matches
       if (user.email) {
         try {
           const emailLower = user.email.toLowerCase().trim();
@@ -214,41 +220,73 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             if (playerSnap.exists()) {
               const playerData = playerSnap.data();
 
-              // If not already claimed by this user, bind it now
-              if (!playerData.claimed || playerData.ownerUid !== user.uid) {
+              // RULE 3: If ownerUid exists AND belongs to someone else → DENY
+              if (playerData.ownerUid && playerData.ownerUid !== user.uid) {
+                console.warn("[AuthStore] SECURITY: Player", playerId, "is owned by", playerData.ownerUid, "(not this user:", user.uid, "). Access DENIED.");
+                // Do NOT link. Treat as viewer.
+              }
+              // RULE 2: Already claimed by this user → allow access
+              else if (playerData.claimed && playerData.ownerUid === user.uid) {
+                console.log("[AuthStore] Already claimed by this user. Access granted.");
+                userData.isRegisteredPlayer = true;
+                userData.playerId = playerId;
+                userData.linkedPlayerId = playerId;
+                userData.autoFillProfile = playerData;
+
+                if (userRole === 'viewer') {
+                  userRole = 'player';
+                  userData.role = 'player';
+                }
+              }
+              // RULE 1: Not claimed yet (ownerUid is null) → claim it
+              else if (!playerData.ownerUid) {
+                console.log("[AuthStore] Unclaimed player found. Claiming for user:", user.uid);
                 await updateDoc(playerRef, {
                   claimed: true,
                   ownerUid: user.uid,
                   lastVerifiedAt: serverTimestamp(),
                   updatedAt: serverTimestamp()
                 });
-                console.log("[AuthStore] Profile claimed/linked successfully.");
                 toast.success('Player profile linked!', { icon: '🔗' });
-              }
 
-              // Update session data
-              userData.isRegisteredPlayer = true;
-              userData.playerId = playerId;
-              userData.linkedPlayerId = playerId;
-              userData.autoFillProfile = playerData;
+                userData.isRegisteredPlayer = true;
+                userData.playerId = playerId;
+                userData.linkedPlayerId = playerId;
+                userData.autoFillProfile = playerData;
 
-              if (userRole === 'viewer') {
-                userRole = 'player';
-                userData.role = 'player';
+                if (userRole === 'viewer') {
+                  userRole = 'player';
+                  userData.role = 'player';
+                }
               }
             }
           } else {
-            // 2. Revocation: If user was a player but current email is NOT in player_secrets anymore
-            // (e.g. Admin changed the email in the player profile)
+            // RULE 4 & 5: No email match → check for stale links to revoke
             if (userSnap.exists() && userSnap.data().isRegisteredPlayer) {
-              console.log("[AuthStore] Identity Discrepancy: Current email doesn't match the linked playerId. Revoking access.");
-              userData.isRegisteredPlayer = false;
-              userData.playerId = null;
-              userData.linkedPlayerId = null;
-              userData.playerProfile = null;
-              if (userRole === 'player') {
-                userRole = 'viewer';
-                userData.role = 'viewer';
+              const linkedPid = userSnap.data().linkedPlayerId || userSnap.data().playerId;
+              if (linkedPid) {
+                // Verify the linked player still has this user's email
+                const linkedSecretRef = doc(db, 'player_secrets', linkedPid);
+                const linkedSecretSnap = await getDoc(linkedSecretRef);
+
+                const linkedEmail = linkedSecretSnap.exists() ? linkedSecretSnap.data()?.email?.toLowerCase() : null;
+
+                if (linkedEmail !== emailLower) {
+                  console.log("[AuthStore] REVOCATION: Email changed by admin. Revoking player access.");
+                  userData.isRegisteredPlayer = false;
+                  userData.playerId = null;
+                  userData.linkedPlayerId = null;
+                  userData.playerProfile = null;
+                  if (userRole === 'player') {
+                    userRole = 'viewer';
+                    userData.role = 'viewer';
+                  }
+                } else {
+                  // Email still matches, keep access
+                  userData.isRegisteredPlayer = true;
+                  userData.playerId = linkedPid;
+                  userData.linkedPlayerId = linkedPid;
+                }
               }
             }
           }

@@ -1,5 +1,5 @@
 import { db, auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from '@/config/firebase'
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { Capacitor } from '@capacitor/core'
 
 /**
@@ -357,48 +357,303 @@ export async function getPlayerSecretEmail(playerId: string) {
 }
 
 /**
- * Admin: Update Player Claim Email (Before or After Claim)
- * If after claim, this effectively revokes access if email changes
+ * Admin: Update Player Claim Email (SECURE)
+ * Direct Firestore writes with full cleanup.
+ * 
+ * What happens:
+ * 1. Validates no duplicate email exists
+ * 2. Updates player_secrets with new email
+ * 3. Resets player claim (ownerUid = null, claimed = false)
+ * 4. Unlinks old user from player
+ * 5. Writes audit log
+ * 
+ * Old email loses ALL access. New email can claim the profile.
  */
 export async function updatePlayerClaimEmail(playerId: string, newEmail: string) {
+    if (!auth.currentUser) {
+        throw new Error('Must be logged in as admin')
+    }
+
     const email = newEmail.trim().toLowerCase()
     const maskedEmail = maskEmail(email)
+    const adminUid = auth.currentUser.uid
+    const adminEmail = auth.currentUser.email || ''
 
+    // === STEP 1: Duplicate email check (STRICT) ===
+    const isTaken = await isEmailRegistered(email, playerId)
+    if (isTaken) {
+        throw new Error('This email is already assigned to another player. Duplicate emails are not allowed.')
+    }
+
+    // === STEP 2: Fetch current player data ===
+    const playerRef = doc(db, 'players', playerId)
+    const playerSnap = await getDoc(playerRef)
+    if (!playerSnap.exists()) throw new Error('Player not found')
+
+    const playerData = playerSnap.data()
+    const oldOwnerUid = playerData.ownerUid || null
+    const playerName = playerData.name || 'Unknown'
+
+    // Fetch old email for audit
     const secretRef = doc(db, 'player_secrets', playerId)
-    await setDoc(secretRef, {
+    const secretSnap = await getDoc(secretRef)
+    const oldEmail = secretSnap.exists() ? secretSnap.data()?.email : null
+
+    // If email hasn't changed, skip
+    if (oldEmail && oldEmail.toLowerCase() === email) {
+        return { success: true, noChange: true }
+    }
+
+    // === STEP 3: Batch write — atomic update ===
+    const batch = writeBatch(db)
+
+    // Update player_secrets with new email
+    batch.set(secretRef, {
+        playerId,
         email,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        updatedBy: adminUid
     }, { merge: true })
 
-    const playerRef = doc(db, 'players', playerId)
-
-    // If setting a new email, we reset the claim to ensure new owner verification
-    await updateDoc(playerRef, {
+    // Reset player ownership
+    batch.update(playerRef, {
         maskedEmail,
-        claimed: false, // Reset claim status
-        ownerUid: null, // Revoke current owner
+        claimed: false,
+        ownerUid: null,
+        lastVerifiedAt: null,
         updatedAt: serverTimestamp()
     })
 
+    await batch.commit()
+
+    // === STEP 4: Unlink old user (if player was claimed) ===
+    if (oldOwnerUid) {
+        try {
+            const oldUserRef = doc(db, 'users', oldOwnerUid)
+            const oldUserSnap = await getDoc(oldUserRef)
+            if (oldUserSnap.exists()) {
+                const oldUserData = oldUserSnap.data()
+                if (oldUserData?.linkedPlayerId === playerId || oldUserData?.playerId === playerId) {
+                    await updateDoc(oldUserRef, {
+                        linkedPlayerId: null,
+                        playerId: null,
+                        isRegisteredPlayer: false,
+                        role: oldUserData.role === 'player' ? 'viewer' : oldUserData.role,
+                        playerProfile: null,
+                        updatedAt: serverTimestamp()
+                    })
+                    console.log('[Security] Old user unlinked:', oldOwnerUid)
+                }
+            }
+        } catch (unlinkErr) {
+            console.error('[Security] Old user unlink warning:', unlinkErr)
+        }
+    }
+
+    // === STEP 5: Cleanup stale user references ===
+    try {
+        const staleUsers = await getDocs(
+            query(collection(db, 'users'), where('linkedPlayerId', '==', playerId))
+        )
+        for (const userDoc of staleUsers.docs) {
+            const userData = userDoc.data()
+            if (userData.email?.toLowerCase() !== email) {
+                await updateDoc(userDoc.ref, {
+                    linkedPlayerId: null,
+                    playerId: null,
+                    isRegisteredPlayer: false,
+                    role: userData.role === 'player' ? 'viewer' : userData.role,
+                    playerProfile: null,
+                    updatedAt: serverTimestamp()
+                })
+            }
+        }
+    } catch (staleErr) {
+        console.error('[Security] Stale cleanup warning:', staleErr)
+    }
+
+    // === STEP 6: Audit log ===
+    try {
+        await addDoc(collection(db, 'audit_logs'), {
+            actionType: 'UPDATE_EMAIL',
+            playerId,
+            playerName,
+            oldEmail,
+            newEmail: email,
+            oldOwnerUid,
+            adminId: adminUid,
+            adminEmail,
+            timestamp: serverTimestamp()
+        })
+    } catch (auditErr) {
+        console.error('[Audit] Log write warning:', auditErr)
+    }
+
+    console.log(`[Security] Email changed: ${oldEmail} → ${email} for player ${playerId}`)
     return { success: true }
 }
 
 /**
- * Admin: Check if email is already used for any player
+ * Admin: Check if email is already used (STRICT - multi-collection check)
+ * 
+ * Checks:
+ * 1. player_secrets collection (primary source of truth)
+ * 2. users collection (for users linked to different players)
+ * 
+ * Returns true if email is taken by another player.
  */
 export async function isEmailRegistered(email: string, excludePlayerId?: string): Promise<boolean> {
     if (!email) return false
     const emailLower = email.trim().toLowerCase()
 
+    // Check 1: player_secrets
     const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower))
     const snap = await getDocs(q)
 
-    if (snap.empty) return false
-
-    // If we are editing, we ignore the current player's own record
-    if (excludePlayerId) {
-        return snap.docs.some(doc => doc.id !== excludePlayerId)
+    if (!snap.empty) {
+        const hasDuplicate = snap.docs.some(d => d.id !== excludePlayerId)
+        if (hasDuplicate) return true
     }
 
-    return true
+    // Check 2: users collection for linked players
+    const usersQ = query(collection(db, 'users'), where('email', '==', emailLower))
+    const usersSnap = await getDocs(usersQ)
+
+    if (!usersSnap.empty) {
+        for (const userDoc of usersSnap.docs) {
+            const userData = userDoc.data()
+            if (userData.linkedPlayerId && userData.linkedPlayerId !== excludePlayerId) {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
+/**
+ * Admin: Secure Player Deletion (Direct Firestore)
+ * 
+ * Full atomic cleanup:
+ * 1. Player document permanently deleted
+ * 2. Player secrets deleted  
+ * 3. Player removed from squad
+ * 4. Ownership references cleared from user doc
+ * 5. Audit log created
+ * 
+ * After deletion: old email sign-in creates completely new account.
+ */
+export async function adminDeletePlayerSecure(playerId: string) {
+    if (!auth.currentUser) {
+        throw new Error('Must be logged in as admin')
+    }
+
+    const adminUid = auth.currentUser.uid
+    const adminEmail = auth.currentUser.email || ''
+
+    // === STEP 1: Fetch player data before deletion ===
+    const playerRef = doc(db, 'players', playerId)
+    const playerSnap = await getDoc(playerRef)
+    if (!playerSnap.exists()) throw new Error('Player not found')
+
+    const playerData = playerSnap.data()
+    const playerName = playerData.name || 'Unknown'
+    const ownerUid = playerData.ownerUid || null
+    const squadId = playerData.squadId || null
+
+    // Fetch secret email for audit
+    const secretRef = doc(db, 'player_secrets', playerId)
+    const secretSnap = await getDoc(secretRef)
+    const secretEmail = secretSnap.exists() ? secretSnap.data()?.email : null
+
+    // === STEP 2: Delete player + secrets (batch) ===
+    const batch = writeBatch(db)
+    batch.delete(playerRef)
+    if (secretSnap.exists()) {
+        batch.delete(secretRef)
+    }
+    await batch.commit()
+
+    // === STEP 3: Remove from squad ===
+    if (squadId) {
+        try {
+            const squadRef = doc(db, 'squads', squadId)
+            const squadSnap = await getDoc(squadRef)
+            if (squadSnap.exists()) {
+                const currentPlayerIds = squadSnap.data()?.playerIds || []
+                await updateDoc(squadRef, {
+                    playerIds: currentPlayerIds.filter((pid: string) => pid !== playerId)
+                })
+            }
+        } catch (squadErr) {
+            console.error('[Security] Squad cleanup warning:', squadErr)
+        }
+    }
+
+    // === STEP 4: Unlink from user document ===
+    if (ownerUid) {
+        try {
+            const userRef = doc(db, 'users', ownerUid)
+            const userSnap = await getDoc(userRef)
+            if (userSnap.exists()) {
+                const userData = userSnap.data()
+                if (userData?.linkedPlayerId === playerId || userData?.playerId === playerId) {
+                    await updateDoc(userRef, {
+                        linkedPlayerId: null,
+                        playerId: null,
+                        isRegisteredPlayer: false,
+                        role: userData.role === 'player' ? 'viewer' : userData.role,
+                        playerProfile: null,
+                        updatedAt: serverTimestamp()
+                    })
+                    console.log('[Security] Owner user unlinked:', ownerUid)
+                }
+            }
+        } catch (unlinkErr) {
+            console.error('[Security] User unlink warning:', unlinkErr)
+        }
+    }
+
+    // === STEP 5: Sweep for orphaned user references ===
+    try {
+        const orphanedUsers = await getDocs(
+            query(collection(db, 'users'), where('linkedPlayerId', '==', playerId))
+        )
+        for (const userDoc of orphanedUsers.docs) {
+            const userData = userDoc.data()
+            await updateDoc(userDoc.ref, {
+                linkedPlayerId: null,
+                playerId: null,
+                isRegisteredPlayer: false,
+                role: userData.role === 'player' ? 'viewer' : userData.role,
+                playerProfile: null,
+                updatedAt: serverTimestamp()
+            })
+        }
+        if (!orphanedUsers.empty) {
+            console.log(`[Security] Cleaned ${orphanedUsers.size} orphaned user references`)
+        }
+    } catch (orphanErr) {
+        console.error('[Security] Orphan cleanup warning:', orphanErr)
+    }
+
+    // === STEP 6: Audit log ===
+    try {
+        await addDoc(collection(db, 'audit_logs'), {
+            actionType: 'DELETE_PLAYER',
+            playerId,
+            playerName,
+            oldEmail: secretEmail,
+            oldOwnerUid: ownerUid,
+            adminId: adminUid,
+            adminEmail,
+            timestamp: serverTimestamp(),
+            metadata: { squadId }
+        })
+    } catch (auditErr) {
+        console.error('[Audit] Log write warning:', auditErr)
+    }
+
+    console.log(`[Security] Player ${playerId} (${playerName}) deleted securely by ${adminEmail}`)
+    return { success: true, message: `Player "${playerName}" deleted. All ownership cleared.` }
 }

@@ -194,6 +194,9 @@ async function updateSquadStats(matchId: string): Promise<void> {
 // Export player claim functions
 export * from './playerClaims';
 
+// Export player security functions (deletion, email change, audit)
+export * from './playerSecurity';
+
 // Export notification functions
 export * from './notifications';
 import { sendMatchEndEmails } from './emails';

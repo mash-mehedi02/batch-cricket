@@ -116,6 +116,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin() && isOwner(resource.data);
     }
 
+    // ======================================================
+    // PLAYER DOCUMENTS (HARDENED)
+    // ======================================================
+    // SECURITY: ownerUid, claimed, email, maskedEmail fields are
+    // ONLY modifiable by admin or Cloud Functions.
+    // Players (owners) can update personal info BUT NOT ownership fields.
+    // ======================================================
+
     match /players/{playerId} {
       allow read: if true;
       allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
@@ -123,11 +131,30 @@ service cloud.firestore {
       
       allow update: if (isAdmin() && isOwner(resource.data)) || (
         isAuthenticated() && (
-          // Allow owner to update their profile (excluding sensitive admin fields)
+          // Allow owner to update their profile (excluding ALL sensitive fields)
           (resource.data.ownerUid == request.auth.uid && 
-           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'squadId', 'claimed', 'ownerUid', 'createdAt', 'createdBy', 'adminId']))
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+             'id', 'squadId', 'claimed', 'ownerUid', 'email', 'maskedEmail',
+             'createdAt', 'createdBy', 'adminId', 'adminEmail'
+           ]))
         )
       );
+    }
+
+    // ======================================================
+    // PLAYER SECRETS (STRICT)
+    // ======================================================
+    // Contains raw email. Only admin (of the player) or the
+    // player's email holder can read. Only admin can write.
+    // Cloud Functions bypass these rules (Admin SDK).
+    // ======================================================
+
+    match /player_secrets/{playerId} {
+      allow read: if isAuthenticated() && (
+        (isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data)) || 
+        request.auth.token.email.lower() == resource.data.email.lower()
+      );
+      allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data);
     }
 
     // ======================================================
@@ -143,15 +170,6 @@ service cloud.firestore {
       allow write: if isAdmin() && (isOwner(resource.data) || request.resource.data.adminId == request.auth.uid);
     }
 
-    match /player_secrets/{playerId} {
-      // Only allow reading if it's an admin of the record OR the user is claiming their own
-      allow read: if isAuthenticated() && (
-        (isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data)) || 
-        request.auth.token.email.lower() == resource.data.email.lower()
-      );
-      allow write: if isAdmin() && isOwner(get(/databases/$(database)/documents/players/$(playerId)).data);
-    }
-
     match /playerMatchStats/{statId} {
       allow read: if true;
       allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
@@ -165,6 +183,20 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+    }
+
+    // ======================================================
+    // AUDIT LOGS (SECURITY CRITICAL)
+    // ======================================================
+    // Admins can create audit logs. No one can update or delete.
+    // Super admins can read for oversight.
+    // ======================================================
+
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAdmin();   // Admin can write from client
+      allow update: if false;       // Immutable - no edits allowed
+      allow delete: if false;       // Never delete audit trails
     }
 
     // ======================================================

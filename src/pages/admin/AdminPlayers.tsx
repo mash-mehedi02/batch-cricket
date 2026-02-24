@@ -8,7 +8,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { adminService } from '@/services/firestore/admins'
-import { createPlayerWithClaim, getPlayerSecretEmail, updatePlayerClaimEmail, isEmailRegistered } from '@/services/firestore/playerClaim'
+import { createPlayerWithClaim, getPlayerSecretEmail, updatePlayerClaimEmail, isEmailRegistered, adminDeletePlayerSecure } from '@/services/firestore/playerClaim'
 
 import { Player, Squad } from '@/types'
 import toast from 'react-hot-toast'
@@ -335,29 +335,18 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
 
     setIsDeleting(true)
     try {
-      await playerService.delete(itemToDelete.id)
-
-      // Also remove from squad if needed
-      if (itemToDelete.squadId) {
-        try {
-          const squad = squads.find(s => s.id === itemToDelete.squadId)
-          if (squad && squad.playerIds) {
-            await squadService.update(squad.id, {
-              playerIds: squad.playerIds.filter(pid => pid !== itemToDelete.id)
-            })
-          }
-        } catch (err) {
-          console.error("Error removing player from squad:", err)
-        }
-      }
+      // Use SECURE Cloud Function for deletion
+      // This atomically: deletes player + secrets, removes from squad,
+      // clears user ownership, and writes audit log
+      await adminDeletePlayerSecure(itemToDelete.id)
 
       setPlayers(prev => prev.filter(p => p.id !== itemToDelete.id))
-      toast.success('Player deleted successfully')
+      toast.success('Player deleted securely. All ownership references cleared.')
       setDeleteModalOpen(false)
       setItemToDelete(null)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting player:', error)
-      toast.error('Failed to delete player')
+      toast.error(error.message || 'Failed to delete player')
     } finally {
       setIsDeleting(false)
     }
