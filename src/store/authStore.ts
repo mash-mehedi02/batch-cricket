@@ -341,6 +341,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           playerProfile: userData.playerProfile || null
         };
 
+        // FORCE SYNC: If the player ID has changed (admin reassigned email), 
+        // we MUST overwrite the name and profile to avoid showing the old person's data.
+        if (userData.playerId !== existingData.playerId) {
+          console.log("[AuthStore] Player ID Change detected. Forcing metadata sync.");
+          updates.displayName = userData.autoFillProfile?.name || updates.displayName;
+          updates.photoURL = userData.autoFillProfile?.photoUrl || updates.photoURL;
+        }
+
         updateDoc(userRef, updates).catch(e => console.error("[AuthStore] Login Update Warn:", e));
 
       } else {
@@ -451,6 +459,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Force persistence once during init to be safe
     setPersistence(auth, browserLocalPersistence).catch((e: any) => console.error("Persistence error:", e));
 
+    let userUnsubscribe: (() => void) | null = null;
+
     // Check for Redirect Result (Mobile/Fallback)
     getRedirectResult(auth).then(async (result: any) => {
       if (result && result.user) {
@@ -464,7 +474,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }).catch((e: any) => {
       if (e.code !== 'auth/popup-closed-by-user') {
         console.error("[AuthStore] Redirect Result Error:", e);
-        // Don't toast for "no result found" which is common on refresh
         if (e.message && !e.message.includes('redirect-result')) {
           toast.error(`Redirect Login Error: ${e.message}`);
         }
@@ -472,38 +481,55 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     onAuthStateChanged(auth, async (firebaseUser: any) => {
+      // Clean up previous listener
+      if (userUnsubscribe) {
+        userUnsubscribe();
+        userUnsubscribe = null;
+      }
+
       if (firebaseUser) {
         console.log("[AuthStore] AuthStateChanged: User Logged In", firebaseUser.email);
-        set({ loading: true })
-        try {
-          const userRef = doc(db, 'users', firebaseUser.uid)
-          const docSnap = await getDoc(userRef)
+        set({ loading: true });
 
+        // --- REAL-TIME USER DOCUMENT LISTENER ---
+        // This ensures INSTANT updates when admin changes email, role, or unlinks profile
+        const { onSnapshot } = await import('firebase/firestore');
+        const userRef = doc(db, 'users', firebaseUser.uid);
+
+        userUnsubscribe = onSnapshot(userRef, async (docSnap) => {
           if (docSnap.exists()) {
-            const data = docSnap.data() as User
-            console.log("[AuthStore] Profile Loaded. Role:", data.role);
+            const data = docSnap.data() as User;
+            console.log("[AuthStore] REAL-TIME Update: User Role =", data.role);
 
-            // Always check for identity sync if viewer OR if they are a player
-            // to ensure their link is still valid (in case admin changed their email).
-            if (data.role === 'player' || !data.isRegisteredPlayer || !data.playerId) {
-              console.log("[AuthStore] Verifying identity sync...");
+            // If user is a player, we always verify identity sync to catch admin changes
+            // (e.g. if admin changed the player email associated with this user)
+            const emailLower = firebaseUser.email?.toLowerCase().trim();
+            const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
+            const secretsSnap = await getDocs(q);
+            const verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
+
+            // IDENTITY CHECK: If currently linked ID doesn't match current email's secret ID
+            if (data.isRegisteredPlayer && data.playerId !== verifiedPlayerId) {
+              console.log("[AuthStore] Identity mismatch detected in real-time. Re-syncing...");
               await get().processLogin(firebaseUser);
             } else {
-              set({ user: data, loading: false })
+              set({ user: data, loading: false });
             }
           } else {
-            console.log("[AuthStore] Auth session exists but no Firestore profile. Processing...");
+            // Document doesn't exist yet, process login to create it
+            console.log("[AuthStore] No user profile found. Creating...");
             await get().processLogin(firebaseUser);
           }
-        } catch (error: any) {
-          console.error('[AuthStore] AuthState Profile Fetch Error:', error)
-          toast.error(`Profile Fetch Failed: ${error.message}`);
-          set({ user: null, loading: false })
-        }
+        }, (err) => {
+          console.error("[AuthStore] Snapshot error:", err);
+          set({ loading: false });
+        });
+
       } else {
         console.log("[AuthStore] AuthStateChanged: Clear (No Session)");
-        set({ user: null, loading: false })
+        set({ user: null, loading: false });
       }
-    })
+    });
   }
+
 }))
