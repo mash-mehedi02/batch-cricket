@@ -13,8 +13,11 @@
   }
 
   body {
-    @apply bg-slate-50 dark:bg-[#050B18] text-slate-900 dark:text-white font-sans;
-    font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
+    @apply bg-slate-50 dark:bg-[#050B18] text-slate-900 dark:text-white;
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.3s ease, color 0.3s ease;
     user-select: none;
     -webkit-user-select: none;
@@ -35,7 +38,8 @@
   h4,
   h5,
   h6 {
-    @apply font-bold;
+    font-family: 'Outfit', sans-serif;
+    @apply font-bold tracking-tight;
   }
 }
 

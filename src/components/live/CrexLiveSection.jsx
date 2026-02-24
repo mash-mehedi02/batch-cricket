@@ -10,6 +10,7 @@ import { calculateWinProbability } from '../../services/ai/winProbabilityEngine'
 import TournamentPointsTable from '../../pages/TournamentPointsTable'
 import { formatShortTeamName } from '../../utils/teamName'
 import MatchVoting from './MatchVoting'
+import { useTranslation } from '../../hooks/useTranslation'
 
 import cricketBatIcon from '../../assets/cricket-bat.png'
 
@@ -73,18 +74,20 @@ const CrexLiveSection = ({
   tournamentId,
   resolveMatchSideRef,
 }) => {
+  const { t } = useTranslation();
   const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
   const isInningsBreak = matchStatus === 'InningsBreak';
 
   // Calculate Win Probability
   const winProb = React.useMemo(() => {
-    if (isFinishedMatch) return { teamAWinProb: 50, teamBWinProb: 50 };
+    if (isFinishedMatch || matchPhase === 'Tied') return { teamAWinProb: 50, teamBWinProb: 50 };
 
     const [ov, b] = (currentOvers || '0.0').toString().split('.');
     const legalBalls = (Number(ov) * 6) + Number(b || 0);
 
     // Robust batting side detection
-    const battingTeamSide = currentInnings?.inningId || (match && match.currentBatting) || 'teamA';
+    const battingInningId = currentInnings?.inningId || (match && match.currentBatting) || 'teamA';
+    const battingTeamSide = battingInningId.includes('teamB') ? 'teamB' : 'teamA';
 
     // Extract last ball event for micro-adjustments
     const lastOver = recentOvers?.[recentOvers.length - 1];
@@ -100,7 +103,7 @@ const CrexLiveSection = ({
     const defInn = battingTeamSide === 'teamA' ? teamBInnings : teamAInnings;
     const stageScore = defInn?.oversProgress?.slice().reverse().find(p => (p.balls || parseOversToBalls(p.over)) <= cBalls);
 
-    return calculateWinProbability({
+    const prob = calculateWinProbability({
       currentRuns: Number(currentRuns || 0),
       wickets: Number(currentInnings?.totalWickets || 0),
       legalBalls,
@@ -114,7 +117,9 @@ const CrexLiveSection = ({
       recentOvers: recentOvers || [],
       firstInningsStageScore: stageScore ? { runs: stageScore.runs, wickets: stageScore.wickets } : undefined
     });
-  }, [currentRuns, currentInnings?.totalWickets, currentInnings?.inningId, currentOvers, target, oversLimit, isFinishedMatch, recentOvers]);
+
+    return prob;
+  }, [currentRuns, currentInnings?.totalWickets, currentInnings?.inningId, currentOvers, target, oversLimit, isFinishedMatch, recentOvers, matchStatus, matchPhase, match?.currentBatting]);
 
   const teamAProb = winProb.teamAWinProb;
   const teamBProb = winProb.teamBWinProb;
@@ -318,20 +323,33 @@ const CrexLiveSection = ({
 
         {/* 2. Win Probability - Slim & Professional */}
         {!isFinishedMatch && !onlyCommentary && (
-          <div className="bg-white dark:bg-[#0f172a] px-5 py-2 border-b border-slate-100 dark:border-white/5 space-y-1.5">
-            {/* Middle Row: Team Names - Batting team always on Left */}
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">
-              <span className="shrink-0">
-                {formatShortTeamName((currentInnings?.inningId || (match && match.currentBatting)) === 'teamB' ? teamBName : teamAName)}
+          <div className="bg-white dark:bg-[#0f172a] px-5 py-2 border-b border-slate-100 dark:border-white/5 space-y-2">
+            {/* Single Row: Team Name Left - Label Center - Team Name Right */}
+            <div className="flex items-center justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 uppercase tracking-tight">
+              <span className="shrink-0 w-[30%] text-left truncate">
+                {(() => {
+                  const curBatId = currentInnings?.inningId || (match && match.currentBatting) || '';
+                  return formatShortTeamName(curBatId.includes('teamB') ? teamBName : teamAName);
+                })()}
               </span>
-              <span className="shrink-0">
-                {formatShortTeamName((currentInnings?.inningId || (match && match.currentBatting)) === 'teamB' ? teamAName : teamBName)}
+
+              <div className="flex items-center justify-center gap-1 flex-1">
+                <Zap size={10} className="text-amber-500 fill-amber-500 shrink-0" />
+                <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500 tracking-widest whitespace-nowrap">Real Time Win %</span>
+              </div>
+
+              <span className="shrink-0 w-[30%] text-right truncate">
+                {(() => {
+                  const curBatId = currentInnings?.inningId || (match && match.currentBatting) || '';
+                  return formatShortTeamName(curBatId.includes('teamB') ? teamAName : teamBName);
+                })()}
               </span>
             </div>
 
             {/* Bottom Row: Odds Bar */}
             {(() => {
-              const isTeamABatting = (currentInnings?.inningId || (match && match.currentBatting)) === 'teamA';
+              const curBatId = currentInnings?.inningId || (match && match.currentBatting) || '';
+              const isTeamABatting = curBatId.includes('teamA');
               const leftProb = isTeamABatting ? teamAProb : teamBProb;
               const rightProb = isTeamABatting ? teamBProb : teamAProb;
 
@@ -699,31 +717,7 @@ const CrexLiveSection = ({
                 const bowlerTracker = {};
 
                 const pushInningsSummary = (finalRuns, finalWickets, finalOvers, innId, batters, bowlers) => {
-                  const sortedBatters = Object.entries(batters)
-                    .filter(([name]) => !name.startsWith('_'))
-                    .map(([name, stats]) => ({ name, ...stats }))
-                    .sort((a, b) => b.runs - a.runs)
-                    .slice(0, 3);
-
-                  const sortedBowlers = Object.entries(bowlers)
-                    .map(([name, stats]) => {
-                      const ovs = `${Math.floor(stats.balls / 6)}.${stats.balls % 6}`;
-                      return { name, ...stats, overs: ovs };
-                    })
-                    .sort((a, b) => b.wickets - a.wickets || a.runs - b.runs)
-                    .slice(0, 3);
-
-                  const label = formatShortTeamName(innId === 'teamA' ? teamAName : teamBName);
-
-                  groupedCommentary.push({
-                    type: 'innings-summary',
-                    inningId: innId,
-                    totalScore: `${finalRuns}/${finalWickets}`,
-                    overs: finalOvers,
-                    label: label,
-                    topBatters: sortedBatters,
-                    topBowlers: sortedBowlers
-                  });
+                  // Function disabled to remove summary cards from commentary
                 };
 
                 let prevInningId = null;
@@ -984,95 +978,7 @@ const CrexLiveSection = ({
                         );
                       }
 
-                      if (node.type === 'innings-summary') {
-                        return (
-                          <div key={`inn-sum-${idx}`} className="mx-4 my-8">
-                            <div className="bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] overflow-hidden relative">
-                              {/* Background Glow */}
-                              <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-[80px]"></div>
-                              <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-emerald-500/10 rounded-full blur-[80px]"></div>
 
-                              {/* Header Area */}
-                              <div className="px-7 pt-7 pb-5 border-b border-white/5 relative">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
-                                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em]">Match Analysis</span>
-                                  </div>
-                                  <span className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black text-white/40 uppercase tracking-widest border border-white/5">Auto Generated</span>
-                                </div>
-                                <div className="flex items-end justify-between">
-                                  <div>
-                                    <h2 className="text-[28px] font-black text-white italic tracking-tighter uppercase leading-none">
-                                      {node.label} <span className="text-white/40 not-italic font-medium lowercase">inns</span>
-                                    </h2>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-4xl font-black text-white leading-none tabular-nums tracking-tighter">{node.totalScore}</div>
-                                    <div className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] mt-2 italic">{node.overs} OVERS</div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Summary Grid */}
-                              <div className="p-7 grid grid-cols-2 gap-10 relative">
-                                {/* Batting Performance */}
-                                <div className="space-y-5">
-                                  <div className="flex items-center gap-2.5">
-                                    <Trophy size={14} className="text-blue-400" />
-                                    <span className="text-[11px] font-black text-blue-400 uppercase tracking-[0.15em]">Leading Batters</span>
-                                  </div>
-                                  <div className="space-y-4">
-                                    {node.topBatters.length > 0 ? node.topBatters.map((b, bi) => (
-                                      <div key={bi} className="flex items-center justify-between group">
-                                        <div className="flex flex-col min-w-0">
-                                          <span className="text-[13px] font-black text-white/90 group-hover:text-white transition-colors truncate">{b.name}</span>
-                                          <span className="text-[9px] font-bold text-white/30 truncate">S/R: {(b.runs / (b.balls || 1) * 100).toFixed(1)}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 shrink-0 pl-3">
-                                          <span className="text-lg font-black text-white tracking-tighter">{b.runs}</span>
-                                          <span className="text-[11px] font-bold text-white/20 tabular-nums">({b.balls})</span>
-                                        </div>
-                                      </div>
-                                    )) : (
-                                      <div className="py-4 text-[11px] font-bold text-white/20 uppercase tracking-widest text-center border border-dashed border-white/5 rounded-xl">No Data</div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Bowling Performance */}
-                                <div className="space-y-5 border-l border-white/5 pl-10">
-                                  <div className="flex items-center gap-2.5">
-                                    <Zap size={14} className="text-emerald-400" />
-                                    <span className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.15em]">Top Bowlers</span>
-                                  </div>
-                                  <div className="space-y-4">
-                                    {node.topBowlers.length > 0 ? node.topBowlers.map((bw, bwi) => (
-                                      <div key={bwi} className="flex items-center justify-between group">
-                                        <div className="flex flex-col min-w-0">
-                                          <span className="text-[13px] font-black text-white/90 group-hover:text-white transition-colors truncate">{bw.name}</span>
-                                          <span className="text-[9px] font-bold text-white/30 truncate">Eco: {(bw.runs / (bw.balls / 6 || 1)).toFixed(1)}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 shrink-0 pl-3">
-                                          <span className="text-lg font-black text-white tracking-tighter">{bw.wickets}-{bw.runs}</span>
-                                          <span className="text-[11px] font-bold text-white/20 tabular-nums">({bw.overs})</span>
-                                        </div>
-                                      </div>
-                                    )) : (
-                                      <div className="py-4 text-[11px] font-bold text-white/20 uppercase tracking-widest text-center border border-dashed border-white/5 rounded-xl">No Data</div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Footer Action */}
-                              <div className="px-7 py-4 bg-white/[0.03] border-t border-white/5 flex items-center justify-center">
-                                <span className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">End of {node.label} Innings</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
 
                       if (node.type === 'wicket-card') {
                         return (

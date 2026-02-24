@@ -11,7 +11,9 @@ export function calculatePotM(
     inningsA: InningsStats | null,
     inningsB: InningsStats | null,
     playersA: Player[],
-    playersB: Player[]
+    playersB: Player[],
+    inningsASO?: InningsStats | null,
+    inningsBSO?: InningsStats | null
 ): Player | null {
     if (!inningsA || !inningsB) return null;
 
@@ -20,7 +22,9 @@ export function calculatePotM(
         _match.teamBName || 'Team B',
         inningsA,
         inningsB,
-        _match
+        _match,
+        inningsASO,
+        inningsBSO
     );
 
     if (winnerResult.isTied || !winnerResult.winner) return null;
@@ -28,27 +32,43 @@ export function calculatePotM(
     // Resolve which internal side won (teamA or teamB)
     const winnerSide = winnerResult.winner === (_match.teamAName || 'Team A') ? 'teamA' : 'teamB';
     const winningPlayers = winnerSide === 'teamA' ? playersA : playersB;
-    const winningInnings = winnerSide === 'teamA' ? inningsA : inningsB;
-    const losingInnings = winnerSide === 'teamA' ? inningsB : inningsA;
+
+    // Core Innings
+    const winInnBat = winnerSide === 'teamA' ? inningsA : inningsB;
+    const lossInnBowl = winnerSide === 'teamA' ? inningsB : inningsA;
+
+    // Super Over Innings
+    const winInnBatSO = winnerSide === 'teamA' ? inningsASO : inningsBSO;
+    const lossInnBowlSO = winnerSide === 'teamA' ? inningsBSO : inningsASO;
 
     let bestPlayer: Player | null = null;
     let maxPoints = -1;
 
     winningPlayers.forEach(player => {
-        // Collect stats for this player from the winning team's innings (batting)
-        // AND from the losing team's innings (bowling/fielding)
-        const battingStats = winningInnings.batsmanStats?.find(s => s.batsmanId === player.id);
-        const bowlingStats = losingInnings.bowlerStats?.find(s => s.bowlerId === player.id);
+        // --- 1. Main Innings Stats ---
+        const mainBattingStats = winInnBat.batsmanStats?.find(s => s.batsmanId === player.id) || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+        const mainBowlingStats = lossInnBowl.bowlerStats?.find(s => s.bowlerId === player.id) || { wickets: 0, runsConceded: 0, maidens: 0 };
 
-        // We can also try to find fielding stats if they are in FallOfWickets or similar,
-        // but for now, Batting + Bowling is the core of PotM.
+        // --- 2. Super Over Stats (Incremental) ---
+        const soBattingStats = winInnBatSO?.batsmanStats?.find(s => s.batsmanId === player.id) || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+        const soBowlingStats = lossInnBowlSO?.bowlerStats?.find(s => s.bowlerId === player.id) || { wickets: 0, runsConceded: 0, maidens: 0 };
 
-        const stats: any = {
-            batting: battingStats || { runs: 0, balls: 0, fours: 0, sixes: 0 },
-            bowling: bowlingStats || { wickets: 0, runsConceded: 0, maidens: 0 }
+        // Aggregate stats
+        const aggregatedStats: any = {
+            batting: {
+                runs: (mainBattingStats.runs || 0) + (soBattingStats.runs || 0),
+                balls: (mainBattingStats.balls || 0) + (soBattingStats.balls || 0),
+                fours: (mainBattingStats.fours || 0) + (soBattingStats.fours || 0),
+                sixes: (mainBattingStats.sixes || 0) + (soBattingStats.sixes || 0)
+            },
+            bowling: {
+                wickets: (mainBowlingStats.wickets || 0) + (soBowlingStats.wickets || 0),
+                runsConceded: (mainBowlingStats.runsConceded || 0) + (soBowlingStats.runsConceded || 0),
+                maidens: (mainBowlingStats.maidens || 0) + (soBowlingStats.maidens || 0)
+            }
         };
 
-        const points = calculateFantasyPoints(stats);
+        const points = calculateFantasyPoints(aggregatedStats);
 
         if (points > maxPoints) {
             maxPoints = points;

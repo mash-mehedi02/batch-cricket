@@ -19,7 +19,7 @@ export default function AccountPage() {
 
     useEffect(() => {
         if (!loading && !user) {
-            navigate('/?login=true');
+            navigate('?login=true', { replace: true });
         }
     }, [user, loading, navigate]);
 

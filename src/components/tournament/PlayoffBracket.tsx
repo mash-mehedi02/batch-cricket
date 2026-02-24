@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import { Tournament, Squad, Match } from '@/types';
 import { Trophy, Medal, Star } from 'lucide-react';
-import { computeGroupStandings } from '@/engine/tournament/standings';
-import type { MatchResult } from '@/engine/tournament/types';
 
 interface PlayoffBracketProps {
     tournament: Tournament;
@@ -51,7 +49,25 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
         // 2. Resolve placeholder if it's a winner ref (e.g. winner:s1)
         if (sourceId?.startsWith('winner:')) {
             const parentSlotId = sourceId.split(':')[1];
-            const parentMatch = matches.find(m => m.matchNo?.toLowerCase() === parentSlotId.toLowerCase());
+
+            // Smarter parent match search: matchNo OR team matchup from bracket config
+            const parentConfig = bracketMatches.find((bm: any) => bm.id?.toLowerCase() === parentSlotId.toLowerCase());
+            const parentMatch = matches.find(match => {
+                const isMatchNo = match.matchNo?.toLowerCase() === parentSlotId.toLowerCase();
+                if (isMatchNo) return true;
+
+                if (parentConfig && (match.round || (match as any).stage === 'knockout')) {
+                    // Try to resolve teams for the parent slot to match by squad IDs
+                    const pTeamA = resolveWinner(parentConfig.a, parentSlotId);
+                    const pTeamB = resolveWinner(parentConfig.b, parentSlotId);
+                    if (pTeamA.id && pTeamB.id) {
+                        return (match.teamAId === pTeamA.id && match.teamBId === pTeamB.id) ||
+                            (match.teamAId === pTeamB.id && match.teamBId === pTeamA.id);
+                    }
+                }
+                return false;
+            });
+
             if (parentMatch && parentMatch.status === 'finished' && parentMatch.winnerId) {
                 const winner = getSquad(parentMatch.winnerId);
                 return {
@@ -102,7 +118,16 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
         const teamB = resolveWinner(m.b, slotId);
 
         // Find match for this slot to show scores if ongoing or finished
-        const slotMatch = matches.find(m => m.matchNo?.toLowerCase() === slotId.toLowerCase());
+        const slotMatch = matches.find(match => {
+            const isMatchNo = match.matchNo?.toLowerCase() === slotId.toLowerCase();
+            if (isMatchNo) return true;
+
+            if (teamA.id && teamB.id && (match.round || (match as any).stage === 'knockout')) {
+                return (match.teamAId === teamA.id && match.teamBId === teamB.id) ||
+                    (match.teamAId === teamB.id && match.teamBId === teamA.id);
+            }
+            return false;
+        });
 
         return (
             <div key={slotId} className="w-full max-w-[200px] bg-white dark:bg-[#0A101E] border border-slate-100 dark:border-white/5 rounded-2xl p-3 shadow-sm relative group overflow-hidden">
@@ -121,7 +146,7 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
                 <div className="space-y-2.5">
                     {/* Team A */}
                     <div className="flex items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className={`flex items-center gap-2 min-w-0 relative ${slotMatch?.status === 'finished' && slotMatch.winnerId && slotMatch.winnerId !== teamA.id ? 'opacity-40 grayscale-[0.5]' : ''}`}>
                             <div className="w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden flex-shrink-0">
                                 {teamA.logo ? (
                                     <img src={teamA.logo} alt="" className="w-full h-full object-contain p-1" />
@@ -131,17 +156,17 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
                                     </div>
                                 )}
                             </div>
-                            <span className={`text-xs font-bold truncate ${teamA.name === 'TBD' ? 'text-slate-400' : 'text-slate-900 dark:text-white'} ${slotMatch?.winnerId === m.a ? 'text-blue-600 dark:text-blue-400' : ''}`}>
-                                {teamA.name}
-                            </span>
+                            <div className="relative">
+                                <span className={`text-xs font-bold truncate ${teamA.name === 'TBD' ? 'text-slate-400' : 'text-slate-900 dark:text-white'} ${slotMatch?.winnerId === teamA.id ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                                    {teamA.name}
+                                </span>
+                                {slotMatch?.status === 'finished' && slotMatch.winnerId && slotMatch.winnerId !== teamA.id && (
+                                    <div className="absolute top-1/2 left-0 w-full h-[1.5px] bg-slate-400 dark:bg-slate-500 -translate-y-1/2" />
+                                )}
+                            </div>
                         </div>
-                        {slotMatch?.status === 'finished' && slotMatch.winnerId === m.a && (
+                        {slotMatch?.status === 'finished' && slotMatch.winnerId === teamA.id && (
                             <Trophy size={12} className="text-amber-500 flex-shrink-0" />
-                        )}
-                        {slotMatch?.score?.teamA && (
-                            <span className="text-[10px] font-black text-slate-400 tabular-nums">
-                                {slotMatch.score.teamA.runs}/{slotMatch.score.teamA.wickets}
-                            </span>
                         )}
                     </div>
 
@@ -153,7 +178,7 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
 
                     {/* Team B */}
                     <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className={`flex items-center gap-2 min-w-0 relative ${slotMatch?.status === 'finished' && slotMatch.winnerId && slotMatch.winnerId !== teamB.id ? 'opacity-40 grayscale-[0.5]' : ''}`}>
                             <div className="w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-white/5 flex items-center justify-center overflow-hidden flex-shrink-0">
                                 {teamB.logo ? (
                                     <img src={teamB.logo} alt="" className="w-full h-full object-contain p-1" />
@@ -163,17 +188,17 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
                                     </div>
                                 )}
                             </div>
-                            <span className={`text-[11px] font-bold truncate ${teamB.name === 'TBD' ? 'text-slate-400' : 'text-slate-900 dark:text-white'} ${slotMatch?.winnerId === m.b ? 'text-blue-600 dark:text-blue-400' : ''}`}>
-                                {teamB.name}
-                            </span>
+                            <div className="relative">
+                                <span className={`text-[11px] font-bold truncate ${teamB.name === 'TBD' ? 'text-slate-400' : 'text-slate-900 dark:text-white'} ${slotMatch?.winnerId === teamB.id ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                                    {teamB.name}
+                                </span>
+                                {slotMatch?.status === 'finished' && slotMatch.winnerId && slotMatch.winnerId !== teamB.id && (
+                                    <div className="absolute top-1/2 left-0 w-full h-[1.5px] bg-slate-400 dark:bg-slate-500 -translate-y-1/2" />
+                                )}
+                            </div>
                         </div>
-                        {slotMatch?.status === 'finished' && slotMatch.winnerId === m.b && (
+                        {slotMatch?.status === 'finished' && slotMatch.winnerId === teamB.id && (
                             <Trophy size={12} className="text-amber-500 flex-shrink-0" />
-                        )}
-                        {slotMatch?.score?.teamB && (
-                            <span className="text-[10px] font-black text-slate-400 tabular-nums">
-                                {slotMatch.score.teamB.runs}/{slotMatch.score.teamB.wickets}
-                            </span>
                         )}
                     </div>
                 </div>
@@ -198,9 +223,9 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
         // Only keep rounds that have at least one match with something configured
         return Object.entries(groups).filter(([round, matches]) => {
             return matches.some(m => (m.a && m.a !== 'TBD') || (m.b && m.b !== 'TBD'));
-        }).map(([id, matches]) => ({
-            id,
-            label: id === 'quarter_final' ? 'Quarter Finals' : id === 'semi_final' ? 'Semi Finals' : 'Grand Final',
+        }).map(([_, matches]) => ({
+            id: _,
+            label: _ === 'quarter_final' ? 'Quarter Finals' : _ === 'semi_final' ? 'Semi Finals' : 'Grand Final',
             matches
         }));
     }, [bracketMatches]);
@@ -247,16 +272,43 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
                                     ))}
                                 </div>
 
-                                {round.id === 'final' && (
-                                    <div className="absolute bottom-4 self-center w-full max-w-[240px] text-center p-5 bg-gradient-to-br from-slate-900 to-black rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden group">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl group-hover:bg-amber-500/20 transition-colors" />
-                                        <div className="relative">
-                                            <Trophy className="mx-auto text-amber-500 mb-2 drop-shadow-[0_0_15px_rgba(245,158,11,0.6)]" size={32} />
-                                            <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.25em] mb-0.5">Champions Trophy</div>
-                                            <div className="text-[11px] font-black text-white uppercase tracking-tight">Tournament Glory</div>
+                                {round.id === 'final' && (() => {
+                                    // Find the final match to show the ultimate champion
+                                    const finalMatch = matches.find(m => m.matchNo?.toLowerCase() === 'final' || m.round?.toLowerCase() === 'final' || m.matchNo?.toLowerCase() === 'grand_final');
+                                    const champion = (finalMatch && finalMatch.status === 'finished' && finalMatch.winnerId)
+                                        ? getSquad(finalMatch.winnerId)
+                                        : null;
+
+                                    return (
+                                        <div className="absolute bottom-4 self-center w-full max-w-[240px] text-center p-5 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-black rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-2xl overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl group-hover:bg-amber-500/20 transition-colors" />
+                                            <div className="relative">
+                                                <Trophy className="mx-auto text-amber-500 mb-2 drop-shadow-[0_0_15px_rgba(245,158,11,0.6)]" size={32} />
+                                                <div className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] mb-0.5">Champions Trophy</div>
+
+                                                {champion ? (
+                                                    <div className="flex flex-col items-center animate-in zoom-in duration-500">
+                                                        <div className="w-12 h-12 rounded-full mb-2 border-2 border-amber-500 shadow-lg overflow-hidden bg-white">
+                                                            {champion.logoUrl ? (
+                                                                <img src={champion.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center bg-amber-500 text-white font-black text-lg">
+                                                                    {champion.name.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-[13px] font-black text-slate-800 dark:text-amber-500 uppercase tracking-tight leading-none">
+                                                            {champion.name}
+                                                        </div>
+                                                        <div className="text-[8px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Tournament Winners</div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[11px] font-black text-slate-800 dark:text-white uppercase tracking-tight">Tournament Glory</div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                             </div>
                         </div>
 
@@ -272,7 +324,6 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
                                     </defs>
                                     {round.matches.map((m, mIdx) => {
                                         const nextMatchIdx = Math.floor(mIdx / 2);
-                                        const isTop = mIdx % 2 === 0;
 
                                         // Total height of the container is 700px - 40px (header)
                                         const usableHeight = 700 - 40;
@@ -291,7 +342,7 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
                                                 stroke={`url(#grad-${rIdx})`}
                                                 strokeWidth="2"
                                                 strokeLinecap="round"
-                                                className="transition-all duration-700 opacity-60 dark:opacity-40"
+                                                className="transition-all duration-700 opacity-60 dark:opacity-60"
                                             />
                                         );
                                     })}

@@ -390,7 +390,7 @@ export default function MatchInfo({ compact = false, onSwitchTab }: MatchInfoPro
                     <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-white/[0.03] flex items-center justify-center border border-slate-200 dark:border-white/5">
                         <Calendar className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
                     </div>
-                    <span>{matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }) : 'TBA'} • {timeText}</span>
+                    <span>{matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' }) : 'TBA'} • {timeText}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4 text-sm text-slate-600 dark:text-slate-400 font-semibold group cursor-pointer">
                     <div className="flex items-center gap-4">

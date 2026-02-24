@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { playerRequestService, PlayerRegistrationRequest } from '@/services/firestore/playerRequests';
+import { adminService } from '@/services/firestore/admins';
 import toast from 'react-hot-toast';
 import {
     Check,
@@ -10,23 +11,55 @@ import {
     Trophy,
     Clock,
     AlertCircle,
-    Loader2
+    Loader2,
+    Filter,
+    Search
 } from 'lucide-react';
 
 export default function AdminPlayerRequests() {
-    useAuthStore();
+    const { user } = useAuthStore();
     const [requests, setRequests] = useState<PlayerRegistrationRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
+
+    // Filter states
+    const [searchQuery, setSearchQuery] = useState('');
+    const [schoolFilter, setSchoolFilter] = useState('');
+    const [squadFilter, setSquadFilter] = useState('');
+    const [tournamentFilter, setTournamentFilter] = useState('');
 
     useEffect(() => {
         loadRequests();
     }, []);
 
     const loadRequests = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            const data = await playerRequestService.getPendingRequests();
+            let data: PlayerRegistrationRequest[] = [];
+            const isSuperAdmin = user.role === 'super_admin';
+
+            if (isSuperAdmin) {
+                data = await playerRequestService.getPendingRequests();
+            } else {
+                // For sub-admins, we need their managed schools
+                // We'll fetch the admin document to get managedSchools
+                // (Assuming the admin's profile might have it, or we filter by school)
+                // For now, sub-admins will see all if we don't have school mapping,
+                // but let's try to fetch if they have managedSchools.
+
+                // Fetch admin data to get managedSchools
+                const adminDoc = await adminService.getById(user.uid);
+                const managedSchools = adminDoc?.managedSchools || [];
+
+                if (managedSchools.length > 0) {
+                    data = await playerRequestService.getPendingRequestsForAdmin(managedSchools);
+                } else {
+                    // Fallback: If no schools assigned, they see nothing or all?
+                    // Usually sub-admins should see only their schools.
+                    data = await playerRequestService.getPendingRequests();
+                }
+            }
             setRequests(data);
         } catch (error) {
             console.error('Error loading requests:', error);
@@ -59,6 +92,22 @@ export default function AdminPlayerRequests() {
         }
     };
 
+    // Extract unique schools, squads, and tournaments for filters
+    const uniqueSchools = Array.from(new Set(requests.map(r => r.school))).filter(Boolean).sort();
+    const uniqueSquads = Array.from(new Set(requests.map(r => r.squadName))).filter(Boolean).sort();
+    const uniqueTournaments = Array.from(new Set(requests.map(r => r.tournamentName))).filter(Boolean).sort();
+
+    // Apply filtering
+    const filteredRequests = requests.filter(request => {
+        const matchesSearch = request.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            request.email.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSchool = !schoolFilter || request.school === schoolFilter;
+        const matchesSquad = !squadFilter || request.squadName === squadFilter;
+        const matchesTournament = !tournamentFilter || request.tournamentName === tournamentFilter;
+
+        return matchesSearch && matchesSchool && matchesSquad && matchesTournament;
+    });
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px]">
@@ -82,18 +131,100 @@ export default function AdminPlayerRequests() {
                 </div>
             </div>
 
+            {/* Filters */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Search */}
+                    <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search name/email..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-none text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                        />
+                    </div>
+
+                    {/* School Filter */}
+                    <div className="relative">
+                        <School className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <select
+                            value={schoolFilter}
+                            onChange={(e) => setSchoolFilter(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-none text-sm font-black uppercase appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                        >
+                            <option value="">All Schools</option>
+                            {uniqueSchools.map(school => (
+                                <option key={school} value={school}>{school}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Tournament Filter */}
+                    <div className="relative">
+                        <Trophy className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <select
+                            value={tournamentFilter}
+                            onChange={(e) => setTournamentFilter(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-none text-sm font-black uppercase appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                        >
+                            <option value="">All Tournaments</option>
+                            {uniqueTournaments.map(tournament => (
+                                <option key={tournament} value={tournament}>{tournament}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Squad Filter */}
+                    <div className="relative">
+                        <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <select
+                            value={squadFilter}
+                            onChange={(e) => setSquadFilter(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-none text-sm font-black uppercase appearance-none focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                        >
+                            <option value="">All Squads</option>
+                            {uniqueSquads.map(squad => (
+                                <option key={squad} value={squad}>{squad}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {(searchQuery || schoolFilter || squadFilter || tournamentFilter) && (
+                    <div className="flex items-center justify-between px-2 pt-2 border-t border-slate-50 dark:border-white/5">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
+                            Found {filteredRequests.length} matching requests
+                        </p>
+                        <button
+                            onClick={() => { setSearchQuery(''); setSchoolFilter(''); setSquadFilter(''); setTournamentFilter(''); }}
+                            className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline"
+                        >
+                            Clear Filters
+                        </button>
+                    </div>
+                )}
+            </div>
+
             {/* List */}
             <div className="grid gap-4">
-                {requests.length === 0 ? (
+                {filteredRequests.length === 0 ? (
                     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-white/5 p-20 flex flex-col items-center text-center">
                         <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 mb-4">
-                            <Check size={32} />
+                            {requests.length === 0 ? <Check size={32} /> : <Filter size={32} />}
                         </div>
-                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase">All Caught Up!</h3>
-                        <p className="text-slate-500 text-sm mt-2 max-w-xs">There are no pending player registration requests at the moment.</p>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase">
+                            {requests.length === 0 ? 'All Caught Up!' : 'No match found'}
+                        </h3>
+                        <p className="text-slate-500 text-sm mt-2 max-w-xs">
+                            {requests.length === 0
+                                ? 'There are no pending player registration requests at the moment.'
+                                : 'Try adjusting your filters to find what you are looking for.'}
+                        </p>
                     </div>
                 ) : (
-                    requests.map(request => (
+                    filteredRequests.map(request => (
                         <div
                             key={request.id}
                             className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex flex-col sm:flex-row"

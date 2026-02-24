@@ -15,6 +15,8 @@ export interface User {
   displayName?: string
   photoURL?: string
   role: UserRole
+  userType: 'player' | 'guest' | null // Choice made during onboarding
+  managedSchools?: string[] // For sub-admins
   createdAt: Timestamp
   lastLogin?: Timestamp
   playerId?: string
@@ -101,6 +103,8 @@ export interface Squad {
   name: string
   // Legacy/compat: used for sorting + season grouping. We'll auto-fill from batch or tournament year.
   year: number
+  // New: indicates which school this squad belongs to
+  school: string
   // New: indicates which batch this squad represents (e.g. "2006", "Batch-17")
   batch: string
   // Optional: squad logo and banner URLs (for premium design)
@@ -231,9 +235,12 @@ export type BallType = 'red' | 'white' | 'pink'
 export interface Match {
   id: string
   tournamentId: string
+  school: string
   // Optional: for group-stage tournaments (prevents cross-group fixtures)
   groupId?: string
   groupName?: string
+  stage?: 'group' | 'knockout'
+  round?: string
   matchNo?: string // Unique match number (e.g., SFM01, SMT02)
   teamAId: string // Squad ID
   teamBId: string // Squad ID

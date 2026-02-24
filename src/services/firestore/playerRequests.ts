@@ -25,6 +25,8 @@ export interface PlayerRegistrationRequest {
     school: string
     squadId: string
     squadName: string
+    tournamentId: string
+    tournamentName: string
     role: PlayerRole
     battingStyle: BattingStyle
     bowlingStyle: BowlingStyle
@@ -37,6 +39,7 @@ export interface PlayerRegistrationRequest {
     reviewedAt?: Timestamp
     playerId?: string
     batch?: string
+    adminId?: string // The ID of the sub-admin who created the tournament/squad
 }
 
 export const playerRequestService = {
@@ -91,27 +94,34 @@ export const playerRequestService = {
     },
 
     /**
-     * Admin: Get all pending requests
+     * Admin: Get all pending requests (Super admin version)
      */
     async getPendingRequests(): Promise<PlayerRegistrationRequest[]> {
-        try {
-            const q = query(
-                collection(db, 'player_requests'),
-                where('status', '==', 'pending'),
-                orderBy('createdAt', 'desc')
-            )
-            const snap = await getDocs(q)
-            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
-        } catch (error: any) {
-            console.warn('[playerRequestService] getPendingRequests: Index missing, falling back to client-side sort', error);
-            const q = query(
-                collection(db, 'player_requests'),
-                where('status', '==', 'pending')
-            )
-            const snap = await getDocs(q)
-            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
-                .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-        }
+        const q = query(
+            collection(db, 'player_requests'),
+            where('status', '==', 'pending'),
+            orderBy('createdAt', 'desc')
+        )
+        const snap = await getDocs(q)
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+    },
+
+    /**
+     * Admin: Get pending requests filtered by managed schools (Sub-admin version)
+     */
+    async getPendingRequestsForAdmin(managedSchools: string[]): Promise<PlayerRegistrationRequest[]> {
+        if (!managedSchools || managedSchools.length === 0) return []
+
+        // Firestore 'in' query supports up to 10 elements. 
+        // If more, we'd need multiple queries. For now 10 is enough for school isolation.
+        const q = query(
+            collection(db, 'player_requests'),
+            where('status', '==', 'pending'),
+            where('school', 'in', managedSchools.slice(0, 10)),
+            orderBy('createdAt', 'desc')
+        )
+        const snap = await getDocs(q)
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
     },
 
     /**
@@ -149,23 +159,24 @@ export const playerRequestService = {
         const playerRef = doc(collection(db, 'players'))
         const playerId = playerRef.id
 
-        const playerData: Omit<Player, 'id'> = {
-            name: request.name,
-            role: request.role,
-            school: request.school,
-            squadId: request.squadId,
-            battingStyle: request.battingStyle,
-            bowlingStyle: request.bowlingStyle,
+        const playerData: Record<string, any> = {
+            name: request.name || 'Unknown Player',
+            role: request.role || 'all-rounder',
+            school: request.school || '',
+            squadId: request.squadId || '',
+            battingStyle: request.battingStyle || 'right-handed',
+            bowlingStyle: request.bowlingStyle || 'right-arm-medium',
             photoUrl: request.photoUrl || '',
             claimed: true,
-            ownerUid: request.uid,
-            email: request.email,
-            maskedEmail: request.email.replace(/(..)(.*)(@.*)/, '$1****$3'),
-            batch: request.batch,
-            createdAt: serverTimestamp() as Timestamp,
-            updatedAt: serverTimestamp() as Timestamp,
+            ownerUid: request.uid || '',
+            email: request.email || '',
+            maskedEmail: (request.email || '').includes('@')
+                ? request.email!.replace(/(..)(.*)(@.*)/, '$1****$3')
+                : '********',
+            batch: request.batch || request.school || '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
             createdBy: auth.currentUser.uid,
-            // @ts-ignore
             adminId: auth.currentUser.uid
         }
 

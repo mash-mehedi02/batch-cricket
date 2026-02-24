@@ -8,7 +8,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { adminService } from '@/services/firestore/admins'
-import { createPlayerWithClaim, getPlayerSecretEmail, updatePlayerClaimEmail } from '@/services/firestore/playerClaim'
+import { createPlayerWithClaim, getPlayerSecretEmail, updatePlayerClaimEmail, isEmailRegistered } from '@/services/firestore/playerClaim'
+
 import { Player, Squad } from '@/types'
 import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
@@ -213,6 +214,21 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     if (!validateForm()) {
       toast.error('Please fix the validation errors')
       return
+    }
+
+    // NEW: Check if email is already taken before proceeding
+    if (formData.email) {
+      setSaving(true)
+      try {
+        const isTaken = await isEmailRegistered(formData.email, mode === 'edit' ? id : undefined)
+        if (isTaken) {
+          toast.error('This email is already associated with another player profile.')
+          setSaving(false)
+          return
+        }
+      } catch (err) {
+        console.error('Email check failed:', err)
+      }
     }
 
     setSaving(true)
@@ -687,7 +703,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase italic">Players Database</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight uppercase italic">Players Database</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium">Manage player profiles, stats, and squad assignments.</p>
         </div>
         <Link
@@ -704,15 +720,15 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl"><User size={24} /></div>
           <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{players.length}</div>
-            <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Total Players</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-white">{players.length}</div>
+            <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Total Players</div>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">
           <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl"><Zap size={24} /></div>
           <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{players.filter(p => p.role === 'batsman').length}</div>
-            <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Batsmen</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-white">{players.filter(p => p.role === 'batsman').length}</div>
+            <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Batsmen</div>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm flex items-center gap-4">

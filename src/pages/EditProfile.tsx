@@ -57,7 +57,7 @@ export default function EditProfilePage() {
 
     useEffect(() => {
         if (!loading && !user) {
-            navigate('/login');
+            navigate('?login=true', { replace: true });
         }
     }, [user, loading, navigate]);
 

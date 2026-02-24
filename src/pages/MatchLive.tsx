@@ -579,7 +579,7 @@ export default function MatchLive() {
       } else if (isInningsEnded) {
         const isTied = (match as any)?.matchPhase === 'Tied';
         if (isTied) {
-          setCenterEventText('WAITING FOR SUPER OVER')
+          setCenterEventText('MATCH TIED!')
         } else {
           setCenterEventText('INNINGS BREAK')
         }
@@ -791,39 +791,46 @@ export default function MatchLive() {
 
   // Centralized Target & Chase Info for Win Probability
   const chaseInfo = useMemo(() => {
+    // Determine sides
+    const m = match as any;
+    const tAId = String(m?.teamAId || m?.teamASquadId || m?.teamA || '').trim().toLowerCase();
+    const twId = String(m?.tossWinner || '').trim().toLowerCase();
+    const dec = String(m?.tossDecision || m?.electedTo || 'bat').toLowerCase();
+    const isAWinner = twId === 'teama' || (tAId && twId === tAId);
+    const fSide = isAWinner ? (dec === 'bat' ? 'teamA' : 'teamB') : (dec === 'bat' ? 'teamB' : 'teamA');
+
     const isMainSecondInn = (match as any)?.matchPhase === 'SecondInnings' || (match as any)?.matchPhase === 'InningsBreak' || isFinishedMatch;
     const isSO = (match as any)?.matchPhase === 'superover' || (match as any)?.isSuperOver;
+    const hasTarget = Number((match as any)?.target || (currentInnings as any)?.target || 0) > 0;
 
-    // In Super Over, we are in "second innings" mode if the current innings is the second one chronologically
-    const isSOSecondInn = isSO && currentInnings?.inningId?.includes('super') && (
-      (firstSide === 'teamA' && currentInnings.inningId === 'teamA_super') ||
-      (firstSide === 'teamB' && currentInnings.inningId === 'teamB_super')
+    // In Super Over, we are in "second innings" mode if current is second SO innings
+    const isSOSec = isSO && currentInnings?.inningId?.includes('super') && (
+      (fSide === 'teamA' && currentInnings.inningId === 'teamA_super') ||
+      (fSide === 'teamB' && currentInnings.inningId === 'teamB_super')
     );
-    // Note: In Super Over, the order is reversed. If Team A batted first in main match, Team B bats first in SO.
-    // So if current is "teamA_super" and Team A was firstSide, then it IS the second SO innings.
 
-    const isSecondInn = isMainSecondInn || isSOSecondInn;
+    const isSecondInn = isMainSecondInn || isSOSec || (isSO && hasTarget);
 
     let targetVal = Number((currentInnings as any)?.target || 0);
 
     if (!targetVal && isSecondInn) {
-      if (isSOSecondInn) {
-        // Target for SO second innings comes from SO first innings
-        const soFirstInn = firstSide === 'teamA' ? teamBSuperInnings : teamASuperInnings;
+      if (isSOSec || (isSO && !isMainSecondInn)) {
+        // Target for SO 2nd comes from SO 1st
+        const soFirstInn = fSide === 'teamA' ? teamBSuperInnings : teamASuperInnings;
         if (soFirstInn && Number(soFirstInn.totalRuns || 0) > 0) {
           targetVal = Number(soFirstInn.totalRuns) + 1;
         }
-      } else {
-        // Fallback: Check match master doc
+      }
+
+      if (!targetVal) {
+        // Fallback: master doc or main innings
         const mTarget = Number((match as any)?.target || 0);
         const mInn1 = Number((match as any)?.innings1Score || 0);
-        const mScore1 = Number((match as any)?.score?.[firstSide]?.runs || 0);
-
+        const mScore1 = Number((match as any)?.score?.[fSide]?.runs || 0);
         targetVal = mTarget || (mInn1 > 0 ? mInn1 + 1 : (mScore1 > 0 ? mScore1 + 1 : 0));
 
-        // Secondary Fallback: Check opponent innings runs directly from state
         if (!targetVal) {
-          const firstInn = firstSide === 'teamA' ? teamAInnings : teamBInnings;
+          const firstInn = fSide === 'teamA' ? teamAInnings : teamBInnings;
           if (firstInn && Number(firstInn.totalRuns || 0) > 0) {
             targetVal = Number(firstInn.totalRuns) + 1;
           }
@@ -835,7 +842,7 @@ export default function MatchLive() {
     const runsNeeded = targetVal > 0 ? Math.max(0, targetVal - runsDone) : null;
 
     return { target: targetVal || null, runsNeeded };
-  }, [match, currentInnings, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, firstSide, isFinishedMatch]);
+  }, [match, currentInnings, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings, isFinishedMatch]);
 
   // Commentary - lightweight feed used by CrexLiveSection
   useEffect(() => {
@@ -1656,6 +1663,8 @@ export default function MatchLive() {
     switch (activeTab) {
       case 'commentary':
         const effInningsComm = displayedInnings || currentInnings;
+        const isSOComm = (match as any).isSuperOver || String(effInningsComm?.inningId || '').includes('super');
+        const effOversLimitComm = isSOComm ? 1 : (match.oversLimit || 20);
         return (
           <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen">
             <CrexLiveSection
@@ -1673,10 +1682,10 @@ export default function MatchLive() {
               requiredRunRate={effInningsComm?.requiredRunRate || null}
               currentRuns={effInningsComm?.totalRuns || 0}
               currentOvers={effInningsComm?.overs || '0.0'}
-              oversLimit={match.oversLimit || 20}
+              oversLimit={effOversLimitComm}
               target={chaseInfo.target}
               runsNeeded={chaseInfo.runsNeeded}
-              ballsRemaining={effInningsComm?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number(effInningsComm?.legalBalls || 0))}
+              ballsRemaining={effInningsComm?.remainingBalls ?? (effOversLimitComm * 6 - Number(effInningsComm?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}
               currentInnings={effInningsComm as any}
@@ -1732,6 +1741,8 @@ export default function MatchLive() {
       case 'live':
         if (isUpcomingMatch && !isPastStart) return renderUpcoming()
         const effInningsLive = displayedInnings || currentInnings;
+        const isSOLive = (match as any).isSuperOver || String(effInningsLive?.inningId || '').includes('super');
+        const effOversLimitLive = isSOLive ? 1 : (match.oversLimit || 20);
         return (
           <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen">
             <CrexLiveSection
@@ -1749,10 +1760,10 @@ export default function MatchLive() {
               requiredRunRate={effInningsLive?.requiredRunRate || null}
               currentRuns={effInningsLive?.totalRuns || 0}
               currentOvers={effInningsLive?.overs || '0.0'}
-              oversLimit={match.oversLimit || 20}
+              oversLimit={effOversLimitLive}
               target={chaseInfo.target}
               runsNeeded={chaseInfo.runsNeeded}
-              ballsRemaining={effInningsLive?.remainingBalls ?? ((match.oversLimit || 20) * 6 - Number(effInningsLive?.legalBalls || 0))}
+              ballsRemaining={effInningsLive?.remainingBalls ?? (effOversLimitLive * 6 - Number(effInningsLive?.legalBalls || 0))}
               matchStatus={String((isLiveEffective ? 'Live' : isFinishedMatch ? 'Finished' : match.status) || '')}
               matchPhase={(match as any)?.matchPhase}
               currentInnings={effInningsLive}
@@ -1832,8 +1843,32 @@ export default function MatchLive() {
 
       {/* 3. Sticky Scoreboard (Below Tabs) - Global for all tabs */}
       {(!isUpcomingMatch || (match as any).tossWinner) && !(isFinishedMatch && activeTab === 'summary') && !(activeTab === 'live' && isUpcomingMatch && !isPastStart) && (
-        <div className="sticky z-40 transition-all duration-300" style={{ top: 'calc(48px + var(--status-bar-height))' }}>
+        <>
+          <div className="sticky z-40 transition-all duration-300" style={{ top: 'calc(48px + var(--status-bar-height))' }}>
+            <MatchLiveHero
+              key="sticky-hero"
+              match={match}
+              teamAName={teamAName}
+              teamBName={teamBName}
+              teamASquad={teamASquad}
+              teamBSquad={teamBSquad}
+              currentInnings={displayedInnings || currentInnings}
+              teamAInnings={teamAInnings}
+              teamBInnings={teamBInnings}
+              teamASuperInnings={teamASuperInnings}
+              teamBSuperInnings={teamBSuperInnings}
+              isFinishedMatch={isFinishedMatch}
+              resultSummary={calculatedResultSummary || resultSummary}
+              centerEventText={centerEventText || '—'}
+              showBoundaryAnim={showBoundaryAnim}
+              lastBall={null}
+              hideChaseBar={true}
+            />
+          </div>
+
+          {/* Non-sticky Chase Detail Bar */}
           <MatchLiveHero
+            key="non-sticky-chase"
             match={match}
             teamAName={teamAName}
             teamBName={teamBName}
@@ -1842,13 +1877,16 @@ export default function MatchLive() {
             currentInnings={displayedInnings || currentInnings}
             teamAInnings={teamAInnings}
             teamBInnings={teamBInnings}
+            teamASuperInnings={teamASuperInnings}
+            teamBSuperInnings={teamBSuperInnings}
             isFinishedMatch={isFinishedMatch}
             resultSummary={calculatedResultSummary || resultSummary}
             centerEventText={centerEventText || '—'}
-            showBoundaryAnim={showBoundaryAnim}
+            showBoundaryAnim={false}
             lastBall={null}
+            hideMainScorecard={true}
           />
-        </div>
+        </>
       )}
 
       {/* 4. Tab Content with Swipe Animations */}

@@ -11,14 +11,15 @@ import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import type { Match, Tournament, Squad, Player, InningsStats } from '@/types'
-import { coerceToDate } from '@/utils/date.ts'
+import { coerceToDate } from '@/utils/date'
 import { formatShortTeamName } from '@/utils/teamName'
 import { getMatchResultString } from '@/utils/matchWinner'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { ArrowLeft, Bell, Share2, ChevronRight, Check } from 'lucide-react'
+import { ArrowLeft, Bell, Share2, ChevronRight, Check, Shield, MapPin, Calendar, Users, Trophy } from 'lucide-react'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
+import MatchCard from '@/components/match/MatchCard'
 import { memo } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { oneSignalService } from '@/services/oneSignalService'
@@ -53,7 +54,7 @@ export default function TournamentDetails() {
 
   const handleFollow = async () => {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+      setSearchParams({ ...Object.fromEntries(searchParams), login: 'true' }, { replace: true })
       return
     }
 
@@ -166,6 +167,15 @@ export default function TournamentDetails() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Create squadsMap for MatchCard
+  const squadsMap = useMemo(() => {
+    const map: Record<string, Squad> = {}
+    squads.forEach(s => {
+      if (s.id) map[s.id] = s
+    })
+    return map
+  }, [squads])
+
   // Memoize tabs to prevent heavy re-renders on scroll state change
   const content = useMemo(() => {
     if (!tournamentData) return null
@@ -180,10 +190,11 @@ export default function TournamentDetails() {
             players={players}
             inningsMap={inningsMap}
             setActiveTab={setActiveTab}
+            squadsMap={squadsMap}
           />
         )
       case 'matches':
-        return <TournamentMatchesTab matches={matches} squads={squads} inningsMap={inningsMap} />
+        return <TournamentMatchesTab matches={matches} squadsMap={squadsMap} />
       case 'teams':
         return <TournamentTeamsTab squads={squads} players={players} />
       case 'points':
@@ -314,7 +325,7 @@ export default function TournamentDetails() {
 /**
  * OVERVIEW TAB COMPONENT - Wrapped in memo to prevent re-renders when parent's scroll state changes
  */
-const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, setActiveTab }: { tournament: Tournament, matches: Match[], squads: Squad[], players: Player[], inningsMap: Map<string, any>, setActiveTab: (t: Tab) => void }) => {
+const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, setActiveTab, squadsMap }: { tournament: Tournament, matches: Match[], squads: Squad[], players: Player[], inningsMap: Map<string, any>, setActiveTab: (t: Tab) => void, squadsMap: Record<string, Squad> }) => {
 
   const featuredMatches = useMemo(() => {
     const statusLower = (m: Match) => String(m.status || '').toLowerCase().trim()
@@ -408,9 +419,9 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
             <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Featured Matches</h2>
             <button onClick={() => setActiveTab('matches')} className="text-blue-500 text-xs font-bold uppercase tracking-widest">All Matches</button>
           </div>
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {featuredMatches.map(m => (
-              <FeaturedMatchCard key={m.id} match={m} squads={squads} innings={inningsMap.get(m.id)} />
+              <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournament.name} />
             ))}
           </div>
         </section>
@@ -569,7 +580,7 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
           <div className="divide-y divide-slate-50 dark:divide-white/5">
             <InfoRow label="Series" value={tournament.name} />
             <InfoRow label="Host" value={tournament.host || "N/A"} />
-            <InfoRow label="Duration" value={`${coerceToDate(tournament.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - ${coerceToDate(tournament.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`} />
+            <InfoRow label="Duration" value={`${coerceToDate(tournament.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'Asia/Dhaka' })} - ${coerceToDate(tournament.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' })}`} />
             <InfoRow label="Format" value={tournament.format || (tournament.totalMatches ? `${tournament.totalMatches} Matches` : "N/A")} />
             <InfoRow label="Broadcaster" value={tournament.broadcaster || "N/A"} />
           </div>
@@ -596,100 +607,6 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
   )
 })
 
-function FeaturedMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null } }) {
-  const status = String(match.status || '').toLowerCase()
-  const isFin = status === 'finished' || status === 'completed'
-  const isLive = status === 'live' || status === 'inningsbreak' || status === 'innings break'
-
-  const squadA = squads.find(s => s.id === match.teamAId)
-  const squadB = squads.find(s => s.id === match.teamBId)
-
-  const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match, innings?.aso, innings?.bso) : ''
-
-  return (
-    <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all block">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-white/5 px-2 py-0.5 rounded">
-            {(match as any).stage === 'knockout'
-              ? `${String((match as any).round || '').replace('_', ' ')}`
-              : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
-          </span>
-          {isLive && (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-              <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Live</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          {/* Team A (Left) */}
-          <div className="flex items-center gap-3 w-[120px]">
-            <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
-              {squadA?.logoUrl ? (
-                <img src={squadA.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
-                  {match.teamAName?.charAt(0) || 'A'}
-                </div>
-              )}
-            </div>
-            <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate">
-              {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
-            </span>
-          </div>
-
-          {/* Status (Center) */}
-          <div className="flex-1 text-center flex flex-col items-center justify-center min-w-0">
-            {isLive ? (
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-                <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Live</span>
-              </div>
-            ) : isFin ? (
-              <div className="flex flex-col items-center">
-                <span className="text-[12px] font-black text-rose-900/80 dark:text-rose-200 uppercase tracking-tighter leading-tight">
-                  {match.winnerId === match.teamAId
-                    ? (squadA ? formatShortTeamName(squadA.name, squadA.batch) : match.teamAName)
-                    : (squadB ? formatShortTeamName(squadB.name, squadB.batch) : match.teamBName)} Won
-                </span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
-                  {resultStr.includes('by') ? `by ${resultStr.split('by')[1]?.trim()}` : resultStr}
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{match.time || '07:30 PM'}</span>
-                <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase leading-none mt-1">Today</span>
-              </div>
-            )}
-          </div>
-
-          {/* Team B (Right) */}
-          <div className="flex items-center gap-3 w-[120px] justify-end">
-            <span className="text-[13px] font-bold text-slate-800 dark:text-white uppercase tracking-tighter truncate text-right">
-              {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
-            </span>
-            <div className="w-9 h-9 rounded-full border border-slate-50 overflow-hidden flex items-center justify-center shadow-sm shrink-0">
-              {squadB?.logoUrl ? (
-                <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-[12px] font-black uppercase">
-                  {match.teamBName?.charAt(0) || 'B'}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-
-
-
 function InfoRow({ label, value }: { label: string, value: string }) {
   return (
     <div className="flex items-center justify-between px-6 py-5">
@@ -700,99 +617,7 @@ function InfoRow({ label, value }: { label: string, value: string }) {
 }
 
 
-function CompactMatchCard({ match, squads, innings }: { match: Match; squads: Squad[]; innings?: { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null } }) {
-  const status = String(match.status || '').toLowerCase()
-  const isFin = status === 'finished' || status === 'completed'
-  const isLive = status === 'live' || status === 'inningsbreak' || status === 'innings break'
-
-  const squadA = squads.find(s => s.id === match.teamAId)
-  const squadB = squads.find(s => s.id === match.teamBId)
-
-  const resultStr = isFin ? getMatchResultString(match.teamAName || 'Team A', match.teamBName || 'Team B', innings?.teamA || null, innings?.teamB || null, match, innings?.aso, innings?.bso) : ''
-
-  return (
-    <Link to={`/match/${match.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2rem] p-5 shadow-sm hover:shadow-md transition-all">
-      <div className="mb-3 flex justify-center">
-        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-white/5 px-3 py-1 rounded-full">
-          {(match as any).stage === 'knockout'
-            ? `${String((match as any).round || '').replace('_', ' ')}`
-            : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-[120px]">
-          <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative">
-            {squadA?.logoUrl ? (
-              <img src={squadA.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-[14px] font-black uppercase">
-                {match.teamAName?.charAt(0) || 'A'}
-              </div>
-            )}
-          </div>
-          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-            {squadA ? formatShortTeamName(squadA.name, squadA.batch) : formatShortTeamName(match.teamAName || 'A')}
-          </span>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
-          {isLive ? (
-            <div className="flex flex-col items-center">
-              <span className="text-[9px] font-black text-red-600 uppercase tracking-widest animate-pulse mb-1">Live</span>
-              <div className="flex flex-col items-center gap-0.5">
-                <div className="flex flex-col items-center">
-                  <div className="text-[11px] font-black text-slate-900 dark:text-white whitespace-nowrap">
-                    {innings?.teamA ? `${innings.teamA.totalRuns}/${innings.teamA.totalWickets}` : '0/0'} - {innings?.teamB ? `${innings.teamB.totalRuns}/${innings.teamB.totalWickets}` : '0/0'}
-                  </div>
-                  <div className="text-[8px] text-slate-400 font-bold">
-                    {innings?.teamA?.overs || '0.0'} & {innings?.teamB?.overs || '0.0'} ov
-                  </div>
-                  {(innings?.aso || innings?.bso) && (
-                    <div className="mt-0.5 text-[7px] font-black text-amber-600 uppercase tracking-tighter">
-                      S.O: {innings?.aso?.totalRuns || 0}/{innings?.aso?.totalWickets || 0} vs {innings?.bso?.totalRuns || 0}/{innings?.bso?.totalWickets || 0}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : isFin ? (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight leading-tight">{resultStr}</span>
-              <div className="text-[8px] text-slate-400 font-bold mt-1">
-                {innings?.teamA ? `${innings.teamA.totalRuns}-${innings.teamA.totalWickets}` : '0-0'} & {innings?.teamB ? `${innings.teamB.totalRuns}-${innings.teamB.totalWickets}` : '0-0'}
-              </div>
-              {(innings?.aso || innings?.bso) && (
-                <div className="mt-1 text-[7px] font-black text-amber-600 uppercase tracking-tighter">
-                  S.O: {innings?.aso?.totalRuns || 0}/{innings?.aso?.totalWickets || 0} - {innings?.bso?.totalRuns || 0}/{innings?.bso?.totalWickets || 0}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{match.time || 'TBD'}</span>
-              <span className="text-[11px] font-black text-slate-800 dark:text-white uppercase mt-0.5">{coerceToDate(match.date)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-3 w-[120px] justify-end">
-          <span className="text-[15px] font-black text-slate-800 dark:text-white uppercase tracking-tighter text-right">
-            {squadB ? formatShortTeamName(squadB.name, squadB.batch) : formatShortTeamName(match.teamBName || 'B')}
-          </span>
-          <div className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm relative">
-            {squadB?.logoUrl ? (
-              <img src={squadB.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-500 to-pink-600 text-white text-[14px] font-black uppercase">
-                {match.teamBName?.charAt(0) || 'B'}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function TournamentMatchesTab({ matches, squads, inningsMap }: { matches: Match[]; squads: Squad[]; inningsMap: Map<string, any> }) {
+function TournamentMatchesTab({ matches, squadsMap }: { matches: Match[]; squadsMap: Record<string, Squad> }) {
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'finished'>('all')
   const filtered = useMemo(() => {
     let f = matches
@@ -815,8 +640,8 @@ function TournamentMatchesTab({ matches, squads, inningsMap }: { matches: Match[
           <button key={f} onClick={() => setFilter(f)} className={`px-6 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-900 text-slate-500 border border-slate-100 dark:border-white/5'}`}>{f}</button>
         ))}
       </div>
-      <div className="grid gap-4">
-        {filtered.map(m => <CompactMatchCard key={m.id} match={m} squads={squads} innings={inningsMap.get(m.id)} />)}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filtered.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} />)}
         {filtered.length === 0 && <div className="text-center py-20 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">No matches found</div>}
       </div>
     </div>

@@ -8,6 +8,17 @@ import { oneSignalService } from './services/oneSignalService'
 // Initialize OneSignal
 oneSignalService.init()
 
+// Initialize Capacitor Google Auth if on native
+import { Capacitor } from '@capacitor/core'
+if (Capacitor.isNativePlatform()) {
+  import('@codetrix-studio/capacitor-google-auth').then(({ GoogleAuth }) => {
+    GoogleAuth.initialize({
+      clientId: '899272110972-pjfti5ug438ubliit4ri5civ6nuhkftv.apps.googleusercontent.com',
+      scopes: ['profile', 'email'],
+    });
+  });
+}
+
 
 // Suppress harmless browser extension errors
 if (typeof window !== 'undefined') {

@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom'
 import { Match, Squad, InningsStats } from '@/types'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
-import { coerceToDate } from '@/utils/date'
+import { coerceToDate, formatTimeHMTo12h } from '@/utils/date'
 import { formatShortTeamName } from '@/utils/teamName'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -27,6 +27,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     const [fetchedTournamentName, setFetchedTournamentName] = useState<string>('')
     const [teamAInnings, setTeamAInnings] = useState<InningsStats | null>(null)
     const [teamBInnings, setTeamBInnings] = useState<InningsStats | null>(null)
+    const [teamASuperInnings, setTeamASuperInnings] = useState<InningsStats | null>(null)
+    const [teamBSuperInnings, setTeamBSuperInnings] = useState<InningsStats | null>(null)
     const [timeLeft, setTimeLeft] = useState<string>('')
 
     const statusLower = String(match.status || '').toLowerCase().trim()
@@ -46,10 +48,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
         if (isLive) {
             const unsubA = matchService.subscribeToInnings(match.id, 'teamA', (data) => setTeamAInnings(data))
             const unsubB = matchService.subscribeToInnings(match.id, 'teamB', (data) => setTeamBInnings(data))
-            return () => { unsubA(); unsubB(); }
+            const unsubAS = matchService.subscribeToInnings(match.id, 'teamA_super', (data) => setTeamASuperInnings(data))
+            const unsubBS = matchService.subscribeToInnings(match.id, 'teamB_super', (data) => setTeamBSuperInnings(data))
+            return () => { unsubA(); unsubB(); unsubAS(); unsubBS(); }
         } else if (isFinished || (match.score?.teamA || match.score?.teamB)) {
             matchService.getInnings(match.id, 'teamA').then(setTeamAInnings)
             matchService.getInnings(match.id, 'teamB').then(setTeamBInnings)
+            matchService.getInnings(match.id, 'teamA_super').then(setTeamASuperInnings)
+            matchService.getInnings(match.id, 'teamB_super').then(setTeamBSuperInnings)
         }
     }, [match.id, isLive, isFinished])
 
@@ -90,18 +96,33 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
     const runsNeededText = (() => {
         if (!isLive || (match as any).matchPhase !== 'SecondInnings') return null
-        const battedFirst = match.tossWinner === 'teamA' ? (match.electedTo === 'bat' ? 'teamA' : 'teamB') : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
-        const chasingTeam = battedFirst === 'teamA' ? 'teamB' : 'teamA'
-        const batInn = chasingTeam === 'teamA' ? teamAInnings : teamBInnings
-        const bowlInn = chasingTeam === 'teamA' ? teamBInnings : teamAInnings
+
+        const isSO = (match as any).isSuperOver;
+        const mainBattedFirst = match.tossWinner === 'teamA' ? (match.electedTo === 'bat' ? 'teamA' : 'teamB') : (match.electedTo === 'bat' ? 'teamB' : 'teamA')
+        const chasingTeam = isSO ? mainBattedFirst : (mainBattedFirst === 'teamA' ? 'teamB' : 'teamA')
+
+        const batInn = isSO
+            ? (chasingTeam === 'teamA' ? teamASuperInnings : teamBSuperInnings)
+            : (chasingTeam === 'teamA' ? teamAInnings : teamBInnings)
+
+        const bowlInn = isSO
+            ? (chasingTeam === 'teamA' ? teamBSuperInnings : teamASuperInnings)
+            : (chasingTeam === 'teamA' ? teamBInnings : teamAInnings)
+
         if (!bowlInn || !batInn) return null
-        const target = (bowlInn.totalRuns || 0) + 1
+
+        const target = isSO ? (match.target || (bowlInn.totalRuns || 0) + 1) : (bowlInn.totalRuns || 0) + 1
         const needed = target - (batInn.totalRuns || 0)
-        const totalBalls = (match.oversLimit || 20) * 6
+        if (needed <= 0) return null
+
+        const totalBalls = isSO ? 6 : (match.oversLimit || 20) * 6
         const [oInt, balls] = (batInn.overs || '0.0').split('.').map(Number)
         const rem = totalBalls - ((oInt || 0) * 6 + (balls || 0))
-        if (needed <= 0) return null
-        return language === 'bn' ? `${chasingTeam === 'teamA' ? teamAName : teamBName} ${rem} বলে ${needed} রান প্রয়োজন` : `${chasingTeam === 'teamA' ? teamAName : teamBName} need ${needed} runs in ${rem} balls`
+
+        const teamName = chasingTeam === 'teamA' ? teamAName : teamBName
+        return language === 'bn'
+            ? `${isSO ? '⚡ ' : ''}${teamName} ${rem} বলে ${needed} রান প্রয়োজন`
+            : `${isSO ? '⚡ ' : ''}${teamName} need ${needed} runs in ${rem} balls`
     })()
 
     const getResultText = () => {
@@ -138,7 +159,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
     const resultText = getResultText()
     const matchDate = coerceToDate(match.date)
-    const dateStr = matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }) : 'TBD'
+    const dateStr = matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' }) : 'TBD'
 
     if (isUpcoming) {
         return (
@@ -157,7 +178,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                         </h3>
                         <div className="h-[0.5px] border-t border-dashed border-slate-300 dark:border-white/10 w-[80%] mx-auto my-1.5" />
                         <p className="text-[8px] sm:text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                            {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'T' + match.oversLimit} . ` : ''}{dateStr} - {match.time || 'TBD'}
+                            {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'F' + match.oversLimit} . ` : ''}{dateStr} - {formatTimeHMTo12h(match.time)}
                         </p>
                     </div>
                     <div className="flex-1 flex items-center justify-between w-full relative overflow-hidden py-3">
@@ -237,7 +258,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     </h3>
                     <div className="h-[0.5px] border-t border-dashed border-slate-300 dark:border-white/10 w-[80%] mx-auto my-1.5" />
                     <p className="text-[8px] sm:text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                        {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'T' + match.oversLimit} . ` : ''}{dateStr} - {match.time || 'TBD'}
+                        {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'F' + match.oversLimit} . ` : ''}{dateStr} - {formatTimeHMTo12h(match.time)}
                     </p>
                 </div>
 
@@ -258,13 +279,28 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             <span className="text-[10px] sm:text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate leading-tight">
                                 {teamAName}
                             </span>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-[18px] sm:text-[20px] font-black text-slate-900 dark:text-white tabular-nums leading-none">
-                                    {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
-                                </span>
-                                {teamAInnings?.overs && (
-                                    <span className="text-[9px] font-bold text-slate-400">({teamAInnings.overs})</span>
+                            <div className="flex flex-col items-baseline">
+                                {(match as any).isSuperOver && (
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-[20px] sm:text-[22px] font-black text-amber-600 dark:text-amber-500 tabular-nums leading-none">
+                                            {teamASuperInnings ? `${teamASuperInnings.totalRuns}/${teamASuperInnings.totalWickets}` : (match.score?.teamA_super ? `${match.score.teamA_super.runs}/${match.score.teamA_super.wickets}` : '0/0')}
+                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter leading-none">SO</span>
+                                            {teamASuperInnings?.overs && (
+                                                <span className="text-[8px] font-bold text-amber-600/60 leading-none">({teamASuperInnings.overs})</span>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
+                                <span className={((match as any).isSuperOver)
+                                    ? "text-[12px] sm:text-[13px] font-bold text-slate-400 tabular-nums leading-none"
+                                    : "text-[18px] sm:text-[20px] font-black text-slate-900 dark:text-white tabular-nums leading-none"}>
+                                    {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
+                                    {teamAInnings?.overs && !((match as any).isSuperOver) && (
+                                        <span className="text-[9px] font-bold text-slate-400 ml-1">({teamAInnings.overs})</span>
+                                    )}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -273,6 +309,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     <div className="shrink-0 flex items-center justify-center px-1">
                         {isLive ? (
                             <div className="bg-red-500/10 px-3 py-1 rounded-full flex items-center gap-1.5 border border-red-500/20 shadow-sm">
+                                <div className="w-1.5 h-1.5 bg-red-600 dark:bg-red-500 rounded-full animate-pulse" />
                                 <span className="text-[11px] font-black text-red-600 dark:text-red-500 tracking-tighter">LIVE</span>
                             </div>
                         ) : (
@@ -290,11 +327,26 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             <span className="text-[10px] sm:text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate leading-tight">
                                 {teamBName}
                             </span>
-                            <div className="flex items-baseline gap-1">
-                                {teamBInnings?.overs && (
-                                    <span className="text-[9px] font-bold text-slate-400">({teamBInnings.overs})</span>
+                            <div className="flex flex-col items-end">
+                                {(match as any).isSuperOver && (
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter leading-none">SO</span>
+                                            {teamBSuperInnings?.overs && (
+                                                <span className="text-[8px] font-bold text-amber-600/60 leading-none">({teamBSuperInnings.overs})</span>
+                                            )}
+                                        </div>
+                                        <span className="text-[20px] sm:text-[22px] font-black text-amber-600 dark:text-amber-500 tabular-nums leading-none">
+                                            {teamBSuperInnings ? `${teamBSuperInnings.totalRuns}/${teamBSuperInnings.totalWickets}` : (match.score?.teamB_super ? `${match.score.teamB_super.runs}/${match.score.teamB_super.wickets}` : '0/0')}
+                                        </span>
+                                    </div>
                                 )}
-                                <span className="text-[18px] sm:text-[20px] font-black text-slate-900 dark:text-white tabular-nums leading-none">
+                                <span className={((match as any).isSuperOver)
+                                    ? "text-[12px] sm:text-[13px] font-bold text-slate-400 tabular-nums leading-none"
+                                    : "text-[18px] sm:text-[20px] font-black text-slate-900 dark:text-white tabular-nums leading-none"}>
+                                    {teamBInnings?.overs && !((match as any).isSuperOver) && (
+                                        <span className="text-[9px] font-bold text-slate-400 mr-1">({teamBInnings.overs})</span>
+                                    )}
                                     {teamBInnings ? `${teamBInnings.totalRuns}/${teamBInnings.totalWickets}` : '0/0'}
                                 </span>
                             </div>
@@ -331,7 +383,13 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             )
                         ) : isLive ? (
                             <span className="font-black flex items-center justify-center gap-1">
-                                {runsNeededText ? runsNeededText : tossInfo ? (
+                                {runsNeededText ? (
+                                    runsNeededText
+                                ) : (match as any).matchPhase === 'Tied' ? (
+                                    <span className="animate-pulse">⚡ Match Tied!</span>
+                                ) : (match as any).isSuperOver ? (
+                                    <>⚡ SUPER OVER</>
+                                ) : tossInfo ? (
                                     <>
                                         {tossInfo.winnerName} won the toss and choose to {tossInfo.decision === 'bat' ? 'bat' : 'bowl'}
                                     </>

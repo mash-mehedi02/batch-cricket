@@ -34,15 +34,17 @@ export default function DeleteConfirmationModal({
 
     if (!isOpen) return null
 
+    const normalize = (str: string) => str.trim().toLowerCase().replace(/\s+/g, ' ')
+
+    const isMatch = normalize(inputValue) === normalize(verificationText)
+
     const handleConfirm = () => {
-        if (inputValue === verificationText) {
+        if (isMatch) {
             onConfirm()
         } else {
             setError(true)
         }
     }
-
-    const isMatch = inputValue === verificationText
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -88,10 +90,10 @@ export default function DeleteConfirmationModal({
                                 setError(false)
                             }}
                             className={`w-full px-4 py-3 bg-white border rounded-xl outline-none transition-all font-mono text-sm ${error
-                                    ? 'border-red-300 ring-4 ring-red-50 text-red-900 placeholder-red-300'
-                                    : isMatch
-                                        ? 'border-green-300 ring-4 ring-green-50 text-green-900'
-                                        : 'border-slate-200 focus:border-red-500 focus:ring-4 focus:ring-red-50/50'
+                                ? 'border-red-300 ring-4 ring-red-50 text-red-900 placeholder-red-300'
+                                : isMatch
+                                    ? 'border-green-300 ring-4 ring-green-50 text-green-900'
+                                    : 'border-slate-200 focus:border-red-500 focus:ring-4 focus:ring-red-50/50'
                                 }`}
                             placeholder={verificationText}
                             autoFocus
@@ -111,8 +113,8 @@ export default function DeleteConfirmationModal({
                         onClick={handleConfirm}
                         disabled={!isMatch || isDeleting}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-white shadow-sm transition-all ${!isMatch || isDeleting
-                                ? 'bg-red-300 cursor-not-allowed'
-                                : 'bg-red-600 hover:bg-red-700 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'
+                            ? 'bg-red-300 cursor-not-allowed'
+                            : 'bg-red-600 hover:bg-red-700 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'
                             }`}
                     >
                         {isDeleting ? (

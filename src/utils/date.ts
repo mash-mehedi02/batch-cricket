@@ -58,13 +58,24 @@ export function coerceToDate(value: unknown): Date | null {
 export function formatDateLabel(d: unknown, locale = 'en-US') {
   const date = coerceToDate(d)
   if (!date) return String(d || '')
-  return date.toLocaleDateString(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(locale, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: BD_TIME_ZONE
+  })
 }
 
-export function formatTimeLabel(d: unknown, locale = 'en-GB') {
+export function formatTimeLabel(d: unknown, locale = 'en-US') {
   const date = coerceToDate(d)
   if (!date) return String(d || '')
-  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: BD_TIME_ZONE
+  })
 }
 
 // Bangladesh timezone helpers (Asia/Dhaka)
@@ -76,8 +87,8 @@ export function formatDateLabelTZ(d: Date, timeZone = BD_TIME_ZONE, locale = 'en
   return new Intl.DateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: '2-digit' }).format(d)
 }
 
-export function formatTimeLabelTZ(d: Date, timeZone = BD_TIME_ZONE, locale = 'en-GB') {
-  return new Intl.DateTimeFormat(locale, { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+export function formatTimeLabelTZ(d: Date, timeZone = BD_TIME_ZONE, locale = 'en-US') {
+  return new Intl.DateTimeFormat(locale, { timeZone, hour: '2-digit', minute: '2-digit', hour12: true }).format(d)
 }
 
 // 12-hour Bangladesh time label (e.g., 08:00 PM)

@@ -57,7 +57,7 @@ export const en = {
     by_wickets: 'wickets',
     by_runs: 'runs',
     match_drawn: 'Match Drawn',
-    match_tied: 'Match Tied',
+    match_tied: 'Match Tied!',
     player_of_match: 'Player of the Match',
 
     // Status

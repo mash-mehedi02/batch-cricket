@@ -76,11 +76,13 @@ export const playerService = {
   /**
    * Get players for a specific admin (or all for super admin)
    */
-  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Player[]> {
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false, managedSchools: string[] = []): Promise<Player[]> {
     try {
       let q;
       if (isSuperAdmin) {
         q = query(playersRef)
+      } else if (managedSchools && managedSchools.length > 0) {
+        q = query(playersRef, where('school', 'in', managedSchools.slice(0, 10)))
       } else {
         q = query(playersRef, where('adminId', '==', adminId))
       }

@@ -116,13 +116,21 @@ function sendOneSignalNotification(tag: string, title: string, body: string, mat
         const data = JSON.stringify({
             app_id: ONESIGNAL_APP_ID,
             filters: [
-                { field: "tag", key: tag, relation: "=", value: "subscribed" }
+                { field: "tag", key: tag, relation: "=", value: "subscribed" },
+                { operator: "OR" },
+                { field: "tag", key: "all_matches", relation: "=", value: "active" }
             ],
             headings: { en: title },
             contents: { en: body },
-            android_accent_color: "FF0000",
+            android_accent_color: "0D9488",
             small_icon: "ic_stat_onesignal_default",
-            url: `https://sma-cricket-league.firebaseapp.com/match/${matchId}`
+            large_icon: "https://batchcrick.vercel.app/logo.png",
+            url: `https://batchcrick.vercel.app/match/${matchId}`,
+            android_visibility: 1,
+            priority: 10,
+            android_channel_id: "match_alerts",
+            collapse_id: tag,
+            thread_id: tag
         });
 
         const options = {
@@ -133,7 +141,7 @@ function sendOneSignalNotification(tag: string, title: string, body: string, mat
             headers: {
                 'Content-Type': 'application/json; charset=utf-8',
                 'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`,
-                'Content-Length': data.length
+                'Content-Length': Buffer.byteLength(data)
             }
         };
 

@@ -17,13 +17,8 @@ export default function GlobalLoginSheet() {
     // Trigger open based on URL param or local state
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        // Only allow automatic trigger on Menu or Account pages
-        const allowedPages = ['/menu', '/account', '/tournaments', '/squads', '/players'];
-        const isAllowedPage = allowedPages.includes(location.pathname);
 
-        if (params.get('login') === 'true' && (isAllowedPage || location.pathname === '/')) {
-            // Note: Keeping '/' for now but restricted by Navigate in App.tsx
-            // If the user lands here, we open it, but the primary entry is now /menu
+        if (params.get('login') === 'true') {
             setIsOpen(true);
 
             // Clean up the URL
@@ -94,9 +89,14 @@ export default function GlobalLoginSheet() {
                             <button
                                 onClick={async () => {
                                     try {
-                                        await googleLogin();
+                                        const isNewUser = await googleLogin();
                                         setIsOpen(false);
                                         toast.success('Signed in successfully!');
+
+                                        if (isNewUser) {
+                                            navigate('/edit-profile');
+                                        }
+                                        // If not new, we stay on the current page (e.g. /menu)
                                     } catch (err) {
                                         console.error(err);
                                         toast.error('Failed to sign in.');

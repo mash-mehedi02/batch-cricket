@@ -141,11 +141,13 @@ export const matchService = {
   /**
    * Get matches for a specific admin (or all for super admin)
    */
-  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Match[]> {
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false, managedSchools: string[] = []): Promise<Match[]> {
     try {
       let q;
       if (isSuperAdmin) {
         q = query(matchesRef) // Remove orderBy to avoid index requirement
+      } else if (managedSchools && managedSchools.length > 0) {
+        q = query(matchesRef, where('school', 'in', managedSchools.slice(0, 10)))
       } else {
         q = query(
           matchesRef,

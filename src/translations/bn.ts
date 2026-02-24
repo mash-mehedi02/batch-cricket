@@ -57,7 +57,7 @@ export const bn = {
     by_wickets: 'উইকেটে',
     by_runs: 'রানে',
     match_drawn: 'ম্যাচ ড্র',
-    match_tied: 'ম্যাচ টাই',
+    match_tied: 'ম্যাচ টাই!',
     player_of_match: 'ম্যাচ সেরা',
 
     // Status

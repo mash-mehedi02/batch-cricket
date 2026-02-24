@@ -14,11 +14,17 @@ export const tournamentService = {
   /**
    * Get tournaments for a specific admin (or all for super admin)
    */
-  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Tournament[]> {
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false, managedSchools: string[] = []): Promise<Tournament[]> {
     try {
       let q;
       if (isSuperAdmin) {
         q = query(tournamentsRef) // No server-side orderBy to avoid index requirement
+      } else if (managedSchools && managedSchools.length > 0) {
+        // For sub-admins with assigned schools, show tournaments from those schools
+        q = query(
+          tournamentsRef,
+          where('school', 'in', managedSchools.slice(0, 10))
+        )
       } else {
         q = query(
           tournamentsRef,
@@ -45,6 +51,32 @@ export const tournamentService = {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tournament))
     } catch (error) {
       console.error('Error loading tournaments:', error)
+      return []
+    }
+  },
+
+  async getUniqueSchools(): Promise<string[]> {
+    try {
+      const snapshot = await getDocs(tournamentsRef)
+      const schools = new Set<string>()
+      snapshot.docs.forEach(doc => {
+        const data = doc.data()
+        if (data.school) schools.add(data.school)
+      })
+      return Array.from(schools).sort()
+    } catch (error) {
+      console.error('Error getting unique schools:', error)
+      return []
+    }
+  },
+
+  async getBySchool(school: string): Promise<Tournament[]> {
+    try {
+      const q = query(tournamentsRef, where('school', '==', school))
+      const snapshot = await getDocs(q)
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tournament))
+    } catch (error) {
+      console.error('Error loading tournaments by school:', error)
       return []
     }
   },

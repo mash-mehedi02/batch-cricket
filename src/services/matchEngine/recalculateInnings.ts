@@ -499,9 +499,10 @@ export async function recalculateInnings(
       const isBallWicket = ball.isWicket === true
       const ballWicketType = ball.wicketType || 'Out'
       const ballDismissedId = ball.dismissedBatsmanId || ball.batsmanId
-      const ballCreditBowler = ball.creditRunsToBowler !== false
-
-      // ICC Rule: Determine if ball is legal (wide and no-ball are NOT legal)
+      const isRetirement = ['retired-hurt', 'retired-out', 'retired hurt', 'retired out'].includes(ballWicketType.toLowerCase())
+      const ballCreditBowler = (rawBall.wicket?.creditedToBowler !== undefined)
+        ? rawBall.wicket.creditedToBowler
+        : !['runout', 'run out', 'retired', 'retired hurt', 'retired-hurt', 'retired out', 'retired-out', 'obstructing', 'handled ball', 'timed out'].includes(ballWicketType.toLowerCase())
       const isWide =
         Number((ball as any)?.extras?.wides || 0) > 0 ||
         ball.isWide === true ||
@@ -526,21 +527,21 @@ export async function recalculateInnings(
       const currentOverNumber = Math.floor(legalBalls / 6) + 1
 
       // ICC Rule: Only legal deliveries count as legalBalls
-      if (isLegal) {
+      if (isLegal && !isRetirement) {
         legalBalls += 1
       }
 
       // Determine which over this ball belongs to
       // For legal balls: calculate based on legalBalls AFTER increment
       // For wides/no-balls: use the over number BEFORE increment (same over)
-      const overNumber = isLegal ? Math.floor((legalBalls - 1) / 6) + 1 : currentOverNumber
+      const overNumber = (isLegal && !isRetirement) ? Math.floor((legalBalls - 1) / 6) + 1 : currentOverNumber
 
       // ICC Rule: Add runs (always count, even for extras)
       totalRuns += totalBallRuns
 
       // Partnership runs: total runs (including extras like wides/nb)
       currentPRuns += totalBallRuns
-      if (isLegal) currentPBalls += 1
+      if (isLegal && !isRetirement) currentPBalls += 1
 
       // Track extras breakdown
       if (ball.extras) {
@@ -573,7 +574,7 @@ export async function recalculateInnings(
 
         // ICC Rule: Balls faced increments for all deliveries except wides.
         // No-ball counts as a ball faced (but does NOT count as a legal ball for overs).
-        if (!isWide) batsman.balls += 1
+        if (!isWide && !isRetirement) batsman.balls += 1
 
         // Count boundaries
         if (runsOffBat === 4) batsman.fours += 1
@@ -597,13 +598,13 @@ export async function recalculateInnings(
         // Apply stats to the CORRECT partner in the active pair
         if (pBatter1.id === batsmanId) {
           pBatter1.runs += runsOffBat
-          if (!isWide) pBatter1.balls += 1
+          if (!isWide && !isRetirement) pBatter1.balls += 1
         } else if (pBatter2 && pBatter2.id === batsmanId) {
           pBatter2.runs += runsOffBat
-          if (!isWide) pBatter2.balls += 1
+          if (!isWide && !isRetirement) pBatter2.balls += 1
         } else {
           // If a 3rd person appeared (unexpected), stick them in pBatter2
-          pBatter2 = { id: batsmanId, runs: runsOffBat, balls: isWide ? 0 : 1 }
+          pBatter2 = { id: batsmanId, runs: runsOffBat, balls: (isWide || isRetirement) ? 0 : 1 }
         }
 
         // Fallback for partner identification if pBatter2 still missing
@@ -632,7 +633,7 @@ export async function recalculateInnings(
         const bowler = bowlerStatsMap.get(bowlerId)!
 
         // ICC Rule: Only legal deliveries count for bowler's ballsBowled
-        if (isLegal) {
+        if (isLegal && !isRetirement) {
           const ballsInOver = bowler.ballsBowled % 6
 
           // If starting a new over, check if previous over was maiden
@@ -771,8 +772,11 @@ export async function recalculateInnings(
     const finalNonStrikerId = options?.matchData?.currentNonStrikerId !== undefined ? options.matchData.currentNonStrikerId : matchData.currentNonStrikerId;
 
     batsmanStatsMap.forEach((stats, pId) => {
-      // 1. If explicit dismissal exists, they are OUT.
-      if (stats.dismissal) {
+      // 1. If explicit dismissal exists, they are OUT (unless it's Retired Hurt).
+      const dismissalText = stats.dismissal?.toLowerCase() || '';
+      const isRetiredHurt = dismissalText.includes('retired hurt') || dismissalText.includes('retired-hurt');
+
+      if (stats.dismissal && !isRetiredHurt) {
         stats.notOut = false;
         return;
       }
@@ -814,7 +818,8 @@ export async function recalculateInnings(
     // --- Match Completion Logic ---
     const oversLimit = Number(matchData.oversLimit) || 20
     const maxBalls = oversLimit * 6
-    const isAllOut = totalWickets >= 10
+    const isSuperOverInning = String(inningId).includes('super')
+    const isAllOut = isSuperOverInning ? totalWickets >= 2 : totalWickets >= 10;
     const isOversFinished = legalBalls >= maxBalls
     const isInningsEnded = isAllOut || isOversFinished
 
@@ -823,7 +828,6 @@ export async function recalculateInnings(
 
     // --- Match Completion Logic ---
     // For Super Overs: determine if this is the 2nd SO innings
-    const isSuperOverInning = String(inningId).includes('super')
     let isCalculatingSecondSide = (inningId === secondSide)
 
     if (isSuperOverInning) {
@@ -1071,19 +1075,34 @@ export async function recalculateInnings(
             const rA = (inningId === 'teamA') ? totalRuns : teamA_main;
             const rB = (inningId === 'teamB') ? totalRuns : teamB_main;
 
+            // Helper to calculate proper win margin
+            const calcMargin = (winnerSide: 'teamA' | 'teamB', scoreA: number, scoreB: number) => {
+              const winnerName = winnerSide === 'teamA' ? matchData.teamAName : matchData.teamBName;
+              // Determine if winner chased (batted second) → won by wickets, else → won by runs
+              const isChase = winnerSide === secondSide;
+              if (isChase) {
+                const wktsLeft = Math.max(0, 10 - totalWickets);
+                return `${winnerName} won by ${wktsLeft} wicket${wktsLeft !== 1 ? 's' : ''}`;
+              } else {
+                const diff = Math.abs(scoreA - scoreB);
+                return `${winnerName} won by ${diff} run${diff !== 1 ? 's' : ''}`;
+              }
+            };
+
             if (rA > rB) {
               matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
-              matchUpdate.resultSummary = `${matchData.teamAName} won`;
+              matchUpdate.resultSummary = calcMargin('teamA', rA, rB);
             } else if (rB > rA) {
               matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
-              matchUpdate.resultSummary = `${matchData.teamBName} won`;
+              matchUpdate.resultSummary = calcMargin('teamB', rA, rB);
             } else if (teamA_so > 0 || teamB_so > 0) {
+              const soDiff = Math.abs(teamA_so - teamB_so);
               if (teamA_so > teamB_so) {
                 matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
-                matchUpdate.resultSummary = `${matchData.teamAName} won (Super Over)`;
+                matchUpdate.resultSummary = `${matchData.teamAName} won Super Over by ${soDiff} run${soDiff !== 1 ? 's' : ''}`;
               } else if (teamB_so > teamA_so) {
                 matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
-                matchUpdate.resultSummary = `${matchData.teamBName} won (Super Over)`;
+                matchUpdate.resultSummary = `${matchData.teamBName} won Super Over by ${soDiff} run${soDiff !== 1 ? 's' : ''}`;
               }
             }
           }
@@ -1099,11 +1118,9 @@ export async function recalculateInnings(
             matchUpdate.matchPhase = 'InningsBreak'
           }
         } else {
-          // Calculating first innings - only set to live/FirstInnings if second side hasn't started
-          if (currentPhase !== 'SecondInnings' && currentPhase !== 'InningsBreak' && currentStatus !== 'finished') {
-            matchUpdate.status = 'live'
-            matchUpdate.matchPhase = 'FirstInnings'
-          }
+          // Reverting to live state
+          matchUpdate.status = 'live'
+          matchUpdate.matchPhase = isCalculatingSecondSide ? 'SecondInnings' : 'FirstInnings'
         }
 
         transaction.update(doc(db, MATCHES_COLLECTION, matchId), matchUpdate)
@@ -1136,33 +1153,41 @@ export async function recalculateInnings(
           matchUpdate.matchPhase = 'finished'
 
           // --- Auto-calculate Winner & Result Summary ---
-          // We can't easily fetch other innings here without risking recursion or slow ops, 
-          // but we can at least try to determine winner if it's the 2nd innings or Super Over.
-          // For now, let's trust the current calculateMatchWinner logic if we had all data, 
-          // but since we only have current totalRuns and matchData.score, let's do a quick check.
-
           const teamA_main = Number(matchData.score?.teamA?.runs || 0);
           const teamB_main = Number(matchData.score?.teamB?.runs || 0);
           const teamA_so = inningId === 'teamA_super' ? totalRuns : Number(matchData.score?.teamA_super?.runs || 0);
           const teamB_so = inningId === 'teamB_super' ? totalRuns : Number(matchData.score?.teamB_super?.runs || 0);
 
-          // Current innings runs might be the latest if it just finished
           const rA = (inningId === 'teamA') ? totalRuns : teamA_main;
           const rB = (inningId === 'teamB') ? totalRuns : teamB_main;
 
+          // Helper to calculate proper win margin
+          const calcMarginNT = (winnerSide: 'teamA' | 'teamB', scoreA: number, scoreB: number) => {
+            const winnerName = winnerSide === 'teamA' ? matchData.teamAName : matchData.teamBName;
+            const isChase = winnerSide === secondSide;
+            if (isChase) {
+              const wktsLeft = Math.max(0, 10 - totalWickets);
+              return `${winnerName} won by ${wktsLeft} wicket${wktsLeft !== 1 ? 's' : ''}`;
+            } else {
+              const diff = Math.abs(scoreA - scoreB);
+              return `${winnerName} won by ${diff} run${diff !== 1 ? 's' : ''}`;
+            }
+          };
+
           if (rA > rB) {
             matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
-            matchUpdate.resultSummary = `${matchData.teamAName} won`;
+            matchUpdate.resultSummary = calcMarginNT('teamA', rA, rB);
           } else if (rB > rA) {
             matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
-            matchUpdate.resultSummary = `${matchData.teamBName} won`;
+            matchUpdate.resultSummary = calcMarginNT('teamB', rA, rB);
           } else if (teamA_so > 0 || teamB_so > 0) {
+            const soDiff = Math.abs(teamA_so - teamB_so);
             if (teamA_so > teamB_so) {
               matchUpdate.winnerId = matchData.teamASquadId || matchData.teamAId || null;
-              matchUpdate.resultSummary = `${matchData.teamAName} won (Super Over)`;
+              matchUpdate.resultSummary = `${matchData.teamAName} won Super Over by ${soDiff} run${soDiff !== 1 ? 's' : ''}`;
             } else if (teamB_so > teamA_so) {
               matchUpdate.winnerId = matchData.teamBSquadId || matchData.teamBId || null;
-              matchUpdate.resultSummary = `${matchData.teamBName} won (Super Over)`;
+              matchUpdate.resultSummary = `${matchData.teamBName} won Super Over by ${soDiff} run${soDiff !== 1 ? 's' : ''}`;
             }
           }
         }
@@ -1175,10 +1200,9 @@ export async function recalculateInnings(
           matchUpdate.matchPhase = 'InningsBreak'
         }
       } else {
-        if (currentPhase !== 'SecondInnings' && currentPhase !== 'InningsBreak' && currentStatus !== 'finished') {
-          matchUpdate.status = 'live'
-          matchUpdate.matchPhase = 'FirstInnings'
-        }
+        // Reverting to live state
+        matchUpdate.status = 'live'
+        matchUpdate.matchPhase = isCalculatingSecondSide ? 'SecondInnings' : 'FirstInnings'
       }
 
       await updateDoc(doc(db, MATCHES_COLLECTION, matchId), matchUpdate)

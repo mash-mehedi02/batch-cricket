@@ -43,8 +43,8 @@ export default function RegisterPlayerPage() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            navigate('/login');
-            return;
+            navigate('?login=true', { replace: true });
+            return
         }
 
         const fetchData = async () => {
@@ -87,8 +87,18 @@ export default function RegisterPlayerPage() {
         e.preventDefault();
         if (!user) return;
 
-        if (!form.name || !form.school || !form.squadId) {
-            toast.error('Please fill in all required fields');
+        if (!form.name.trim()) {
+            toast.error('Please enter your full name');
+            return;
+        }
+
+        if (!form.squadId) {
+            toast.error('You must select a squad to join!');
+            return;
+        }
+
+        if (!form.school.trim()) {
+            toast.error('Please enter your batch/graduation year');
             return;
         }
 
@@ -102,12 +112,15 @@ export default function RegisterPlayerPage() {
                 email: user.email,
                 name: form.name,
                 school: form.school,
+                batch: form.school,
                 squadId: form.squadId,
                 squadName: selectedSquad.name,
+                tournamentId: selectedSquad.tournamentId || '',
+                tournamentName: '',
                 role: form.role,
                 battingStyle: form.battingStyle,
                 bowlingStyle: form.bowlingStyle,
-                photoUrl: form.photoUrl
+                photoUrl: form.photoUrl || ''
             });
 
             toast.success('Registration request submitted successfully!');
@@ -126,6 +139,25 @@ export default function RegisterPlayerPage() {
         return (
             <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#0F172A]' : 'bg-[#F8FAFC]'}`}>
                 <Loader2 className="animate-spin text-blue-500" size={32} />
+            </div>
+        );
+    }
+
+    // If user is an admin or super admin, they cannot be a player
+    if (user?.role === 'admin' || user?.role === 'super_admin') {
+        return (
+            <div className={`min-h-screen p-5 flex flex-col items-center justify-center text-center ${isDarkMode ? 'bg-[#0F172A] text-white' : 'bg-[#F8FAFC] text-slate-900'}`}>
+                <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-full flex items-center justify-center mb-4">
+                    <XCircle size={32} />
+                </div>
+                <h1 className="text-2xl font-black uppercase tracking-tight italic">Admin Account</h1>
+                <p className="text-slate-500 mt-2 max-w-xs">Administrators cannot register as players. Please use a separate email if you wish to participate as a player.</p>
+                <button
+                    onClick={() => navigate('/admin')}
+                    className="mt-6 px-8 py-3 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-2xl font-black uppercase tracking-widest text-sm shadow-lg"
+                >
+                    Go to Admin Dashboard
+                </button>
             </div>
         );
     }
@@ -160,8 +192,8 @@ export default function RegisterPlayerPage() {
 
                 <div className="p-5">
                     <div className={`p-6 rounded-[2rem] border ${existingRequest.status === 'pending'
-                            ? 'bg-amber-50/50 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/30'
-                            : 'bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30'
+                        ? 'bg-amber-50/50 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/30'
+                        : 'bg-red-50/50 border-red-100 dark:bg-red-900/10 dark:border-red-900/30'
                         } flex flex-col items-center text-center`}>
                         {existingRequest.status === 'pending' ? (
                             <>
@@ -311,8 +343,8 @@ export default function RegisterPlayerPage() {
                                             type="button"
                                             onClick={() => setForm({ ...form, role: role as PlayerRole })}
                                             className={`px-3 py-3 rounded-xl border text-[11px] font-black uppercase tracking-tight transition-all ${form.role === role
-                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5 text-slate-500'
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                                : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5 text-slate-500'
                                                 }`}
                                         >
                                             {role.replace('-', ' ')}
@@ -331,8 +363,8 @@ export default function RegisterPlayerPage() {
                                                 type="button"
                                                 onClick={() => setForm({ ...form, battingStyle: style as BattingStyle })}
                                                 className={`px-3 py-3 rounded-xl border text-[10px] font-black uppercase transition-all ${form.battingStyle === style
-                                                        ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900'
-                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5 text-slate-400'
+                                                    ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900'
+                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5 text-slate-400'
                                                     }`}
                                             >
                                                 {style.split('-')[0]}

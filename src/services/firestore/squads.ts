@@ -86,11 +86,18 @@ export const squadService = {
   /**
    * Get squads for a specific admin (or all for super admin)
    */
-  async getByAdmin(adminId: string, isSuperAdmin: boolean = false): Promise<Squad[]> {
+  async getByAdmin(adminId: string, isSuperAdmin: boolean = false, managedSchools: string[] = []): Promise<Squad[]> {
     try {
       let snapshot;
       if (isSuperAdmin) {
         snapshot = await getDocs(query(squadsRef, orderBy('year', 'desc')))
+      } else if (managedSchools && managedSchools.length > 0) {
+        const q = query(
+          squadsRef,
+          where('school', 'in', managedSchools.slice(0, 10)),
+          orderBy('year', 'desc')
+        )
+        snapshot = await getDocs(q)
       } else {
         const q = query(
           squadsRef,
@@ -106,6 +113,8 @@ export const squadService = {
         let q;
         if (isSuperAdmin) {
           q = query(squadsRef)
+        } else if (managedSchools && managedSchools.length > 0) {
+          q = query(squadsRef, where('school', 'in', managedSchools.slice(0, 10)))
         } else {
           q = query(squadsRef, where('adminId', '==', adminId))
         }
@@ -158,6 +167,29 @@ export const squadService = {
     const docSnap = await getDoc(docRef)
     if (!docSnap.exists()) return null
     return { id: docSnap.id, ...docSnap.data() } as Squad
+  },
+
+  /**
+   * Get multiple squads by IDs
+   */
+  async getByIds(ids: string[]): Promise<Squad[]> {
+    if (!ids || ids.length === 0) return []
+    try {
+      // Chunking if necessary (Firestore 'in' query limit is usually 30)
+      const results: Squad[] = []
+      for (let i = 0; i < ids.length; i += 30) {
+        const chunk = ids.slice(i, i + 30)
+        const q = query(squadsRef, where('__name__', 'in', chunk))
+        const snapshot = await getDocs(q)
+        snapshot.docs.forEach(doc => results.push({ id: doc.id, ...doc.data() } as Squad))
+      }
+      return results
+    } catch (error) {
+      console.error('Error in getByIds:', error)
+      // Fallback: Fetch all and filter
+      const all = await this.getAll()
+      return all.filter(s => ids.includes(s.id))
+    }
   },
 
   /**

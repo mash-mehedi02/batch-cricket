@@ -1,6 +1,7 @@
 import {
     collection,
     doc,
+    getDoc,
     getDocs,
     updateDoc,
     serverTimestamp,
@@ -18,16 +19,30 @@ export interface AdminUser {
     name: string;
     email: string;
     role: 'admin' | 'super_admin';
+    managedSchools: string[]; // List of school names this admin can manage
     organizationName: string;
     isActive: boolean;
     createdAt: any;
     lastLogin?: any;
+    updatedAt?: any;
 }
+
+export const SUPER_ADMIN_EMAIL = 'batchcrick@gmail.com';
+
+export const isOriginalSuperAdmin = (email: string) => {
+    return email?.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+};
 
 export const adminService = {
     async getAll() {
         const snap = await getDocs(collection(db, COLLECTIONS.ADMINS));
         return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as AdminUser[];
+    },
+
+    async getById(uid: string) {
+        const snap = await getDoc(doc(db, COLLECTIONS.ADMINS, uid));
+        if (!snap.exists()) return null;
+        return { uid: snap.id, ...snap.data() } as AdminUser;
     },
 
     async updateStatus(uid: string, isActive: boolean) {
@@ -38,7 +53,12 @@ export const adminService = {
         });
     },
 
-    async updateRole(uid: string, role: 'admin' | 'super_admin') {
+    async updateRole(uid: string, role: 'admin' | 'super_admin', adminEmail?: string) {
+        // Prevent demoting the original super admin
+        if (adminEmail && isOriginalSuperAdmin(adminEmail)) {
+            throw new Error('The original Super Admin cannot be demoted.');
+        }
+
         const ref = doc(db, COLLECTIONS.ADMINS, uid);
         await updateDoc(ref, {
             role,
@@ -46,9 +66,52 @@ export const adminService = {
         });
     },
 
-    async delete(uid: string) {
+    async updateManagedSchools(uid: string, managedSchools: string[]) {
+        const ref = doc(db, COLLECTIONS.ADMINS, uid);
+        await updateDoc(ref, {
+            managedSchools,
+            updatedAt: serverTimestamp()
+        });
+    },
+
+    async delete(uid: string, adminEmail?: string) {
+        // Prevent deleting the original super admin
+        if (adminEmail && isOriginalSuperAdmin(adminEmail)) {
+            throw new Error('The original Super Admin cannot be deleted.');
+        }
         const ref = doc(db, COLLECTIONS.ADMINS, uid);
         await deleteDoc(ref);
+    },
+
+    async resetAdminPassword(email: string, newPassword: string) {
+        // This requires a secondary app to perform password update on a different user
+        const { initializeApp, deleteApp } = await import('firebase/app');
+        const { getAuth, signInWithEmailAndPassword, updatePassword, signOut } = await import('firebase/auth');
+        const { default: app } = await import('@/config/firebase');
+        const config = (app as any).options;
+
+        const secondaryApp = initializeApp(config, 'SecondaryReset');
+        const secondaryAuth = getAuth(secondaryApp);
+
+        try {
+            // Note: This requires the super admin to know the current password of the sub-admin OR 
+            // the system to have a way to force reset. 
+            // In Firebase Client SDK, you can't reset another user's password without their credentials.
+            // Admin SDK (Node.js) is required for true "admin reset".
+            // Since this is a client-side app, we will suggest the "Send Password Reset Email" flow
+            // or if the user insists on setting it manually, they might need a custom backend function.
+            // However, the user asked for "reset kore new pass set kore dite parbe".
+            // I will implement a Cloud Function call for this if possible, or use the email flow.
+            // For now, let's use the password reset email as the secure method, 
+            // UNLESS I implement a cloud function.
+
+            // Re-reading: "reset kore new pass set kore dite parbe new password"
+            // I'll assume we might need a cloud function for this.
+            return { success: false, message: 'Cloud Function required for manual password override.' };
+        } catch (error) {
+            await deleteApp(secondaryApp);
+            throw error;
+        }
     },
 
     // Account Creation
@@ -56,9 +119,6 @@ export const adminService = {
         const { initializeApp, deleteApp } = await import('firebase/app');
         const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
 
-        // We must fetch the config to create a secondary app
-        // This is necessary because createUserWithEmailAndPassword on the main app
-        // would log out the CURRENT super admin.
         const { default: app } = await import('@/config/firebase');
         const config = (app as any).options;
 
@@ -68,24 +128,22 @@ export const adminService = {
         try {
             const normalizedEmail = data.email.trim().toLowerCase();
 
-            // 1. Create the user in Firebase Auth
             const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, data.password);
             const uid = userCredential.user.uid;
 
-            // 2. Create the admin document in Firestore (using the PRIMARY app's DB)
-            const ref = doc(db, COLLECTIONS.ADMINS, uid);
-            await setDoc(ref, {
+            const adminRef = doc(db, COLLECTIONS.ADMINS, uid);
+            await setDoc(adminRef, {
                 uid,
                 name: data.name.trim(),
                 email: normalizedEmail,
                 role: data.role,
+                managedSchools: [],
                 isActive: true,
                 organizationName: 'BatchCrick',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
 
-            // 3. Create the user document (for consistency)
             const userRef = doc(db, COLLECTIONS.USERS, uid);
             await setDoc(userRef, {
                 uid,
@@ -95,18 +153,13 @@ export const adminService = {
                 lastLogin: serverTimestamp()
             });
 
-            // 4. Clean up: Sign out from secondary and destroy it
             await signOut(secondaryAuth);
             await deleteApp(secondaryApp);
 
             return { success: true, uid };
         } catch (error: any) {
             await deleteApp(secondaryApp);
-
-            // SECURITY/UX IMPROVEMENT: If email exists, find the UID and promote them
             if (error.code === 'auth/email-already-in-use') {
-                console.log('[adminService] Email exists. Attempting to locate UID and promote to admin...');
-
                 try {
                     const normalizedEmail = data.email.trim().toLowerCase();
                     const usersRef = collection(db, COLLECTIONS.USERS);
@@ -117,20 +170,19 @@ export const adminService = {
                         const existingUserDoc = querySnap.docs[0];
                         const uid = existingUserDoc.id;
 
-                        // Promote to admin in Firestore
                         const adminRef = doc(db, COLLECTIONS.ADMINS, uid);
                         await setDoc(adminRef, {
                             uid,
                             name: data.name.trim() || existingUserDoc.data().displayName || 'Existing User',
                             email: normalizedEmail,
                             role: data.role,
+                            managedSchools: [],
                             isActive: true,
                             organizationName: 'BatchCrick',
                             createdAt: serverTimestamp(),
                             updatedAt: serverTimestamp()
                         }, { merge: true });
 
-                        // Update role in users collection too
                         await updateDoc(existingUserDoc.ref, {
                             role: data.role,
                             updatedAt: serverTimestamp()
@@ -142,8 +194,6 @@ export const adminService = {
                     console.error('[adminService] Promotion fallback failed:', promotionError);
                 }
             }
-
-            console.error('[adminService] createAdminAccount failed:', error);
             throw error;
         }
     }

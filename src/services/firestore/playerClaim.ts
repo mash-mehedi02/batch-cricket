@@ -1,5 +1,5 @@
 import { db, auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from '@/config/firebase'
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { Capacitor } from '@capacitor/core'
 
 /**
@@ -381,4 +381,24 @@ export async function updatePlayerClaimEmail(playerId: string, newEmail: string)
     })
 
     return { success: true }
+}
+
+/**
+ * Admin: Check if email is already used for any player
+ */
+export async function isEmailRegistered(email: string, excludePlayerId?: string): Promise<boolean> {
+    if (!email) return false
+    const emailLower = email.trim().toLowerCase()
+
+    const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower))
+    const snap = await getDocs(q)
+
+    if (snap.empty) return false
+
+    // If we are editing, we ignore the current player's own record
+    if (excludePlayerId) {
+        return snap.docs.some(doc => doc.id !== excludePlayerId)
+    }
+
+    return true
 }

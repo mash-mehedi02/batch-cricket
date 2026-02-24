@@ -10,14 +10,12 @@ import {
   updateProfile,
   signOut,
   onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithRedirect,
-  signInWithPopup,
-  getRedirectResult,
-  setPersistence,
   sendPasswordResetEmail,
-  browserLocalPersistence
+  browserLocalPersistence,
+  setPersistence,
+  getRedirectResult
 } from 'firebase/auth'
+
 import { doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db } from '@/config/firebase'
 import { User } from '@/types'
@@ -28,11 +26,11 @@ import toast from 'react-hot-toast'
 interface AuthState {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<boolean>
   signup: (email: string, password: string, profileData: any) => Promise<void>
   resetPassword: (email: string) => Promise<void>
-  googleLogin: () => Promise<void>
-  processLogin: (user: any) => Promise<void>
+  googleLogin: () => Promise<boolean>
+  processLogin: (user: any) => Promise<boolean>
   updatePlayerProfile: (uid: string, data: any) => Promise<void>
   logout: () => Promise<void>
   initialize: () => void
@@ -43,10 +41,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
 
   // Legacy Login
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string): Promise<boolean> => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      await get().processLogin(userCredential.user);
+      return await get().processLogin(userCredential.user);
     } catch (error: any) {
       set({ loading: false });
       throw error;
@@ -99,38 +97,78 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   googleLogin: async () => {
     try {
       console.log("[AuthStore] Initiating Google Login...");
+
+      const { Capacitor } = await import('@capacitor/core');
+
+      // --- NATIVE ANDROID/IOS PATH ---
+      if (Capacitor.isNativePlatform()) {
+        console.log("[AuthStore] Native Android detected. Using Capacitor Google Auth.");
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+        const { GoogleAuthProvider, signInWithCredential } = await import('firebase/auth');
+
+        try {
+          // Explicitly call signIn (Initialization is handled in main.tsx)
+          const result = await GoogleAuth.signIn();
+
+          if (!result || !result.authentication.idToken) {
+            console.warn("[AuthStore] Native Sign-In: No ID Token received.");
+            return false;
+          }
+
+          const credential = GoogleAuthProvider.credential(result.authentication.idToken);
+          const userCredential = await signInWithCredential(auth, credential);
+
+          console.log("[AuthStore] Native Login Success:", userCredential.user.email);
+          return await get().processLogin(userCredential.user);
+
+        } catch (nativeError: any) {
+          // Catch cancellations specifically (12501 or message)
+          const isCancel =
+            nativeError.message?.toLowerCase().includes('cancel') ||
+            nativeError.code === 'CANCELLED' ||
+            nativeError.code === '12501';
+
+          if (isCancel) {
+            console.log("[AuthStore] Native Login Cancelled.");
+          } else {
+            console.error('[AuthStore] Native Login Error:', nativeError);
+            toast.error(`Login Failed: ${nativeError.message || 'Check your connection'}`);
+          }
+          return false;
+        }
+      }
+
+      // --- WEB PATH ---
+      console.log("[AuthStore] Web detected. Using Popup/Redirect.");
+      const { GoogleAuthProvider, signInWithPopup, signInWithRedirect, setPersistence, browserLocalPersistence } = await import('firebase/auth');
+
       await setPersistence(auth, browserLocalPersistence);
       const provider = new GoogleAuthProvider();
 
-      // Use Popup for Web as it handles session state better on some browsers (especially local dev)
-      console.log("[AuthStore] Attempting Popup Login...");
-      const result = await signInWithPopup(auth, provider);
-
-      if (result && result.user) {
-        console.log("[AuthStore] Popup Login Success:", result.user.email);
-        await get().processLogin(result.user);
-      }
-    } catch (error: any) {
-      console.error('[AuthStore] Google Login Error:', error);
-
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
-        console.log("[AuthStore] Popup blocked/closed. Falling back to Redirect...");
-        try {
-          const provider = new GoogleAuthProvider();
-          await signInWithRedirect(auth, provider);
-        } catch (redirectError: any) {
-          console.error("[AuthStore] Redirect Fallback Error:", redirectError);
-          toast.error(`Login Failed: ${redirectError.message}`);
+      try {
+        const result = await signInWithPopup(auth, provider);
+        if (result && result.user) {
+          return await get().processLogin(result.user);
         }
-      } else {
-        toast.error(`Login Failed: ${error.message}`);
-        throw error;
+      } catch (popupError: any) {
+        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+          console.log("[AuthStore] Web Popup blocked. Falling back to Redirect...");
+          await signInWithRedirect(auth, provider);
+          return false;
+        }
+        console.error('[AuthStore] Web Login Error:', popupError);
+        toast.error(`Login Failed: ${popupError.message}`);
       }
+      return false;
+    } catch (error: any) {
+      console.error('[AuthStore] Fatal Google Login Error:', error);
+      toast.error("An unexpected error occurred.");
+      return false;
     }
   },
 
-  // Centralized Login Processing
-  processLogin: async (user: any) => {
+  // Centralized Login Processing - Returns true if it's a new account
+  processLogin: async (user: any): Promise<boolean> => {
     console.log("[AuthStore] Processing Login for:", user.email);
     try {
       const userRef = doc(db, 'users', user.uid);
@@ -146,6 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
+      const isNewUser = !userSnap.exists();
       let userData: any = {
         uid: user.uid,
         email: user.email || null,
@@ -156,23 +195,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         lastLogin: serverTimestamp(),
       };
 
-      // Auto-Link Player Profile if email matches a registered player
+      // --- AUTO-LINK & IDENTITY SYNC ---
       if (user.email) {
         try {
           const emailLower = user.email.toLowerCase().trim();
+
+          // 1. Check if this email is registered in player_secrets
           const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
           const secretsSnap = await getDocs(q);
 
           if (!secretsSnap.empty) {
             const playerId = secretsSnap.docs[0].id;
-            console.log("[AuthStore] Auto-linking: Matching player found for", emailLower, "ID:", playerId);
+            console.log("[AuthStore] Identity Match Found:", emailLower, "-> Player:", playerId);
 
             const playerRef = doc(db, 'players', playerId);
             const playerSnap = await getDoc(playerRef);
 
             if (playerSnap.exists()) {
               const playerData = playerSnap.data();
-              // Auto-claim if not already claimed, or if claimed by a different UID but email matches
+
+              // If not already claimed by this user, bind it now
               if (!playerData.claimed || playerData.ownerUid !== user.uid) {
                 await updateDoc(playerRef, {
                   claimed: true,
@@ -180,29 +222,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                   lastVerifiedAt: serverTimestamp(),
                   updatedAt: serverTimestamp()
                 });
-                console.log("[AuthStore] Player profile auto-linked successfully in Players collection.");
-                toast.success('Player profile auto-linked!', { icon: '🔗' });
+                console.log("[AuthStore] Profile claimed/linked successfully.");
+                toast.success('Player profile linked!', { icon: '🔗' });
               }
-              // Mark user as registered player in the session
+
+              // Update session data
               userData.isRegisteredPlayer = true;
-              userData.playerId = playerId; // Link to the specific player doc
-              userData.linkedPlayerId = playerId; // Sync with alternative field name
+              userData.playerId = playerId;
+              userData.linkedPlayerId = playerId;
               userData.autoFillProfile = playerData;
 
-              // If they are not an admin, give them the 'player' role instead of 'viewer'
               if (userRole === 'viewer') {
                 userRole = 'player';
                 userData.role = 'player';
-                console.log("[AuthStore] Role upgraded to 'player' for auto-linked user.");
+              }
+            }
+          } else {
+            // 2. Revocation: If user was a player but current email is NOT in player_secrets anymore
+            // (e.g. Admin changed the email in the player profile)
+            if (userSnap.exists() && userSnap.data().isRegisteredPlayer) {
+              console.log("[AuthStore] Identity Discrepancy: Current email doesn't match the linked playerId. Revoking access.");
+              userData.isRegisteredPlayer = false;
+              userData.playerId = null;
+              userData.linkedPlayerId = null;
+              userData.playerProfile = null;
+              if (userRole === 'player') {
+                userRole = 'viewer';
+                userData.role = 'viewer';
               }
             }
           }
         } catch (linkErr) {
-          console.warn("[AuthStore] Auto-linking failed:", linkErr);
+          console.warn("[AuthStore] Identity sync failed:", linkErr);
         }
       }
 
-      if (userSnap.exists()) {
+      if (!isNewUser) {
         const existingData: any = userSnap.data();
         console.log("[AuthStore] Profile found. Maintaining existing profile data.");
 
@@ -241,17 +296,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           lastLogin: serverTimestamp(),
           photoURL: userData.photoURL || null,
           displayName: userData.displayName || null,
-          role: userRole
+          role: userRole,
+          isRegisteredPlayer: userData.isRegisteredPlayer || false,
+          playerId: userData.playerId || null,
+          linkedPlayerId: userData.linkedPlayerId || null,
+          playerProfile: userData.playerProfile || null
         };
-
-        if (userData.isRegisteredPlayer) {
-          updates.isRegisteredPlayer = true;
-          if (userData.playerId) {
-            updates.playerId = userData.playerId;
-            updates.linkedPlayerId = userData.playerId;
-          }
-          if (userData.playerProfile) updates.playerProfile = userData.playerProfile;
-        }
 
         updateDoc(userRef, updates).catch(e => console.error("[AuthStore] Login Update Warn:", e));
 
@@ -287,6 +337,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loading: false,
       });
       console.log("[AuthStore] Login Process Complete. Role:", userData.role);
+
+      return isNewUser;
 
     } catch (error: any) {
       console.error("[AuthStore] Process Login Error:", error);
@@ -359,20 +411,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     console.log("[AuthStore] Initializing Auth System...");
 
     // Force persistence once during init to be safe
-    setPersistence(auth, browserLocalPersistence).catch(e => console.error("Persistence error:", e));
+    setPersistence(auth, browserLocalPersistence).catch((e: any) => console.error("Persistence error:", e));
 
     // Check for Redirect Result (Mobile/Fallback)
-    getRedirectResult(auth).then(async (result) => {
+    getRedirectResult(auth).then(async (result: any) => {
       if (result && result.user) {
         console.log("[AuthStore] Redirect Result found:", result.user.email);
         toast.success("Redirect Login Successful!", { id: 'login-success' });
-        await get().processLogin(result.user);
+        const isNew = await get().processLogin(result.user);
+        if (isNew) {
+          window.location.href = '/edit-profile';
+        }
       }
-    }).catch(e => {
+    }).catch((e: any) => {
       if (e.code !== 'auth/popup-closed-by-user') {
         console.error("[AuthStore] Redirect Result Error:", e);
         // Don't toast for "no result found" which is common on refresh
-        if (!e.message.includes('redirect-result')) {
+        if (e.message && !e.message.includes('redirect-result')) {
           toast.error(`Redirect Login Error: ${e.message}`);
         }
       }
@@ -390,11 +445,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const data = docSnap.data() as User
             console.log("[AuthStore] Profile Loaded. Role:", data.role);
 
-            // If the user document exists but they aren't marked as a registered player,
-            // we should re-run processLogin to see if an admin has added their email
-            // to the player database since their last login.
-            if (!data.isRegisteredPlayer || !data.playerId) {
-              console.log("[AuthStore] User is not yet linked or missing Player ID. Checking for match...");
+            // Always check for identity sync if viewer OR if they are a player
+            // to ensure their link is still valid (in case admin changed their email).
+            if (data.role === 'player' || !data.isRegisteredPlayer || !data.playerId) {
+              console.log("[AuthStore] Verifying identity sync...");
               await get().processLogin(firebaseUser);
             } else {
               set({ user: data, loading: false })

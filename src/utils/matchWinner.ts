@@ -26,9 +26,11 @@ export function calculateMatchWinner(
 
   if (!teamAInnings || !teamBInnings) return defaultResult
 
-  // Only calculate winner if match is actually finished
+  // Calculate winner if match is finished OR in a tied state (for preview in admin panel)
   const status = String(match?.status || '').toLowerCase()
-  if (status !== 'finished' && status !== 'completed' && match) return defaultResult
+  const matchPhase = String((match as any)?.matchPhase || '').toLowerCase()
+  const isTiedPhase = matchPhase === 'tied'
+  if (status !== 'finished' && status !== 'completed' && !isTiedPhase && match) return defaultResult
 
   const aRuns = Number(teamAInnings.totalRuns || 0)
   const bRuns = Number(teamBInnings.totalRuns || 0)

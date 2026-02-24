@@ -13,7 +13,9 @@ import {
     Trash2,
     Lock,
     Unlock,
-    Shield
+    Shield,
+    Clock,
+    Check
 } from 'lucide-react'
 import { adminService, AdminUser } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
@@ -26,13 +28,14 @@ import { squadService } from '@/services/firestore/squads'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/config/firebase'
 import { COLLECTIONS } from '@/services/firestore/collections'
+import { playerRequestService, PlayerRegistrationRequest } from '@/services/firestore/playerRequests'
 
 export default function AdminUsers() {
     const navigate = useNavigate()
     const { user: currentUser, loading: authLoading } = useAuthStore()
     const isSuperAdmin = currentUser?.role === 'super_admin'
 
-    const [activeTab, setActiveTab] = useState<'admins' | 'users'>('admins')
+    const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'requests'>('admins')
     const [showInviteModal, setShowInviteModal] = useState(false)
     const [showSquadModal, setShowSquadModal] = useState(false)
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -48,6 +51,7 @@ export default function AdminUsers() {
     const [admins, setAdmins] = useState<AdminUser[]>([])
     const [allUsers, setAllUsers] = useState<User[]>([])
     const [squads, setSquads] = useState<Squad[]>([])
+    const [pendingRequests, setPendingRequests] = useState<PlayerRegistrationRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
 
@@ -76,6 +80,10 @@ export default function AdminUsers() {
             // 3. Load Squads
             const squadList = await squadService.getAll()
             setSquads(squadList)
+
+            // 4. Load Pending Requests
+            const requests = await playerRequestService.getPendingRequests()
+            setPendingRequests(requests)
         } catch (error) {
             console.error('Error loading user data:', error)
             toast.error('Failed to load data lists')
@@ -264,11 +272,14 @@ export default function AdminUsers() {
         a.uid.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    const filteredUsers = allUsers.filter(u =>
-        u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.uid.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    const filteredUsers = allUsers.filter(u => {
+        // Exclude anyone who is an admin from the potential player/user list
+        if (admins.some(a => a.uid === u.uid)) return false;
+
+        return u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.uid.toLowerCase().includes(searchTerm.toLowerCase())
+    })
 
     return (
         <div className="space-y-8 max-w-[1600px] mx-auto">
@@ -309,7 +320,22 @@ export default function AdminUsers() {
                                 }`}
                         >
                             <UserCheck className="w-4 h-4" />
-                            All Users
+                            Users
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('requests')}
+                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all relative ${activeTab === 'requests'
+                                ? 'bg-white text-blue-600 shadow-xl'
+                                : 'text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            <Clock className="w-4 h-4" />
+                            Requests
+                            {pendingRequests.length > 0 && (
+                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">
+                                    {pendingRequests.length}
+                                </span>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -498,7 +524,7 @@ export default function AdminUsers() {
                                 </div>
                             )}
                         </div>
-                    ) : (
+                    ) : activeTab === 'users' ? (
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50/50 border-b border-slate-100">
@@ -572,6 +598,14 @@ export default function AdminUsers() {
                                                         >
                                                             Edit Profile
                                                         </button>
+                                                    ) : pendingRequests.some(r => r.uid === user.uid) ? (
+                                                        <button
+                                                            onClick={() => setActiveTab('requests')}
+                                                            className="px-5 py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 active:scale-95 flex items-center gap-2 ml-auto"
+                                                        >
+                                                            <Clock size={14} />
+                                                            Review Request
+                                                        </button>
                                                     ) : (
                                                         <button
                                                             disabled={!(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer)}
@@ -598,6 +632,69 @@ export default function AdminUsers() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    ) : (
+                        <div className="p-2 sm:p-6">
+                            {/* Requests View Integrated */}
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between mb-4 px-2">
+                                    <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Pending Approvals</h2>
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase">
+                                        {pendingRequests.length} Waiting
+                                    </div>
+                                </div>
+
+                                {pendingRequests.length === 0 ? (
+                                    <div className="py-20 flex flex-col items-center justify-center text-center opacity-50">
+                                        <CheckCircle2 size={48} className="text-slate-300 mb-4" />
+                                        <p className="font-bold text-slate-400 uppercase tracking-widest text-sm">No pending requests</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {pendingRequests.map(request => (
+                                            <div key={request.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-white/5 p-6 shadow-sm hover:shadow-xl transition-all group flex flex-col gap-4">
+                                                <div className="flex gap-5">
+                                                    <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 shadow-inner border border-slate-100 dark:border-white/10">
+                                                        {request.photoUrl ? (
+                                                            <img src={request.photoUrl} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-slate-300"><UserCheck size={24} /></div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{request.name}</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400 mt-1">{request.email}</p>
+                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase rounded">{request.role}</span>
+                                                            <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] font-black uppercase rounded">{request.batch}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2 border border-slate-100/50 dark:border-white/5">
+                                                    <div className="flex items-center justify-between text-[10px]">
+                                                        <span className="font-black text-slate-400 uppercase tracking-tighter">Requesting Squad</span>
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{request.squadName}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-[10px]">
+                                                        <span className="font-black text-slate-400 uppercase tracking-tighter">School</span>
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{request.school}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-3 pt-2">
+                                                    <button
+                                                        onClick={() => navigate('/admin/player-approvals')}
+                                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 hover:bg-blue-700 transition-all font-inter"
+                                                    >
+                                                        Review & Approve
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

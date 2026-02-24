@@ -141,7 +141,7 @@ const AdminLiveScoring = () => {
     useEffect(() => {
         const shouldCalculate = (finalizeModalOpen || match?.status === 'finished') && match && inningsA && inningsB && teamAPlayers.length > 0 && teamBPlayers.length > 0;
         if (shouldCalculate) {
-            const suggested = calculatePotM(match, inningsA, inningsB, teamAPlayers, teamBPlayers);
+            const suggested = calculatePotM(match, inningsA, inningsB, teamAPlayers, teamBPlayers, inningsASO, inningsBSO);
             if (suggested) {
                 setSuggestedPotm(suggested);
                 // IF no manual choice yet, default to auto-suggestion
@@ -270,6 +270,26 @@ const AdminLiveScoring = () => {
     const isTeamB = match?.currentBatting === 'teamB' || match?.currentBatting === 'teamB_super';
     const isSuper = match?.isSuperOver || String(match?.currentBatting || '').includes('super');
 
+    const isBowlerBlocked = useMemo(() => {
+        if (!match || !selectedBowler) return false;
+        // 1. If this guy is already the active bowler for this over, allow him to continue
+        if (match.currentBowlerId === selectedBowler) return false;
+
+        // 2. ICC Rule: Same bowler cannot bowl consecutive overs
+        // BUT we must allow him if he's currently in the middle of an over (e.g. after undo)
+        const legalBallsCount = inningsBalls.filter(b => b.isLegal !== false).length;
+        const isMidOver = inningsBalls.length > 0 &&
+            inningsBalls[inningsBalls.length - 1].bowlerId === selectedBowler &&
+            (legalBallsCount % 6 !== 0);
+
+        if (isMidOver) return false;
+
+        // 3. Super Over relaxation: Anyone can bowl in Super Over
+        if (isSuper) return false;
+
+        return match.lastOverBowlerId === selectedBowler;
+    }, [match?.lastOverBowlerId, match?.currentBowlerId, selectedBowler, inningsBalls]);
+
     const currentInnings = useMemo(() => {
         if (!match) return null;
         const cb = match.currentBatting;
@@ -370,6 +390,7 @@ const AdminLiveScoring = () => {
     const handleSwapStrike = async () => {
         if (!matchId || !selectedStriker || !selectedNonStriker) return;
         setProcessing(true);
+        processingRef.current = true;
         try {
             await matchService.update(matchId, {
                 currentStrikerId: selectedNonStriker,
@@ -380,6 +401,7 @@ const AdminLiveScoring = () => {
             toast.error('Failed to swap strike');
         } finally {
             setProcessing(false);
+            processingRef.current = false;
         }
     };
 
@@ -395,7 +417,7 @@ const AdminLiveScoring = () => {
     };
 
     const executeUndo = async () => {
-        if (processing) return;
+        if (processing || processingRef.current) return;
         if (!matchId || !match) {
             console.warn("[AdminLiveScoring] Undo blocked: match data not loaded.", { matchId, hasMatch: !!match });
             toast.error("Match data loading, please wait...");
@@ -411,6 +433,7 @@ const AdminLiveScoring = () => {
             console.log("[AdminLiveScoring] currentBatting missing in match doc, defaulting to teamA for undo check.");
         }
 
+        processingRef.current = true;
         setProcessing(true);
         try {
             console.log(`[AdminLiveScoring] Starting undo for ${inningKv}...`);
@@ -429,6 +452,7 @@ const AdminLiveScoring = () => {
             if (balls.length === 0) {
                 toast.error("No balls to undo");
                 setProcessing(false);
+                processingRef.current = false;
                 return;
             }
 
@@ -475,9 +499,10 @@ const AdminLiveScoring = () => {
             const statusLower = String(match.status || '').toLowerCase();
             const phaseLower = String(match.matchPhase || '').toLowerCase();
 
-            // IF match was finished or in break, or if we are back in Team A, bring it back to LIVE
+            // IF match was finished or in break, or tied, or if we are back in Team A, bring it back to LIVE
             const isTeamA = inningKv === 'teamA';
-            const wasFinished = statusLower === 'finished' || statusLower === 'inningsbreak' || phaseLower === 'finished' || phaseLower === 'inningsbreak' || statusLower === 'innings break';
+            const wasFinished = ['finished', 'inningsbreak', 'innings break', 'tied'].includes(statusLower) ||
+                ['finished', 'inningsbreak', 'tied'].includes(phaseLower);
 
             if (wasFinished || isTeamA) {
                 updates.status = 'live';
@@ -517,6 +542,7 @@ const AdminLiveScoring = () => {
             toast.error("Failed to undo last ball");
         } finally {
             setProcessing(false);
+            processingRef.current = false;
         }
     };
 
@@ -551,34 +577,82 @@ const AdminLiveScoring = () => {
     };
 
     const validateSubmission = () => {
+        console.log("[AdminLiveScoring] Running validation...", {
+            selectedStriker,
+            selectedNonStriker,
+            selectedBowler,
+            runInput,
+            lastOverBowler: match?.lastOverBowlerId
+        });
+
         if (!selectedStriker || !selectedNonStriker || !selectedBowler) {
+            console.warn("[AdminLiveScoring] Validation FAILED: Missing player selection.");
             toast.error("Select Striker, Non-Striker & Bowler!");
             return false;
         }
 
-        // ICC Rule: Same bowler cannot bowl consecutive overs
-        if (match?.lastOverBowlerId === selectedBowler) {
+        // Consecutive over check with "Continuing-Over" exemption
+        if (isBowlerBlocked) {
+            console.warn("[AdminLiveScoring] Validation FAILED: Consecutive overs by", selectedBowler, {
+                lastOverBowler: match?.lastOverBowlerId,
+                isMidOver: inningsBalls.length > 0 && (inningsBalls.filter(b => b.isLegal !== false).length % 6 !== 0)
+            });
             toast.error("Same bowler cannot bowl consecutive overs! Change bowler first.");
             return false;
         }
 
         if (selectedStriker === selectedNonStriker) {
+            console.warn("[AdminLiveScoring] Validation FAILED: Striker and Non-Striker are the same.");
             toast.error("Striker & Non-Striker must be different!");
             return false;
         }
+
         if (runInput === null && !wicketModalOpen) {
+            console.warn("[AdminLiveScoring] Validation FAILED: No runs selected.");
             toast.error("Select Runs (0-6)");
             return false;
         }
+
+        console.log("[AdminLiveScoring] Validation passed.");
         return true;
     };
 
     const submitBall = async (wicketData?: any) => {
-        if (!match || !matchId) return;
-        if (processingRef.current) return;
+        console.log("[AdminLiveScoring] submitBall triggered", {
+            wicketData,
+            processing,
+            processingRef: processingRef.current,
+            matchId,
+            selectedStriker,
+            selectedNonStriker,
+            selectedBowler,
+            runInput
+        });
+
+        if (!match || !matchId) {
+            console.error("[AdminLiveScoring] Error: Match data missing");
+            return;
+        }
+
+        if (processingRef.current) {
+            console.warn("[AdminLiveScoring] Blocked: Another operation is in progress.");
+            toast.error("Still processing last action... please wait.");
+            return;
+        }
+
+        // Fail-safe: release lock after 8 seconds
+        const lockTimeout = setTimeout(() => {
+            if (processingRef.current) {
+                processingRef.current = false;
+                setProcessing(false);
+                console.error("[AdminLiveScoring] Emergency Lock Release!");
+            }
+        }, 8000);
 
         if (isInningsComplete) {
+            console.log("[AdminLiveScoring] Blocked: Innings complete.");
             toast.error("Innings or match is complete");
+            clearTimeout(lockTimeout);
             return;
         }
 
@@ -716,7 +790,9 @@ const AdminLiveScoring = () => {
             const legalBallsAfter = result.inningsData?.legalBalls || 0;
             const wicketsAfter = result.inningsData?.totalWickets || 0;
             const isFinalBall = legalBallsAfter >= overLimit;
-            const isFinalWicket = wicketsAfter >= (battingPlayingXI.length - 1);
+            const isFinalWicket = isSuper
+                ? wicketsAfter >= 2
+                : wicketsAfter >= (battingPlayingXI.length - 1);
 
             if (isFinalBall || isFinalWicket) {
                 const teamName = match?.currentBatting === 'teamA' ? match?.teamAName : match?.teamBName;
@@ -768,6 +844,7 @@ const AdminLiveScoring = () => {
             if (nextBowler !== match.currentBowlerId) updates.currentBowlerId = nextBowler;
 
             if (Object.keys(updates).length > 0) {
+                console.log("[AdminLiveScoring] Syncing match document updates:", updates);
                 await matchService.update(matchId, updates);
             }
 
@@ -785,6 +862,7 @@ const AdminLiveScoring = () => {
             console.error(err);
             toast.error(err.message || 'Failed to update score');
         } finally {
+            if (lockTimeout) clearTimeout(lockTimeout);
             processingRef.current = false;
             setProcessing(false);
             setWicketModalOpen(false);
@@ -825,6 +903,8 @@ const AdminLiveScoring = () => {
         }
 
         try {
+            setProcessing(true);
+            processingRef.current = true;
             const field = batterTargetEnd === 'striker' ? 'currentStrikerId' :
                 (batterTargetEnd === 'nonStriker' ? 'currentNonStrikerId' :
                     (!selectedStriker ? 'currentStrikerId' : 'currentNonStrikerId'));
@@ -837,6 +917,9 @@ const AdminLiveScoring = () => {
         } catch (err) {
             console.error(err);
             toast.error("Failed to update next batter");
+        } finally {
+            setProcessing(false);
+            processingRef.current = false;
         }
     };
 
@@ -851,6 +934,7 @@ const AdminLiveScoring = () => {
         }
         try {
             setProcessing(true);
+            processingRef.current = true;
             await matchService.update(matchId, { currentBowlerId: nextBowlerId });
             setNextBowlerModalOpen(false);
             setNextBowlerId('');
@@ -860,12 +944,14 @@ const AdminLiveScoring = () => {
             toast.error("Failed to update bowler");
         } finally {
             setProcessing(false);
+            processingRef.current = false;
         }
     };
 
     const handleManualCommentarySubmit = async () => {
         if (!manualCommentary.trim() || !matchId || !match) return;
         setProcessing(true);
+        processingRef.current = true;
         try {
             const currentInn = match.currentBatting === 'teamB' ? inningsB : inningsA;
             await commentaryService.addManualCommentary(
@@ -887,12 +973,14 @@ const AdminLiveScoring = () => {
             toast.error("Failed to add commentary");
         } finally {
             setProcessing(false);
+            processingRef.current = false;
         }
     };
 
     const handleFinalizeConfirm = async () => {
         if (!matchId || !match) return;
         setProcessing(true);
+        processingRef.current = true;
         try {
             // 1. Calculate Winner ID for the points table
             const finalResult = resultSummary; // Use memoized result which includes SO
@@ -914,14 +1002,14 @@ const AdminLiveScoring = () => {
             }
 
             // 2. Update Match Status (Triggers stats sync in service)
-            const chosenPotmId = potmId || suggestedPotm?.id || undefined;
+            const chosenPotmId = potmId || suggestedPotm?.id || null;
 
             await matchService.update(matchId, {
                 status: 'finished',
                 matchPhase: 'finished',
                 playerOfTheMatch: chosenPotmId,
                 resultSummary: finalResult,
-                winnerId: winnerSquadId ? (winnerSquadId as string) : undefined
+                winnerId: winnerSquadId ? (winnerSquadId as string) : null
             });
 
             // 3. Send Push Notification for Match Result
@@ -947,6 +1035,7 @@ const AdminLiveScoring = () => {
             toast.error("Failed to finalize: " + error.message);
         } finally {
             setProcessing(false);
+            processingRef.current = false;
         }
     };
 
@@ -955,13 +1044,16 @@ const AdminLiveScoring = () => {
         if (!window.confirm("ARE YOU SURE? This will start a 1-over Super Over without deleting main match scores!")) return;
 
         setProcessing(true);
+        processingRef.current = true;
         try {
             // 1. Determine Batting Order for Super Over
             // ICC Rule: Team batting second in the match will bat first in the Super Over.
-            // If matchPhase is 'Tied', currentBatting is the team that just finished 2nd innings.
-            const battedSecond = match.currentBatting || 'teamB';
-            const firstBatInSO = battedSecond; // teamA or teamB
+            // When match is tied, currentBatting is the team that just finished the 2nd innings.
+            const battedSecond = match.currentBatting === 'teamB' ? 'teamB' : (match.currentBatting === 'teamA' ? 'teamA' : 'teamB');
+            const firstBatInSO = battedSecond;
             const firstBatSOInningId = firstBatInSO === 'teamA' ? 'teamA_super' : 'teamB_super';
+
+            console.log(`[SuperOver] Batted Second: ${battedSecond}, First to bat in SO: ${firstBatSOInningId}`);
 
             // 2. Store stats if not already stored
             const mainScore = match.isSuperOver ? match.mainMatchScore : {
@@ -988,8 +1080,8 @@ const AdminLiveScoring = () => {
                 // DO NOT reset innings1Score/Wickets/Overs or target here,
                 // as they relate to the main match and are used for display/scorecard.
                 // The Super Over will manage its own score in the 'score' map and innings docs.
-                winnerId: undefined,
-                resultSummary: undefined
+                winnerId: null,
+                resultSummary: null
             });
 
             if (matchId) {
@@ -1061,15 +1153,32 @@ const AdminLiveScoring = () => {
                     <div style={{ width: '64px', height: '64px', background: '#dbeafe', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                         {match.matchPhase?.toLowerCase() === 'tied' ? <Activity size={32} className="text-amber-500" /> : <Megaphone size={32} className="text-blue-600" />}
                     </div>
-                    <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', margin: '0 0 4px' }}>{match.matchPhase?.toLowerCase() === 'tied' ? 'Match Tied!' : 'Innings Break'}</h2>
-                    <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px' }}>{match.matchPhase?.toLowerCase() === 'tied' ? 'Both teams scored equally!' : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished.`}</p>
-                    <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '12px 20px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                    <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', margin: '0 0 4px' }}>
+                        {match.matchPhase?.toLowerCase() === 'tied' ? 'Match Tied!' : (isSuper ? 'Super Over Break' : 'Innings Break')}
+                    </h2>
+                    <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px' }}>
+                        {match.matchPhase?.toLowerCase() === 'tied'
+                            ? 'Both teams scored equally! Start a Super Over or finalize as Tied.'
+                            : (isSuper
+                                ? `${match.currentBatting?.includes('teamA') ? match.teamAName : match.teamBName} finished their Super Over.`
+                                : `${match.currentBatting === 'teamA' ? match.teamAName : match.teamBName} finished.`)}
+                    </p>
+                    <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '12px 20px', border: '1px solid #e2e8f0', marginBottom: '20px', width: '100%', maxWidth: '320px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '24px', marginBottom: '6px' }}><span style={{ fontWeight: 600, color: '#475569' }}>{match.teamAName}</span><span style={{ fontWeight: 800 }}>{inningsA?.totalRuns || 0}-{inningsA?.totalWickets || 0} <span style={{ fontSize: '12px', color: '#94a3b8' }}>({inningsA?.overs || '0.0'})</span></span></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '24px' }}><span style={{ fontWeight: 600, color: '#475569' }}>{match.teamBName}</span><span style={{ fontWeight: 800 }}>{inningsB?.totalRuns || 0}-{inningsB?.totalWickets || 0} <span style={{ fontSize: '12px', color: '#94a3b8' }}>({inningsB?.overs || '0.0'})</span></span></div>
+                        {/* Show Super Over scores if available */}
+                        {isSuper && (inningsASO || inningsBSO) && (
+                            <>
+                                <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 0' }} />
+                                <div style={{ fontSize: '10px', fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Super Over</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '24px', marginBottom: '4px' }}><span style={{ fontWeight: 600, color: '#475569', fontSize: '13px' }}>{match.teamAName}</span><span style={{ fontWeight: 800, fontSize: '13px' }}>{inningsASO?.totalRuns || 0}-{inningsASO?.totalWickets || 0} <span style={{ fontSize: '11px', color: '#94a3b8' }}>({inningsASO?.overs || '0.0'})</span></span></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '24px' }}><span style={{ fontWeight: 600, color: '#475569', fontSize: '13px' }}>{match.teamBName}</span><span style={{ fontWeight: 800, fontSize: '13px' }}>{inningsBSO?.totalRuns || 0}-{inningsBSO?.totalWickets || 0} <span style={{ fontSize: '11px', color: '#94a3b8' }}>({inningsBSO?.overs || '0.0'})</span></span></div>
+                            </>
+                        )}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
                         {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={handleStartSuperOver} disabled={processing} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ Super Over</button>}
-                        {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={async () => { if (!matchId) return; if (!window.confirm('Finish as TIE?')) return; setProcessing(true); try { await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: undefined, resultSummary: 'Match Tied' }); toast.success('Tied!'); } catch (e: any) { toast.error(e.message); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '10px 20px', background: '#475569', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>🏆 Finish (Tied)</button>}
+                        {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={async () => { if (!matchId) return; if (!window.confirm('Finish as TIE?')) return; setProcessing(true); try { await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: null, resultSummary: 'Match Tied' }); toast.success('Tied!'); } catch (e: any) { toast.error(e.message); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '10px 20px', background: '#475569', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>🏆 Finish (Tied)</button>}
                         {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && <button onClick={() => { if (confirm('Start 2nd Innings?')) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; const t = Number((match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('2nd Innings Started!'); } }} style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>▶ Start 2nd Innings</button>}
                         {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && <button onClick={() => { if (confirm('Start SO 2nd Inn?')) { const cb = String(match.currentBatting || ''); const nb = cb.includes('teamA') ? 'teamB_super' : 'teamA_super'; const t = Number(currentInnings?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('SO 2nd Inn!'); } }} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ SO 2nd Inn</button>}
                         {match.matchPhase?.toLowerCase() !== 'tied' && <button onClick={() => setFinalizeModalOpen(true)} style={{ padding: '10px 20px', background: '#1e293b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>Finalize</button>}
@@ -1233,7 +1342,7 @@ const AdminLiveScoring = () => {
                                         style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1px solid #ef4444', background: '#fff', fontWeight: 700, fontSize: '12px', color: '#dc2626', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23dc2626\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center', backgroundSize: '10px' }}
                                     >
                                         <option value="">Bowler...</option>
-                                        {bowlingPlayingXI.map(p => { const isLast = p.id === match.lastOverBowlerId; return <option key={p.id} value={p.id} disabled={isLast}>{p.name}{isLast ? ' (Last)' : ''}</option>; })}
+                                        {bowlingPlayingXI.map(p => { const isLast = p.id === match.lastOverBowlerId; return <option key={p.id} value={p.id} disabled={isSuper ? false : isLast}>{p.name}{(!isSuper && isLast) ? ' (Last)' : ''}</option>; })}
                                     </select>
                                 )}
                                 {bowlerStatsData && <div style={{ marginTop: '4px' }}><div style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b' }}>{bowlerStatsData.wickets}/{bowlerStatsData.runsConceded}</div><div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>({bowlerStatsData.overs})</div></div>}
@@ -1317,8 +1426,32 @@ const AdminLiveScoring = () => {
                                     {Object.values(extras).some(v => v) && <span style={{ marginLeft: '6px', padding: '2px 8px', borderRadius: '6px', background: '#1e293b', color: '#fff', fontSize: '10px', fontWeight: 700 }}>{Object.entries(extras).filter(([_, v]) => v).map(([k]) => k).join(', ')}</span>}
                                 </div>
                             </div>
-                            <button onClick={() => { if (validateSubmission()) submitBall(); }} disabled={processing || !selectedBowler || runInput === null} style={{ padding: '10px 24px', background: processing || !selectedBowler || runInput === null ? '#cbd5e1' : '#0d9488', color: '#fff', fontWeight: 800, fontSize: '14px', borderRadius: '10px', border: 'none', cursor: processing || !selectedBowler || runInput === null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: processing || !selectedBowler || runInput === null ? 'none' : '0 4px 12px rgba(13,148,136,0.3)' }}>
-                                <CheckCircle size={18} />{processing ? 'Wait...' : 'Submit'}
+                            <button
+                                onClick={() => {
+                                    console.log("[AdminLiveScoring] SUBMIT CLICKED");
+                                    if (validateSubmission()) {
+                                        console.log("[AdminLiveScoring] Calling submitBall()");
+                                        submitBall();
+                                    }
+                                }}
+                                disabled={processing || !selectedBowler || runInput === null || isBowlerBlocked}
+                                style={{
+                                    padding: '10px 24px',
+                                    background: (processing || !selectedBowler || runInput === null || isBowlerBlocked) ? '#cbd5e1' : '#0d9488',
+                                    color: '#fff',
+                                    fontWeight: 800,
+                                    fontSize: '14px',
+                                    borderRadius: '10px',
+                                    border: 'none',
+                                    cursor: (processing || !selectedBowler || runInput === null || isBowlerBlocked) ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    boxShadow: (processing || !selectedBowler || runInput === null || isBowlerBlocked) ? 'none' : '0 4px 12px rgba(13,148,136,0.3)'
+                                }}
+                            >
+                                <CheckCircle size={18} />
+                                {processing ? 'Submitting...' : (isBowlerBlocked ? 'Change Bowler' : 'Submit')}
                             </button>
                         </div>
                         {/* Sync + Commentary */}
@@ -1355,7 +1488,7 @@ const AdminLiveScoring = () => {
                             <div>
                                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Method</label>
                                 <select value={wicketType} onChange={(e) => setWicketType(e.target.value)} disabled={match.freeHit} style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontWeight: 600, fontSize: '14px' }}>
-                                    {match.freeHit ? <option value="runout">Run Out (Free Hit)</option> : <>{['caught', 'bowled', 'lbw', 'runout', 'stumped', 'hitWicket'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' $1')}</option>)}</>}
+                                    {match.freeHit ? <option value="runout">Run Out (Free Hit)</option> : <>{['caught', 'bowled', 'lbw', 'runout', 'stumped', 'hitWicket', 'retired-hurt', 'retired-out'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).replace(/([A-Z])/g, ' $1').replace('-', ' ')}</option>)}</>}
                                 </select>
                             </div>
                             {['caught', 'runout', 'stumped'].includes(wicketType) && (
@@ -1416,7 +1549,7 @@ const AdminLiveScoring = () => {
                             <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Next Bowler</h2>
                             <select value={nextBowlerId} onChange={(e) => setNextBowlerId(e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #99f6e4', background: '#f0fdfa', fontWeight: 700, fontSize: '15px', textAlign: 'center' }}>
                                 <option value="">Choose Bowler...</option>
-                                {bowlingPlayingXI.map(p => { const isLast = p.id === match.lastOverBowlerId; return <option key={p.id} value={p.id} disabled={isLast}>{p.name}{isLast ? ' (Last Over)' : ''}</option>; })}
+                                {bowlingPlayingXI.map(p => { const isLast = p.id === match.lastOverBowlerId; return <option key={p.id} value={p.id} disabled={isSuper ? false : isLast}>{p.name}{(!isSuper && isLast) ? ' (Last Over)' : ''}</option>; })}
                             </select>
                             <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                                 <button onClick={() => setNextBowlerModalOpen(false)} style={{ flex: 1, padding: '14px', background: '#f1f5f9', borderRadius: '10px', fontWeight: 700, border: 'none', color: '#475569', cursor: 'pointer' }}>Cancel</button>
