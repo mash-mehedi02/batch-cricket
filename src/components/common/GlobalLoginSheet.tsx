@@ -89,14 +89,11 @@ export default function GlobalLoginSheet() {
                             <button
                                 onClick={async () => {
                                     try {
-                                        const isNewUser = await googleLogin();
+                                        await googleLogin();
                                         setIsOpen(false);
                                         toast.success('Signed in successfully!');
-
-                                        if (isNewUser) {
-                                            navigate('/edit-profile');
-                                        }
                                     } catch (err) {
+
                                         console.error(err);
                                         toast.error('Failed to sign in.');
                                     }

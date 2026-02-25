@@ -41,6 +41,9 @@ import AdminPlayerRequests from './pages/admin/AdminPlayerRequests'
 import SplashScreen from './components/common/SplashScreen'
 import ScrollToTop from './components/common/ScrollToTop'
 import NativeAppWrapper from './components/common/NativeAppWrapper'
+import AuthLoadingOverlay from './components/common/AuthLoadingOverlay'
+import { useAuthStore } from './store/authStore'
+
 
 function LayoutWrapper() {
   return (
@@ -59,6 +62,7 @@ function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const isAuthProcessing = useAuthStore(s => s.isProcessing);
 
   useEffect(() => {
     // Hide the native splash immediately so our custom React splash can show
@@ -79,7 +83,10 @@ function App() {
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <NativeAppWrapper />
       <ScrollToTop />
+      <AuthLoadingOverlay isVisible={isAuthProcessing} />
       <Routes>
+
+
         {/* Login Route - Redirect to Home with popup trigger */}
         <Route path="/login" element={<Navigate to="/menu?login=true" replace />} />
         <Route path="/admin/auth" element={<Login />} />

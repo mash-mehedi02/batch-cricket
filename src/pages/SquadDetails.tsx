@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { squadService } from '@/services/firestore/squads'
 import { tournamentService } from '@/services/firestore/tournaments'
@@ -10,9 +10,13 @@ import PlayerAvatar from '@/components/common/PlayerAvatar'
 import PageHeader from '@/components/common/PageHeader'
 import MatchCard from '@/components/match/MatchCard'
 import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
-import { Trophy, Medal, ChevronRight } from 'lucide-react'
 import { useScreenshotShare } from '@/hooks/useScreenshotShare'
 import ShareModal from '@/components/common/ShareModal'
+import { useAuthStore } from '@/store/authStore'
+import { followService } from '@/services/firestore/followService'
+import { useSearchParams } from 'react-router-dom'
+import { Bell, Check, Trophy, Medal, ChevronRight, Share2 } from 'lucide-react'
+
 
 type Tab = 'squad' | 'matches' | 'achievement'
 
@@ -39,6 +43,26 @@ export default function SquadDetails() {
     captureRef: pageRef,
     delay: 1000
   })
+
+  const { user } = useAuthStore()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isFollowing = useMemo(() => followService.isFollowing(user, 'squad', id!), [user, id])
+
+  const handleFollow = async () => {
+    if (!user) {
+      await followService.follow('squad', id!)
+      setSearchParams({ ...Object.fromEntries(searchParams), login: 'true' }, { replace: true })
+      return
+    }
+    if (!id) return
+
+    if (isFollowing) {
+      await followService.unfollow('squad', id)
+    } else {
+      await followService.follow('squad', id)
+    }
+  }
+
   const liveMatchRef = useRef<HTMLDivElement>(null)
   const upcomingRef = useRef<HTMLDivElement>(null)
 
@@ -213,6 +237,29 @@ export default function SquadDetails() {
                 </span>
               </div>
             </div>
+
+            <div className="flex items-center gap-2">
+              {user?.role !== 'admin' && user?.role !== 'super_admin' && (
+                <button
+                  onClick={handleFollow}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                >
+                  {isFollowing ? <Check size={14} /> : <Bell size={14} />}
+                  <span>{isFollowing ? 'Following' : 'Follow'}</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => { }} // Placeholder or integrate screenshot capture here
+                className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300"
+              >
+                <Share2 size={16} />
+              </button>
+            </div>
+
           </div>
 
           {/* Tabs */}

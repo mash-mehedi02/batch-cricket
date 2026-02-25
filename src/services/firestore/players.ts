@@ -175,12 +175,47 @@ export const playerService = {
   },
 
   /**
-   * Delete player
+   * Delete player and reset associated user account
    */
   async delete(id: string): Promise<void> {
-    const docRef = doc(db, COLLECTIONS.PLAYERS, id)
-    await deleteDoc(docRef)
+    try {
+      // 1. Check for associated player secret (email link)
+      const secretRef = doc(db, 'player_secrets', id)
+      const secretSnap = await getDoc(secretRef)
+
+      if (secretSnap.exists()) {
+        // 2. Find if any user is currently linked to this player
+        const userQuery = query(collection(db, 'users'), where('playerId', '==', id))
+        const userSnap = await getDocs(userQuery)
+
+        // 3. Reset linked users to 'viewer' status
+        const resetPromises = userSnap.docs.map(userDoc =>
+          updateDoc(doc(db, 'users', userDoc.id), {
+            role: 'viewer',
+            isRegisteredPlayer: false,
+            playerId: null,
+            linkedPlayerId: null,
+            playerProfile: null,
+            updatedAt: Timestamp.now()
+          })
+        )
+        await Promise.all(resetPromises)
+
+        // 4. Delete the secret so the email can be used fresh
+        await deleteDoc(secretRef)
+        console.log(`[playerService] Reset user account and deleted secret for player ${id}`)
+      }
+
+      // 5. Delete the player document
+      const docRef = doc(db, COLLECTIONS.PLAYERS, id)
+      await deleteDoc(docRef)
+
+    } catch (error) {
+      console.error(`[playerService] Failed to delete player ${id}:`, error)
+      throw error
+    }
   },
+
 
   /**
    * Upsert a match performance and recompute career stats

@@ -34,7 +34,9 @@ export interface User {
     socialLinks?: SocialLink[]
   }
   followedTournaments?: string[]
+  followedSquads?: string[]
 }
+
 
 // ==================== TOURNAMENT ====================
 
@@ -119,7 +121,9 @@ export interface Squad {
   createdAt: Timestamp
   updatedAt: Timestamp
   createdBy: string
+  adminId?: string
 }
+
 
 // ==================== PLAYER ====================
 

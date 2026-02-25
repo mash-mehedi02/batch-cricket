@@ -28,6 +28,8 @@ import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { useScreenshotShare } from '@/hooks/useScreenshotShare'
 import ShareModal from '@/components/common/ShareModal'
+import { followService } from '@/services/firestore/followService'
+
 
 type Tab = 'overview' | 'matches' | 'teams' | 'points' | 'stats'
 
@@ -50,36 +52,29 @@ export default function TournamentDetails() {
   const [loading, setLoading] = useState(true)
 
   const { user } = useAuthStore()
-  const isFollowing = user?.followedTournaments?.includes(tournamentId!) || false
+  const isFollowing = useMemo(() => followService.isFollowing(user, 'tournament', tournamentId!), [user, tournamentId])
 
   const handleFollow = async () => {
     if (!user) {
+      // Store pending follow and show login sheet
+      await followService.follow('tournament', tournamentId!)
       setSearchParams({ ...Object.fromEntries(searchParams), login: 'true' }, { replace: true })
       return
     }
 
     if (!tournamentId) return
 
-    try {
-      const userRef = doc(db, 'users', user.uid)
-      if (isFollowing) {
-        await updateDoc(userRef, {
-          followedTournaments: arrayRemove(tournamentId)
-        })
-        await oneSignalService.unsubscribeFromTournament(tournamentId, tournamentData?.createdBy || 'admin')
-        toast.success('Unfollowed series')
-      } else {
-        await updateDoc(userRef, {
-          followedTournaments: arrayUnion(tournamentId)
-        })
-        await oneSignalService.subscribeToTournament(tournamentId, tournamentData?.createdBy || 'admin')
-        toast.success('Following series! 🔔')
-      }
-    } catch (error) {
-      console.error('Follow error:', error)
-      toast.error('Failed to update follow status')
+    if (isFollowing) {
+      await followService.unfollow('tournament', tournamentId)
+      // Unsubscribe from notifications
+      oneSignalService.unsubscribeFromTournament(tournamentId, tournamentData?.createdBy || 'admin')
+    } else {
+      await followService.follow('tournament', tournamentId)
+      // Subscribe to notifications
+      oneSignalService.subscribeToTournament(tournamentId, tournamentData?.createdBy || 'admin')
     }
   }
+
 
   // Update URL when tab changes
   useEffect(() => {
@@ -240,16 +235,19 @@ export default function TournamentDetails() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleFollow}
-                className={`hide-in-screenshot flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
-                  }`}
-              >
-                {isFollowing ? <Check size={14} /> : <Bell size={14} className="fill-white" />}
-                <span>{isFollowing ? 'Following' : 'Follow'}</span>
-              </button>
+              {user?.role !== 'admin' && user?.role !== 'super_admin' && (
+                <button
+                  onClick={handleFollow}
+                  className={`hide-in-screenshot flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isFollowing
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
+                    }`}
+                >
+                  {isFollowing ? <Check size={14} /> : <Bell size={14} className="fill-white" />}
+                  <span>{isFollowing ? 'Following' : 'Follow'}</span>
+                </button>
+              )}
+
               <button
                 onClick={captureScreenshot}
                 className="hide-in-screenshot p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all"

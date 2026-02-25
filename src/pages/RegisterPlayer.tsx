@@ -120,8 +120,11 @@ export default function RegisterPlayerPage() {
                 role: form.role,
                 battingStyle: form.battingStyle,
                 bowlingStyle: form.bowlingStyle,
-                photoUrl: form.photoUrl || ''
+                photoUrl: form.photoUrl || '',
+                adminId: selectedSquad.adminId || selectedSquad.createdBy // Tag the request with the squad owner's ID
             });
+
+
 
             toast.success('Registration request submitted successfully!');
             // Refresh to show pending status

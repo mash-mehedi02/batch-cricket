@@ -11,26 +11,26 @@ const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
     // Hide status bar during splash for full-screen feel
     StatusBar.hide().catch(() => { });
 
-    // Progress bar animation - Completed in ~1.8s
+    // Progress bar animation - Completed in ~2.8s
     const interval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
           return 100;
         }
-        return prev + 1.5;
+        return prev + 0.6; // Slower progress for longer duration
       });
     }, 20);
 
-    // Multi-stage animation timing - Snappier for 2s total duration
-    setTimeout(() => setStage(1), 300);  // Show Logo/Branding
-    setTimeout(() => setStage(2), 700);  // Show Image/Memorial
-    setTimeout(() => setStage(3), 1600); // Start fading out
+    // Multi-stage animation timing - Cinematic feel
+    setTimeout(() => setStage(1), 500);  // Show Logo/Branding
+    setTimeout(() => setStage(2), 1200); // Show Image/Memorial
+    setTimeout(() => setStage(3), 3200); // Start fading out
 
     const timer2 = setTimeout(() => {
       onFinish();
       StatusBar.show().catch(() => { });
-    }, 2000);
+    }, 3500); // Increased from 2000ms to 3500ms
 
     return () => {
       clearInterval(interval);
@@ -67,16 +67,17 @@ const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="mb-8 flex flex-col items-center"
           >
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-[#10B981] text-3xl">🏏</span>
-              <h1 className="text-white text-5xl font-black tracking-tighter uppercase italic">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 px-4 justify-center">
+              <span className="text-[#10B981] text-2xl sm:text-3xl">🏏</span>
+              <h1 className="text-white text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-center leading-tight">
                 BatchCrick<span className="text-[#10B981] not-italic">BD</span>
               </h1>
             </div>
-            <div className="w-16 h-1 bg-gradient-to-r from-transparent via-[#10B981] to-transparent rounded-full mb-3" />
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] opacity-80 pl-[0.5em]">
+            <div className="w-12 sm:w-16 h-1 bg-gradient-to-r from-transparent via-[#10B981] to-transparent rounded-full mb-3" />
+            <p className="text-slate-500 text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] opacity-80 text-center">
               SHALNAGOR MODERN ACADEMY
             </p>
+
           </motion.div>
 
           {/* Section 2: Memorial Image with Glow */}
@@ -88,7 +89,8 @@ const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
               rotateY: 0
             }}
             transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-64 md:w-72 aspect-[3/4] group"
+            className="relative w-[70vw] max-w-[260px] sm:max-w-xs md:max-w-72 aspect-[3/4] group"
+
           >
             {/* Ambient Glow behind image */}
             <div className="absolute inset-0 bg-[#10B981]/20 blur-[60px] rounded-full scale-75 opacity-50 group-hover:opacity-100 transition-opacity duration-1000" />
@@ -130,22 +132,23 @@ const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
             className="mt-10 flex flex-col items-center text-center"
           >
             <div className="flex flex-col items-center gap-2 mb-6">
-              <h2 className="text-white text-3xl font-black tracking-[0.4em] uppercase opacity-90">
+              <h2 className="text-white text-xl sm:text-3xl font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase opacity-90">
                 FOREVER
               </h2>
-              <div className="flex items-center gap-4">
-                <span className="text-slate-600 font-bold text-lg">2002</span>
-                <div className="w-10 h-[1px] bg-slate-800" />
-                <span className="text-[#10B981] text-3xl font-light">∞</span>
+              <div className="flex items-center gap-3 sm:gap-4">
+                <span className="text-slate-600 font-bold text-base sm:text-lg">2002</span>
+                <div className="w-8 sm:w-10 h-[1px] bg-slate-800" />
+                <span className="text-[#10B981] text-2xl sm:text-3xl font-light">∞</span>
               </div>
             </div>
 
             <div className="flex flex-col gap-0.5">
-              <span className="text-slate-500 text-[11px] font-black uppercase tracking-[0.4em] opacity-60">CRICKET PLATFORM</span>
-              <span className="text-white text-3xl font-black italic tracking-tighter">
+              <span className="text-slate-500 text-[9px] sm:text-[11px] font-black uppercase tracking-[0.4em] opacity-60">CRICKET PLATFORM</span>
+              <span className="text-white text-xl sm:text-3xl font-black italic tracking-tighter">
                 NON-STOP <span className="text-[#10B981]">ACTION</span>
               </span>
             </div>
+
           </motion.div>
 
         </div>

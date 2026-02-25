@@ -146,33 +146,39 @@ export const playerRequestService = {
         if (!adminId) return []
 
         try {
+            // First, get all squads managed by this admin (check both legacy and new fields)
+            const squadRef = collection(db, 'squads');
+            const [snap1, snap2] = await Promise.all([
+                getDocs(query(squadRef, where('adminId', '==', adminId))),
+                getDocs(query(squadRef, where('createdBy', '==', adminId)))
+            ]);
+
+            const managedSquadIds = Array.from(new Set([
+                ...snap1.docs.map(doc => doc.id),
+                ...snap2.docs.map(doc => doc.id)
+            ]));
+
             const q = query(
                 collection(db, 'player_requests'),
                 where('status', '==', 'pending'),
-                where('adminId', '==', adminId),
                 orderBy('createdAt', 'desc')
             )
             const snap = await getDocs(q)
-            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
-        } catch (error: any) {
-            console.warn('[playerRequestService] getPendingRequestsByAdmin: Index missing, falling back to manual filter', error);
-            // Fallback: Simple query + client-side filter & sort
-            const q = query(
-                collection(db, 'player_requests'),
-                where('status', '==', 'pending')
-            )
-            const snap = await getDocs(q)
-            const list = snap.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
-                .filter(req => req.adminId === adminId);
+            const allPending = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
 
-            return list.sort((a, b) => {
-                const timeA = a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0;
-                const timeB = b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0;
-                return timeB - timeA;
-            });
+            // Filter by:
+            // 1. Explicit adminId on the request (New way)
+            // 2. Or the squad requested belongs to this admin (Legacy fallback)
+            return allPending.filter(req =>
+                req.adminId === adminId ||
+                (req.squadId && managedSquadIds.includes(req.squadId))
+            );
+        } catch (error: any) {
+            console.error('[playerRequestService] getPendingRequestsByAdmin failed:', error);
+            return [];
         }
     },
+
 
     /**
      * Admin: Review a request

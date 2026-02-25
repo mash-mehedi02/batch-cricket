@@ -72,46 +72,23 @@ export default function Login() {
           if (pp.photoUrl || pp.photo) setPhotoUrl(pp.photoUrl || pp.photo);
           setShowProfileSetup(true);
         } else {
-          // Regular login redirect
+          // Regular login redirect - Default to /menu
           const redirect = params.get('redirect')
-          const from = redirect || (location.state as any)?.from?.pathname || (isAdmin ? '/admin' : '/')
+          const from = redirect || (location.state as any)?.from?.pathname || (isAdmin ? '/admin' : '/menu')
           console.log("[Login] User ready. Redirecting to:", from);
           navigate(from, { replace: true })
         }
+
       } else {
-        // Profile missing AND not an admin
-        console.log("[Login] Profile missing or incomplete. Checking for pending request...");
-        if (user.displayName) setName(user.displayName)
-
-        // Check for existing pending request BEFORE showing setup form
-        playerRequestService.getUserRequest(user.uid).then(req => {
-          if (req && req.status === 'pending') {
-            console.log("[Login] Found pending request. Showing pending UI.");
-            setIsPendingApproval(true)
-          } else {
-            console.log("[Login] No pending request. Showing Setup.");
-            toast("Please complete your profile details.", { icon: '📝', id: 'profile-hint' });
-            setShowProfileSetup(true)
-          }
-        }).catch(() => {
-          // If check fails, still show setup
-          toast("Please complete your profile details.", { icon: '📝', id: 'profile-hint' });
-          setShowProfileSetup(true)
-        })
-
-        const autoFill = (user as any).autoFillProfile;
-        if (autoFill) {
-          console.log("[Login] Auto-filling from linked profile:", autoFill.name);
-          if (autoFill.name) setName(autoFill.name);
-          if (autoFill.role) setRole(autoFill.role);
-          if (autoFill.battingStyle) setBattingStyle(autoFill.battingStyle);
-          if (autoFill.bowlingStyle) setBowlingStyle(autoFill.bowlingStyle);
-          if (autoFill.dateOfBirth) setDob(autoFill.dateOfBirth);
-          if (autoFill.school) setSchool(autoFill.school);
-          if (autoFill.address) setAddress(autoFill.address);
-          if (autoFill.photoUrl) setPhotoUrl(autoFill.photoUrl);
-        }
+        // Profile missing AND not an admin - No longer forcing setup
+        // New users just get redirected to menu (or intended path)
+        console.log("[Login] Profile missing. Redirecting to menu (viewer mode).");
+        const redirect = params.get('redirect')
+        const from = redirect || (location.state as any)?.from?.pathname || '/menu'
+        navigate(from, { replace: true })
       }
+
+
     }
   }, [user, loading, navigate, location, isLoading, params.get('setup')])
 

@@ -11,6 +11,8 @@ import { calculateFantasyPoints, calculateBattingPoints, calculateBowlingPoints 
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'react-hot-toast'
 import { tournamentService } from '@/services/firestore/tournaments'
+import RankingsSkeleton from '@/components/skeletons/RankingsSkeleton'
+
 
 export default function Rankings() {
     const [players, setPlayers] = useState<any[]>([])
@@ -140,12 +142,7 @@ export default function Rankings() {
         }
     }, [loading, filteredRankings.length])
 
-    const getRankBadge = (index: number) => {
-        if (index === 0) return <Trophy className="text-amber-500" size={24} />
-        if (index === 1) return <Medal className="text-slate-400" size={24} />
-        if (index === 2) return <Medal className="text-amber-700" size={24} />
-        return <span className="text-lg font-black text-slate-400">#{index + 1}</span>
-    }
+
 
     return (
         <div ref={containerRef} className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 font-sans pt-16">
@@ -326,12 +323,9 @@ export default function Rankings() {
 
                 <div className="space-y-4">
                     {loading ? (
-                        <div className="space-y-4">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <div key={i} className="h-24 bg-white dark:bg-slate-900 rounded-3xl animate-pulse border border-slate-100 dark:border-white/5"></div>
-                            ))}
-                        </div>
+                        <RankingsSkeleton />
                     ) : filteredRankings.length === 0 ? (
+
                         <div className="py-32 flex flex-col items-center justify-center text-center px-8">
                             <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
                                 <Filter className="text-slate-300 dark:text-slate-600" size={32} />

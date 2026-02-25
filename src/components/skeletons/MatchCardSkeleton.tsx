@@ -1,48 +1,49 @@
-/**
- * Match Card Skeleton
- * Skeleton for match cards on home page
- */
+import Skeleton from '@/components/common/Skeleton';
 
 export default function MatchCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-gray-200 animate-pulse">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-          <div className="space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-24"></div>
-            <div className="h-3 bg-gray-200 rounded w-16"></div>
+    <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 p-5 flex flex-col gap-4">
+      {/* Header Skeleton */}
+      <div className="flex justify-between items-center mb-1">
+        <div className="flex items-center gap-2">
+          <Skeleton variant="circle" className="w-8 h-8" />
+          <div className="space-y-1.5">
+            <Skeleton className="w-24 h-3" />
+            <Skeleton className="w-16 h-2" />
           </div>
         </div>
-        <div className="h-6 w-16 bg-gray-200 rounded-full"></div>
+        <Skeleton variant="rounded" className="w-16 h-6" />
       </div>
 
-      {/* Score */}
-      <div className="mb-4">
-        <div className="h-8 bg-gray-200 rounded w-32 mb-2"></div>
-        <div className="h-4 bg-gray-200 rounded w-24"></div>
+      {/* Main Score Area */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-end">
+          <div className="space-y-2">
+            <Skeleton className="w-32 h-6" />
+            <Skeleton className="w-20 h-3" />
+          </div>
+          <Skeleton variant="circle" className="w-12 h-12" />
+        </div>
+
+        {/* Progress Bar Skeleton */}
+        <Skeleton variant="rounded" className="w-full h-1.5" />
       </div>
 
-      {/* Progress bar */}
-      <div className="h-2 bg-gray-200 rounded-full mb-4"></div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-1">
-          <div className="h-3 bg-gray-200 rounded w-full"></div>
-          <div className="h-4 bg-gray-200 rounded w-12"></div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-3 gap-3 pt-2">
+        <div className="space-y-2">
+          <Skeleton className="w-full h-2" />
+          <Skeleton className="w-10 h-3" />
         </div>
-        <div className="space-y-1">
-          <div className="h-3 bg-gray-200 rounded w-full"></div>
-          <div className="h-4 bg-gray-200 rounded w-12"></div>
+        <div className="space-y-2">
+          <Skeleton className="w-full h-2" />
+          <Skeleton className="w-10 h-3" />
         </div>
-        <div className="space-y-1">
-          <div className="h-3 bg-gray-200 rounded w-full"></div>
-          <div className="h-4 bg-gray-200 rounded w-12"></div>
+        <div className="space-y-2">
+          <Skeleton className="w-full h-2" />
+          <Skeleton className="w-10 h-3" />
         </div>
       </div>
     </div>
-  )
+  );
 }
-

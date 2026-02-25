@@ -56,10 +56,16 @@ export default function EditProfilePage() {
     const { isDarkMode } = useThemeStore();
 
     useEffect(() => {
-        if (!loading && !user) {
-            navigate('?login=true', { replace: true });
+        if (!loading) {
+            if (!user) {
+                navigate('?login=true', { replace: true });
+            } else if (user.role === 'admin' || user.role === 'super_admin') {
+                toast.error('Admin profile cannot be edited from here.');
+                navigate('/', { replace: true });
+            }
         }
     }, [user, loading, navigate]);
+
 
     if (loading) {
         return <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-[#0F172A] text-white' : 'bg-[#F8FAFC] text-slate-900'}`}>Loading...</div>;

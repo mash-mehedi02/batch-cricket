@@ -9,19 +9,52 @@ import {
     UserPlus,
     Edit,
     LogOut,
-    ArrowLeft
+    ArrowLeft,
+    Trophy,
+    Users
 } from 'lucide-react';
+import { useState } from 'react';
+import { tournamentService } from '@/services/firestore/tournaments';
+import { squadService } from '@/services/firestore/squads';
+import { Tournament, Squad } from '@/types';
+
 
 export default function AccountPage() {
     const navigate = useNavigate();
     const { user, logout, loading } = useAuthStore();
     const { isDarkMode } = useThemeStore();
 
+    const [followedTournaments, setFollowedTournaments] = useState<Tournament[]>([]);
+    const [followedSquads, setFollowedSquads] = useState<Squad[]>([]);
+    const [isFetchingFollows, setIsFetchingFollows] = useState(false);
+
     useEffect(() => {
         if (!loading && !user) {
             navigate('?login=true', { replace: true });
         }
     }, [user, loading, navigate]);
+
+    useEffect(() => {
+        if (user) {
+            const fetchFollows = async () => {
+                setIsFetchingFollows(true);
+                try {
+                    const [tours, squads] = await Promise.all([
+                        user.followedTournaments ? tournamentService.getByIds(user.followedTournaments) : Promise.resolve([]),
+                        user.followedSquads ? squadService.getByIds(user.followedSquads) : Promise.resolve([])
+                    ]);
+                    setFollowedTournaments(tours);
+                    setFollowedSquads(squads);
+                } catch (err) {
+                    console.error('Error fetching follows:', err);
+                } finally {
+                    setIsFetchingFollows(false);
+                }
+            };
+            fetchFollows();
+        }
+    }, [user]);
+
 
     if (loading) {
         // Simple loading state matching the theme
@@ -80,7 +113,6 @@ export default function AccountPage() {
                 <div className={`px-5 py-5 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                     <div className="flex items-center justify-between mb-5">
                         <span className={`text-base font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>Following</span>
-                        <button className="text-sm font-bold text-blue-500">Manage</button>
                     </div>
 
                     <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
@@ -94,24 +126,68 @@ export default function AccountPage() {
                             </div>
                             <span className={`text-[10px] font-bold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Add</span>
                         </button>
+
+                        {/* Followed Tournaments */}
+                        {followedTournaments.map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => navigate(`/tournaments/${t.id}`)}
+                                className="flex flex-col items-center gap-2 shrink-0 max-w-[80px]"
+                            >
+                                <div className={`w-14 h-14 rounded-full border-2 overflow-hidden flex items-center justify-center bg-white dark:bg-slate-800 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                                    {t.logoUrl ? (
+                                        <img src={t.logoUrl} alt={t.name} className="w-full h-full object-contain p-2" />
+                                    ) : (
+                                        <Trophy size={20} className="text-slate-400" />
+                                    )}
+                                </div>
+                                <span className={`text-[10px] font-bold text-center truncate w-full ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{t.name}</span>
+                            </button>
+                        ))}
+
+                        {/* Followed Squads */}
+                        {followedSquads.map(s => (
+                            <button
+                                key={s.id}
+                                onClick={() => navigate(`/squads/${s.id}`)}
+                                className="flex flex-col items-center gap-2 shrink-0 max-w-[80px]"
+                            >
+                                <div className={`w-14 h-14 rounded-full border-2 overflow-hidden flex items-center justify-center bg-white dark:bg-slate-800 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                                    {s.logoUrl ? (
+                                        <img src={s.logoUrl} alt={s.name} className="w-full h-full object-contain p-2" />
+                                    ) : (
+                                        <Users size={20} className="text-slate-400" />
+                                    )}
+                                </div>
+                                <span className={`text-[10px] font-bold text-center truncate w-full ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>{s.name}</span>
+                            </button>
+                        ))}
+
+                        {isFetchingFollows && (
+                            <div className="w-14 h-14 rounded-full border-2 border-slate-200 border-t-blue-500 animate-spin shrink-0" />
+                        )}
                     </div>
                 </div>
 
+
                 {/* Actions */}
                 <div className={`border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
-                    {/* Edit Profile */}
-                    <button
-                        onClick={handleEditProfile}
-                        className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="w-8 h-8 flex items-center justify-center text-slate-400">
-                                <Edit size={20} />
+                    {/* Edit Profile - Hidden for Admins */}
+                    {(user.role !== 'admin' && user.role !== 'super_admin') && (
+                        <button
+                            onClick={handleEditProfile}
+                            className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 flex items-center justify-center text-slate-400">
+                                    <Edit size={20} />
+                                </div>
+                                <span className="font-semibold text-[15px]">Edit Profile</span>
                             </div>
-                            <span className="font-semibold text-[15px]">Edit Profile</span>
-                        </div>
-                        <ChevronRight size={18} className="text-slate-400" />
-                    </button>
+                            <ChevronRight size={18} className="text-slate-400" />
+                        </button>
+                    )}
+
 
                     {/* Register as Player */}
                     {!user.isRegisteredPlayer && user.role !== 'admin' && user.role !== 'super_admin' && (

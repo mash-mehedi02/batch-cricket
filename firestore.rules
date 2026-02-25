@@ -59,7 +59,8 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.uid == adminId || 
         isSuperAdmin() || 
-        (resource != null && resource.data.email.lower() == request.auth.token.email.lower())
+        (resource != null && request.auth.token.email != null && 
+         resource.data.email.lower() == request.auth.token.email.lower())
       );
       
       // Allow Super Admin to create any admin (including themselves)
@@ -157,7 +158,9 @@ service cloud.firestore {
       // Allow read if user is authenticated and is either admin OR the email matches
       allow read: if isAuthenticated() && (
         isAdmin() || 
-        (resource == null || request.auth.token.email.lower() == resource.data.email.lower())
+        (resource == null) ||
+        (request.auth.token.email != null && resource.data.email != null && 
+         request.auth.token.email.lower() == resource.data.email.lower())
       );
       
       allow write: if isAdmin();

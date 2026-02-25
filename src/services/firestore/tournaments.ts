@@ -151,4 +151,20 @@ export const tournamentService = {
       }
     )
   },
+
+  /**
+   * Get multiple tournaments by IDs
+   */
+  async getByIds(ids: string[]): Promise<Tournament[]> {
+    if (!ids || ids.length === 0) return []
+    try {
+      const promises = ids.map(id => this.getById(id))
+      const results = await Promise.all(promises)
+      return results.filter((t): t is Tournament => t !== null)
+    } catch (error) {
+      console.error('[tournamentService] Error fetching tournaments by IDs:', error)
+      return []
+    }
+  },
 }
+

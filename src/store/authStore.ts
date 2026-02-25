@@ -22,6 +22,8 @@ import { User } from '@/types'
 import toast from 'react-hot-toast'
 
 // Role-based access is controlled via Firestore 'admins' collection.
+const processingLogins = new Set<string>();
+
 
 interface AuthState {
   user: User | null
@@ -34,11 +36,14 @@ interface AuthState {
   updatePlayerProfile: (uid: string, data: any) => Promise<void>
   logout: () => Promise<void>
   initialize: () => void
+  isProcessing: boolean
 }
+
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
+  isProcessing: false,
 
   // Legacy Login
   login: async (email: string, password: string): Promise<boolean> => {
@@ -174,8 +179,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Centralized Login Processing - Returns true if it's a new account
   processLogin: async (user: any): Promise<boolean> => {
+    if (processingLogins.has(user.uid)) {
+      console.log("[AuthStore] Login already in process for:", user.uid);
+      return false;
+    }
+    processingLogins.add(user.uid);
+    set({ isProcessing: true });
     console.log("[AuthStore] Processing Login for:", user.email);
+
     try {
+
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
 
@@ -308,7 +321,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         finalUserData.isRegisteredPlayer = false;
         finalUserData.playerId = null;
         finalUserData.linkedPlayerId = null;
-        finalUserData.playerProfile = null;
+        if (finalUserData.playerProfile) {
+          finalUserData.playerProfile.isRegisteredPlayer = false;
+        }
+
         if (finalUserData.role === 'player') finalUserData.role = 'viewer';
       }
 
@@ -327,16 +343,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         loading: false,
       });
 
+      // Process any pending follow actions
+      const { followService } = await import('@/services/firestore/followService');
+      followService.processPendingFollow();
+
       console.log("[AuthStore] Identity Processing Complete. Final Role:", finalUserData.role);
+
       return isNewUser;
 
     } catch (error: any) {
       console.error("[AuthStore] Process Login Error:", error);
-      toast.error(`Login Process Error: ${error.message}`);
+      // Only show error toast if it's not a temporary permission issue during sign-in
+      if (!error.message?.includes('insufficient permissions')) {
+        toast.error(`Login Process Error: ${error.message}`);
+      }
       set({ loading: false });
       throw error;
+    } finally {
+      processingLogins.delete(user.uid);
+      set({ isProcessing: false });
     }
   },
+
 
   updatePlayerProfile: async (uid: string, data: any) => {
     try {
@@ -419,10 +447,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (result && result.user) {
         console.log("[AuthStore] Redirect Result found:", result.user.email);
         toast.success("Redirect Login Successful!", { id: 'login-success' });
-        const isNew = await get().processLogin(result.user);
-        if (isNew) {
-          window.location.href = '/edit-profile';
-        }
+        await get().processLogin(result.user);
       }
     }).catch((e: any) => {
       if (e.code !== 'auth/popup-closed-by-user') {
@@ -455,21 +480,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             console.log("[AuthStore] REAL-TIME Update: User Role =", data.role);
 
             // If user is a player, we always verify identity sync to catch admin changes
-            const emailLower = firebaseUser.email?.toLowerCase().trim();
-            const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
-            const secretsSnap = await getDocs(q);
-            const verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
+            if (data.isRegisteredPlayer && firebaseUser.email) {
+              try {
+                const emailLower = firebaseUser.email.toLowerCase().trim();
+                const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
+                const secretsSnap = await getDocs(q);
+                const verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
 
-            // IDENTITY CHECK: If admin changed the email or unlinked the player
-            // we force a LOGOUT to ensure security and prevent ghost access.
-            if (data.isRegisteredPlayer && data.playerId !== verifiedPlayerId) {
-              console.warn("[AuthStore] Identity mismatch/revocation detected. Force Logout.");
-              toast.error("Your profile access has been updated. Please login again.", { id: 'auth-revoked' });
-              await get().logout();
-              return;
+                // IDENTITY CHECK: If admin changed the email or unlinked the player
+                // we force a LOGOUT to ensure security and prevent ghost access.
+                if (data.playerId !== verifiedPlayerId) {
+                  console.warn("[AuthStore] Identity mismatch/revocation detected. Force Logout.");
+                  toast.error("Your profile access has been updated. Please login again.", { id: 'auth-revoked' });
+                  await get().logout();
+                  return;
+                }
+              } catch (checkErr: any) {
+                // If this fails (e.g. permission issue during session init), we don't log them out immediately
+                // but we log it for debugging.
+                console.warn("[AuthStore] Identity check failed (likely temporary):", checkErr.message);
+              }
             }
 
             set({ user: data, loading: false });
+
           } else {
             console.log("[AuthStore] No user profile found. Creating...");
             await get().processLogin(firebaseUser);
