@@ -225,24 +225,26 @@ export default function MenuPage() {
                         <ChevronRight size={18} className="text-slate-400" />
                     </Link>
 
-                    {/* Player Registration (Conditional) */}
-                    {user && user.role !== 'player' && user.role !== 'admin' && user.role !== 'super_admin' && (
+                    {/* Admin Portal (Conditional) */}
+                    {(user?.role === 'admin' || user?.role === 'super_admin') && (
                         <Link
-                            to="/register-player"
-                            className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                            to="/admin"
+                            className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-blue-400 hover:bg-[#1e293b]' : 'text-blue-600 hover:bg-blue-50'}`}
                         >
                             <div className="flex items-center gap-4">
-                                <div className="w-8 h-8 flex items-center justify-center text-emerald-500">
-                                    <UserPlus size={22} />
+                                <div className="w-8 h-8 flex items-center justify-center text-blue-500">
+                                    <ShieldCheck size={22} className="animate-pulse" />
                                 </div>
-                                <span className="font-semibold text-[15px]">Player Enrollment</span>
+                                <span className="font-bold text-[15px]">Admin Dashboard</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Join</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 px-2 py-1 rounded-lg">Panel</span>
                                 <ChevronRight size={18} className="text-slate-400" />
                             </div>
                         </Link>
                     )}
+
+                    {/* Player Registration (Conditional) */}
                 </div>
 
                 {/* APP SETTINGS Section */}

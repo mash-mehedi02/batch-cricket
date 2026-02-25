@@ -75,22 +75,29 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
 
     // Squads available for selection
     const availableSquads = useMemo(() => {
+        let baseSquads = squads;
+
+        // Restriction: Sub-Admins only see/use their own squads
+        if (user?.role === 'admin') {
+            baseSquads = squads.filter(s => (s as any).adminId === user.uid || (s as any).ownerId === user.uid);
+        }
+
         // If groups exist and a group is selected, filter by that group
         if (groups.length > 0 && formData.groupId) {
             const group = groups.find((g: any) => g.id === formData.groupId);
             if (group) {
-                return squads.filter(s => group.squadIds?.includes(s.id));
+                return baseSquads.filter(s => group.squadIds?.includes(s.id));
             }
         }
 
         // Otherwise, filter by tournament participants if defined
         const participants = tournament.participantSquadIds || [];
         if (participants.length > 0) {
-            return squads.filter(s => participants.includes(s.id));
+            return baseSquads.filter(s => participants.includes(s.id));
         }
 
-        return squads;
-    }, [squads, groups, formData.groupId, tournament.participantSquadIds]);
+        return baseSquads;
+    }, [squads, groups, formData.groupId, tournament.participantSquadIds, user]);
 
     const handleCreateMatch = async () => {
         if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {

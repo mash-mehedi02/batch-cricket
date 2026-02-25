@@ -25,6 +25,7 @@ export interface AdminUser {
     createdAt: any;
     lastLogin?: any;
     updatedAt?: any;
+    pwd?: string; // Stored for recovery by Super Admin
 }
 
 export const SUPER_ADMIN_EMAIL = 'batchcrick@gmail.com';
@@ -59,11 +60,20 @@ export const adminService = {
             throw new Error('The original Super Admin cannot be demoted.');
         }
 
-        const ref = doc(db, COLLECTIONS.ADMINS, uid);
-        await updateDoc(ref, {
-            role,
-            updatedAt: serverTimestamp()
-        });
+        const adminRef = doc(db, COLLECTIONS.ADMINS, uid);
+        const userRef = doc(db, COLLECTIONS.USERS, uid);
+
+        // Update BOTH collections to ensure session role and permission rules stay in sync
+        await Promise.all([
+            updateDoc(adminRef, {
+                role,
+                updatedAt: serverTimestamp()
+            }),
+            updateDoc(userRef, {
+                role,
+                updatedAt: serverTimestamp()
+            })
+        ]);
     },
 
     async updateManagedSchools(uid: string, managedSchools: string[]) {
@@ -83,33 +93,51 @@ export const adminService = {
         await deleteDoc(ref);
     },
 
-    async resetAdminPassword(email: string, newPassword: string) {
-        // This requires a secondary app to perform password update on a different user
+    async checkEmailExists(email: string) {
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // Check admins collection
+        const adminQ = query(collection(db, COLLECTIONS.ADMINS), where('email', '==', normalizedEmail), limit(1));
+        const adminSnap = await getDocs(adminQ);
+        if (!adminSnap.empty) return { exists: true, type: 'admin' };
+
+        // Check users collection (which includes players)
+        const userQ = query(collection(db, COLLECTIONS.USERS), where('email', '==', normalizedEmail), limit(1));
+        const userSnap = await getDocs(userQ);
+        if (!userSnap.empty) return { exists: true, type: 'user' };
+
+        return { exists: false };
+    },
+
+    async changePassword(email: string, oldPassword: string, newPassword: string) {
         const { initializeApp, deleteApp } = await import('firebase/app');
         const { getAuth, signInWithEmailAndPassword, updatePassword, signOut } = await import('firebase/auth');
         const { default: app } = await import('@/config/firebase');
         const config = (app as any).options;
 
-        const secondaryApp = initializeApp(config, 'SecondaryReset');
+        const secondaryApp = initializeApp(config, 'SecondaryPassChange');
         const secondaryAuth = getAuth(secondaryApp);
 
         try {
-            // Note: This requires the super admin to know the current password of the sub-admin OR 
-            // the system to have a way to force reset. 
-            // In Firebase Client SDK, you can't reset another user's password without their credentials.
-            // Admin SDK (Node.js) is required for true "admin reset".
-            // Since this is a client-side app, we will suggest the "Send Password Reset Email" flow
-            // or if the user insists on setting it manually, they might need a custom backend function.
-            // However, the user asked for "reset kore new pass set kore dite parbe".
-            // I will implement a Cloud Function call for this if possible, or use the email flow.
-            // For now, let's use the password reset email as the secure method, 
-            // UNLESS I implement a cloud function.
+            // 1. Sign in as the sub-admin
+            const userCredential = await signInWithEmailAndPassword(secondaryAuth, email, oldPassword);
 
-            // Re-reading: "reset kore new pass set kore dite parbe new password"
-            // I'll assume we might need a cloud function for this.
-            return { success: false, message: 'Cloud Function required for manual password override.' };
-        } catch (error) {
+            // 2. Update their password
+            await updatePassword(userCredential.user, newPassword);
+
+            // 3. Update the Firestore record so Super Admin can see the new one
+            const adminRef = doc(db, COLLECTIONS.ADMINS, userCredential.user.uid);
+            await updateDoc(adminRef, {
+                pwd: newPassword,
+                updatedAt: serverTimestamp()
+            });
+
+            await signOut(secondaryAuth);
             await deleteApp(secondaryApp);
+            return { success: true };
+        } catch (error: any) {
+            await deleteApp(secondaryApp);
+            console.error('[adminService] changePassword failed:', error);
             throw error;
         }
     },
@@ -140,6 +168,7 @@ export const adminService = {
                 managedSchools: [],
                 isActive: true,
                 organizationName: 'BatchCrick',
+                pwd: data.password, // Save for Super Admin reference
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
@@ -157,43 +186,9 @@ export const adminService = {
             await deleteApp(secondaryApp);
 
             return { success: true, uid };
+            throw new Error('This email is already in use. You cannot create a new admin account with an existing user/player/admin email.');
         } catch (error: any) {
             await deleteApp(secondaryApp);
-            if (error.code === 'auth/email-already-in-use') {
-                try {
-                    const normalizedEmail = data.email.trim().toLowerCase();
-                    const usersRef = collection(db, COLLECTIONS.USERS);
-                    const q = query(usersRef, where('email', '==', normalizedEmail), limit(1));
-                    const querySnap = await getDocs(q);
-
-                    if (!querySnap.empty) {
-                        const existingUserDoc = querySnap.docs[0];
-                        const uid = existingUserDoc.id;
-
-                        const adminRef = doc(db, COLLECTIONS.ADMINS, uid);
-                        await setDoc(adminRef, {
-                            uid,
-                            name: data.name.trim() || existingUserDoc.data().displayName || 'Existing User',
-                            email: normalizedEmail,
-                            role: data.role,
-                            managedSchools: [],
-                            isActive: true,
-                            organizationName: 'BatchCrick',
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp()
-                        }, { merge: true });
-
-                        await updateDoc(existingUserDoc.ref, {
-                            role: data.role,
-                            updatedAt: serverTimestamp()
-                        });
-
-                        return { success: true, uid, promoted: true };
-                    }
-                } catch (promotionError) {
-                    console.error('[adminService] Promotion fallback failed:', promotionError);
-                }
-            }
             throw error;
         }
     }

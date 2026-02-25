@@ -230,7 +230,7 @@ export default function TournamentDetails() {
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <button
-                onClick={() => navigate('/tournaments')}
+                onClick={() => navigate(-1)}
                 className="hide-in-screenshot p-1 -ml-1 hover:bg-white/10 rounded-full transition-colors shrink-0"
               >
                 <ArrowLeft size={24} />

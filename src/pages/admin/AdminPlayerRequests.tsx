@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { playerRequestService, PlayerRegistrationRequest } from '@/services/firestore/playerRequests';
-import { adminService } from '@/services/firestore/admins';
 import toast from 'react-hot-toast';
 import {
     Check,
@@ -42,23 +41,11 @@ export default function AdminPlayerRequests() {
             if (isSuperAdmin) {
                 data = await playerRequestService.getPendingRequests();
             } else {
-                // For sub-admins, we need their managed schools
-                // We'll fetch the admin document to get managedSchools
-                // (Assuming the admin's profile might have it, or we filter by school)
-                // For now, sub-admins will see all if we don't have school mapping,
-                // but let's try to fetch if they have managedSchools.
+                // New logic: Filter by sub-admin ID to only show requests for their own squads
+                data = await playerRequestService.getPendingRequestsByAdmin(user.uid);
 
-                // Fetch admin data to get managedSchools
-                const adminDoc = await adminService.getById(user.uid);
-                const managedSchools = adminDoc?.managedSchools || [];
-
-                if (managedSchools.length > 0) {
-                    data = await playerRequestService.getPendingRequestsForAdmin(managedSchools);
-                } else {
-                    // Fallback: If no schools assigned, they see nothing or all?
-                    // Usually sub-admins should see only their schools.
-                    data = await playerRequestService.getPendingRequests();
-                }
+                // If it's empty and they previously relied on schools, we might want to keep that as fallback?
+                // But user specifically asked for "who created the squad".
             }
             setRequests(data);
         } catch (error) {

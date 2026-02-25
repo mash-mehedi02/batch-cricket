@@ -20,7 +20,7 @@ import { Squad } from '@/types'
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, googleLogin, login, signup, resetPassword, updatePlayerProfile, loading } = useAuthStore()
+  const { user, googleLogin, login, signup, resetPassword, loading } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [isPendingApproval, setIsPendingApproval] = useState(false)
@@ -202,11 +202,12 @@ export default function Login() {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
       if (isSignUp) {
         // Register
-        await signup(email, password, {
-          name: name || email.split('@')[0],
+        await signup(normalizedEmail, password, {
+          name: name || normalizedEmail.split('@')[0],
           role: 'All Rounder', // Defaults, user will confirm in next step
           battingStyle: 'Right Hand',
           bowlingStyle: 'None'
@@ -214,7 +215,7 @@ export default function Login() {
         toast.success("Account created! Please complete your profile.");
       } else {
         // Login
-        await login(email, password);
+        await login(normalizedEmail, password);
       }
     } catch (error: any) {
       console.error("Auth Error:", error);
@@ -238,8 +239,9 @@ export default function Login() {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      await login(email, password);
+      await login(normalizedEmail, password);
       // Effect will handle redirect
     } catch (error: any) {
       toast.error('Admin Login failed: ' + (error.message || 'Check credentials'));
@@ -269,6 +271,7 @@ export default function Login() {
         school: school,
         squadId: squadId,
         squadName: selectedSquad?.name || 'Unknown',
+        adminId: selectedSquad?.adminId || '', // Tag the request with the squad's creator
         batch: batch,
         role: role as any,
         battingStyle: battingStyle as any,

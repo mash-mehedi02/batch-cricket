@@ -64,6 +64,13 @@ class OneSignalService {
                         console.error('[OneSignal] Native Init Failed:', nativeError);
                     }
                 } else {
+                    // Skip Web Init on localhost to avoid domain constraint errors
+                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        console.log('[OneSignal] Skipping Web Init on localhost');
+                        this.initialized = true;
+                        return;
+                    }
+
                     // Web Initialization
                     try {
                         console.log('[OneSignal] Initializing Web SDK with App ID:', ONESIGNAL_APP_ID);

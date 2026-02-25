@@ -15,7 +15,10 @@ import {
     Unlock,
     Shield,
     Clock,
-    Check
+    Check,
+    Eye,
+    EyeOff,
+    Key
 } from 'lucide-react'
 import { adminService, AdminUser } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
@@ -54,6 +57,82 @@ export default function AdminUsers() {
     const [pendingRequests, setPendingRequests] = useState<PlayerRegistrationRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
+    const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
+
+    // Email Availability Check
+    const [emailError, setEmailError] = useState<string | null>(null)
+    const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+
+    // Password Editing
+    const [showPassEditModal, setShowPassEditModal] = useState(false)
+    const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null)
+    const [newAdminPass, setNewAdminPass] = useState('')
+    const [isUpdatingPass, setIsUpdatingPass] = useState(false)
+
+    // Delete Confirmation
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null)
+    const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
+    const [isDeleting, setIsDeleting] = useState(false)
+
+    const togglePasswordVisibility = (uid: string) => {
+        setShowPasswords(prev => ({ ...prev, [uid]: !prev[uid] }))
+    }
+
+    // Debounced Email Check
+    useEffect(() => {
+        if (!inviteEmail || !showInviteModal) {
+            setEmailError(null)
+            return
+        }
+
+        const timer = setTimeout(async () => {
+            const normalized = inviteEmail.trim().toLowerCase()
+            if (!normalized || !normalized.includes('@')) return
+
+            setIsCheckingEmail(true)
+            try {
+                const result = await adminService.checkEmailExists(normalized)
+                if (result.exists) {
+                    setEmailError(`This email is already registered as a${result.type === 'admin' ? 'n Admin' : ' Player/User'}. You cannot reuse it for a new Admin account.`)
+                } else {
+                    setEmailError(null)
+                }
+            } catch (err) {
+                console.error("Email check failed:", err)
+            } finally {
+                setIsCheckingEmail(false)
+            }
+        }, 600)
+
+        return () => clearTimeout(timer)
+    }, [inviteEmail, showInviteModal])
+
+    const handleUpdatePassword = async (e: React.FormEvent | null, forceReset: boolean = false) => {
+        if (e) e.preventDefault()
+        if (!editingAdmin) return
+
+        const isManualReset = !!editingAdmin.pwd && !forceReset
+        const tid = toast.loading(isManualReset ? `Updating security for ${editingAdmin.email}...` : `Sending reset link to ${editingAdmin.email}...`)
+        setIsUpdatingPass(true)
+        try {
+            if (isManualReset) {
+                await adminService.changePassword(editingAdmin.email, editingAdmin.pwd!, newAdminPass)
+                toast.success('Password updated successfully!', { id: tid })
+            } else {
+                await useAuthStore.getState().resetPassword(editingAdmin.email)
+                toast.success('Password reset email sent!', { id: tid })
+            }
+            setShowPassEditModal(false)
+            setNewAdminPass('')
+            loadData()
+        } catch (error: any) {
+            console.error('Pass update error:', error)
+            toast.error(error.message || (isManualReset ? 'Update failed' : 'Failed to send email'), { id: tid })
+        } finally {
+            setIsUpdatingPass(false)
+        }
+    }
 
     useEffect(() => {
         if (!authLoading) {
@@ -81,8 +160,13 @@ export default function AdminUsers() {
             const squadList = await squadService.getAll()
             setSquads(squadList)
 
-            // 4. Load Pending Requests
-            const requests = await playerRequestService.getPendingRequests()
+            // 4. Load Pending Requests (Filtered for Sub-admins)
+            let requests = []
+            if (isSuperAdmin) {
+                requests = await playerRequestService.getPendingRequests()
+            } else if (currentUser?.uid) {
+                requests = await playerRequestService.getPendingRequestsByAdmin(currentUser.uid)
+            }
             setPendingRequests(requests)
         } catch (error) {
             console.error('Error loading user data:', error)
@@ -187,14 +271,18 @@ export default function AdminUsers() {
         const loadingToast = toast.loading('Creating administrative account...')
         setIsInviting(true)
         try {
-            await adminService.createAdminAccount({
+            const result = await adminService.createAdminAccount({
                 name: inviteName,
                 email: inviteEmail,
                 password: invitePassword,
                 role: inviteRole
             })
 
-            toast.success(`Account created for ${inviteEmail}! They can login immediately.`, { id: loadingToast })
+            const message = result.promoted
+                ? `User ${inviteEmail} promoted! Note: They should use their PREVIOUS login method (Google/Old Password) to access the Admin Panel.`
+                : `Account created for ${inviteEmail}! They can login with their new password immediately.`;
+
+            toast.success(message, { id: loadingToast })
             setShowInviteModal(false)
             setInviteName('')
             setInviteEmail('')
@@ -250,19 +338,37 @@ export default function AdminUsers() {
         }
     }
 
-    const handleDeleteAdmin = async (uid: string) => {
+    const handleDeleteAdmin = (admin: AdminUser) => {
         if (!isSuperAdmin) return
-        if (uid === currentUser?.uid) return
+        if (admin.uid === currentUser?.uid) {
+            toast.error("You cannot delete your own account.")
+            return
+        }
 
-        if (!confirm('Are you sure you want to delete this admin? They will lose all access immediately.')) return
+        setAdminToDelete(admin)
+        setDeleteConfirmEmail('')
+        setShowDeleteModal(true)
+    }
 
+    const executeDeleteAdmin = async () => {
+        if (!adminToDelete || deleteConfirmEmail.trim().toLowerCase() !== adminToDelete.email.toLowerCase()) {
+            toast.error('Email mismatch! Please type the correct email.')
+            return
+        }
+
+        const tid = toast.loading(`Permanently removing ${adminToDelete.name}...`)
+        setIsDeleting(true)
         try {
-            await adminService.delete(uid)
-            setAdmins(prev => prev.filter(a => a.uid !== uid))
-            toast.success('Admin deleted')
+            await adminService.delete(adminToDelete.uid)
+            setAdmins(prev => prev.filter(a => a.uid !== adminToDelete.uid))
+            toast.success('Administrator permanently removed', { id: tid })
+            setShowDeleteModal(false)
+            setAdminToDelete(null)
         } catch (error) {
             console.error('Delete failed:', error)
-            toast.error('Failed to delete admin')
+            toast.error('Deletion failed: Check network connectivity', { id: tid })
+        } finally {
+            setIsDeleting(false)
         }
     }
 
@@ -441,10 +547,21 @@ export default function AdminUsers() {
                                                             </button>
                                                         )}
 
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingAdmin(admin);
+                                                                setShowPassEditModal(true);
+                                                            }}
+                                                            className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 text-left transition-colors"
+                                                        >
+                                                            <Lock size={16} className="text-blue-500" />
+                                                            Manage Password
+                                                        </button>
+
                                                         <div className="h-px bg-slate-100 my-1 mx-2" />
 
                                                         <button
-                                                            onClick={() => handleDeleteAdmin(admin.uid)}
+                                                            onClick={() => handleDeleteAdmin(admin)}
                                                             disabled={admin.uid === currentUser?.uid}
                                                             className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 text-left transition-colors disabled:opacity-30"
                                                         >
@@ -493,6 +610,26 @@ export default function AdminUsers() {
                                                         <span className="text-[10px] font-mono text-slate-500 truncate w-40">{admin.uid}</span>
                                                     </div>
                                                 </div>
+
+                                                {isSuperAdmin && admin.pwd && (
+                                                    <div className="flex items-start gap-3 text-slate-600">
+                                                        <Key className="w-4 h-4 mt-0.5" />
+                                                        <div className="flex-1 flex flex-col">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Password</span>
+                                                                <button
+                                                                    onClick={() => togglePasswordVisibility(admin.uid)}
+                                                                    className="text-blue-500 hover:text-blue-700"
+                                                                >
+                                                                    {showPasswords[admin.uid] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                                                </button>
+                                                            </div>
+                                                            <span className="text-xs font-mono font-bold text-slate-700">
+                                                                {showPasswords[admin.uid] ? admin.pwd : '••••••••'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center justify-between pt-2 px-1">
@@ -724,7 +861,23 @@ export default function AdminUsers() {
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Email Address</label>
-                                    <input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
+                                    <div className="relative">
+                                        <input
+                                            type="email"
+                                            required
+                                            value={inviteEmail}
+                                            onChange={(e) => setInviteEmail(e.target.value)}
+                                            className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:ring-4 transition-all font-bold ${emailError ? 'border-rose-500 focus:ring-rose-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                                        />
+                                        {isCheckingEmail && (
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    {emailError && (
+                                        <p className="text-[10px] text-rose-500 font-bold mt-2 px-1 leading-tight">{emailError}</p>
+                                    )}
                                 </div>
                             </div>
                             <div>
@@ -738,7 +891,11 @@ export default function AdminUsers() {
                                     <button type="button" onClick={() => setInviteRole('super_admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'super_admin' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100'}`}>Super Admin</button>
                                 </div>
                             </div>
-                            <button type="submit" disabled={isInviting} className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50">
+                            <button
+                                type="submit"
+                                disabled={isInviting || !!emailError || isCheckingEmail}
+                                className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
+                            >
                                 {isInviting ? 'Initializing...' : 'Confirm Account Creation'}
                             </button>
                         </form>
@@ -794,6 +951,131 @@ export default function AdminUsers() {
                             >
                                 {isSquadLinking ? 'Assigning...' : 'Assign to Squad'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Password Edit Modal */}
+            {showPassEditModal && editingAdmin && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><Key className="w-6 h-6" /></div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 leading-tight">
+                                        {editingAdmin.pwd ? 'Update Password' : 'Reset Account'}
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{editingAdmin.email}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowPassEditModal(false)} className="p-2.5 hover:bg-slate-100 rounded-full transition-all">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleUpdatePassword} className="space-y-6">
+                            {editingAdmin.pwd ? (
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">New Password</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        minLength={6}
+                                        value={newAdminPass}
+                                        onChange={(e) => setNewAdminPass(e.target.value)}
+                                        placeholder="Enter minimum 6 characters"
+                                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center space-y-3">
+                                    <ShieldAlert className="w-10 h-10 text-amber-500 mx-auto" />
+                                    <p className="text-sm font-bold text-slate-700">Legacy Account Detected</p>
+                                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                                        This account was created before password tracking. To regain access, we must send a reset link to their email address.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] text-blue-700 font-medium leading-relaxed">
+                                {editingAdmin.pwd
+                                    ? <span><b>Note:</b> This will update both the login account and our internal copy. They must use the new password next time.</span>
+                                    : <span><b>Security Note:</b> Once they click the link in their email, they can choose a new password and log in.</span>
+                                }
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isUpdatingPass}
+                                className={`w-full py-5 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl transition-all active:scale-95 disabled:opacity-50 ${editingAdmin.pwd ? 'bg-slate-900 hover:bg-slate-800' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            >
+                                {isUpdatingPass
+                                    ? 'Processing Security...'
+                                    : editingAdmin.pwd ? 'Update Security Now' : 'Send Reset Link Now'
+                                }
+                            </button>
+
+                            {editingAdmin.pwd && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleUpdatePassword(null as any, true)}
+                                    className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors"
+                                >
+                                    Login issue? Send Password Reset Link instead
+                                </button>
+                            )}
+                        </form>
+                    </div>
+                </div>
+            )}
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && adminToDelete && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[70] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-500 mb-6 shadow-inner">
+                                <ShieldAlert size={40} />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 mb-2">Security Check</h3>
+                            <p className="text-slate-500 text-sm font-medium mb-8">
+                                You are about to permanently delete <b>{adminToDelete.name}</b>.
+                                This action is irreversible and will revoke all access immediately.
+                            </p>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-5 bg-rose-50 rounded-2xl border border-rose-100 italic">
+                                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest text-center mb-1">Confirmation Required</p>
+                                <p className="text-xs text-rose-500 text-center font-bold">
+                                    Type <span className="text-rose-700 select-all">{adminToDelete.email}</span> to confirm.
+                                </p>
+                            </div>
+
+                            <input
+                                type="email"
+                                value={deleteConfirmEmail}
+                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                placeholder="Enter admin email address"
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-rose-100 focus:border-rose-300 transition-all text-center"
+                            />
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowDeleteModal(false)}
+                                    className="flex-1 py-4 bg-slate-100 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={executeDeleteAdmin}
+                                    disabled={deleteConfirmEmail.trim().toLowerCase() !== adminToDelete.email.toLowerCase() || isDeleting}
+                                    className="flex-[2] py-4 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all disabled:opacity-30 disabled:shadow-none animate-pulse"
+                                >
+                                    {isDeleting ? 'Removing...' : 'Permanently Delete'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

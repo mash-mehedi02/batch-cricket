@@ -197,12 +197,17 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             <span className="text-[13px] sm:text-[15px] font-black text-slate-800 dark:text-white truncate uppercase tracking-tighter">{teamAName}</span>
                         </div>
 
-                        {/* VS Center Badge - Image Asset */}
+                        {/* VS Center Badge - Premium Gold Look */}
                         <div className="shrink-0 z-20">
-                            <div className="bg-slate-300 dark:bg-slate-700 w-9 h-5 sm:w-10 sm:h-6
-                                shadow-md flex items-center justify-center overflow-hidden"
+                            <div className="bg-slate-100 dark:bg-slate-800 w-9 h-5 sm:w-10 sm:h-6
+                                shadow-lg flex items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10"
                                 style={{ clipPath: 'polygon(8% 0%, 92% 0%, 97% 3%, 100% 10%, 92% 90%, 88% 97%, 85% 100%, 15% 100%, 12% 97%, 8% 90%, 0% 10%, 3% 3%)' }}>
-                                <img src={vsIcon} alt="VS" className="w-full h-full object-cover" />
+                                <img
+                                    src={vsIcon}
+                                    alt="VS"
+                                    className="w-full h-full object-cover scale-90"
+                                    style={{ filter: 'brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2500%) hue-rotate(3deg) brightness(100%) contrast(105%)' }}
+                                />
                             </div>
                         </div>
 
@@ -265,7 +270,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                 {/* Middle: Team Showdown with Scores */}
                 <div className="flex-1 flex items-center justify-between w-full relative overflow-hidden py-4">
                     {/* Team A Pod */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-5 flex-1 min-w-0">
                         <div className="h-12 sm:h-14 w-12 sm:w-16 bg-slate-200 dark:bg-slate-800/50 rounded-r-full flex items-center justify-center shrink-0 border-y border-r border-slate-300 dark:border-white/10 shadow-sm relative pr-1">
                             {teamALogo ? (
                                 <img src={teamALogo} alt={teamAName} className="w-10 h-10 sm:w-12 sm:h-12 object-contain relative z-10 transition-transform group-hover:scale-110" />
@@ -295,7 +300,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                 )}
                                 <span className={((match as any).isSuperOver)
                                     ? "text-[12px] sm:text-[13px] font-bold text-slate-400 tabular-nums leading-none"
-                                    : "text-[18px] sm:text-[20px] font-black text-slate-900 dark:text-white tabular-nums leading-none"}>
+                                    : "text-[18px] sm:text-[20px] font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] dark:drop-shadow-[0_2px_12px_rgba(16,185,129,0.25)]"}>
                                     {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
                                     {teamAInnings?.overs && !((match as any).isSuperOver) && (
                                         <span className="text-[9px] font-bold text-slate-400 ml-1">({teamAInnings.overs})</span>
@@ -313,16 +318,21 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                 <span className="text-[11px] font-black text-red-600 dark:text-red-500 tracking-tighter">LIVE</span>
                             </div>
                         ) : (
-                            <div className="bg-slate-300 dark:bg-slate-700 w-9 h-5 sm:w-10 sm:h-6
-                                shadow-md flex items-center justify-center overflow-hidden"
+                            <div className="bg-slate-100 dark:bg-slate-800 w-9 h-5 sm:w-10 sm:h-6
+                                shadow-lg flex items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10"
                                 style={{ clipPath: 'polygon(8% 0%, 92% 0%, 97% 3%, 100% 10%, 92% 90%, 88% 97%, 85% 100%, 15% 100%, 12% 97%, 8% 90%, 0% 10%, 3% 3%)' }}>
-                                <img src={vsIcon} alt="VS" className="w-full h-full object-cover" />
+                                <img
+                                    src={vsIcon}
+                                    alt="VS"
+                                    className="w-full h-full object-cover scale-90"
+                                    style={{ filter: 'brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2500%) hue-rotate(3deg) brightness(100%) contrast(105%)' }}
+                                />
                             </div>
                         )}
                     </div>
 
                     {/* Team B Pod */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                    <div className="flex items-center gap-5 flex-1 min-w-0 justify-end">
                         <div className="flex flex-col items-end min-w-0 text-right">
                             <span className="text-[10px] sm:text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase truncate leading-tight">
                                 {teamBName}
@@ -343,7 +353,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                 )}
                                 <span className={((match as any).isSuperOver)
                                     ? "text-[12px] sm:text-[13px] font-bold text-slate-400 tabular-nums leading-none"
-                                    : "text-[18px] sm:text-[20px] font-black text-slate-900 dark:text-white tabular-nums leading-none"}>
+                                    : "text-[18px] sm:text-[20px] font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] dark:drop-shadow-[0_2px_12px_rgba(16,185,129,0.25)]"}>
                                     {teamBInnings?.overs && !((match as any).isSuperOver) && (
                                         <span className="text-[9px] font-bold text-slate-400 mr-1">({teamBInnings.overs})</span>
                                     )}

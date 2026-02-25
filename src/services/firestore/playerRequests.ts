@@ -15,7 +15,7 @@ import {
     deleteDoc,
     setDoc
 } from 'firebase/firestore'
-import { PlayerRole, BattingStyle, BowlingStyle, Player } from '@/types'
+import { PlayerRole, BattingStyle, BowlingStyle } from '@/types'
 
 export interface PlayerRegistrationRequest {
     id?: string
@@ -25,8 +25,8 @@ export interface PlayerRegistrationRequest {
     school: string
     squadId: string
     squadName: string
-    tournamentId: string
-    tournamentName: string
+    tournamentId?: string
+    tournamentName?: string
     role: PlayerRole
     battingStyle: BattingStyle
     bowlingStyle: BowlingStyle
@@ -97,23 +97,38 @@ export const playerRequestService = {
      * Admin: Get all pending requests (Super admin version)
      */
     async getPendingRequests(): Promise<PlayerRegistrationRequest[]> {
-        const q = query(
-            collection(db, 'player_requests'),
-            where('status', '==', 'pending'),
-            orderBy('createdAt', 'desc')
-        )
-        const snap = await getDocs(q)
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+        try {
+            const q = query(
+                collection(db, 'player_requests'),
+                where('status', '==', 'pending'),
+                orderBy('createdAt', 'desc')
+            )
+            const snap = await getDocs(q)
+            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+        } catch (error: any) {
+            console.warn('[playerRequestService] getPendingRequests: Index missing, falling back to manual sort', error);
+            // Fallback: Simple query + client-side sort
+            const q = query(
+                collection(db, 'player_requests'),
+                where('status', '==', 'pending')
+            )
+            const snap = await getDocs(q)
+            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+
+            return list.sort((a, b) => {
+                const timeA = a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0;
+                const timeB = b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0;
+                return timeB - timeA;
+            });
+        }
     },
 
     /**
-     * Admin: Get pending requests filtered by managed schools (Sub-admin version)
+     * Admin: Get pending requests filtered by managed schools (Sub-admin version - Legacy)
      */
     async getPendingRequestsForAdmin(managedSchools: string[]): Promise<PlayerRegistrationRequest[]> {
         if (!managedSchools || managedSchools.length === 0) return []
 
-        // Firestore 'in' query supports up to 10 elements. 
-        // If more, we'd need multiple queries. For now 10 is enough for school isolation.
         const q = query(
             collection(db, 'player_requests'),
             where('status', '==', 'pending'),
@@ -122,6 +137,41 @@ export const playerRequestService = {
         )
         const snap = await getDocs(q)
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+    },
+
+    /**
+     * Admin: Get pending requests filtered by administrator unit (New Squad Isolation version)
+     */
+    async getPendingRequestsByAdmin(adminId: string): Promise<PlayerRegistrationRequest[]> {
+        if (!adminId) return []
+
+        try {
+            const q = query(
+                collection(db, 'player_requests'),
+                where('status', '==', 'pending'),
+                where('adminId', '==', adminId),
+                orderBy('createdAt', 'desc')
+            )
+            const snap = await getDocs(q)
+            return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+        } catch (error: any) {
+            console.warn('[playerRequestService] getPendingRequestsByAdmin: Index missing, falling back to manual filter', error);
+            // Fallback: Simple query + client-side filter & sort
+            const q = query(
+                collection(db, 'player_requests'),
+                where('status', '==', 'pending')
+            )
+            const snap = await getDocs(q)
+            const list = snap.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as PlayerRegistrationRequest))
+                .filter(req => req.adminId === adminId);
+
+            return list.sort((a, b) => {
+                const timeA = a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0;
+                const timeB = b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0;
+                return timeB - timeA;
+            });
+        }
     },
 
     /**

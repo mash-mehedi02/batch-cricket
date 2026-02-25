@@ -16,7 +16,7 @@ import {
   getRedirectResult
 } from 'firebase/auth'
 
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore'
 import { auth, db } from '@/config/firebase'
 import { User } from '@/types'
 import toast from 'react-hot-toast'
@@ -43,9 +43,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Legacy Login
   login: async (email: string, password: string): Promise<boolean> => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log("[AuthStore] Attempting login for:", normalizedEmail);
+      const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       return await get().processLogin(userCredential.user);
     } catch (error: any) {
+      console.error("[AuthStore] Login Error:", error.code, error.message);
       set({ loading: false });
       throw error;
     }
@@ -54,14 +57,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Legacy Signup
   signup: async (email: string, password: string, profileData: any) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       await updateProfile(userCredential.user, { displayName: profileData.name });
 
       const userRef = doc(db, 'users', userCredential.user.uid);
 
       const newUser: any = {
         uid: userCredential.user.uid,
-        email: userCredential.user.email,
+        email: normalizedEmail,
         displayName: profileData.name,
         role: 'viewer',
         createdAt: serverTimestamp(),
@@ -87,7 +91,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   resetPassword: async (email: string) => {
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
     } catch (error) {
       console.error(error);
       throw error;
@@ -144,6 +148,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await setPersistence(auth, browserLocalPersistence);
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
 
       try {
         const result = await signInWithPopup(auth, provider);
@@ -222,6 +227,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               if (userRole === 'viewer') userRole = 'player';
             } else {
               console.warn("[AuthStore] SECURITY: Player is owned by another UID. Skipping link.");
+            }
+          }
+        }
+      }
+
+      // --- STEP 1.5: ADMIN DISCOVERY (BY EMAIL) ---
+      if (user.email) {
+        const emailLower = user.email.toLowerCase().trim();
+        console.log("[AuthStore] Checking for Admin rights for:", emailLower);
+        const adminQ = query(collection(db, 'admins'), where('email', '==', emailLower), limit(1));
+        const adminSnap = await getDocs(adminQ);
+
+        if (!adminSnap.empty) {
+          const adminData = adminSnap.docs[0].data();
+          if (adminData.isActive) {
+            console.log("[AuthStore] Admin email match found! Granting privileges.");
+            userRole = adminData.role || 'admin';
+
+            // If the UID in the admin record is different, we need to sync it
+            if (adminData.uid !== user.uid) {
+              console.log("[AuthStore] Syncing Admin UID from", adminData.uid, "to", user.uid);
+              // We create/update the record with the current UID
+              await setDoc(doc(db, 'admins', user.uid), {
+                ...adminData,
+                uid: user.uid,
+                updatedAt: serverTimestamp()
+              });
+              // Note: We don't delete the old one here to be safe, 
+              // but the new one will be used for rules via request.auth.uid
             }
           }
         }
@@ -359,6 +393,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+        await GoogleAuth.signOut().catch(e => console.warn("GoogleAuth native signout failed:", e));
+      }
+    } catch (e) {
+      console.warn("Logout native cleaning failed:", e);
+    }
     await signOut(auth)
     set({ user: null })
   },

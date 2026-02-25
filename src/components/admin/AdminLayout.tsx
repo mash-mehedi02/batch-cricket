@@ -252,9 +252,10 @@ const AdminLayout = () => {
                         <ShieldAlert className="w-10 h-10 text-rose-500" />
                     </div>
 
-                    <h2 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter">Access Restricted</h2>
+                    <h2 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter">Access Isolated</h2>
                     <p className="text-slate-400 text-sm font-medium mb-8 leading-relaxed">
-                        You are logged in with a <span className="text-rose-400 font-bold">Player Account</span>. Admin data is isolated for your security.
+                        You are logged in with a <span className="text-rose-400 font-bold">Player Identity</span>.
+                        If you are an administrator, please use the <span className="text-blue-400 underline">Admin Email Portal</span> or click the verification button below.
                     </p>
 
                     <div className="space-y-4">

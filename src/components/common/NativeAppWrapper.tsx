@@ -23,11 +23,28 @@ export default function NativeAppWrapper() {
                 if (backButtonListener) backButtonListener.remove();
                 backButtonListener = await CapacitorApp.addListener('backButton', () => {
                     const currentPath = locationRef.current.pathname;
-                    const isTabRoot = ['/', '/login', '/admin', '/admin/tournaments', '/admin/matches', '/admin/players', '/admin/squads'].includes(currentPath);
 
-                    if (!isTabRoot) {
+                    // 1. Hierarchy-based Back Navigation (Professional Logic)
+                    // If we are deep in admin, go back to admin dashboard instead of exiting
+                    if (currentPath.startsWith('/admin/') && currentPath !== '/admin') {
+                        // If it's a list page like /admin/matches, go to /admin
+                        const adminRoots = ['/admin/tournaments', '/admin/matches', '/admin/players', '/admin/squads', '/admin/users', '/admin/settings'];
+                        if (adminRoots.includes(currentPath)) {
+                            navigate('/admin');
+                        } else {
+                            navigate(-1);
+                        }
+                        return;
+                    }
+
+                    // 2. Tab Root Check
+                    // Only exit if at the actual entry point (Home) or Login
+                    const isMainRoot = ['/', '/login', '/admin'].includes(currentPath);
+
+                    if (!isMainRoot) {
                         navigate(-1);
                     } else {
+                        // Only exit app if at Home or Admin Dashboard
                         CapacitorApp.exitApp();
                     }
                 });
