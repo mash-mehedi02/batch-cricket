@@ -236,13 +236,29 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
                           rx="2"
                         />
 
-                        {/* Wickets */}
-                        {o.aWkts > 0 && (
-                          <circle cx={xBase - barWidth / 2 - gap / 2} cy={height - hA - 10} r="4" fill="white" stroke={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="2" />
-                        )}
-                        {o.bWkts > 0 && (
-                          <circle cx={xBase + barWidth / 2 + gap / 2} cy={height - hB - 10} r="4" fill="white" stroke={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'} strokeWidth="2" />
-                        )}
+                        {/* Wickets — stack multiple dots vertically */}
+                        {Array.from({ length: o.aWkts }).map((_, wi) => (
+                          <circle
+                            key={`wA-${o.over}-${wi}`}
+                            cx={xBase - barWidth / 2 - gap / 2}
+                            cy={height - hA - 10 - wi * 12}
+                            r="4"
+                            fill="white"
+                            stroke={firstSide === 'teamA' ? '#0ea5e9' : '#f97316'}
+                            strokeWidth="2"
+                          />
+                        ))}
+                        {Array.from({ length: o.bWkts }).map((_, wi) => (
+                          <circle
+                            key={`wB-${o.over}-${wi}`}
+                            cx={xBase + barWidth / 2 + gap / 2}
+                            cy={height - hB - 10 - wi * 12}
+                            r="4"
+                            fill="white"
+                            stroke={secondSide === 'teamA' ? '#0ea5e9' : '#f97316'}
+                            strokeWidth="2"
+                          />
+                        ))}
 
                         {/* X-Axis labels */}
                         <text x={xBase} y={height + 20} textAnchor="middle" className="text-[10px] fill-slate-400 dark:fill-slate-500 font-black">{o.over}</text>
@@ -293,36 +309,38 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
               const pointsA = wormDataA.map(d => `${getX(d.over)},${getY(d.runs)}`).join(' ')
               const pointsB = wormDataB.map(d => `${getX(d.over)},${getY(d.runs)}`).join(' ')
 
-              // Wicket markers for Team A
-              const wicketsA = (firstInns?.fallOfWickets || []).map((fow, i) => {
+              // Wicket markers for Team A — use fow.score (cumulative team total) to place ON the worm line
+              const wicketsA = (firstInns?.fallOfWickets || []).map((fow: any, i: number) => {
                 const overMatch = String(fow.over || "0.0").match(/(\d+)\.(\d+)/)
                 const overFraction = overMatch ? parseInt(overMatch[1]) + (parseInt(overMatch[2]) / 6) : 0
+                const cumulativeScore = Number(fow.score || 0)
                 return (
                   <circle
                     key={`wkA-${i}`}
                     cx={getX(overFraction)}
-                    cy={getY(fow.runs)}
-                    r="4"
+                    cy={getY(cumulativeScore)}
+                    r="4.5"
                     fill="#ef4444"
                     stroke="white"
-                    strokeWidth="1.5"
+                    strokeWidth="2"
                   />
                 )
               })
 
-              // Wicket markers for Team B
-              const wicketsB = (secondInns?.fallOfWickets || []).map((fow, i) => {
+              // Wicket markers for Team B — use fow.score (cumulative team total) to place ON the worm line
+              const wicketsB = (secondInns?.fallOfWickets || []).map((fow: any, i: number) => {
                 const overMatch = String(fow.over || "0.0").match(/(\d+)\.(\d+)/)
                 const overFraction = overMatch ? parseInt(overMatch[1]) + (parseInt(overMatch[2]) / 6) : 0
+                const cumulativeScore = Number(fow.score || 0)
                 return (
                   <circle
                     key={`wkB-${i}`}
                     cx={getX(overFraction)}
-                    cy={getY(fow.runs)}
-                    r="4"
+                    cy={getY(cumulativeScore)}
+                    r="4.5"
                     fill="#ef4444"
                     stroke="white"
-                    strokeWidth="1.5"
+                    strokeWidth="2"
                   />
                 )
               })

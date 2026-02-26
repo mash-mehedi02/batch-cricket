@@ -29,12 +29,13 @@ import MatchSummary from '@/components/match/MatchSummary'
 import MatchVoting from '@/components/live/MatchVoting'
 import { MatchSettingsSheet } from '@/components/match/MatchSettingsSheet'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
-import { MapPin, Info, Users, Hash, ChevronDown, Pin, LayoutDashboard } from 'lucide-react'
+import { MapPin, Info, Users, Hash, ChevronDown, Pin, LayoutDashboard, X } from 'lucide-react'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 import { useTranslation } from '@/hooks/useTranslation'
 import { useScreenshotShare } from '@/hooks/useScreenshotShare'
 import ShareModal from '@/components/common/ShareModal'
+import { preloadImages } from '@/hooks/useImagePreloader'
 
 export default function MatchLive() {
   const { matchId } = useParams<{ matchId: string }>()
@@ -56,7 +57,8 @@ export default function MatchLive() {
   const [commentary, setCommentary] = useState<CommentaryEntry[]>([])
   const [activeCommentaryFilter, setActiveCommentaryFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('summary') // Upcoming should land on Summary by default
+  const [activeTab, setActiveTab] = useState('summary')
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['summary']))
   const didInitTab = useRef(false)
   const [now, setNow] = useState<Date>(() => new Date())
   const [centerEventText, setCenterEventText] = useState<string>('')
@@ -65,6 +67,11 @@ export default function MatchLive() {
   const [showAnimation, setShowAnimation] = useState<boolean>(false)
   const [displayedInnings, setDisplayedInnings] = useState<InningsStats | null>(null)
   const [isPinned, setIsPinned] = useState(false)
+
+  // Track visited tabs for lazy loading optimization
+  useEffect(() => {
+    setVisitedTabs(prev => new Set([...Array.from(prev), activeTab]))
+  }, [activeTab])
   const prevBallKeyRef = useRef<string | null>(null)
   const isAnimatingRef = useRef(false)
   const scoreTimerRef = useRef<any>(null)
@@ -88,6 +95,7 @@ export default function MatchLive() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [showPlayingXIModal, setShowPlayingXIModal] = useState(false)
   const [screenshotImage, setScreenshotImage] = useState('')
   const pageRef = useRef<HTMLDivElement>(null)
 
@@ -138,6 +146,22 @@ export default function MatchLive() {
   }
   const teamASquad = match ? resolveSquad(match as any, 'A') : null
   const teamBSquad = match ? resolveSquad(match as any, 'B') : null
+
+  // Preload team logos & player photos instantly when available
+  useEffect(() => {
+    const urls: (string | undefined | null)[] = []
+    // Team logos from squads
+    if (teamASquad?.logoUrl) urls.push(teamASquad.logoUrl)
+    if (teamBSquad?.logoUrl) urls.push(teamBSquad.logoUrl)
+    // Team logos from match data
+    if ((match as any)?.teamALogoUrl) urls.push((match as any).teamALogoUrl)
+    if ((match as any)?.teamBLogoUrl) urls.push((match as any).teamBLogoUrl)
+    // Player photos
+    playersMap.forEach((p: any) => {
+      if (p?.photoUrl) urls.push(p.photoUrl)
+    })
+    if (urls.length > 0) preloadImages(urls)
+  }, [teamASquad, teamBSquad, match, playersMap])
 
   // Load match and subscribe
   useEffect(() => {
@@ -1407,11 +1431,10 @@ export default function MatchLive() {
       { id: 'playing-xi', label: t('tab_playing_xi') },
     ]
 
-    // Add Points Table if match has group (groupName or groupId) or tournament has groups
+    // Add Points Table if match specifically belongs to a group
     const hasGroup = Boolean((match as any)?.groupName || (match as any)?.groupId)
-    const tournamentHasGroups = Boolean(tournament?.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0)
 
-    if (match?.tournamentId && (hasGroup || tournamentHasGroups)) {
+    if (match?.tournamentId && hasGroup) {
       baseTabs.push({ id: 'points-table', label: t('tab_point_table') })
     }
 
@@ -1464,7 +1487,7 @@ export default function MatchLive() {
             {/* Stage Pill */}
             {(match as any).stage && (
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl shadow-sm">
-                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">
                   {(match as any).stage === 'knockout'
                     ? String((match as any).round || '').replace('_', ' ')
                     : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage}
@@ -1475,17 +1498,17 @@ export default function MatchLive() {
             {/* Venue Pill */}
             <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl shadow-sm">
               <MapPin size={14} className="text-rose-500" />
-              <span className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest leading-none">
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-widest leading-none">
                 {match.venue || 'SMA Home Ground'}
               </span>
             </div>
 
             {/* Date & State */}
             <div className="flex items-center gap-3">
-              <div className="px-5 py-2.5 rounded-2xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-[11px] font-black text-slate-900 dark:text-slate-200 tracking-tight shadow-sm dark:shadow-xl">
+              <div className="px-5 py-2.5 rounded-2xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-[11px] font-semibold text-slate-900 dark:text-slate-200 tracking-tight shadow-sm dark:shadow-xl">
                 {startDate ? formatDateLabelTZ(startDate) : 'Date TBA'} {startTimeText ? ` • ${startTimeText}` : ''}
               </div>
-              <div className="px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-[10px] font-black text-amber-500 tracking-widest uppercase shadow-lg shadow-amber-500/5">
+              <div className="px-4 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-[10px] font-semibold text-amber-500 tracking-widest uppercase shadow-lg shadow-amber-500/5">
                 Upcoming
               </div>
             </div>
@@ -1495,7 +1518,7 @@ export default function MatchLive() {
           <div className="flex items-center justify-between px-2 sm:px-8 mb-16 relative">
             {/* Center VS */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-0 opacity-20">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em]">VS</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5em]">VS</span>
             </div>
 
             {/* Team A */}
@@ -1505,14 +1528,14 @@ export default function MatchLive() {
                 <div className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-0.5 shadow-2xl overflow-hidden shadow-blue-500/20">
                   <div className="w-full h-full bg-[#1a2332] rounded-[1.4rem] flex items-center justify-center p-3 sm:p-5">
                     {teamASquad?.logoUrl ? (
-                      <img src={teamASquad.logoUrl} className="w-full h-full object-contain" alt="" />
+                      <img src={teamASquad.logoUrl} className="w-full h-full object-contain" alt="" loading="eager" {...({ fetchpriority: "high" } as any)} />
                     ) : (
-                      <span className="text-3xl sm:text-5xl font-black text-white">{teamAName.charAt(0)}</span>
+                      <span className="text-3xl sm:text-5xl font-semibold text-white">{teamAName.charAt(0)}</span>
                     )}
                   </div>
                 </div>
               </div>
-              <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight text-center leading-tight mt-1">
+              <h2 className="text-sm sm:text-lg font-semibold text-slate-900 dark:text-white uppercase tracking-tight text-center leading-tight mt-1">
                 {firstName}
               </h2>
             </div>
@@ -1524,14 +1547,14 @@ export default function MatchLive() {
                 <div className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-br from-rose-600 to-pink-700 p-0.5 shadow-2xl overflow-hidden shadow-rose-500/20">
                   <div className="w-full h-full bg-[#1a2332] rounded-[1.4rem] flex items-center justify-center p-3 sm:p-5">
                     {teamBSquad?.logoUrl ? (
-                      <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" alt="" />
+                      <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" alt="" loading="eager" {...({ fetchpriority: "high" } as any)} />
                     ) : (
-                      <span className="text-3xl sm:text-5xl font-black text-white">{secondName.charAt(0)}</span>
+                      <span className="text-3xl sm:text-5xl font-semibold text-white">{secondName.charAt(0)}</span>
                     )}
                   </div>
                 </div>
               </div>
-              <h2 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight text-center leading-tight mt-1">
+              <h2 className="text-sm sm:text-lg font-semibold text-slate-900 dark:text-white uppercase tracking-tight text-center leading-tight mt-1">
                 {secondName}
               </h2>
             </div>
@@ -1541,7 +1564,7 @@ export default function MatchLive() {
           <div className="bg-white dark:bg-white/[0.03] backdrop-blur-md border border-slate-200 dark:border-white/5 rounded-[2.5rem] p-8 sm:p-10 mb-8 border-b-slate-300 dark:border-b-white/10 shadow-xl dark:shadow-2xl">
             <div className="flex items-center gap-2 mb-8 justify-center sm:justify-start">
               <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Live Starts In</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Live Starts In</span>
             </div>
             {countdown ? (
               <div className="grid grid-cols-4 gap-3 sm:gap-6">
@@ -1553,14 +1576,14 @@ export default function MatchLive() {
                 ].map((x) => (
                   <div key={x.label} className="flex flex-col items-center gap-2">
                     <div className="w-full aspect-square flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-[#141b2b] border border-slate-200 dark:border-white/5 shadow-inner">
-                      <span className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">{String(x.val).padStart(2, '0')}</span>
+                      <span className="text-2xl sm:text-4xl font-semibold text-slate-900 dark:text-white tabular-nums tracking-tighter">{String(x.val).padStart(2, '0')}</span>
                     </div>
-                    <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{x.label}</span>
+                    <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{x.label}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="h-24 flex items-center justify-center italic text-xs text-slate-500 font-bold uppercase tracking-widest animate-pulse">Syncing...</div>
+              <div className="h-24 flex items-center justify-center italic text-xs text-slate-500 font-semibold uppercase tracking-widest animate-pulse">Syncing...</div>
             )}
           </div>
 
@@ -1572,23 +1595,26 @@ export default function MatchLive() {
                 <Info size={20} className="text-blue-500" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Toss</p>
-                <p className="text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Toss</p>
+                <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-tight">
                   {tossDisplay ? (
-                    <span className="text-blue-600 dark:text-blue-400">{tossDisplay.winnerName} <span className="text-slate-500 dark:text-slate-400 font-bold">won</span></span>
+                    <span className="text-blue-600 dark:text-blue-400">{tossDisplay.winnerName} <span className="text-slate-500 dark:text-slate-400 font-semibold">won</span></span>
                   ) : 'Not Decided'}
                 </p>
               </div>
             </div>
 
             {/* Playing XI */}
-            <div className="bg-white dark:bg-white/[0.03] backdrop-blur-sm border border-slate-200 dark:border-white/5 rounded-3xl p-5 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-all group shadow-sm">
+            <div
+              className="bg-white dark:bg-white/[0.03] backdrop-blur-sm border border-slate-200 dark:border-white/5 rounded-3xl p-5 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-white/[0.06] transition-all group shadow-sm cursor-pointer"
+              onClick={() => setActiveTab('playing-xi')}
+            >
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform">
                 <Users size={20} className="text-emerald-500" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Playing XI</p>
-                <p className="text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{hasAnyXI ? 'Announced' : 'TBD'}</p>
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Playing XI</p>
+                <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-tight">{hasAnyXI ? 'Announced' : 'TBD'}</p>
               </div>
             </div>
 
@@ -1598,8 +1624,8 @@ export default function MatchLive() {
                 <Hash size={20} className="text-purple-500" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Category</p>
-                <p className="text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{(match as any)?.groupName || 'Pool Match'}</p>
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Category</p>
+                <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-tight">{(match as any)?.groupName || 'Pool Match'}</p>
               </div>
             </div>
 
@@ -1609,8 +1635,8 @@ export default function MatchLive() {
                 <Info size={20} className="text-indigo-500" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Format</p>
-                <p className="text-[13px] font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{match.oversLimit || 20} Overs</p>
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Format</p>
+                <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-tight">{match.oversLimit || 20} Overs</p>
               </div>
             </div>
           </div>
@@ -1630,11 +1656,11 @@ export default function MatchLive() {
             hasGroup && match?.tournamentId && (
               <div className="mt-12">
                 <div className="flex items-center justify-between px-2 mb-6">
-                  <h3 className="text-[13px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <h3 className="text-[13px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                     <LayoutDashboard size={14} className="text-blue-500" />
                     Points Table
                   </h3>
-                  <button onClick={() => setActiveTab('points-table')} className="text-[11px] font-black text-blue-500 hover:text-blue-400 transition-colors uppercase tracking-widest">
+                  <button onClick={() => setActiveTab('points-table')} className="text-[11px] font-semibold text-blue-500 hover:text-blue-400 transition-colors uppercase tracking-widest">
                     View Full Table
                   </button>
                 </div>
@@ -1659,8 +1685,23 @@ export default function MatchLive() {
   }
 
   // Render content based on active tab - All inline, no navigation
-  const renderTabContent = () => {
-    switch (activeTab) {
+  // Render content based on tab ID - used for carousel
+  const renderTabById = (tabId: string) => {
+    // Only render if visited or adjacent to current tab for performance
+    const tabIndex = matchTabs.findIndex(t => t.id === tabId)
+    const activeTabIndex = matchTabs.findIndex(t => t.id === activeTab)
+    const isAdjacent = Math.abs(tabIndex - activeTabIndex) <= 1
+    const isVisited = visitedTabs.has(tabId)
+
+    if (!isVisited && !isAdjacent) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="w-8 h-8 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin" />
+        </div>
+      )
+    }
+
+    switch (tabId) {
       case 'commentary':
         const effInningsComm = displayedInnings || currentInnings;
         const isSOComm = (match as any).isSuperOver || String(effInningsComm?.inningId || '').includes('super');
@@ -1697,7 +1738,7 @@ export default function MatchLive() {
               firstSide={firstSide}
               secondSide={secondSide}
               resultSummary={isFinishedMatch ? (calculatedResultSummary || (match as any)?.resultSummary || null) : null}
-              onlyCommentary={true} // New prop to only show commentary
+              onlyCommentary={true}
               teamFormAndH2H={teamFormAndH2H}
               hasGroup={Boolean((match as any)?.groupName || (match as any)?.groupId)}
               tournamentId={match.tournamentId}
@@ -1710,13 +1751,11 @@ export default function MatchLive() {
       case 'graphs':
         return <MatchGraphs compact={true} />
       case 'playing-xi':
-        return <MatchPlayingXI compact={true} />
+        return <MatchPlayingXI compact={false} match={match || undefined} />
       case 'info':
-        return <MatchInfo compact={true} onSwitchTab={setActiveTab} />
+        return <MatchInfo compact={true} onSwitchTab={setActiveTab} onOpenPlayingXI={() => setShowPlayingXIModal(true)} match={match || undefined} />
       case 'summary':
-        // Upcoming matches show the upcoming design on summary tab
         if (isUpcomingMatch) return renderUpcoming()
-        // Only finished matches get the new specific Summary component
         return (
           <MatchSummary
             match={match}
@@ -1729,6 +1768,7 @@ export default function MatchLive() {
             teamBLogo={teamBSquad?.logoUrl}
             teamASuperInnings={teamASuperInnings}
             teamBSuperInnings={teamBSuperInnings}
+            onSwitchTab={setActiveTab}
           />
         )
       case 'points-table':
@@ -1737,7 +1777,6 @@ export default function MatchLive() {
             <TournamentPointsTable embedded={true} tournamentId={match.tournamentId} highlightMatch={match as any} />
           </div>
         ) : null
-      default:
       case 'live':
         if (isUpcomingMatch && !isPastStart) return renderUpcoming()
         const effInningsLive = displayedInnings || currentInnings;
@@ -1784,6 +1823,8 @@ export default function MatchLive() {
             />
           </div>
         )
+      default:
+        return null
     }
   }
 
@@ -1889,28 +1930,41 @@ export default function MatchLive() {
         </>
       )}
 
-      {/* 4. Tab Content with Swipe Animations */}
-      <div className="relative overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.2}
-            onDragEnd={(_, info) => {
-              const swipeThreshold = 50
-              if (info.offset.x < -swipeThreshold) handleSwipe('left')
-              if (info.offset.x > swipeThreshold) handleSwipe('right')
-            }}
-            className="w-full touch-pan-y"
-          >
-            {renderTabContent()}
-          </motion.div>
-        </AnimatePresence>
+      {/* 4. Tab Content with Dynamic Carousel & Swipe Support */}
+      <div className="relative overflow-hidden w-full">
+        <motion.div
+          animate={{ x: `-${currentTabIndex * 100}%` }}
+          transition={{
+            type: 'spring',
+            damping: 30,
+            stiffness: 250,
+            mass: 0.8
+          }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.4}
+          onDragEnd={(_, info) => {
+            const swipeThreshold = 50
+            const velocityThreshold = 500
+
+            if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+              handleSwipe('left')
+            } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
+              handleSwipe('right')
+            }
+          }}
+          className="flex w-full touch-pan-y items-start"
+        >
+          {matchTabs.map((tab) => (
+            <div
+              key={tab.id}
+              className="w-full shrink-0 min-h-screen"
+              style={{ width: '100%' }}
+            >
+              {renderTabById(tab.id)}
+            </div>
+          ))}
+        </motion.div>
       </div>
       <MatchSettingsSheet
         isOpen={isSettingsOpen}
@@ -1925,6 +1979,24 @@ export default function MatchLive() {
         image={screenshotImage}
         title="Share Live Score"
       />
+
+      {/* Full Screen Playing XI Modal */}
+      {showPlayingXIModal && (
+        <div className="fixed inset-0 z-[1000] bg-white flex flex-col">
+          <div className="h-14 flex items-center justify-between bg-white border-b border-slate-200 px-4 shrink-0 shadow-sm">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Squad Information</h2>
+            <button
+              onClick={() => setShowPlayingXIModal(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-600"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <MatchPlayingXI compact={true} match={match || undefined} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

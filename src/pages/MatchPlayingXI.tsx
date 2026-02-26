@@ -7,6 +7,7 @@ import { Match } from '@/types'
 import { formatShortTeamName } from '@/utils/teamName'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import { X } from 'lucide-react'
 
 function formatRole(player: any): string {
   const role = String(player.role || '').toLowerCase()
@@ -14,8 +15,8 @@ function formatRole(player: any): string {
   const bowling = String(player.bowlingStyle || '').toLowerCase()
 
   if (role === 'batsman' || role === 'batter') {
-    const side = batting.includes('left') ? 'LHB' : 'RHB'
-    return `${side} Batter`
+    const side = batting.includes('left') ? 'LH' : 'RH'
+    return `${side} Bat`
   }
   if (role === 'bowler') {
     if (bowling) {
@@ -31,18 +32,18 @@ function formatRole(player: any): string {
     return 'Bowler'
   }
   if (role === 'all-rounder') return 'All Rounder'
-  if (role === 'wicket-keeper' || role === 'wk') return 'WK-Batter'
+  if (role === 'wicket-keeper' || role === 'wk') return 'WK-Bat'
 
   return role ? (role.charAt(0).toUpperCase() + role.slice(1)) : 'Player'
 }
 
-export default function MatchPlayingXI({ compact = false }: { compact?: boolean }) {
+export default function MatchPlayingXI({ compact = false, match: initialMatch }: { compact?: boolean, match?: Match }) {
   const { matchId } = useParams<{ matchId: string }>()
   const navigate = useNavigate()
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
-  const [match, setMatch] = useState<Match | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [match, setMatch] = useState<Match | null>(initialMatch || null)
+  const [loading, setLoading] = useState(!initialMatch)
   const [selectedTeam, setSelectedTeam] = useState<'A' | 'B'>('A')
   const [squadData, setSquadData] = useState<{ allA: any[], allB: any[] }>({ allA: [], allB: [] })
   const [prevXIs, setPrevXIs] = useState<{ a: string[], b: string[] }>({ a: [], b: [] })
@@ -50,6 +51,11 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
   const didDefaultTeam = useRef(false)
 
   useEffect(() => {
+    if (initialMatch) {
+      setMatch(initialMatch)
+      setLoading(false)
+      return
+    }
     if (!matchId) return
 
     matchService.getById(matchId).then((matchData) => {
@@ -69,7 +75,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
     })
 
     return () => unsubscribe()
-  }, [matchId])
+  }, [matchId, initialMatch])
 
   useEffect(() => {
     const resolveSquadId = async (candidate?: string, nameFallback?: string): Promise<string | null> => {
@@ -195,10 +201,10 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] flex items-center justify-center">
+      <div className={`${compact ? 'bg-transparent' : 'min-h-screen bg-slate-50 dark:bg-[#060b16]'} flex items-center justify-center p-12`}>
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-slate-200 dark:border-white/5 border-t-blue-500 rounded-full animate-spin"></div>
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-widest">Loading XI...</span>
+          <div className="w-10 h-10 border-2 border-slate-200 dark:border-white/5 border-t-blue-500 rounded-full animate-spin"></div>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Loading XI...</span>
         </div>
       </div>
     )
@@ -206,12 +212,9 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
 
   if (!match) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] flex items-center justify-center p-6">
-        <div className="text-center bg-white dark:bg-[#0f172a] p-12 rounded-[2rem] shadow-xl border border-slate-200 dark:border-white/5">
-          <div className="text-5xl mb-6">🏴</div>
-          <p className="text-slate-500 font-medium mb-8 uppercase tracking-widest">Match data unavailable</p>
-          <button onClick={() => navigate('/')} className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-medium shadow-lg hover:shadow-xl transition-all">Go Home</button>
-        </div>
+      <div className={`flex flex-col items-center justify-center p-12 text-center ${compact ? '' : 'min-h-screen bg-slate-50 dark:bg-[#060b16]'}`}>
+        <div className="text-4xl mb-4">🏴</div>
+        <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[11px]">Match unavailable</p>
       </div>
     )
   }
@@ -243,37 +246,35 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
   const renderPlayerCard = (player: any, isCaptain: boolean, isKeeper: boolean) => {
     const roleDisplay = formatRole(player)
     return (
-      <div key={player.id} className="relative group">
-        <div className="bg-white dark:bg-[#0f172a] rounded-[1.5rem] p-3 sm:p-4 border border-slate-200 dark:border-white/5 flex items-center gap-3 sm:gap-4 hover:border-blue-500/30 hover:shadow-md transition-all duration-300">
+      <div key={player.id} className="relative py-2 leading-tight">
+        <div className="flex items-center gap-3">
           <div className="relative shrink-0">
             <PlayerAvatar
               photoUrl={player.photoUrl || (player as any).photo}
               name={player.name}
               size="lg"
             />
-            {player.status === 'IN' && (
-              <div className="absolute -top-1 -left-1 bg-green-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-sm border-2 border-white">↑</div>
-            )}
-            {player.status === 'OUT' && (
-              <div className="absolute -top-1 -left-1 bg-rose-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-sm border-2 border-white">↓</div>
-            )}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <PlayerLink playerId={player.id} playerName={player.name} className="font-medium text-slate-900 dark:text-white truncate text-sm sm:text-base hover:text-blue-600 dark:hover:text-blue-400 transition-colors" />
+              <PlayerLink playerId={player.id} playerName={player.name} className={`font-semibold ${isCaptain || isKeeper ? 'text-[#b08b47]' : 'text-slate-900'} truncate text-[14px] sm:text-[15px] hover:text-blue-600 transition-colors leading-tight`} />
               {(isCaptain || isKeeper) && (
-                <div className="flex gap-1">
-                  {isCaptain && <span className="text-[8px] sm:text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">(C)</span>}
-                  {isKeeper && <span className="text-[8px] sm:text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-md font-medium uppercase tracking-tighter">WK</span>}
-                </div>
+                <span className="text-[11px] font-bold text-[#b08b47] lowercase">
+                  {isCaptain && isKeeper ? '(c & wk)' : isCaptain ? '(c)' : '(wk)'}
+                </span>
               )}
             </div>
-            <div className="flex items-center justify-between mt-1">
-              <div className="text-[10px] sm:text-xs text-slate-500 font-medium truncate uppercase tracking-tight">{roleDisplay}</div>
-              {player.status && (
-                <span className={`text-[9px] font-black uppercase tracking-widest ${player.status === 'IN' ? 'text-green-600' : 'text-rose-500'}`}>
-                  {player.status}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="text-[12px] text-slate-500 font-medium truncate tracking-tight">{roleDisplay}</div>
+              {player.status === 'IN' && (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#10b981] flex items-center gap-0.5">
+                  IN <span className="text-[12px]">▲</span>
+                </span>
+              )}
+              {player.status === 'OUT' && (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#f43f5e] flex items-center gap-0.5">
+                  OUT <span className="text-[12px]">▼</span>
                 </span>
               )}
             </div>
@@ -284,7 +285,7 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white pb-20">
+    <div className={`min-h-screen ${compact ? 'bg-white text-slate-900' : 'bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white'} pb-20`}>
       {/* Premium Header */}
       {!compact && (
         <div className="bg-[#0f172a] border-b border-white/5 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-black/20">
@@ -295,66 +296,83 @@ export default function MatchPlayingXI({ compact = false }: { compact?: boolean 
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-3 sm:px-8 py-8 space-y-10">
-        {/* Team Tabs - Custom Design */}
-        <div className="p-1.5 bg-slate-100 dark:bg-white/5 backdrop-blur rounded-[1.5rem] flex gap-2 w-full max-w-md mx-auto ring-1 ring-slate-200 dark:ring-white/10">
+      {/* Team Tabs */}
+      <div className={`${compact ? 'sticky top-0 z-20 bg-white border-b border-slate-100' : 'max-w-5xl mx-auto pt-8 px-3 sm:px-8'}`}>
+        <div className={`flex gap-6 ${compact ? 'px-6' : 'p-1.5 bg-slate-100 dark:bg-white/5 rounded-[1.5rem] ring-1 ring-slate-200 dark:ring-white/10 max-w-md mx-auto'}`}>
           {[
             { side: firstSide, name: firstSide === 'A' ? teamAName : teamBName },
             { side: secondSide, name: secondSide === 'A' ? teamAName : teamBName }
-          ].map((t) => (
-            <button
-              key={t.side}
-              onClick={() => setSelectedTeam(t.side)}
-              className={`flex-1 py-3 px-4 rounded-[1.2rem] text-xs font-medium uppercase tracking-widest transition-all duration-300 ${selectedTeam === t.side ? 'bg-blue-600 shadow-lg text-white ring-1 ring-blue-500/30' : 'text-slate-500 hover:text-slate-300'
-                }`}
-            >
-              {formatShortTeamName(t.name)}
-            </button>
-          ))}
+          ].map((t) => {
+            const isActive = selectedTeam === t.side
+            if (compact) {
+              return (
+                <button
+                  key={t.side}
+                  onClick={() => setSelectedTeam(t.side)}
+                  className={`relative py-4 text-[15px] font-bold transition-all ${isActive ? 'text-slate-900' : 'text-slate-400'}`}
+                >
+                  {formatShortTeamName(t.name)}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-rose-600 rounded-full" />
+                  )}
+                </button>
+              )
+            }
+            return (
+              <button
+                key={t.side}
+                onClick={() => setSelectedTeam(t.side)}
+                className={`flex-1 py-3 px-4 rounded-[1.2rem] text-xs font-medium uppercase tracking-widest transition-all duration-300 ${isActive ? 'bg-blue-600 shadow-lg text-white ring-1 ring-blue-500/30' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                {formatShortTeamName(t.name)}
+              </button>
+            )
+          })}
         </div>
+      </div>
 
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {loadingSquads ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map(n => (
-                <div key={n} className="bg-white rounded-[1.5rem] p-6 border border-slate-100 h-24 animate-pulse" />
+                <div key={n} className="h-20 bg-slate-100 dark:bg-white/5 rounded-2xl animate-pulse" />
               ))}
             </div>
           ) : (
             <>
               {(selectedTeam === 'A' && teamAPlayingXI.length === 0) || (selectedTeam === 'B' && teamBPlayingXI.length === 0) ? (
                 <div className="space-y-8">
-                  <div className="bg-slate-100 dark:bg-white/5 rounded-2xl p-4 text-center">
+                  <div className="bg-slate-50 dark:bg-white/5 rounded-2xl p-4 text-center">
                     <p className="text-slate-500 font-medium uppercase tracking-widest text-[10px]">Playing XI not announced yet</p>
                   </div>
 
                   {/* Show Full Squad */}
-                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                     {selectedTeam === 'A' ? (
                       squadData.allA.map((p) => renderPlayerCard(p, p.id === match.teamACaptainId, p.id === match.teamAKeeperId))
                     ) : (
-                      squadData.allB.map((p) => renderPlayerCard(p, p.id === match.teamACaptainId, p.id === match.teamAKeeperId))
+                      squadData.allB.map((p) => renderPlayerCard(p, p.id === (match as any).teamBCaptainId, p.id === (match as any).teamBKeeperId))
                     )}
                   </div>
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                     {selectedTeam === 'A' ? (
                       teamAData.playing.map((p) => renderPlayerCard(p, p.id === match.teamACaptainId, p.id === match.teamAKeeperId))
                     ) : (
-                      teamBData.playing.map((p) => renderPlayerCard(p, p.id === match.teamBCaptainId, p.id === match.teamBKeeperId))
+                      teamBData.playing.map((p) => renderPlayerCard(p, p.id === (match as any).teamBCaptainId, p.id === (match as any).teamBKeeperId))
                     )}
                   </div>
 
                   {/* Bench Section with subtle styling */}
                   {(selectedTeam === 'A' ? teamAData.bench : teamBData.bench).length > 0 && (
-                    <div className="mt-16">
-                      <div className="flex items-center gap-4 mb-8">
-                        <h3 className="text-xs font-medium text-slate-500 uppercase tracking-[0.3em] whitespace-nowrap">On Bench</h3>
-                        <div className="h-px bg-slate-200 dark:bg-white/5 w-full" />
+                    <div className="mt-12">
+                      <div className="mb-6">
+                        <h3 className="text-[17px] font-bold text-slate-800">On Bench</h3>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 sm:gap-4 opacity-80 filter grayscale-[0.3]">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                         {selectedTeam === 'A' ? (
                           teamAData.bench.map((p) => renderPlayerCard(p, false, false))
                         ) : (

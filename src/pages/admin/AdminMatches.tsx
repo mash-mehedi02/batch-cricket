@@ -727,10 +727,13 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
 
     // Client-side hard validation
+    // Tournament is now optional for independent matches
+    /*
     if (!formData.tournamentId) {
       toast.error('Please select a tournament.')
       return
     }
+    */
 
     if (!formData.teamA || !formData.teamB) {
       toast.error('Please select both Team A and Team B.')
@@ -806,6 +809,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         tournamentId: formData.tournamentId,
         groupId: formData.groupId || '',
         groupName: tournamentGroups.length > 0 ? (selectedGroup?.name || '') : undefined,
+        school: selectedTournament?.school || (user as any)?.managedSchools?.[0] || 'SMA',
         // Keep legacy + canonical team fields for compatibility across pages
         teamA: formData.teamA,
         teamB: formData.teamB,
@@ -1031,9 +1035,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md p-6 border border-gray-200 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament (Optional)</label>
               <select
-                required
                 value={formData.tournamentId}
                 onChange={(e) => {
                   const nextTournamentId = e.target.value
@@ -1058,7 +1061,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
               >
-                <option value="">Select Tournament</option>
+                <option value="">Friendship / Independent Match</option>
                 {tournaments.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.year})

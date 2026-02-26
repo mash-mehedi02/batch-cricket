@@ -30,18 +30,13 @@ const BattingTable = ({ batsmen, currentStrikerId, currentNonStrikerId }: Battin
     )
   }
 
-  // Sort batsmen by batting order (dismissed first, then not out, then by runs desc)
-  const sortedBatsmen = [...batsmen].sort((a, b) => {
-    // Not out batsmen come last
-    if (a.notOut && !b.notOut) return 1
-    if (!a.notOut && b.notOut) return -1
-    // Among dismissed, sort by dismissal order (we'll use index as proxy)
-    // Among not out, sort by runs desc
-    if (a.notOut && b.notOut) {
-      return b.runs - a.runs
+  // Sort batsmen by batting position (who came in first appears first)
+  const sortedBatsmen = [...batsmen].sort((a: any, b: any) => {
+    if (a.battingPosition !== undefined && b.battingPosition !== undefined) {
+      return a.battingPosition - b.battingPosition;
     }
-    return 0
-  })
+    return 0;
+  });
 
   return (
     <div className="overflow-x-auto">

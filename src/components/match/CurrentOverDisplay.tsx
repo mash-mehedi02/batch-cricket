@@ -20,13 +20,13 @@ function getExtraTypeFromBadge(badge: string): 'wide' | 'noball' | 'extra' {
   return 'extra'
 }
 
-export default function CurrentOverDisplay({ 
-  currentOverBalls = [], 
+export default function CurrentOverDisplay({
+  currentOverBalls = [],
   currentOverDeliveries = [],
   currentOverExtras = [],
   overRuns,
   overNumber,
-  lastBall: _lastBall 
+  lastBall: _lastBall
 }: CurrentOverDisplayProps) {
   // Fill remaining balls with empty slots
   const balls = [...currentOverBalls]
@@ -44,9 +44,9 @@ export default function CurrentOverDisplay({
     currentOverDeliveries && currentOverDeliveries.length > 0
       ? currentOverDeliveries
       : [
-          ...currentOverBalls.map((b) => ({ value: b.value, type: b.type, isLegal: true })),
-          ...currentOverExtras.map((e) => ({ value: e.badge, type: getExtraTypeFromBadge(e.badge), isLegal: false })),
-        ]
+        ...currentOverBalls.map((b) => ({ value: b.value, type: b.type, isLegal: true })),
+        ...currentOverExtras.map((e) => ({ value: e.badge, type: getExtraTypeFromBadge(e.badge), isLegal: false })),
+      ]
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
@@ -62,25 +62,19 @@ export default function CurrentOverDisplay({
         {deliveries.map((ball, idx) => (
           <div
             key={idx}
-            className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm shadow-md ${
-              ball.type === 'empty'
-                ? 'border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400'
-                : idx === deliveries.length - 1
-                ? 'bg-yellow-500 text-white scale-110'
-                : ball.type === 'wicket'
-                ? 'bg-red-500 text-white'
-                : ball.type === 'four'
-                ? 'bg-blue-500 text-white'
-                : ball.type === 'six'
-                ? 'bg-green-500 text-white'
-                : ball.type === 'wide'
-                ? 'bg-yellow-600 text-white'
-                : ball.type === 'noball'
-                ? 'bg-orange-600 text-white'
-                : 'bg-gray-600 text-white'
-            }`}
+            className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm border ${ball.type === 'empty'
+                ? 'border border-slate-200 dark:border-slate-800 bg-transparent text-slate-300'
+                : ball.type === 'wicket' || ball.value === 'W'
+                  ? 'bg-rose-600 text-white border-rose-500'
+                  : ball.value === '6'
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : ball.value === '4'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800'
+              }`}
+            style={{ width: 'auto', minWidth: '1.75rem', padding: (ball.value || '').length > 1 ? '0 6px' : '0' }}
           >
-            {ball.value || '0'}
+            {ball.value === '·' || (ball.value === '' && ball.type !== 'empty') ? '0' : ball.value}
           </div>
         ))}
 
@@ -91,14 +85,17 @@ export default function CurrentOverDisplay({
           return Array.from({ length: empties }).map((_, i) => (
             <div
               key={`empty-${i}`}
-              className="w-12 h-12 rounded-full border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 flex items-center justify-center font-bold text-sm shadow-md"
+              className="h-7 w-7 rounded-full border border-slate-200 dark:border-slate-800 bg-transparent shrink-0 flex items-center justify-center"
             >
-              ·
+              <span className="text-slate-300 dark:text-slate-700 text-[10px]">·</span>
             </div>
           ))
         })()}
 
-        <div className="text-gray-600 font-semibold ml-2">= {total}</div>
+        <div className="flex items-center gap-1.5 ml-1.5 cursor-default">
+          <span className="text-xs font-medium text-slate-400">=</span>
+          <span className="text-base font-medium text-slate-900 dark:text-slate-100">{total}</span>
+        </div>
       </div>
     </div>
   )

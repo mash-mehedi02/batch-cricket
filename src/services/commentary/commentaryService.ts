@@ -44,7 +44,7 @@ export function subscribeToCommentary(
 export async function generateAutoCommentary(
   matchId: string,
   inningId: 'teamA' | 'teamB',
-  input: CommentaryInput & { ballDocId?: string; sequence?: number; style?: 'tv' | 'simple'; overNumber?: number; totalRuns?: number; nonStriker?: string }
+  input: CommentaryInput & { ballDocId?: string; sequence?: number; style?: 'tv' | 'simple'; overNumber?: number; totalRuns?: number; nonStriker?: string; fielder?: string }
 ): Promise<string> {
   const tone: any = (input.isFour || input.isSix || input.wicketType) ? 'excited' : 'normal'
   const result = generateCommentary(input, tone)
@@ -69,10 +69,12 @@ export async function generateAutoCommentary(
     ball: input.ball || 0,
     runs: usedTotalRuns || 0,
     isWicket: Boolean(input.wicketType),
+    wicketType: input.wicketType || null,
     isBoundary: input.isBoundary || false,
     batsman: input.batsman || '',
     nonStriker: input.nonStriker || '',
     bowler: input.bowler || '',
+    fielder: input.fielder || '',
     tone: result.tone,
     isHighlight: result.isHighlight,
     milestone,
@@ -115,7 +117,8 @@ export async function addManualCommentary(
   isWicket: boolean = false,
   isBoundary: boolean = false,
   batsman?: string,
-  bowler?: string
+  bowler?: string,
+  type?: string
 ): Promise<void> {
   const commentaryRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY)
 
@@ -139,6 +142,7 @@ export async function addManualCommentary(
     tone: 'neutral',
     isHighlight: isWicket || isBoundary || runs >= 4,
     milestone,
+    type: type || null,
     aiGenerated: false,
     manual: true,
     timestamp: Timestamp.now(),

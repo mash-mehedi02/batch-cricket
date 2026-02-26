@@ -490,10 +490,22 @@ export async function recalculateInnings(
 
     let nextBallIsFreeHit = false
 
+    // Tracking batting appearance order for correct scorecard sorting
+    const appearanceSequence: string[] = []
+    const recordAppearance = (id: string) => {
+      if (id && id !== 'None' && !appearanceSequence.includes(id)) {
+        appearanceSequence.push(id)
+      }
+    }
+
     // Process each ball chronologically - ensure each ball is fully parsed
     balls.forEach((rawBall) => {
       const ball = parseBallEvent(rawBall)
       const isCurrentBallFreeHit = ball.freeHit === true || nextBallIsFreeHit
+
+      // Record batting order appearance
+      recordAppearance(ball.batsmanId || '')
+      recordAppearance(ball.nonStrikerId || '')
 
       // Normalize Ball Data
       const isBallWicket = ball.isWicket === true
@@ -611,6 +623,20 @@ export async function recalculateInnings(
         if (!pBatter2 && ball.nonStrikerId && ball.nonStrikerId !== pBatter1.id) {
           pBatter2 = { id: ball.nonStrikerId, runs: 0, balls: 0 }
         }
+      }
+
+      // Ensure non-striker is also in the stats map even if they haven't faced a ball yet
+      if (ball.nonStrikerId && ball.nonStrikerId !== 'None' && !batsmanStatsMap.has(ball.nonStrikerId)) {
+        batsmanStatsMap.set(ball.nonStrikerId, {
+          batsmanId: ball.nonStrikerId,
+          batsmanName: getPlayerName(ball.nonStrikerId),
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          notOut: true,
+          dismissal: '',
+        })
       }
 
       // ICC Rule: Count wickets
@@ -965,16 +991,13 @@ export async function recalculateInnings(
       }
     }
 
-    // Build batsman stats array
-    const batsmanStats = Array.from(batsmanStatsMap.values())
-      .sort((a, b) => {
-        // Dismissed first, then by runs desc
-        if (!a.notOut && b.notOut) return -1
-        if (a.notOut && !b.notOut) return 1
-        return b.runs - a.runs
-      })
-      .map((batsman) => ({
+    // Build batsman stats array - Sorted by ACTUAL BATTING POSITION
+    const batsmanStats = appearanceSequence
+      .map(id => batsmanStatsMap.get(id))
+      .filter((b): b is NonNullable<typeof b> => !!b)
+      .map((batsman, index) => ({
         ...batsman,
+        battingPosition: index,
         strikeRate: batsman.balls > 0 ? Number(((batsman.runs / batsman.balls) * 100).toFixed(2)) : 0,
       }))
 

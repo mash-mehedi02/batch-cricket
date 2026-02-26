@@ -184,8 +184,8 @@ export const matchService = {
   async getBySquad(squadId: string): Promise<Match[]> {
     try {
       const [snapA, snapB] = await Promise.all([
-        getDocs(query(matchesRef, where('teamAId', '==', squadId), orderBy('date', 'desc'))),
-        getDocs(query(matchesRef, where('teamBId', '==', squadId), orderBy('date', 'desc')))
+        getDocs(query(matchesRef, where('teamAId', '==', squadId))),
+        getDocs(query(matchesRef, where('teamBId', '==', squadId)))
       ])
 
       const matches = new Map<string, Match>()
@@ -194,17 +194,8 @@ export const matchService = {
 
       return Array.from(matches.values()).sort(compareMatches)
     } catch (error) {
-      console.warn('[MatchService] getBySquad: orderBy query failed, falling back to client-side sort.', error)
-      // Fallback without orderBy
-      const [snapA, snapB] = await Promise.all([
-        getDocs(query(matchesRef, where('teamAId', '==', squadId))),
-        getDocs(query(matchesRef, where('teamBId', '==', squadId)))
-      ])
-      const matches = new Map<string, Match>()
-      snapA.docs.forEach(d => matches.set(d.id, { id: d.id, ...d.data() } as Match))
-      snapB.docs.forEach(d => matches.set(d.id, { id: d.id, ...d.data() } as Match))
-
-      return Array.from(matches.values()).sort(compareMatches)
+      console.error('[MatchService] getBySquad failed:', error)
+      return []
     }
   },
 

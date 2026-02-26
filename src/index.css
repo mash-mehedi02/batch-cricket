@@ -10,11 +10,12 @@
   * {
     @apply antialiased;
     -webkit-tap-highlight-color: transparent;
+    @apply focus:outline-none;
   }
 
   body {
     @apply bg-slate-50 dark:bg-[#050B18] text-slate-900 dark:text-white;
-    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -38,10 +39,11 @@
   h4,
   h5,
   h6 {
-    font-family: 'Outfit', sans-serif;
-    @apply font-bold tracking-tight;
+    font-family: 'Inter', sans-serif;
+    @apply font-semibold tracking-tight;
   }
 }
+
 
 @layer utilities {
   .text-balance {

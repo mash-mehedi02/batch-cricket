@@ -18,7 +18,7 @@ export default function BallTimeline({ recentOvers }: BallTimelineProps) {
   return (
     <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Overs</h3>
-      
+
       {recentOvers.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           No balls bowled yet
@@ -31,9 +31,10 @@ export default function BallTimeline({ recentOvers }: BallTimelineProps) {
                 <span className="text-sm font-semibold text-gray-700">
                   Over {over.overNumber}
                 </span>
-                <span className="text-sm font-medium text-gray-900">
-                  {over.totalRuns} run{over.totalRuns !== 1 ? 's' : ''}
-                </span>
+                <div className="flex items-center gap-1.5 ml-1.5 cursor-default">
+                  <span className="text-xs font-medium text-slate-400">=</span>
+                  <span className="text-base font-medium text-slate-900 dark:text-slate-100">{over.totalRuns}</span>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
@@ -43,14 +44,18 @@ export default function BallTimeline({ recentOvers }: BallTimelineProps) {
                     <div key={idx}>
                       {ball ? (
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
-                          style={{ backgroundColor: getBallColorFromType(ball.type || 'normal') }}
+                          className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm border ${ball.type === 'wicket' || ball.value === 'W' ? 'bg-rose-600 text-white border-rose-500' :
+                              ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
+                                  'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800'
+                            }`}
+                          style={{ width: 'auto', minWidth: '1.75rem', padding: (ball.value || '').length > 1 ? '0 6px' : '0' }}
                         >
-                          {ball.value}
+                          {ball.value === '·' ? '0' : ball.value}
                         </div>
                       ) : (
-                        <div className="w-10 h-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center">
-                          <span className="text-gray-400 text-xs">·</span>
+                        <div className="h-7 w-7 rounded-full border border-slate-200 dark:border-slate-800 bg-transparent shrink-0 flex items-center justify-center">
+                          <span className="text-slate-300 dark:text-slate-700 text-[10px]">·</span>
                         </div>
                       )}
                     </div>

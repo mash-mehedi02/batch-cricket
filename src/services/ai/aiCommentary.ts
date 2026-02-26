@@ -19,6 +19,7 @@ export type CommentaryInput = {
   wicketType?: 'Bowled' | 'Caught' | 'Caught & Bowled' | 'LBW' | 'Run Out' | 'Stumped' | 'Hit Wicket' | null
   batsman?: string
   bowler?: string
+  fielder?: string
   shotType?: 'drive' | 'cut' | 'pull' | 'sweep' | 'loft' | 'defensive' | 'glance' | null
   isBoundary?: boolean
   isFour?: boolean
@@ -35,6 +36,8 @@ export type CommentaryInput = {
     isSuperOver?: boolean;
   };
   nonStriker?: string;
+  totalRuns?: number;
+  milestone?: '50' | '100' | null;
 }
 
 export type ToneControl = 'normal' | 'excited' | 'matchTurning'
@@ -123,7 +126,7 @@ const WICKET_TEMPLATES = {
       '{bowler} beats {batsman} for pace and hits the stumps!',
       'The bails fly! {batsman} is bowled! Error in judgement!',
       'Through the gate! {bowler} has cleaned him up!',
-      'Nothing {batsman} could do there! A perfect delivery!',
+      'Nothing {batsman} could do there! {bowler} produces a ripper!',
     ],
     excited: [
       'BOWLED HIM! {bowler} SHATTERS THE STUMPS WITH A YORKER!',
@@ -135,21 +138,21 @@ const WICKET_TEMPLATES = {
   },
   Caught: {
     normal: [
-      '{batsman} is caught! A simple catch in the end.',
-      'Caught! {batsman} departs after finding the fielder!',
-      '{batsman} holes out to the man at long-on!',
-      'That\'s a catch! {batsman} is out! Well taken by the fielder.',
-      '{batsman} finds the fielder at deep mid-wicket!',
-      'Safe hands! {batsman} is caught at cover.',
-      '{batsman} tries to go big but finds the man on the boundary!',
-      'Outside edge and taken by the keeper! {batsman} is gone!',
+      'Caught! {batsman} is gone, taken by {fielder} off {bowler}.',
+      '{batsman} finds {fielder} in the deep! Out!',
+      'Safe hands from {fielder}! {batsman} departs off {bowler}\'s bowling.',
+      '{batsman} tries to clear the fence but {fielder} takes an easy catch.',
+      'Edged and taken! {fielder} makes no mistake. {batsman} is out!',
+      'Lofted shot from {batsman} but it goes straight to {fielder}!',
+      '{batsman} holes out! {fielder} completes the catch at long-off.',
+      'The fielder {fielder} settles under it and takes it comfortably!',
     ],
     excited: [
-      'CAUGHT! {batsman} IS OUT! BRILLIANT GRAB IN THE DEEP!',
-      'STUNNING CATCH! The fielder dives to his left and takes it!',
-      'TAKEN! {batsman} IS CAUGHT AT WIDE LONG-OFF!',
-      'WHAT A TAKE! A sliding catch in the gap to dismiss {batsman}!',
-      'CLUTCH! Taken at point! {batsman} cannot believe it!',
+      'STUNNING CATCH! {fielder} dives to his left and plucks it out of thin air! {batsman} is stunned!',
+      'WHAT A TAKE! {fielder} runs a long way and slides to complete a brilliant catch!',
+      'UNBELIEVABLE! {fielder} has taken a beauty at point! {batsman} has to go!',
+      'CAUGHT! {batsman} is out! {fielder} showing great composure under the high ball!',
+      'MAGIC IN THE FIELD! {fielder} with a catch that will be remembered for a long time!',
     ],
   },
   'Caught & Bowled': {
@@ -168,39 +171,40 @@ const WICKET_TEMPLATES = {
   LBW: {
     normal: [
       'LBW! {batsman} is out! The umpire didn\'t hesitate.',
-      'Plumb! {batsman} is given out LBW! Trapped in front!',
+      'Plumb! {batsman} is given out LBW! Trapped in front by {bowler}!',
       '{bowler} appeals and it\'s given! LBW! Right in the line!',
       'Trapped in front! {batsman} is out LBW! Missing your stumps there.',
     ],
     excited: [
       'LBW! {batsman} IS OUT! {bowler} GOT HIS MAN!',
       'PLUMB! GIVEN OUT LBW! HE WAS TRAPPED LIKE A BIRD!',
-      'DEAD PLUMB! The loudest appeal you will hear today!',
+      'DEAD PLUMB! The loudest appeal you will hear today! {bowler} is ecstatic!',
     ],
   },
   'Run Out': {
     normal: [
-      'Run out! {batsman} is short of the crease by an inch!',
-      'Direct hit! {batsman} is run out! Unbelievable effort!',
-      'Brilliant fielding! {batsman} is run out by a sharp throw!',
+      'Run out! {batsman} is short of the crease, courtesy of {fielder}!',
+      'Direct hit from {fielder}! {batsman} is run out! Unbelievable effort!',
+      'Brilliant fielding! {batsman} is run out by a sharp throw from {fielder}!',
       '{batsman} is caught short! Run out! Mix-up in the middle!',
+      'Sharp work from {fielder}! {batsman} falls short of his ground.',
     ],
     excited: [
-      'RUN OUT! BRILLIANT FIELDING SHUTS DOWN {batsman}!',
-      'DIRECT HIT! {batsman} IS OUT! THE STUMPS ARE GONE!',
-      'LIT UP! The bails are off and {batsman} is well short!',
+      'RUN OUT! BRILLIANT FIELDING FROM {fielder} SHUTS DOWN {batsman}!',
+      'DIRECT HIT! {batsman} IS OUT! {fielder} has light up the stumps from the deep!',
+      'LIT UP! The bails are off and {batsman} is well short! Take a bow, {fielder}!',
     ],
   },
   Stumped: {
     normal: [
       'Stumped! {batsman} is out! He was miles out of the crease.',
-      'Quick work from the keeper! {batsman} is stumped!',
-      '{batsman} is stumped by the wicket-keeper! Beaten in the air.',
-      'Left his crease and paid the price! {batsman} is stumped!',
+      'Quick work from {fielder}! {batsman} is stumped!',
+      '{batsman} is stumped by {fielder}! Beaten in the air by {bowler}.',
+      'Left his crease and paid the price! {batsman} is stumped by {fielder}.',
     ],
     excited: [
-      'STUMPED! LIGHTNING QUICK FROM THE KEEPER! HE IS GONE!',
-      'OUT! {batsman} IS STUMPED! A CLASSIC PIECE OF KEEPING!',
+      'STUMPED! LIGHTNING QUICK FROM {fielder}! {batsman} HAD NO CHANCE!',
+      'OUT! {batsman} IS STUMPED! A CLASSIC PIECE OF KEEPING BY {fielder}!',
     ],
   },
   'Hit Wicket': {
@@ -211,6 +215,23 @@ const WICKET_TEMPLATES = {
     ],
   },
 }
+
+const MILESTONE_TEMPLATES = {
+  50: [
+    'HALF CENTURY! {batsman} reaches 50 with a fine display of batting!',
+    'FIFTY for {batsman}! A well-constructed innings reaches a key milestone.',
+    'A brilliant 50 from {batsman}! The crowd is on their feet!',
+    'Milestone reached! {batsman} brings up his half-century!',
+    'Raising the bat! {batsman} reaches 50 in style!',
+  ],
+  100: [
+    'CENTURY! A magnificent 100 from {batsman}! Pure class!',
+    'HUNDRED for {batsman}! One of the finest innings you will see today!',
+    'MAGIC MOMENT! {batsman} reaches his century! Total dominance!',
+    'Take a bow, {batsman}! 100 runs of pure quality!',
+    'THIR-FIGURE MARK! {batsman} enters the record books with a stunning 100!',
+  ]
+};
 
 const RUN_TEMPLATES = {
   0: {
@@ -331,6 +352,14 @@ export function generateCommentary(
   let text = ''
   let alternatives: string[] = []
 
+  // Milestone prefix detection
+  let milestoneText = '';
+  if (input.totalRuns === 50 || input.totalRuns === 100 || input.milestone === '50' || input.milestone === '100') {
+    const msKey = (input.milestone === '100' || input.totalRuns === 100) ? 100 : 50;
+    const msTemplates = MILESTONE_TEMPLATES[msKey as 50 | 100];
+    milestoneText = msTemplates[Math.floor(Math.random() * msTemplates.length)].replace(/{batsman}/g, batsman) + ' ';
+  }
+
   // Normalize wicketType for template lookup
   let normalizedWicketType = wicketType;
   if (wicketType) {
@@ -354,7 +383,8 @@ export function generateCommentary(
     const selected = allTemplates[Math.floor(Math.random() * allTemplates.length)];
     text = selected
       .replace(/{batsman}/g, batsman)
-      .replace(/{bowler}/g, bowler);
+      .replace(/{bowler}/g, bowler)
+      .replace(/{fielder}/g, input.fielder || 'the fielder');
 
     // Add info about runs if completed (e.g. Run Out)
     if (runs > 0) {
@@ -366,7 +396,9 @@ export function generateCommentary(
       .filter((t: string) => t !== selected)
       .slice(0, 11)
       .map((t: string) => {
-        let alt = t.replace(/{batsman}/g, batsman).replace(/{bowler}/g, bowler);
+        let alt = t.replace(/{batsman}/g, batsman)
+          .replace(/{bowler}/g, bowler)
+          .replace(/{fielder}/g, input.fielder || 'the fielder');
         if (runs > 0) alt += ` ${runs} run${runs > 1 ? 's' : ''} taken.`;
         return alt;
       });
@@ -374,7 +406,12 @@ export function generateCommentary(
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);
     }
-    return { text, tone: effectiveTone, isHighlight: true, alternatives };
+
+    if (milestoneText) {
+      text = milestoneText + text;
+    }
+
+    return { text, tone: effectiveTone, isHighlight: isHighlight || !!milestoneText, alternatives };
   }
 
   // Boundary commentary
@@ -389,7 +426,12 @@ export function generateCommentary(
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);
     }
-    return { text, tone: effectiveTone, isHighlight: true, alternatives };
+
+    if (milestoneText) {
+      text = milestoneText + text;
+    }
+
+    return { text, tone: effectiveTone, isHighlight: isHighlight || !!milestoneText, alternatives };
   }
 
   if (isFour) {
@@ -403,7 +445,12 @@ export function generateCommentary(
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);
     }
-    return { text, tone: effectiveTone, isHighlight: true, alternatives };
+
+    if (milestoneText) {
+      text = milestoneText + text;
+    }
+
+    return { text, tone: effectiveTone, isHighlight: isHighlight || !!milestoneText, alternatives };
   }
 
   // Extra commentary
@@ -427,7 +474,12 @@ export function generateCommentary(
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);
     }
-    return { text, tone: effectiveTone, isHighlight: runs > 0, alternatives };
+
+    if (milestoneText) {
+      text = milestoneText + text;
+    }
+
+    return { text, tone: effectiveTone, isHighlight: (runs > 0) || !!milestoneText, alternatives };
   }
 
   // Regular runs commentary
@@ -443,7 +495,12 @@ export function generateCommentary(
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);
     }
-    return { text, tone: effectiveTone, isHighlight: isHighlight, alternatives };
+
+    if (milestoneText) {
+      text = milestoneText + text;
+    }
+
+    return { text, tone: effectiveTone, isHighlight: isHighlight || !!milestoneText, alternatives };
   }
 
   // Fallback for other runs (4+ runs that aren't boundaries)
@@ -459,7 +516,10 @@ export function generateCommentary(
     if (style === 'tv') {
       text = addTvContext(text, input, effectiveTone);
     }
-    return { text, tone: effectiveTone, isHighlight: isHighlight, alternatives };
+    if (milestoneText) {
+      text = milestoneText + text;
+    }
+    return { text, tone: effectiveTone, isHighlight: isHighlight || !!milestoneText, alternatives };
   }
 
   // Ultimate fallback
@@ -473,7 +533,13 @@ export function generateCommentary(
   if (style === 'tv') {
     text = addTvContext(text, input, effectiveTone);
   }
-  return { text, tone: effectiveTone, isHighlight: isHighlight, alternatives };
+
+  if (milestoneText) {
+    text = milestoneText + text;
+  }
+
+  const finalHighlight = isHighlight || !!milestoneText;
+  return { text, tone: effectiveTone, isHighlight: finalHighlight, alternatives };
 }
 
 function addTvContext(base: string, input: CommentaryInput, tone: ToneControl): string {

@@ -238,7 +238,7 @@ export type BallType = 'red' | 'white' | 'pink'
 
 export interface Match {
   id: string
-  tournamentId: string
+  tournamentId?: string
   school: string
   // Optional: for group-stage tournaments (prevents cross-group fixtures)
   groupId?: string
@@ -370,6 +370,7 @@ export interface BatsmanStats {
   strikeRate: number
   dismissal?: string
   notOut: boolean
+  battingPosition?: number
 }
 
 export interface BowlerStats {
@@ -400,6 +401,7 @@ export interface RecentOver {
     value: string
     type: string
     runsOffBat: number
+    ballType?: 'normal' | 'wide' | 'no-ball' | 'leg-bye' | 'bye' // Added ballType here
   }>
   // Ordered list of ALL deliveries in the over (legal + extras like wide/no-ball) in sequence order
   // Used for "0 wd 0 0 4 1 0" style UIs.
@@ -494,6 +496,11 @@ export interface Commentary {
   isBoundary: boolean
   batsman?: string
   bowler?: string
+  fielder?: string
+  wicketType?: string
+  type?: string
+  ballType?: 'normal' | 'wide' | 'no-ball' | 'leg-bye' | 'bye'
+  manual?: boolean
   tone: 'neutral' | 'excited' | 'dramatic'
   isHighlight: boolean
   timestamp: Timestamp

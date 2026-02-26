@@ -36,6 +36,8 @@ const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ photoUrl, name, className =
                     src={photoUrl}
                     alt={name || 'Player'}
                     className="w-full h-full object-cover"
+                    loading="eager"
+                    {...({ fetchpriority: 'high' } as any)}
                     onError={() => setIsBroken(true)}
                 />
             </div>

@@ -20,7 +20,7 @@ interface MatchCardProps {
     tournamentName?: string
 }
 
-import vsIcon from '../../../assets/vs.png'
+import vsIcon from '@/assets/vs.png'
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName }) => {
     const { t, language } = useTranslation()
@@ -310,25 +310,24 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                         </div>
                     </div>
 
-                    {/* Center: LIVE Badge or VS */}
-                    <div className="shrink-0 flex items-center justify-center px-1">
-                        {isLive ? (
-                            <div className="bg-red-500/10 px-3 py-1 rounded-full flex items-center gap-1.5 border border-red-500/20 shadow-sm">
-                                <div className="w-1.5 h-1.5 bg-red-600 dark:bg-red-500 rounded-full animate-pulse" />
-                                <span className="text-[11px] font-black text-red-600 dark:text-red-500 tracking-tighter">LIVE</span>
-                            </div>
-                        ) : (
-                            <div className="bg-slate-100 dark:bg-slate-800 w-9 h-5 sm:w-10 sm:h-6
-                                shadow-lg flex items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10"
-                                style={{ clipPath: 'polygon(8% 0%, 92% 0%, 97% 3%, 100% 10%, 92% 90%, 88% 97%, 85% 100%, 15% 100%, 12% 97%, 8% 90%, 0% 10%, 3% 3%)' }}>
-                                <img
-                                    src={vsIcon}
-                                    alt="VS"
-                                    className="w-full h-full object-cover scale-90"
-                                    style={{ filter: 'brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2500%) hue-rotate(3deg) brightness(100%) contrast(105%)' }}
-                                />
+                    {/* Center: VS Icon (Always) + LIVE Badge if active */}
+                    <div className="shrink-0 flex flex-col items-center justify-center px-1 gap-1">
+                        {isLive && (
+                            <div className="bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20 shadow-sm animate-in fade-in zoom-in duration-300">
+                                <div className="w-1 h-1 bg-red-600 dark:bg-red-500 rounded-full animate-pulse" />
+                                <span className="text-[8px] font-black text-red-600 dark:text-red-500 tracking-tighter">LIVE</span>
                             </div>
                         )}
+                        <div className="bg-slate-100 dark:bg-slate-800 w-9 h-5 sm:w-10 sm:h-6
+                            shadow-lg flex items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10"
+                            style={{ clipPath: 'polygon(8% 0%, 92% 0%, 97% 3%, 100% 10%, 92% 90%, 88% 97%, 85% 100%, 15% 100%, 12% 97%, 8% 90%, 0% 10%, 3% 3%)' }}>
+                            <img
+                                src={vsIcon}
+                                alt="VS"
+                                className="w-full h-full object-cover scale-90"
+                                style={{ filter: 'brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2500%) hue-rotate(3deg) brightness(100%) contrast(105%)' }}
+                            />
+                        </div>
                     </div>
 
                     {/* Team B Pod */}

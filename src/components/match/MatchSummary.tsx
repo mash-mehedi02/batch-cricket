@@ -9,8 +9,9 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { getMatchResultString } from '@/utils/matchWinner'
 import { formatShortTeamName } from '@/utils/teamName'
-import { formatDateLabel, coerceToDate } from '@/utils/date'
-import { Zap, Trophy, Edit3, Calendar, Users, MapPin, ChevronRight, Bell, Settings, BarChart2, Table } from 'lucide-react'
+import { formatDateLabel } from '@/utils/date'
+import { Trophy, Edit3, Calendar, Users, MapPin, ChevronRight, Bell, Settings, BarChart2, Table } from 'lucide-react'
+import vsIcon from '@/assets/vs.png'
 
 interface MatchSummaryProps {
     match: Match
@@ -23,6 +24,7 @@ interface MatchSummaryProps {
     teamBLogo?: string
     teamASuperInnings?: InningsStats | null
     teamBSuperInnings?: InningsStats | null
+    onSwitchTab?: (tabId: string) => void
 }
 
 const MatchSummary: React.FC<MatchSummaryProps> = ({
@@ -36,6 +38,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     teamBLogo,
     teamASuperInnings,
     teamBSuperInnings,
+    onSwitchTab,
 }) => {
     const { user } = useAuthStore()
     const [isEditingPom, setIsEditingPom] = useState(false)
@@ -82,7 +85,19 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
     }, [match.tournamentId, match.id, match.teamAId, match.teamBId])
 
     // --- Helpers ---
-    const getPlayer = (id: string) => playersMap.get(id) || { name: 'Unknown', photoUrl: null }
+    const getPlayer = (id: string) => {
+        const fromMap = playersMap.get(id);
+        if (fromMap && fromMap.name && fromMap.name !== 'Unknown') return fromMap;
+
+        // Try to find in innings stats
+        const inA = teamAInnings?.batsmanStats?.find(b => b.batsmanId === id) || teamAInnings?.bowlerStats?.find(b => b.bowlerId === id);
+        if (inA) return { name: (inA as any).batsmanName || (inA as any).bowlerName || 'Unknown', photoUrl: null };
+
+        const inB = teamBInnings?.batsmanStats?.find(b => b.batsmanId === id) || teamBInnings?.bowlerStats?.find(b => b.bowlerId === id);
+        if (inB) return { name: (inB as any).batsmanName || (inB as any).bowlerName || 'Unknown', photoUrl: null };
+
+        return fromMap || { name: 'Unknown', photoUrl: null };
+    }
 
     const getTeamLogo = (teamSide: 'A' | 'B') => {
         if (teamSide === 'A') return teamALogo || (match as any).teamALogoUrl
@@ -190,14 +205,14 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
         return (
             <div className="py-0">
                 <div className="px-6 py-2 flex items-center justify-between bg-white/[0.03] border-b border-white/5">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{label} — {teamName}</span>
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.2em]">{label} — {teamName}</span>
                 </div>
-                <div className="divide-y divide-white/5">
+                <div className="divide-y divide-slate-100 dark:divide-white/5">
                     {[...bats.map(b => ({ ...b, type: 'bat' })), ...bowls.map(b => ({ ...b, type: 'bowl' }))].map((p: any, idx) => {
                         const pid = p.type === 'bat' ? p.batsmanId : p.bowlerId
                         const player = getPlayer(pid)
                         return (
-                            <div key={idx} className="flex items-center justify-between p-4 px-6 group">
+                            <div key={idx} className="flex items-center justify-between p-5 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.01] transition-colors group">
                                 <div className="flex items-center gap-5">
                                     <div className="relative shrink-0">
                                         <PlayerAvatar
@@ -208,23 +223,23 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                         />
                                     </div>
                                     <div className="min-w-0">
-                                        <PlayerLink playerId={pid} playerName={player.name} className="text-[15px] font-black text-slate-900 dark:text-white truncate block leading-tight mb-0.5" />
+                                        <PlayerLink playerId={pid} playerName={p.batsmanName || p.bowlerName || player.name} className="text-[15px] font-semibold text-slate-900 dark:text-white truncate block leading-tight mb-0.5" />
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                                                 {p.type === 'bat' ? `SR: ${Number(p.strikeRate || 0).toFixed(1)}` : `ER: ${Number(p.economy || 0).toFixed(1)}`}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-lg font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
+                                    <div className="text-lg font-semibold text-slate-900 dark:text-white tabular-nums tracking-tighter">
                                         {p.type === 'bat' ? (
                                             <>
-                                                {p.runs} <span className="text-slate-400 dark:text-slate-500 text-sm font-bold">({p.balls})</span>
+                                                {p.runs} <span className="text-slate-400 dark:text-slate-500 text-sm font-semibold">({p.balls})</span>
                                             </>
                                         ) : (
                                             <>
-                                                {p.wickets}-{p.runsConceded} <span className="text-slate-400 dark:text-slate-500 text-[10px] font-bold">({p.overs})</span>
+                                                {p.wickets}-{p.runsConceded} <span className="text-slate-400 dark:text-slate-500 text-[10px] font-semibold">({p.overs})</span>
                                             </>
                                         )}
                                     </div>
@@ -244,10 +259,10 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 <div className="max-w-4xl mx-auto">
                     {/* Top Title & Match Type */}
                     <div className="text-center mb-4">
-                        <h2 className="text-[13px] font-black text-white uppercase tracking-tight truncate px-8">
+                        <h2 className="text-[13px] font-semibold text-white uppercase tracking-tight truncate px-8">
                             {match.teamAName} VS {match.teamBName}
                         </h2>
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 opacity-80">
+                        <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-[0.2em] mt-1 opacity-80">
                             {(match as any).stage === 'knockout'
                                 ? `KNOCKOUT (${String((match as any).round || '').replace('_', ' ')})`
                                 : (match as any).matchNo ? `MATCH ${(match as any).matchNo}` : `${match.oversLimit || 20} OVERS`} • {tournament?.name || 'FRIENDLY MATCH'}
@@ -262,6 +277,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                     src={getTeamLogo(firstBatSide)}
                                     className="w-10 h-10 rounded-lg object-cover bg-slate-800 border border-white/10"
                                     alt=""
+                                    loading="eager"
+                                    {...({ fetchpriority: "high" } as any)}
                                 />
                                 {winnerSide === firstBatSide && (
                                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center border border-[#1C252E]">
@@ -270,30 +287,39 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                 )}
                             </div>
                             <div className="min-w-0">
-                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter truncate">{getAbbr(leftName)}</div>
+                                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-tighter truncate">{getAbbr(leftName)}</div>
                                 <div className="flex items-baseline gap-1">
                                     <span className="text-lg font-medium text-white leading-none tabular-nums">
                                         {leftInns?.totalRuns || '0'}-{leftInns?.totalWickets || '0'}
                                     </span>
-                                    <span className="text-[9px] text-slate-500 font-black">({leftInns?.overs || '0.0'})</span>
+                                    <span className="text-[9px] text-slate-500 font-semibold">({leftInns?.overs || '0.0'})</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Mid Divider */}
-                        <div className="px-3 opacity-20 shrink-0">
-                            <Zap className="w-6 h-6 text-blue-400 fill-blue-400" />
+                        <div className="px-3 shrink-0">
+                            <div className="bg-slate-800 w-9 h-5 sm:w-10 sm:h-6
+                                shadow-lg flex items-center justify-center overflow-hidden border border-white/10"
+                                style={{ clipPath: 'polygon(8% 0%, 92% 0%, 97% 3%, 100% 10%, 92% 90%, 88% 97%, 85% 100%, 15% 100%, 12% 97%, 8% 90%, 0% 10%, 3% 3%)' }}>
+                                <img
+                                    src={vsIcon}
+                                    alt="VS"
+                                    className="w-full h-full object-cover scale-90"
+                                    style={{ filter: 'brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2500%) hue-rotate(3deg) brightness(100%) contrast(105%)' }}
+                                />
+                            </div>
                         </div>
 
                         {/* Team B */}
                         <div className="flex items-center gap-3 text-right">
                             <div className="min-w-0">
-                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter truncate">
+                                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-tighter truncate">
                                     {getAbbr(rightName)}
                                 </div>
                                 <div className="flex items-baseline justify-end gap-1">
                                     {rightInns && (
-                                        <span className="text-[9px] text-slate-500 font-black">({rightInns?.overs || '0.0'})</span>
+                                        <span className="text-[9px] text-slate-500 font-semibold">({rightInns?.overs || '0.0'})</span>
                                     )}
                                     <span className="text-lg font-medium text-white leading-none tabular-nums">
                                         {rightInns?.totalRuns || '0'}-{rightInns?.totalWickets || '0'}
@@ -306,13 +332,15 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                     src={getTeamLogo(firstBatSide === 'A' ? 'B' : 'A')}
                                     className="w-10 h-10 rounded-lg object-cover bg-slate-800 border border-white/10"
                                     alt=""
+                                    loading="eager"
+                                    {...({ fetchpriority: "high" } as any)}
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Result Line */}
-                    <div className="mt-4 text-center text-[11px] font-black text-amber-500 uppercase tracking-[0.15em]">
+                    <div className="mt-4 text-center text-[11px] font-semibold text-amber-500 uppercase tracking-[0.15em]">
                         {resultText}
                     </div>
                 </div>
@@ -334,25 +362,27 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                         <div key={idx} className="flex items-center gap-3">
                                             {idx > 0 && <div className="h-4 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>}
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[9px] font-black text-slate-500 tracking-tighter uppercase">OVER {over.overNumber}</span>
-                                                <div className="flex items-center gap-1">
+                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">OVER {over.overNumber}</span>
+                                                <div className="flex items-center gap-1.5">
                                                     {(over.balls || []).map((ball: any, bi: number) => (
                                                         <div key={bi}
-                                                            className={`h-7 rounded-full flex items-center justify-center font-black border transition-all whitespace-nowrap ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
+                                                            className={`h-7 rounded-full flex items-center justify-center font-bold border transition-all whitespace-nowrap text-[11px] ${String(ball.value).includes('W') ? 'bg-rose-600 text-white border-rose-500' :
                                                                 ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
                                                                     ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                        'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                                                        'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800 shadow-sm'
                                                                 }`}
                                                             style={{
                                                                 minWidth: '1.75rem',
                                                                 width: 'auto',
-                                                                padding: String(ball.value).length > 1 ? '0 5px' : '0',
-                                                                fontSize: String(ball.value).length > 2 ? '8px' : '10px'
+                                                                padding: String(ball.value).length > 1 ? '0 6px' : '0'
                                                             }}>
                                                             {ball.value === '·' ? '0' : ball.value}
                                                         </div>
                                                     ))}
-                                                    <div className="text-[10px] font-black text-slate-500 ml-1">= {over.totalRuns || 0}</div>
+                                                    <div className="flex items-center gap-1.5 ml-0.5">
+                                                        <span className="text-xs font-medium text-slate-400">=</span>
+                                                        <span className="text-base font-medium text-slate-900 dark:text-slate-100">{over.totalRuns || 0}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -363,20 +393,19 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                         <div className="flex items-center gap-3">
                                             <div className="h-4 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[9px] font-black text-slate-500 tracking-tighter uppercase">OV {Math.floor(parseFloat(timelineInns.overs || '0')) + 1}</span>
-                                                <div className="flex items-center gap-1">
+                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">OV {Math.floor(parseFloat(timelineInns.overs || '0')) + 1}</span>
+                                                <div className="flex items-center gap-1.5">
                                                     {timelineInns.currentOverBalls.map((ball: any, bi: number) => (
                                                         <div key={bi}
-                                                            className={`h-7 rounded-full flex items-center justify-center font-black border transition-all whitespace-nowrap ${String(ball.value).includes('W') ? 'bg-red-500 text-white border-red-500' :
+                                                            className={`h-7 rounded-full flex items-center justify-center font-bold border transition-all whitespace-nowrap text-[11px] ${String(ball.value).includes('W') ? 'bg-rose-600 text-white border-rose-500' :
                                                                 ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
                                                                     ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                        'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                                                        'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800 shadow-sm'
                                                                 }`}
                                                             style={{
                                                                 minWidth: '1.75rem',
                                                                 width: 'auto',
-                                                                padding: String(ball.value).length > 1 ? '0 5px' : '0',
-                                                                fontSize: String(ball.value).length > 2 ? '8px' : '10px'
+                                                                padding: String(ball.value).length > 1 ? '0 6px' : '0'
                                                             }}>
                                                             {ball.value === '·' ? '0' : ball.value}
                                                         </div>
@@ -394,7 +423,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
             <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
                 {/* POM - Screenshot Style High Fidelity */}
-                {pomPlayer && (
+                {calculatedPomId && pomPlayer && (
                     <div className="relative animate-in zoom-in-95 duration-500">
                         {/* Golden accent border */}
                         <div className="rounded-[1.6rem] p-[1.5px] bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 shadow-lg shadow-amber-500/10">
@@ -416,20 +445,20 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                         </div>
                                     </div>
                                     <div className="min-w-0">
-                                        <Link to={`/players/${calculatedPomId}`} className="text-lg md:text-xl font-black text-slate-900 dark:text-white truncate block leading-tight hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
-                                            {pomPlayer.name}
+                                        <Link to={`/players/${calculatedPomId}`} className="text-lg md:text-xl font-semibold text-slate-900 dark:text-white truncate block leading-tight hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                                            {pomStats?.bat?.batsmanName || pomStats?.bowl?.bowlerName || pomPlayer.name}
                                         </Link>
-                                        <div className="text-[9px] font-black text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-[0.15em]">Player of the Match</div>
+                                        <div className="text-[9px] font-semibold text-amber-600 dark:text-amber-500 mt-1 uppercase tracking-[0.15em]">Player of the Match</div>
                                     </div>
                                 </div>
 
                                 <div className="text-right flex flex-col items-end gap-0.5 relative z-10 shrink-0 ml-4">
-                                    <div className="text-lg md:text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
+                                    <div className="text-lg md:text-xl font-semibold text-slate-900 dark:text-white tabular-nums tracking-tighter">
                                         {pomStats?.bat && (pomStats.bat.runs > 0 || pomStats.bat.balls > 0) && (
                                             <span>{pomStats.bat.runs} ({pomStats.bat.balls})</span>
                                         )}
                                     </div>
-                                    <div className="text-[12px] md:text-[13px] font-bold text-slate-400 tabular-nums">
+                                    <div className="text-[12px] md:text-[13px] font-semibold text-slate-400 tabular-nums">
                                         {pomStats?.bowl && (pomStats.bowl.wickets > 0 || parseFloat(String(pomStats.bowl.overs || 0)) > 0) && (
                                             <span>{pomStats.bowl.wickets}-{pomStats.bowl.runsConceded} ({pomStats.bowl.overs})</span>
                                         )}
@@ -445,9 +474,9 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                 {isEditingPom && (
                                     <div className="absolute inset-0 bg-white/95 dark:bg-[#0f172a]/95 z-30 flex items-center justify-center p-4 rounded-[1.5rem] animate-in fade-in duration-300 backdrop-blur-sm">
                                         <div className="w-full">
-                                            <h4 className="text-sm font-black text-slate-900 dark:text-white mb-3 uppercase tracking-tight text-center">Select Performer</h4>
+                                            <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-3 uppercase tracking-tight text-center">Select Performer</h4>
                                             <select
-                                                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 dark:text-white shadow-inner focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none"
+                                                className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white shadow-inner focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none"
                                                 onChange={(e) => savePom(e.target.value)}
                                                 value={calculatedPomId || ''}
                                             >
@@ -462,7 +491,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                     })}
                                             </select>
                                             <div className="mt-3 flex justify-center">
-                                                <button onClick={() => setIsEditingPom(false)} className="px-6 py-2 text-xs font-black text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 uppercase tracking-widest transition-colors">Cancel</button>
+                                                <button onClick={() => setIsEditingPom(false)} className="px-6 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 uppercase tracking-widest transition-colors">Cancel</button>
                                             </div>
                                         </div>
                                     </div>
@@ -476,7 +505,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 <div className="space-y-6 pt-2">
                     <div className="flex items-center gap-3 px-1">
                         <div className="h-5 w-1 bg-blue-500 rounded-full shadow-sm shadow-blue-500/50"></div>
-                        <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Top Performers</h3>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white tracking-tight">Top Performers</h3>
                     </div>
                     {/* Top Performers Card */}
                     <div className="bg-white dark:bg-white/[0.03] rounded-[2rem] border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm">
@@ -490,8 +519,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 {upcomingMatches.length > 0 && (
                     <div className="hide-in-screenshot space-y-4">
                         <div className="flex items-center justify-between px-2">
-                            <h3 className="text-base font-black text-slate-900 dark:text-white">Next Matches</h3>
-                            <Link to={`/tournaments/${match.tournamentId}`} className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Next Matches</h3>
+                            <Link to={`/tournaments/${match.tournamentId}`} className="text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
                                 View All <ChevronRight size={14} />
                             </Link>
                         </div>
@@ -500,8 +529,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                 <Link key={m.id} to={`/matches/${m.id}`} className="bg-white dark:bg-white/[0.03] rounded-3xl border border-slate-100 dark:border-white/5 p-5 block hover:border-blue-500/20 transition-colors relative shadow-sm">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex flex-col gap-0.5">
-                                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{m.venue || 'TBA'}</div>
-                                            <div className="text-[9px] font-black text-blue-600/60 dark:text-blue-400/60 uppercase tracking-tight">
+                                            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">{m.venue || 'TBA'}</div>
+                                            <div className="text-[9px] font-semibold text-blue-600/60 dark:text-blue-400/60 uppercase tracking-tight">
                                                 {m.date ? formatDateLabel(m.date) : 'Date TBA'}
                                             </div>
                                         </div>
@@ -514,25 +543,25 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                     {squadsMap.get(m.teamAId)?.logoUrl ? (
                                                         <img src={squadsMap.get(m.teamAId).logoUrl} className="w-full h-full object-contain" alt="" />
                                                     ) : (
-                                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-300">{getAbbr(m.teamAName)}</span>
+                                                        <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-300">{getAbbr(m.teamAName)}</span>
                                                     )}
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 leading-none">{m.teamAName}</span>
+                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-none">{m.teamAName}</span>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-1 flex items-center justify-center shrink-0 overflow-hidden">
                                                     {squadsMap.get(m.teamBId)?.logoUrl ? (
                                                         <img src={squadsMap.get(m.teamBId).logoUrl} className="w-full h-full object-contain" alt="" />
                                                     ) : (
-                                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-300">{getAbbr(m.teamBName)}</span>
+                                                        <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-300">{getAbbr(m.teamBName)}</span>
                                                     )}
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 leading-none">{m.teamBName}</span>
+                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-none">{m.teamBName}</span>
                                             </div>
                                         </div>
                                         <div className="pl-4 border-l border-white/10 text-right min-w-[80px]">
-                                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Upcoming</div>
-                                            <div className="text-base font-black text-slate-900 dark:text-white">{String(m.time || 'TBA')}</div>
+                                            <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase mb-1">Upcoming</div>
+                                            <div className="text-base font-semibold text-slate-900 dark:text-white">{String(m.time || 'TBA')}</div>
                                         </div>
                                     </div>
                                 </Link>
@@ -543,7 +572,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
                 {/* Tournament Navigation */}
                 <div className="hide-in-screenshot py-2 text-center">
-                    <Link to={`/tournaments/${match.tournamentId}`} className="text-[12px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-500 tracking-wider uppercase transition-colors">
+                    <Link to={`/tournaments/${match.tournamentId}`} className="text-[12px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 tracking-wider uppercase transition-colors">
                         All Matches from {tournament?.name || 'Tournament'}
                     </Link>
                 </div>
@@ -551,26 +580,32 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 px-1">
                         <div className="h-5 w-1 bg-rose-500 rounded-full shadow-sm shadow-rose-500/50"></div>
-                        <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Teams & Venue</h3>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white tracking-tight">Teams & Venue</h3>
                     </div>
                     <div className="bg-white dark:bg-white/[0.03] rounded-[2rem] border border-slate-100 dark:border-white/5 overflow-hidden divide-y divide-slate-100 dark:divide-white/5 shadow-sm">
-                        <Link to={`/squads/${match.teamAId}`} className="flex items-center justify-between p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group">
+                        <div
+                            className="flex items-center justify-between p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group cursor-pointer"
+                            onClick={() => onSwitchTab?.('playing-xi')}
+                        >
                             <div className="flex items-center gap-4">
                                 <Users size={18} className="text-rose-500 group-hover:scale-110 transition-transform" />
-                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{teamAName}</span>
+                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{teamAName}</span>
                             </div>
                             <ChevronRight size={16} className="text-slate-400" />
-                        </Link>
-                        <Link to={`/squads/${match.teamBId}`} className="flex items-center justify-between p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group">
+                        </div>
+                        <div
+                            className="flex items-center justify-between p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group cursor-pointer"
+                            onClick={() => onSwitchTab?.('playing-xi')}
+                        >
                             <div className="flex items-center gap-4">
                                 <Users size={18} className="text-rose-500 group-hover:scale-110 transition-transform" />
-                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{teamBName}</span>
+                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{teamBName}</span>
                             </div>
                             <ChevronRight size={16} className="text-slate-400" />
-                        </Link>
+                        </div>
                         <div className="flex items-center gap-4 p-4 px-6">
                             <MapPin size={18} className="text-slate-400 dark:text-slate-500" />
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{match.venue || 'Venue TBA'}</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{match.venue || 'Venue TBA'}</span>
                         </div>
                     </div>
                 </div>
@@ -578,20 +613,20 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 px-1">
                         <div className="h-5 w-1 bg-blue-500 rounded-full shadow-sm shadow-blue-500/50"></div>
-                        <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">{tournament?.name || 'Tournament'}</h3>
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white tracking-tight">{tournament?.name || 'Tournament'}</h3>
                     </div>
                     <div className="bg-white dark:bg-white/[0.03] rounded-[2rem] border border-slate-100 dark:border-white/5 overflow-hidden divide-y divide-slate-100 dark:divide-white/5 shadow-sm">
                         <Link to={`/tournaments/${match.tournamentId}`} className="flex items-center gap-4 p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group">
                             <Calendar size={18} className="text-blue-500 dark:text-blue-400 group-hover:scale-110 transition-transform" />
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Matches</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Matches</span>
                         </Link>
                         <Link to={`/tournaments/${match.tournamentId}/stats`} className="flex items-center gap-4 p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group">
                             <BarChart2 size={18} className="text-emerald-500 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Player Stats (Most runs, wkts, 6s, 4s)</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Player Stats (Most runs, wkts, 6s, 4s)</span>
                         </Link>
                         <Link to={`/tournaments/${match.tournamentId}/points`} className="flex items-center gap-4 p-4 px-6 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors group">
                             <Table size={18} className="text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Points Table</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Points Table</span>
                         </Link>
                     </div>
                 </div>
@@ -602,7 +637,7 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                         className="flex items-center gap-3 text-slate-500 hover:text-blue-400 transition-colors w-full text-left"
                     >
                         <Settings size={18} />
-                        <span className="text-sm font-bold">Match Settings</span>
+                        <span className="text-sm font-semibold">Match Settings</span>
                     </button>
                 </div>
             </div>

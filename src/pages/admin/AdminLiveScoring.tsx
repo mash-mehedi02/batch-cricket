@@ -405,6 +405,31 @@ const AdminLiveScoring = () => {
         }
     };
 
+    const handleBatterSelection = async (field: 'currentStrikerId' | 'currentNonStrikerId', playerId: string) => {
+        if (!playerId || !matchId) return;
+        try {
+            setProcessing(true);
+            processingRef.current = true;
+            await matchService.update(matchId, { [field]: playerId });
+
+            // If it's the start of the innings (no balls bowled), add opening commentary
+            if ((currentInnings?.legalBalls || 0) === 0) {
+                const name = getPlayerName(playerId);
+                await commentaryService.addManualCommentary(
+                    matchId,
+                    (match?.currentBatting as any) || 'teamA',
+                    `${name} is Opening the Innings!`,
+                    '0.0', 0, 0, false, false, name, '', 'entry'
+                );
+            }
+        } catch (err) {
+            toast.error("Failed to set opener");
+        } finally {
+            setProcessing(false);
+            processingRef.current = false;
+        }
+    };
+
     const toggleExtra = (type: 'wide' | 'noBall' | 'bye' | 'legBye' | 'penalty') => {
         setExtras(prev => {
             const neo = { ...prev, [type]: !prev[type] };
@@ -724,6 +749,7 @@ const AdminLiveScoring = () => {
                     const strikerObj = battingTeamPlayersAll.find(p => p.id === selectedStriker);
                     const nonStrikerObj = battingTeamPlayersAll.find(p => p.id === selectedNonStriker);
                     const bowlerObj = bowlingTeamPlayersAll.find(p => p.id === selectedBowler);
+                    const fielderObj = wicketData?.fielderId ? bowlingTeamPlayersAll.find(p => p.id === wicketData.fielderId) : null;
 
                     const ballInnings = result.inningsData;
                     const totalBallRuns = batRuns + wideVal + nbVal + byeVal + lbVal + penaltyVal;
@@ -748,6 +774,7 @@ const AdminLiveScoring = () => {
                         batsman: strikerObj?.name || 'Batter',
                         nonStriker: nonStrikerObj?.name || 'Non-Striker',
                         bowler: bowlerObj?.name || 'Bowler',
+                        fielder: fielderObj?.name || '',
                         isBoundary: batRuns === 4 || batRuns === 6,
                         isFour: batRuns === 4,
                         isSix: batRuns === 6,
@@ -910,6 +937,24 @@ const AdminLiveScoring = () => {
                     (!selectedStriker ? 'currentStrikerId' : 'currentNonStrikerId'));
 
             await matchService.update(matchId, { [field]: nextBatterId });
+
+            // Generate entry commentary
+            const batterName = getPlayerName(nextBatterId);
+            const currentOvers = currentInnings?.overs || '0.0';
+            const currentBalls = currentInnings?.legalBalls || 0;
+            const inningId = (match.currentBatting as any) || 'teamA';
+
+            await commentaryService.addManualCommentary(
+                matchId,
+                inningId,
+                `${batterName} is in at the crease.`,
+                currentOvers,
+                currentBalls % 6,
+                0, false, false,
+                batterName,
+                '',
+                'entry'
+            );
             setNextBatterModalOpen(false);
             setNextBatterId('');
             setBatterTargetEnd(null);
@@ -1264,7 +1309,7 @@ const AdminLiveScoring = () => {
                                         ) : (
                                             <select
                                                 value={selectedStriker}
-                                                onChange={(e) => { if (e.target.value) matchService.update(matchId!, { currentStrikerId: e.target.value }); }}
+                                                onChange={(e) => { if (e.target.value) handleBatterSelection('currentStrikerId', e.target.value); }}
                                                 style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #0d9488', background: '#f0fdfa', fontWeight: 700, fontSize: '13px', color: '#0d9488', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%230d9488\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '12px' }}
                                             >
                                                 <option value="">Select Striker...</option>
@@ -1287,7 +1332,7 @@ const AdminLiveScoring = () => {
                                         ) : (
                                             <select
                                                 value={selectedNonStriker}
-                                                onChange={(e) => { if (e.target.value) matchService.update(matchId!, { currentNonStrikerId: e.target.value }); }}
+                                                onChange={(e) => { if (e.target.value) handleBatterSelection('currentNonStrikerId', e.target.value); }}
                                                 style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid #94a3b8', background: '#f8fafc', fontWeight: 700, fontSize: '13px', color: '#64748b', outline: 'none', appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%2364748b\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6 9 12 15 18 9\'%3e%3c/polyline%3e%3c/svg%3e")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '12px' }}
                                             >
                                                 <option value="">Select Non-Striker...</option>

@@ -172,14 +172,12 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         if (!isFinishedMatch) return { resultMain: displayEvent, resultSub: '' };
 
         const lowerRes = displayEvent.toLowerCase();
-        const wonByIdx = lowerRes.indexOf(' won');
-        // If "won" is found, split there. We want "TEAM A WON" as main, and the rest as sub.
-
-        if (wonByIdx !== -1) {
-            const splitIndex = wonByIdx + 4; // " won" is 4 chars
+        const wonIdx = lowerRes.indexOf(' won');
+        // Split before " won" so team name is on main and "won by..." is on sub
+        if (wonIdx !== -1) {
             return {
-                resultMain: displayEvent.substring(0, splitIndex).trim(),
-                resultSub: displayEvent.substring(splitIndex).trim()
+                resultMain: displayEvent.substring(0, wonIdx).trim(),
+                resultSub: displayEvent.substring(wonIdx).trim()
             };
         }
 
@@ -222,7 +220,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     } else if (isFinishedMatch || isInningsBreak || isPlayerEntering) {
         eventColorClass = 'text-amber-400 text-center px-4 leading-tight';
     } else if (displayEvent === 'BALL') {
-        eventColorClass = 'text-amber-400 font-black italic tracking-widest';
+        eventColorClass = 'text-amber-400 font-semibold italic tracking-widest';
     } else if (isSix) {
         eventColorClass = 'text-amber-400';
     }
@@ -286,9 +284,9 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 const LogoContent = (
                                     <div className="w-14 h-14 min-[400px]:w-16 min-[400px]:h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a2333] border border-white/10 flex items-center justify-center shadow-[0_8px_20px_-4px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-500 relative ring-4 ring-white/5 shrink-0">
                                         {logoUrl ? (
-                                            <img src={logoUrl} className="w-full h-full object-contain p-1.5" alt="" />
+                                            <img src={logoUrl} className="w-full h-full object-contain p-1.5" alt="" loading="eager" {...({ fetchpriority: "high" } as any)} />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl sm:text-2xl font-black uppercase">
+                                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xl sm:text-2xl font-semibold uppercase">
                                                 {currentTeamName.charAt(0)}
                                             </div>
                                         )}
@@ -304,25 +302,26 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
                             <div className="min-w-0 flex flex-col justify-center gap-1">
                                 <div className="flex items-center gap-2.5">
-                                    <div className="text-[14px] sm:text-[16px] font-black text-white/90 uppercase tracking-tighter leading-none">
+                                    <div className="text-[14px] sm:text-[16px] font-semibold text-white/90 uppercase tracking-tighter leading-none">
                                         {currentTeamAbbr}
                                     </div>
                                     {isSuperOver && (
                                         <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
                                             <div className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
-                                            <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Super Over</span>
+                                            <span className="text-[9px] font-semibold text-amber-500 uppercase tracking-widest">Super Over</span>
                                         </div>
                                     )}
 
                                 </div>
                                 <div className="flex items-baseline gap-1.5 sm:gap-2.5 overflow-hidden">
-                                    <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-6xl font-medium tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>
+                                    <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-5xl font-medium tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>
                                         {runs}-{wkts}
                                     </span>
-                                    <span className="text-[13px] min-[400px]:text-base sm:text-xl font-black text-slate-500/80 tabular-nums uppercase shrink-0">
+                                    <span className="text-[13px] min-[400px]:text-base sm:text-xl font-semibold text-slate-500/80 tabular-nums uppercase shrink-0">
                                         {(isChasing && wkts >= 10) || isFinishedMatch ? 'Final' : `${overs}`}
                                     </span>
                                 </div>
+
                             </div>
                         </div>
 
@@ -340,7 +339,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 </div>
                             ) : isFirstInningStart ? (
                                 <div className="flex flex-col items-center justify-center gap-2 z-10 w-full animate-in fade-in zoom-in duration-500">
-                                    <span className="text-[14px] sm:text-lg font-black text-amber-300 uppercase tracking-tight text-center leading-tight drop-shadow-md">
+                                    <span className="text-[14px] sm:text-lg font-semibold text-amber-300 uppercase tracking-tight text-center leading-tight drop-shadow-md">
                                         {tossWinnerName} <br />
                                         <span className="text-white">opt to {tossWinnerDecision === 'bowl' ? 'bowl' : 'bat'}</span>
                                     </span>
@@ -357,21 +356,22 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     <div className="flex flex-col items-center justify-center gap-1.5">
                                         <span
                                             ref={eventTextRef}
-                                            className={`font-black tracking-tighter uppercase drop-shadow-md
+                                            className={`font-bold tracking-tight uppercase drop-shadow-md
                                         ${isFinishedMatch || !isRun
-                                                    ? (resultMain.length > 15 ? 'text-[18px] sm:text-[22px] font-black leading-[1.05]' : 'text-2xl sm:text-3xl font-black leading-none')
-                                                    : 'text-4xl sm:text-6xl leading-none'
+                                                    ? (resultMain.length > 15 ? 'text-[13px] sm:text-[15px] leading-[1.1]' : 'text-[16px] sm:text-[20px] leading-tight')
+                                                    : 'text-4xl sm:text-5xl leading-none'
                                                 }`}>
                                             {resultMain === '—' || resultMain === 'BALL' ? '' : resultMain}
                                         </span>
                                         {resultSub && (
-                                            <div className="mt-1">
-                                                <span className="text-[14px] sm:text-[16px] font-black text-amber-500 uppercase tracking-tight leading-none">
+                                            <div className="mt-0.5">
+                                                <span className="text-[10px] sm:text-[12px] font-bold text-amber-500 uppercase tracking-widest leading-none">
                                                     {resultSub}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
+
                                 </div>
                             )}
                         </div>
@@ -408,10 +408,11 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     {shouldShowBallsLeftFirstInnings ? (
                                         <>
                                             <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">Balls Left:</span>
-                                            <span className="text-xs font-black text-amber-500 leading-none animate-pulse">
+                                            <span className="text-xs font-semibold text-amber-500 leading-none animate-pulse">
                                                 {remainingBallsFirstInnings}
                                             </span>
                                         </>
+
                                     ) : (
                                         <>
                                             <span className="text-xs font-medium text-slate-400 uppercase tracking-widest leading-none">{t('toss')}:</span>
@@ -431,7 +432,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
             {targetScore > 0 && !isFinishedMatch && !hideChaseBar && (
                 <div className="bg-amber-50 dark:bg-[#1e1b0b] py-1.5 border-t border-amber-100/50 dark:border-white/5 text-center shadow-lg relative z-0">
                     <div className="overflow-x-auto whitespace-nowrap px-4 scrollbar-hide">
-                        <span className="text-[11px] sm:text-xs font-bold text-amber-700 dark:text-amber-500 tracking-wider inline-block">
+                        <span className="text-[11px] sm:text-xs font-semibold text-amber-700 dark:text-amber-500 tracking-wider inline-block">
                             {isSuperOver ? '⚡ ' : ''}
                             {isInningsBreak ? (
                                 `${opponentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(targetScore)).replace('${balls}', String(matchOvers * 6))}`

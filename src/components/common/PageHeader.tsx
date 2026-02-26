@@ -34,18 +34,19 @@ export default function PageHeader({
                     {/* Title (Always Visible) */}
                     <div className="flex flex-col justify-center min-w-0">
                         {title && (
-                            <h1 className="text-white font-black text-sm uppercase tracking-widest leading-none truncate pr-2">
+                            <h1 className="text-white font-semibold text-sm uppercase tracking-widest leading-none truncate pr-2">
                                 {title}
                             </h1>
                         )}
                         {subtitle && (
                             <div className="flex items-center gap-2 mt-1.5 translate-y-[-1px]">
                                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] animate-pulse"></div>
-                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.25em] truncate leading-none">
+                                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-[0.25em] truncate leading-none">
                                     {subtitle}
                                 </p>
                             </div>
                         )}
+
                     </div>
                 </div>
 

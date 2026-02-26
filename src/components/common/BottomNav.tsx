@@ -38,29 +38,30 @@ export default function BottomNav() {
                         key={item.path}
                         to={item.path}
                         className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 ${isActive(item.path)
-                            ? 'text-teal-600 dark:text-teal-400 scale-110'
+                            ? 'text-teal-600 dark:text-teal-400 scale-105'
                             : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white'
                             }`}
                     >
                         <div className={`${isActive(item.path) ? 'animate-bounce-short' : ''}`}>
                             {item.icon}
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-tighter">{item.label}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-tight">{item.label}</span>
                     </Link>
                 ))}
 
                 <Link
                     to={isActive('/menu') ? '/' : '/menu'}
                     className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 ${isActive('/menu')
-                        ? 'text-teal-600 dark:text-teal-400 scale-110'
+                        ? 'text-teal-600 dark:text-teal-400 scale-105'
                         : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white'
                         }`}
                 >
                     <div className={`${isActive('/menu') ? 'animate-bounce-short' : ''}`}>
                         <Menu size={20} />
                     </div>
-                    <span className="text-[10px] font-black uppercase tracking-tighter">{t('nav_more')}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-tight">{t('nav_more')}</span>
                 </Link>
+
             </div>
         </div>
     );
