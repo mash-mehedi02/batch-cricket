@@ -5,7 +5,8 @@
  * Optimized for performance (no heavy animations)
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'
@@ -266,6 +267,18 @@ export default function Home() {
 
   const [activeTab, setActiveTab] = useState<'featured' | 'live' | 'upcoming' | 'finished'>('featured')
 
+  const tabsOrder: ('featured' | 'live' | 'upcoming' | 'finished')[] = ['featured', 'live', 'upcoming', 'finished'];
+  const currentTabIndex = tabsOrder.indexOf(activeTab);
+  const isAnimatingRef = useRef(false);
+  const x = useMotionValue(0);
+  const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`);
+
+  useEffect(() => {
+    if (!isAnimatingRef.current) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 });
+    }
+  }, [currentTabIndex, x]);
+
   const squadsMap = squads.reduce((acc, s) => {
     acc[s.id] = s
     return acc
@@ -422,8 +435,8 @@ export default function Home() {
       <div id="match-sections" className="bg-white dark:bg-[#0f172a] border-b border-slate-100 dark:border-white/5 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto flex overflow-x-auto scrollbar-hide px-2">
           {[
-            { id: 'live', label: 'Live' },
             { id: 'featured', label: 'For You' },
+            { id: 'live', label: 'Live' },
             { id: 'upcoming', label: 'Upcoming' },
             { id: 'finished', label: 'Finished' }
           ].map((tab) => (
@@ -442,7 +455,10 @@ export default function Home() {
                 </span>
               )}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0f172a] dark:bg-teal-500"></div>
+                <motion.div
+                  layoutId="activeTabUnderlineHome"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0f172a] dark:bg-teal-500"
+                />
               )}
             </button>
           ))}
@@ -456,28 +472,57 @@ export default function Home() {
             {[1, 2, 3].map((i) => <MatchCardSkeleton key={i} />)}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {activeTab === 'featured' && featuredMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)}
+          <div className="overflow-hidden">
+            <motion.div
+              style={{ x: animatedX, willChange: 'transform' }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={1} // 1:1 tracking
+              onDragStart={() => {
+                isAnimatingRef.current = true;
+              }}
+              onDragEnd={(_e, info) => {
+                const swipeThreshold = window.innerWidth * 0.25;
+                const velocityThreshold = 400;
 
-            {activeTab === 'live' && (
-              <>
-                {liveMatches.length === 0 ? (
-                  <div className="col-span-full py-12 text-center flex flex-col items-center opacity-60">
-                    <div className="text-5xl mb-4 grayscale">🏏</div>
-                    <p className="text-slate-900 dark:text-white font-bold uppercase text-xs tracking-widest">No Live Matches</p>
+                if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+                  if (currentTabIndex < tabsOrder.length - 1) setActiveTab(tabsOrder[currentTabIndex + 1]);
+                } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
+                  if (currentTabIndex > 0) setActiveTab(tabsOrder[currentTabIndex - 1]);
+                }
+
+                animate(x, 0, {
+                  type: 'spring',
+                  stiffness: 400,
+                  damping: 40,
+                  velocity: info.velocity.x
+                });
+
+                setTimeout(() => {
+                  isAnimatingRef.current = false;
+                }, 50);
+              }}
+              className="flex w-full"
+            >
+              {[featuredMatches, liveMatches, upcomingMatches, finishedMatches].map((matches, idx) => (
+                <div key={idx} className="w-full shrink-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 px-1">
+                    {matches.length === 0 ? (
+                      <div className="col-span-full py-20 text-center flex flex-col items-center opacity-60">
+                        <div className="text-5xl mb-4 grayscale">🏏</div>
+                        <p className="text-slate-900 dark:text-white font-bold uppercase text-xs tracking-widest">
+                          No {['Featured', 'Live', 'Upcoming', 'Finished'][idx]} Matches
+                        </p>
+                      </div>
+                    ) : (
+                      matches.map(m => (
+                        <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId || '']} />
+                      ))
+                    )}
                   </div>
-                ) : (
-                  liveMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)
-                )}
-              </>
-            )}
-
-            {activeTab === 'upcoming' && upcomingMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)}
-            {activeTab === 'finished' && finishedMatches.map(m => <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId]} />)}
-
-            {!loading && activeTab === 'featured' && featuredMatches.length === 0 && (
-              <div className="col-span-full text-center py-12 text-slate-400 text-sm">No matches found</div>
-            )}
+                </div>
+              ))}
+            </motion.div>
           </div>
         )}
 

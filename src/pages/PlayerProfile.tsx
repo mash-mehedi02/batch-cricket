@@ -23,7 +23,7 @@ import toast from 'react-hot-toast'
 import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
 import { calculateBattingPoints, calculateBowlingPoints } from '@/utils/statsCalculator'
@@ -685,6 +685,17 @@ export default function PlayerProfile() {
     { id: 'matches', label: 'Matches' },
     { id: 'player-info', label: 'Player Info' },
   ]
+  const currentTabIndex = tabs.findIndex(t => t.id === activeTab)
+  const isAnimatingRef = useRef(false)
+  const x = useMotionValue(0)
+  const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`)
+
+  useEffect(() => {
+    // Reset position when tab changes externally (like clicking a tab)
+    if (!isAnimatingRef.current) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 })
+    }
+  }, [currentTabIndex, x])
 
   // Filter matches based on viewMode - only show if they actually participated (min 1 ball)
   const filteredMatches = mergedMatches
@@ -895,7 +906,10 @@ export default function PlayerProfile() {
                 >
                   {tab.label}
                   {activeTab === tab.id && (
-                    <span className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"></span>
+                    <motion.div
+                      layoutId="playerActiveTab"
+                      className="absolute bottom-0 left-0 w-full h-1 bg-emerald-600 rounded-t-full shadow-[0_-2px_8px_rgba(16,185,129,0.3)]"
+                    />
                   )}
                 </button>
               ))}
@@ -904,642 +918,684 @@ export default function PlayerProfile() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {recentForm.length > 0 && (
-              <div className="animate-in slide-in-from-bottom-4 duration-700 mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                    Recent Form <span className="text-slate-400 dark:text-slate-500 font-bold text-xs ml-1">(Last 10)</span>
-                  </h3>
-                  <button onClick={() => setActiveTab('matches')} className="text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline">
-                    See More
-                  </button>
-                </div>
-                <div className="flex flex-nowrap overflow-x-auto gap-2.5 pb-2 scrollbar-none">
-                  {recentForm.map((form, idx) => (
-                    <Link
-                      key={idx}
-                      to={`/match/${form.matchId}`}
-                      className="group flex flex-col justify-center items-center p-3 bg-white dark:bg-[#0f172a] rounded-2xl shrink-0 min-w-[110px] h-[95px] text-center shadow-sm border border-slate-100 dark:border-white/5 transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/20"
-                    >
-                      <div className="flex items-baseline justify-center gap-1 mb-1.5">
-                        {viewMode === 'batting' ? (
-                          <>
-                            <span className="text-slate-800 dark:text-slate-100 text-xl font-bold relative leading-none">
-                              {form.runs}
-                              {form.isNotOut && (
-                                <span className="absolute -top-1 -right-2.5 text-[12px] font-bold text-slate-900 dark:text-white">
-                                  *
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 leading-none">({form.balls})</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-slate-800 dark:text-slate-100 text-xl font-bold leading-none">
-                              {form.wickets}
-                            </span>
-                            <span className="text-slate-400 font-bold leading-none mx-0.5">-</span>
-                            <span className="text-slate-800 dark:text-slate-100 text-lg font-bold leading-none">
-                              {form.runsConceded}
-                            </span>
-                          </>
-                        )}
+      {/* Content - Carousel Mode */}
+      <div className="overflow-hidden">
+        <motion.div
+          style={{ x: animatedX, willChange: 'transform' }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={1} // 1:1 Tracking
+          onDragStart={() => {
+            isAnimatingRef.current = true;
+          }}
+          onDragEnd={(_, info) => {
+            const swipeThreshold = window.innerWidth * 0.25;
+            const velocityThreshold = 400;
+
+            if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+              if (currentTabIndex < tabs.length - 1) {
+                setActiveTab(tabs[currentTabIndex + 1].id);
+              }
+            } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
+              if (currentTabIndex > 0) {
+                setActiveTab(tabs[currentTabIndex - 1].id);
+              }
+            }
+
+            animate(x, 0, {
+              type: 'spring',
+              stiffness: 400,
+              damping: 40,
+              velocity: info.velocity.x
+            });
+
+            setTimeout(() => {
+              isAnimatingRef.current = false;
+            }, 50);
+          }}
+          className="flex w-full"
+        >
+          {tabs.map((tab) => (
+            <div key={tab.id} className="w-full shrink-0">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {tab.id === 'overview' && (
+                  <div className="space-y-8">
+                    {recentForm.length > 0 && (
+                      <div className="animate-in slide-in-from-bottom-4 duration-700 mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                            Recent Form <span className="text-slate-400 dark:text-slate-500 font-bold text-xs ml-1">(Last 10)</span>
+                          </h3>
+                          <button onClick={() => setActiveTab('matches')} className="text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline">
+                            See More
+                          </button>
+                        </div>
+                        <div className="flex flex-nowrap overflow-x-auto gap-2.5 pb-2 scrollbar-none">
+                          {recentForm.map((form, idx) => (
+                            <Link
+                              key={idx}
+                              to={`/match/${form.matchId}`}
+                              className="group flex flex-col justify-center items-center p-3 bg-white dark:bg-[#0f172a] rounded-2xl shrink-0 min-w-[110px] h-[95px] text-center shadow-sm border border-slate-100 dark:border-white/5 transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-500/20"
+                            >
+                              <div className="flex items-baseline justify-center gap-1 mb-1.5">
+                                {viewMode === 'batting' ? (
+                                  <>
+                                    <span className="text-slate-800 dark:text-slate-100 text-xl font-bold relative leading-none">
+                                      {form.runs}
+                                      {form.isNotOut && (
+                                        <span className="absolute -top-1 -right-2.5 text-[12px] font-bold text-slate-900 dark:text-white">
+                                          *
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 leading-none">({form.balls})</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-slate-800 dark:text-slate-100 text-xl font-bold leading-none">
+                                      {form.wickets}
+                                    </span>
+                                    <span className="text-slate-400 font-bold leading-none mx-0.5">-</span>
+                                    <span className="text-slate-800 dark:text-slate-100 text-lg font-bold leading-none">
+                                      {form.runsConceded}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase tracking-tight truncate w-full px-1">
+                                {formatShortTeamName(form.opponent)}
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
                       </div>
-                      <div className="text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase tracking-tight truncate w-full px-1">
-                        {formatShortTeamName(form.opponent)}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
+                    )}
 
-            {/* Career Title */}
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                <span className="capitalize">{viewMode} Career</span>
-                <img src={viewMode === 'batting' ? cricketBatIcon : cricketBallIcon} className="w-5 h-5 object-contain dark:invert" alt="" />
-              </h3>
-            </div>
+                    {/* Career Title */}
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <span className="capitalize">{viewMode} Career</span>
+                        <img src={viewMode === 'batting' ? cricketBatIcon : cricketBallIcon} className="w-5 h-5 object-contain dark:invert" alt="" />
+                      </h3>
+                    </div>
 
-            {/* Premium Career Grid Design */}
-            <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden mb-8">
-              {viewMode === 'batting' ? (
-                <div className="divide-y divide-slate-200 dark:divide-white/5">
-                  {/* Row 1 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
-                    <StatCell label="Matches" value={matchesCount} />
-                    <StatCell label="Innings" value={battingInnings} />
-                    <StatCell label="Runs" value={runs} />
-                    <StatCell label="Highest Score" value={highestScore} highlight labelSmall matchId={highestScoreMatchId} />
-                  </div>
-                  {/* Row 2 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
-                    <StatCell label="100s" value={hundreds} />
-                    <StatCell label="50s" value={fifties} />
-                    <StatCell label="SR" value={strikeRate} />
-                    <StatCell label="Avg" value={average} />
-                  </div>
-                  {/* Row 3 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
-                    <StatCell label="Fours" value={fours} />
-                    <StatCell label="Sixes" value={sixes} />
-                    <StatCell label="Duck Out" value={ducks} />
-                    <StatCell label="Rank" value={ranks.batting} />
-                  </div>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-200 dark:divide-white/5">
-                  {/* Row 1 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
-                    <StatCell label="Matches" value={matchesCount} />
-                    <StatCell label="Innings" value={bowlingInnings} />
-                    <StatCell label="Wickets" value={wickets} />
-                    <StatCell label="Best" value={bowlingBest} />
-                  </div>
-                  {/* Row 2 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
-                    <StatCell label="Econ" value={economy} />
-                    <StatCell label="3 Wkt" value={threeW} />
-                    <StatCell label="5 Wkt" value={fiveW} />
-                    <StatCell label="Avg" value={bowlingAverage} />
-                  </div>
-                  {/* Row 3 */}
-                  <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
-                    <StatCell label="SR" value={bowlingAverage !== '-' ? (Number(bowlingInnings * 6) / (wickets || 1)).toFixed(1) : '-'} />
-                    <StatCell label="Maiden" value={maidens > 0 ? maidens : '--'} />
-                    <StatCell label="Rank" value={ranks.bowling} />
-                    <StatCell label="" value="" />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'matches' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                Performance History
-              </h3>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-white/[0.05] rounded-full text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                {viewMode === 'batting' ? 'Batting Records' : 'Bowling Records'}
-              </div>
-            </div>
-
-            {filteredMatches.length === 0 ? (
-              <div className="text-center py-20 bg-white dark:bg-[#0f172a] rounded-[2.5rem] border border-slate-100 dark:border-white/5 shadow-sm">
-                <div className="w-20 h-20 bg-slate-50 dark:bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl text-slate-300 dark:text-slate-600">📊</span>
-                </div>
-                <h4 className="text-slate-900 dark:text-white font-bold mb-1">No matches found</h4>
-                <p className="text-slate-400 dark:text-slate-500 text-sm">This player hasn't appeared in any recorded matches yet.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {filteredMatches.map((match: any, idx: number) => {
-                  const matchId = match.matchId || match.id
-                  if (!matchId) return null
-                  const isNotOut = match.notOut === true || (match.out === false && Number(match.balls || 0) > 0)
-                  const runs = match.runs ?? match.batting?.runs ?? 0
-                  const balls = match.balls ?? match.batting?.balls ?? 0
-                  const wickets = match.bowlingWickets ?? match.bowling?.wickets ?? 0
-                  const runsConceded = match.bowlingRuns ?? match.bowling?.runsConceded ?? 0
-                  const overs = match.overs ?? match.bowling?.overs ?? '0.0'
-
-                  // Match date logic
-                  const matchDate = match.date
-                  const dateObj = matchDate?.toDate ? matchDate.toDate() : new Date(matchDate)
-                  const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric'
-                  }) : 'Unknown Date'
-
-                  return (
-                    <Link
-                      key={idx}
-                      to={`/match/${matchId}`}
-                      className="group bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-100 dark:border-white/5 p-5 hover:border-emerald-500 dark:hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300 shadow-sm"
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 min-w-0">
-                          {/* Date Block */}
-                          <div className="hidden sm:flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 shrink-0 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 group-hover:border-emerald-100 dark:group-hover:border-emerald-500/20 transition-colors">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
-                              {!isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, { month: 'short' }) : '---'}
-                            </span>
-                            <span className="text-lg font-black text-slate-700 dark:text-slate-200 leading-none">
-                              {!isNaN(dateObj.getTime()) ? dateObj.getDate() : '--'}
-                            </span>
+                    {/* Premium Career Grid Design */}
+                    <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden mb-8">
+                      {viewMode === 'batting' ? (
+                        <div className="divide-y divide-slate-200 dark:divide-white/5">
+                          {/* Row 1 */}
+                          <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
+                            <StatCell label="Matches" value={matchesCount} />
+                            <StatCell label="Innings" value={battingInnings} />
+                            <StatCell label="Runs" value={runs} />
+                            <StatCell label="Highest Score" value={highestScore} highlight labelSmall matchId={highestScoreMatchId} />
                           </div>
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                vs {match.opponentName || 'Opponent'}
-                              </span>
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{formattedDate}</span>
-                            </div>
-                            <h4 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
-                              {match.tournamentName}
-                            </h4>
+                          {/* Row 2 */}
+                          <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
+                            <StatCell label="100s" value={hundreds} />
+                            <StatCell label="50s" value={fifties} />
+                            <StatCell label="SR" value={strikeRate} />
+                            <StatCell label="Avg" value={average} />
+                          </div>
+                          {/* Row 3 */}
+                          <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
+                            <StatCell label="Fours" value={fours} />
+                            <StatCell label="Sixes" value={sixes} />
+                            <StatCell label="Duck Out" value={ducks} />
+                            <StatCell label="Rank" value={ranks.batting} />
                           </div>
                         </div>
+                      ) : (
+                        <div className="divide-y divide-slate-200 dark:divide-white/5">
+                          {/* Row 1 */}
+                          <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
+                            <StatCell label="Matches" value={matchesCount} />
+                            <StatCell label="Innings" value={bowlingInnings} />
+                            <StatCell label="Wickets" value={wickets} />
+                            <StatCell label="Best" value={bowlingBest} />
+                          </div>
+                          {/* Row 2 */}
+                          <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
+                            <StatCell label="Econ" value={economy} />
+                            <StatCell label="3 Wkt" value={threeW} />
+                            <StatCell label="5 Wkt" value={fiveW} />
+                            <StatCell label="Avg" value={bowlingAverage} />
+                          </div>
+                          {/* Row 3 */}
+                          <div className="grid grid-cols-4 divide-x divide-slate-200 dark:divide-white/5">
+                            <StatCell label="SR" value={bowlingAverage !== '-' ? (Number(bowlingInnings * 6) / (wickets || 1)).toFixed(1) : '-'} />
+                            <StatCell label="Maiden" value={maidens > 0 ? maidens : '--'} />
+                            <StatCell label="Rank" value={ranks.bowling} />
+                            <StatCell label="" value="" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-                        <div className="flex items-center gap-6 shrink-0">
-                          {/* Main Stats */}
-                          <div className="text-right">
-                            {viewMode === 'batting' ? (
-                              <div className="flex flex-col items-end">
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
-                                    {runs}
-                                  </span>
-                                  {isNotOut && <span className="text-lg font-black text-emerald-600 dark:text-emerald-500 leading-none">*</span>}
-                                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({balls})</span>
+                {tab.id === 'matches' && (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between px-2">
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                        Performance History
+                      </h3>
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-white/[0.05] rounded-full text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        {viewMode === 'batting' ? 'Batting Records' : 'Bowling Records'}
+                      </div>
+                    </div>
+
+                    {filteredMatches.length === 0 ? (
+                      <div className="text-center py-20 bg-white dark:bg-[#0f172a] rounded-[2.5rem] border border-slate-100 dark:border-white/5 shadow-sm">
+                        <div className="w-20 h-20 bg-slate-50 dark:bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-4">
+                          <span className="text-3xl text-slate-300 dark:text-slate-600">📊</span>
+                        </div>
+                        <h4 className="text-slate-900 dark:text-white font-bold mb-1">No matches found</h4>
+                        <p className="text-slate-400 dark:text-slate-500 text-sm">This player hasn't appeared in any recorded matches yet.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4">
+                        {filteredMatches.map((match: any, idx: number) => {
+                          const matchId = match.matchId || match.id
+                          if (!matchId) return null
+                          const isNotOut = match.notOut === true || (match.out === false && Number(match.balls || 0) > 0)
+                          const runs = match.runs ?? match.batting?.runs ?? 0
+                          const balls = match.balls ?? match.batting?.balls ?? 0
+                          const wickets = match.bowlingWickets ?? match.bowling?.wickets ?? 0
+                          const runsConceded = match.bowlingRuns ?? match.bowling?.runsConceded ?? 0
+                          const overs = match.overs ?? match.bowling?.overs ?? '0.0'
+
+                          // Match date logic
+                          const matchDate = match.date
+                          const dateObj = matchDate?.toDate ? matchDate.toDate() : new Date(matchDate)
+                          const formattedDate = !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          }) : 'Unknown Date'
+
+                          return (
+                            <Link
+                              key={idx}
+                              to={`/match/${matchId}`}
+                              className="group bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-100 dark:border-white/5 p-5 hover:border-emerald-500 dark:hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300 shadow-sm"
+                            >
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4 min-w-0">
+                                  {/* Date Block */}
+                                  <div className="hidden sm:flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 shrink-0 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 group-hover:border-emerald-100 dark:group-hover:border-emerald-500/20 transition-colors">
+                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                                      {!isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, { month: 'short' }) : '---'}
+                                    </span>
+                                    <span className="text-lg font-black text-slate-700 dark:text-slate-200 leading-none">
+                                      {!isNaN(dateObj.getTime()) ? dateObj.getDate() : '--'}
+                                    </span>
+                                  </div>
+
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                        vs {match.opponentName || 'Opponent'}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{formattedDate}</span>
+                                    </div>
+                                    <h4 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
+                                      {match.tournamentName}
+                                    </h4>
+                                  </div>
                                 </div>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Runs Scored</span>
+
+                                <div className="flex items-center gap-6 shrink-0">
+                                  {/* Main Stats */}
+                                  <div className="text-right">
+                                    {viewMode === 'batting' ? (
+                                      <div className="flex flex-col items-end">
+                                        <div className="flex items-baseline gap-1">
+                                          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
+                                            {runs}
+                                          </span>
+                                          {isNotOut && <span className="text-lg font-black text-emerald-600 dark:text-emerald-500 leading-none">*</span>}
+                                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({balls})</span>
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Runs Scored</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-end">
+                                        <div className="flex items-baseline gap-1">
+                                          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
+                                            {wickets}
+                                          </span>
+                                          <span className="text-lg font-bold text-slate-300 dark:text-slate-600 mx-0.5">/</span>
+                                          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
+                                            {runsConceded}
+                                          </span>
+                                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({overs})</span>
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Bowling Figure</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Result Indicator */}
+                                  <div className="hidden sm:block">
+                                    {match.result?.toLowerCase() === 'won' && (
+                                      <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                                        <span className="text-[10px] font-black italic">W</span>
+                                      </div>
+                                    )}
+                                    {match.result?.toLowerCase() === 'lost' && (
+                                      <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
+                                        <span className="text-[10px] font-black italic">L</span>
+                                      </div>
+                                    )}
+                                    {(!match.result || match.result?.toLowerCase() === 'tied' || match.result?.toLowerCase() === 'n/r') && (
+                                      <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center text-white">
+                                        <span className="text-[10px] font-black italic">-</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {tab.id === 'player-info' && (
+                  <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-20">
+
+                    {/* Photo Edit (Only if editing) */}
+                    {isEditing && (
+                      <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm text-center">
+                        <div className="relative inline-block group">
+                          <div className="w-32 h-32 rounded-full bg-slate-50 border-4 border-white shadow-xl overflow-hidden">
+                            {uploadingPhoto ? (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                                <span className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
                               </div>
                             ) : (
-                              <div className="flex flex-col items-end">
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
-                                    {wickets}
-                                  </span>
-                                  <span className="text-lg font-bold text-slate-300 dark:text-slate-600 mx-0.5">/</span>
-                                  <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
-                                    {runsConceded}
-                                  </span>
-                                  <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({overs})</span>
-                                </div>
-                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Bowling Figure</span>
-                              </div>
+                              <img src={editForm.photoUrl || (player as any).photo || "https://placehold.co/200"} className="w-full h-full object-cover" />
                             )}
                           </div>
+                          <label className="absolute bottom-0 right-0 w-10 h-10 bg-emerald-500 rounded-full shadow-lg border-2 border-white flex items-center justify-center cursor-pointer hover:bg-emerald-400 transition-all hover:scale-110 active:scale-95">
+                            <Camera className="w-5 h-5 text-white" />
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={handleFileChange}
+                            />
+                          </label>
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">Profile Photo</p>
+                      </div>
+                    )}
 
-                          {/* Result Indicator */}
-                          <div className="hidden sm:block">
-                            {match.result?.toLowerCase() === 'won' && (
-                              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                                <span className="text-[10px] font-black italic">W</span>
-                              </div>
-                            )}
-                            {match.result?.toLowerCase() === 'lost' && (
-                              <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
-                                <span className="text-[10px] font-black italic">L</span>
-                              </div>
-                            )}
-                            {(!match.result || match.result?.toLowerCase() === 'tied' || match.result?.toLowerCase() === 'n/r') && (
-                              <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center text-white">
-                                <span className="text-[10px] font-black italic">-</span>
-                              </div>
-                            )}
+                    {/* PLAYER PROFILE CROPPER MODAL */}
+                    {isCropping && (
+                      <div className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+                        <div className="relative w-full aspect-square max-w-sm bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10">
+                          <Cropper
+                            image={imageFile || ''}
+                            crop={crop}
+                            zoom={zoom}
+                            aspect={1}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onZoomChange={setZoom}
+                            cropShape="round"
+                            showGrid={false}
+                          />
+                        </div>
+
+                        <div className="mt-8 w-full max-w-sm space-y-6 px-4">
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] text-center">Zoom & Position</p>
+                            <input
+                              type="range"
+                              value={zoom}
+                              min={1}
+                              max={3}
+                              step={0.1}
+                              onChange={(e) => setZoom(Number(e.target.value))}
+                              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                            />
+                          </div>
+
+                          <div className="flex gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setIsCropping(false)}
+                              className="flex-1 py-4 bg-white/5 text-white font-bold rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest text-xs border border-white/5"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCropSave}
+                              disabled={uploadingPhoto}
+                              className="flex-[2] py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-500 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-600/20 disabled:opacity-50"
+                            >
+                              {uploadingPhoto ? 'Processing...' : 'Save Photo'}
+                            </button>
                           </div>
                         </div>
                       </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-        {activeTab === 'player-info' && (
-          <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-20">
+                    )}
 
-            {/* Photo Edit (Only if editing) */}
-            {isEditing && (
-              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm text-center">
-                <div className="relative inline-block group">
-                  <div className="w-32 h-32 rounded-full bg-slate-50 border-4 border-white shadow-xl overflow-hidden">
-                    {uploadingPhoto ? (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-50">
-                        <span className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-600 rounded-full animate-spin"></span>
+                    {/* Playing Info Card */}
+                    <div className="bg-white dark:bg-[#0f172a] rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-100 dark:border-white/5 overflow-hidden">
+                      <div className="px-8 py-2">
+                        <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                          <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Role:</span>
+                          {isEditing ? (
+                            <select
+                              value={editForm.role}
+                              onChange={(e) => setEditForm({ ...editForm, role: e.target.value as PlayerRole })}
+                              className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                            >
+                              <option value="batsman">Batsman</option>
+                              <option value="bowler">Bowler</option>
+                              <option value="all-rounder">All Rounder</option>
+                              <option value="wicket-keeper">Wicket Keeper</option>
+                            </select>
+                          ) : (
+                            <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.role || 'Batter'}</span>
+                          )}
+                        </div>
+                        <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                          <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Bats:</span>
+                          {isEditing ? (
+                            <select
+                              value={editForm.battingStyle}
+                              onChange={(e) => setEditForm({ ...editForm, battingStyle: e.target.value as BattingStyle })}
+                              className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                            >
+                              <option value="right-handed">Right Handed</option>
+                              <option value="left-handed">Left Handed</option>
+                            </select>
+                          ) : (
+                            <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.battingStyle || 'Right Handed'}</span>
+                          )}
+                        </div>
+                        <div className={clsx("flex items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                          <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Bowl:</span>
+                          {isEditing ? (
+                            <select
+                              value={editForm.bowlingStyle}
+                              onChange={(e) => setEditForm({ ...editForm, bowlingStyle: e.target.value as BowlingStyle })}
+                              className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                            >
+                              <option value="right-arm-fast">Right Arm Fast</option>
+                              <option value="right-arm-medium">Right Arm Medium</option>
+                              <option value="right-arm-spin">Right Arm Spin</option>
+                              <option value="left-arm-fast">Left Arm Fast</option>
+                              <option value="left-arm-medium">Left Arm Medium</option>
+                              <option value="left-arm-spin">Left Arm Spin</option>
+                            </select>
+                          ) : (
+                            <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <img src={editForm.photoUrl || (player as any).photo || "https://placehold.co/200"} className="w-full h-full object-cover" />
+                    </div>
+
+                    {/* Personal Info Card */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white px-2 flex items-center gap-2">
+                        {isEditing ? 'Personal Details' : `About ${player.name.split(' ')[0]}`}
+                      </h3>
+                      <div className="bg-white dark:bg-[#0f172a] rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-100 dark:border-white/5 overflow-hidden">
+                        <div className="px-8 py-2">
+                          <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                            <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Name:</span>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editForm.name}
+                                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                              />
+                            ) : (
+                              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{player.name}</span>
+                            )}
+                          </div>
+                          <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Birth:</span>
+                            {isEditing ? (
+                              <div className="w-full mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowDatePicker(!showDatePicker)}
+                                  className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 outline-none w-full text-left flex items-center justify-between"
+                                >
+                                  <span>{editForm.dateOfBirth ? new Date(editForm.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Select Date'}</span>
+                                  <ChevronDown size={14} className={clsx("transition-transform duration-200", showDatePicker && "rotate-180")} />
+                                </button>
+                                <AnimatePresence>
+                                  {showDatePicker && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="pt-3">
+                                        <WheelDatePicker
+                                          value={editForm.dateOfBirth || new Date().toISOString().split('T')[0]}
+                                          onChange={(val) => setEditForm({ ...editForm, dateOfBirth: val })}
+                                        />
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            ) : (
+                              <span className="text-sm font-bold text-slate-800">
+                                {player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                              </span>
+                            )}
+                          </div>
+                          <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">School:</span>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editForm.school}
+                                onChange={(e) => setEditForm({ ...editForm, school: e.target.value })}
+                                className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                              />
+                            ) : (
+                              <span className="text-sm font-bold text-slate-800">{player.school || 'N/A'}</span>
+                            )}
+                          </div>
+                          <div className="flex py-5 border-b border-slate-50 items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Squad:</span>
+                            <span className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter">{squadName || 'N/A'}</span>
+                          </div>
+                          <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
+                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Address:</span>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editForm.address}
+                                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                                className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
+                              />
+                            ) : (
+                              <span className="text-sm font-bold text-slate-800">{player.address || 'N/A'}</span>
+                            )}
+                          </div>
+                          {isEditing && (
+                            <div className="flex py-5 flex-col items-start gap-4">
+                              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0 mt-2">Bio:</span>
+                              <textarea
+                                value={editForm.bio}
+                                onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                                className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-3 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full min-h-[100px] resize-none"
+                                placeholder="Add a bio..."
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Social Edit Hub (Only if editing) */}
+                    {isEditing && (
+                      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/60">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-lg font-bold text-slate-900">Connect Hub</h3>
+                          <span className="text-[10px] font-black text-white bg-slate-900 px-3 py-1 rounded-full uppercase tracking-widest">{editForm.socialLinks.length}/3 Socials</span>
+                        </div>
+                        <div className="space-y-3">
+                          {editForm.socialLinks.map((link, idx) => {
+                            const Icon = link.platform === 'facebook' ? Facebook :
+                              link.platform === 'instagram' ? Instagram :
+                                link.platform === 'x' ? Twitter :
+                                  link.platform === 'linkedin' ? Linkedin : Globe
+                            return (
+                              <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 group transition-all">
+                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-600 border border-slate-100 shadow-sm">
+                                  <Icon className="w-4 h-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[10px] font-black text-slate-800 truncate">@{link.username}</div>
+                                  <div className="text-[9px] font-bold text-slate-400 truncate tracking-tight">{link.url}</div>
+                                </div>
+                                <button onClick={() => handleRemoveLink(idx)} className="w-8 h-8 flex items-center justify-center hover:bg-rose-50 rounded-lg text-rose-500 transition-colors">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )
+                          })}
+
+                          {editForm.socialLinks.length < 3 && (
+                            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200 border-dashed">
+                              <input
+                                type="text"
+                                value={newLinkUrl}
+                                onChange={(e) => setNewLinkUrl(e.target.value)}
+                                placeholder="Paste Profile URL"
+                                className="flex-1 px-4 py-2.5 bg-transparent outline-none text-[11px] font-medium"
+                              />
+                              <button
+                                onClick={handleAddLink}
+                                disabled={!newLinkUrl}
+                                className="px-6 bg-slate-900 text-white rounded-xl font-black text-[10px] hover:bg-slate-800 transition-all disabled:opacity-50 active:scale-95 uppercase tracking-widest"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <label className="absolute bottom-0 right-0 w-10 h-10 bg-emerald-500 rounded-full shadow-lg border-2 border-white flex items-center justify-center cursor-pointer hover:bg-emerald-400 transition-all hover:scale-110 active:scale-95">
-                    <Camera className="w-5 h-5 text-white" />
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                    />
-                  </label>
-                </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">Profile Photo</p>
-              </div>
-            )}
 
-            {/* PLAYER PROFILE CROPPER MODAL */}
-            {isCropping && (
-              <div className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                <div className="relative w-full aspect-square max-w-sm bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-                  <Cropper
-                    image={imageFile || ''}
-                    crop={crop}
-                    zoom={zoom}
-                    aspect={1}
-                    onCropChange={setCrop}
-                    onCropComplete={onCropComplete}
-                    onZoomChange={setZoom}
-                    cropShape="round"
-                    showGrid={false}
-                  />
-                </div>
 
-                <div className="mt-8 w-full max-w-sm space-y-6 px-4">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] text-center">Zoom & Position</p>
-                    <input
-                      type="range"
-                      value={zoom}
-                      min={1}
-                      max={3}
-                      step={0.1}
-                      onChange={(e) => setZoom(Number(e.target.value))}
-                      className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                    />
-                  </div>
 
-                  <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsCropping(false)}
-                      className="flex-1 py-4 bg-white/5 text-white font-bold rounded-2xl hover:bg-white/10 transition-all uppercase tracking-widest text-xs border border-white/5"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCropSave}
-                      disabled={uploadingPhoto}
-                      className="flex-[2] py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-500 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-600/20 disabled:opacity-50"
-                    >
-                      {uploadingPhoto ? 'Processing...' : 'Save Photo'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Playing Info Card */}
-            <div className="bg-white dark:bg-[#0f172a] rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-100 dark:border-white/5 overflow-hidden">
-              <div className="px-8 py-2">
-                <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                  <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Role:</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.role}
-                      onChange={(e) => setEditForm({ ...editForm, role: e.target.value as PlayerRole })}
-                      className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
-                    >
-                      <option value="batsman">Batsman</option>
-                      <option value="bowler">Bowler</option>
-                      <option value="all-rounder">All Rounder</option>
-                      <option value="wicket-keeper">Wicket Keeper</option>
-                    </select>
-                  ) : (
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.role || 'Batter'}</span>
-                  )}
-                </div>
-                <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                  <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Bats:</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.battingStyle}
-                      onChange={(e) => setEditForm({ ...editForm, battingStyle: e.target.value as BattingStyle })}
-                      className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
-                    >
-                      <option value="right-handed">Right Handed</option>
-                      <option value="left-handed">Left Handed</option>
-                    </select>
-                  ) : (
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.battingStyle || 'Right Handed'}</span>
-                  )}
-                </div>
-                <div className={clsx("flex items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                  <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Bowl:</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.bowlingStyle}
-                      onChange={(e) => setEditForm({ ...editForm, bowlingStyle: e.target.value as BowlingStyle })}
-                      className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
-                    >
-                      <option value="right-arm-fast">Right Arm Fast</option>
-                      <option value="right-arm-medium">Right Arm Medium</option>
-                      <option value="right-arm-spin">Right Arm Spin</option>
-                      <option value="left-arm-fast">Left Arm Fast</option>
-                      <option value="left-arm-medium">Left Arm Medium</option>
-                      <option value="left-arm-spin">Left Arm Spin</option>
-                    </select>
-                  ) : (
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 capitalize">{player.bowlingStyle || 'Right Arm Medium'}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Personal Info Card */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-black text-slate-900 dark:text-white px-2 flex items-center gap-2">
-                {isEditing ? 'Personal Details' : `About ${player.name.split(' ')[0]}`}
-              </h3>
-              <div className="bg-white dark:bg-[#0f172a] rounded-3xl shadow-xl shadow-slate-200/60 dark:shadow-none border border-slate-100 dark:border-white/5 overflow-hidden">
-                <div className="px-8 py-2">
-                  <div className={clsx("flex border-b border-slate-50 dark:border-white/5 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                    <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">Name:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editForm.name}
-                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                        className="text-sm font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-white/[0.03] px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
-                      />
-                    ) : (
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{player.name}</span>
+                    {/* Bio Section (Non-Editing) */}
+                    {!isEditing && player.bio && (
+                      <div className="bg-white/50 backdrop-blur-md rounded-3xl p-8 border border-white/50 shadow-sm">
+                        <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
+                          "{player.bio}"
+                        </p>
+                      </div>
                     )}
-                  </div>
-                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Birth:</span>
-                    {isEditing ? (
-                      <div className="w-full mt-2">
+
+                    {/* Social Connect (Floating Style - Non Editing) */}
+                    {!isEditing && player.socialLinks && player.socialLinks.length > 0 && (
+                      <div className="flex items-center justify-center gap-6 py-4">
+                        {player.socialLinks.map((link: SocialLink, idx: number) => {
+                          const Icon = link.platform === 'facebook' ? Facebook :
+                            link.platform === 'instagram' ? Instagram :
+                              link.platform === 'x' ? Twitter :
+                                link.platform === 'linkedin' ? Linkedin : Globe;
+
+                          return (
+                            <a
+                              key={idx}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group flex flex-col items-center gap-2 text-slate-400 hover:text-emerald-500 transition-all"
+                            >
+                              <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#0f172a] shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all border border-slate-50 dark:border-white/5">
+                                <Icon className="w-6 h-6" />
+                              </div>
+                              <span className="text-[9px] font-black uppercase tracking-widest">
+                                {link.platform}
+                              </span>
+                            </a>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Inline Action Section (Toggle Edit) - MOVED TO BOTTOM */}
+                    {!isEditing && hasActiveSession && (
+                      <div className="flex justify-center px-2 pt-4">
                         <button
                           type="button"
-                          onClick={() => setShowDatePicker(!showDatePicker)}
-                          className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 outline-none w-full text-left flex items-center justify-between"
+                          onClick={() => {
+                            setEditForm({
+                              name: player.name || '',
+                              username: (player as any).username || player.name || '',
+                              bio: player.bio || '',
+                              photoUrl: player.photoUrl || (player as any).photo || '',
+                              dateOfBirth: player.dateOfBirth || '',
+                              socialLinks: player.socialLinks || [],
+                              address: player.address || '',
+                              school: player.school || '',
+                              role: player.role || 'batsman',
+                              battingStyle: player.battingStyle || 'right-handed',
+                              bowlingStyle: player.bowlingStyle || 'right-arm-medium'
+                            })
+                            setIsEditing(true)
+                          }}
+                          className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 transition-all active:scale-95 hover:bg-slate-800"
                         >
-                          <span>{editForm.dateOfBirth ? new Date(editForm.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Select Date'}</span>
-                          <ChevronDown size={14} className={clsx("transition-transform duration-200", showDatePicker && "rotate-180")} />
+                          <Edit className="w-4 h-4 text-sky-400" />
+                          Edit My Profile
                         </button>
-                        <AnimatePresence>
-                          {showDatePicker && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="pt-3">
-                                <WheelDatePicker
-                                  value={editForm.dateOfBirth || new Date().toISOString().split('T')[0]}
-                                  onChange={(val) => setEditForm({ ...editForm, dateOfBirth: val })}
-                                />
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
                       </div>
-                    ) : (
-                      <span className="text-sm font-bold text-slate-800">
-                        {player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
-                      </span>
+                    )}
+
+                    {/* Save Buttons at bottom (Floating when editing) */}
+                    {isEditing && (
+                      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 z-[110] flex gap-4 max-w-2xl mx-auto rounded-t-[2.5rem] shadow-[0_-20px_50px_rgba(0,0,0,0.1)]">
+                        <button
+                          onClick={async () => {
+                            setIsEditing(false)
+                            await signOut(auth)
+                          }}
+                          className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[10px] rounded-2xl hover:bg-slate-50 transition-all uppercase tracking-[0.2em] active:scale-95"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleEditSave}
+                          disabled={saving}
+                          className="flex-[2] py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-[10px] rounded-2xl hover:from-emerald-500 hover:to-teal-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 uppercase tracking-[0.2em] active:scale-95"
+                        >
+                          {saving ? 'Saving...' : 'Confirm Changes'}
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">School:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editForm.school}
-                        onChange={(e) => setEditForm({ ...editForm, school: e.target.value })}
-                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
-                      />
-                    ) : (
-                      <span className="text-sm font-bold text-slate-800">{player.school || 'N/A'}</span>
-                    )}
-                  </div>
-                  <div className="flex py-5 border-b border-slate-50 items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Squad:</span>
-                    <span className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter">{squadName || 'N/A'}</span>
-                  </div>
-                  <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Address:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editForm.address}
-                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-2 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full text-left"
-                      />
-                    ) : (
-                      <span className="text-sm font-bold text-slate-800">{player.address || 'N/A'}</span>
-                    )}
-                  </div>
-                  {isEditing && (
-                    <div className="flex py-5 flex-col items-start gap-4">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0 mt-2">Bio:</span>
-                      <textarea
-                        value={editForm.bio}
-                        onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                        className="text-sm font-bold text-slate-800 bg-slate-50 px-3 py-3 rounded-lg border-none outline-none focus:ring-2 focus:ring-emerald-500/20 w-full min-h-[100px] resize-none"
-                        placeholder="Add a bio..."
-                      />
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-
-            {/* Social Edit Hub (Only if editing) */}
-            {isEditing && (
-              <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/60">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-slate-900">Connect Hub</h3>
-                  <span className="text-[10px] font-black text-white bg-slate-900 px-3 py-1 rounded-full uppercase tracking-widest">{editForm.socialLinks.length}/3 Socials</span>
-                </div>
-                <div className="space-y-3">
-                  {editForm.socialLinks.map((link, idx) => {
-                    const Icon = link.platform === 'facebook' ? Facebook :
-                      link.platform === 'instagram' ? Instagram :
-                        link.platform === 'x' ? Twitter :
-                          link.platform === 'linkedin' ? Linkedin : Globe
-                    return (
-                      <div key={idx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 group transition-all">
-                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-600 border border-slate-100 shadow-sm">
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-black text-slate-800 truncate">@{link.username}</div>
-                          <div className="text-[9px] font-bold text-slate-400 truncate tracking-tight">{link.url}</div>
-                        </div>
-                        <button onClick={() => handleRemoveLink(idx)} className="w-8 h-8 flex items-center justify-center hover:bg-rose-50 rounded-lg text-rose-500 transition-colors">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )
-                  })}
-
-                  {editForm.socialLinks.length < 3 && (
-                    <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200 border-dashed">
-                      <input
-                        type="text"
-                        value={newLinkUrl}
-                        onChange={(e) => setNewLinkUrl(e.target.value)}
-                        placeholder="Paste Profile URL"
-                        className="flex-1 px-4 py-2.5 bg-transparent outline-none text-[11px] font-medium"
-                      />
-                      <button
-                        onClick={handleAddLink}
-                        disabled={!newLinkUrl}
-                        className="px-6 bg-slate-900 text-white rounded-xl font-black text-[10px] hover:bg-slate-800 transition-all disabled:opacity-50 active:scale-95 uppercase tracking-widest"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-
-            {/* Bio Section (Non-Editing) */}
-            {!isEditing && player.bio && (
-              <div className="bg-white/50 backdrop-blur-md rounded-3xl p-8 border border-white/50 shadow-sm">
-                <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
-                  "{player.bio}"
-                </p>
-              </div>
-            )}
-
-            {/* Social Connect (Floating Style - Non Editing) */}
-            {!isEditing && player.socialLinks && player.socialLinks.length > 0 && (
-              <div className="flex items-center justify-center gap-6 py-4">
-                {player.socialLinks.map((link: SocialLink, idx: number) => {
-                  const Icon = link.platform === 'facebook' ? Facebook :
-                    link.platform === 'instagram' ? Instagram :
-                      link.platform === 'x' ? Twitter :
-                        link.platform === 'linkedin' ? Linkedin : Globe;
-
-                  return (
-                    <a
-                      key={idx}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex flex-col items-center gap-2 text-slate-400 hover:text-emerald-500 transition-all"
-                    >
-                      <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#0f172a] shadow-md flex items-center justify-center group-hover:scale-110 group-active:scale-95 transition-all border border-slate-50 dark:border-white/5">
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <span className="text-[9px] font-black uppercase tracking-widest">
-                        {link.platform}
-                      </span>
-                    </a>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Inline Action Section (Toggle Edit) - MOVED TO BOTTOM */}
-            {!isEditing && hasActiveSession && (
-              <div className="flex justify-center px-2 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditForm({
-                      name: player.name || '',
-                      username: (player as any).username || player.name || '',
-                      bio: player.bio || '',
-                      photoUrl: player.photoUrl || (player as any).photo || '',
-                      dateOfBirth: player.dateOfBirth || '',
-                      socialLinks: player.socialLinks || [],
-                      address: player.address || '',
-                      school: player.school || '',
-                      role: player.role || 'batsman',
-                      battingStyle: player.battingStyle || 'right-handed',
-                      bowlingStyle: player.bowlingStyle || 'right-arm-medium'
-                    })
-                    setIsEditing(true)
-                  }}
-                  className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 transition-all active:scale-95 hover:bg-slate-800"
-                >
-                  <Edit className="w-4 h-4 text-sky-400" />
-                  Edit My Profile
-                </button>
-              </div>
-            )}
-
-            {/* Save Buttons at bottom (Floating when editing) */}
-            {isEditing && (
-              <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-100 p-4 z-[110] flex gap-4 max-w-2xl mx-auto rounded-t-[2.5rem] shadow-[0_-20px_50px_rgba(0,0,0,0.1)]">
-                <button
-                  onClick={async () => {
-                    setIsEditing(false)
-                    await signOut(auth)
-                  }}
-                  className="flex-1 py-4 bg-white border border-slate-200 text-slate-500 font-black text-[10px] rounded-2xl hover:bg-slate-50 transition-all uppercase tracking-[0.2em] active:scale-95"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleEditSave}
-                  disabled={saving}
-                  className="flex-[2] py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black text-[10px] rounded-2xl hover:from-emerald-500 hover:to-teal-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 uppercase tracking-[0.2em] active:scale-95"
-                >
-                  {saving ? 'Saving...' : 'Confirm Changes'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
+          ))}
+        </motion.div>
       </div>
 
       {/* Floating Toggle FAB (CREX Style) - HORIZONTAL BOTTOM RIGHT */}
-      <div className="hide-in-screenshot fixed bottom-6 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100">
+      < div className="hide-in-screenshot fixed bottom-6 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100" >
         <button
           onClick={() => setViewMode('batting')}
           className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
@@ -1560,7 +1616,7 @@ export default function PlayerProfile() {
         >
           <img src={cricketBallIcon} alt="Bowling" className="w-5 h-5 object-contain" />
         </button>
-      </div>
+      </div >
 
 
       <ShareModal
@@ -1569,7 +1625,7 @@ export default function PlayerProfile() {
         image={screenshotImage}
         title="Share Profile"
       />
-    </div>
+    </div >
   )
 }
 

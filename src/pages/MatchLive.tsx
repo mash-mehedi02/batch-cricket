@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
@@ -26,10 +26,11 @@ import MatchPlayingXI from '@/pages/MatchPlayingXI'
 import MatchGraphs from '@/pages/MatchGraphs'
 import MatchInfo from '@/pages/MatchInfo'
 import MatchSummary from '@/components/match/MatchSummary'
-import MatchVoting from '@/components/live/MatchVoting'
-import { MatchSettingsSheet } from '@/components/match/MatchSettingsSheet'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
-import { MapPin, Info, Users, Hash, ChevronDown, Pin, LayoutDashboard, X } from 'lucide-react'
+import { MatchSettingsSheet } from '@/components/match/MatchSettingsSheet'
+// @ts-ignore
+import MatchVoting from '@/components/live/MatchVoting'
+import { MapPin, Info, Users, Hash, Pin, LayoutDashboard, X } from 'lucide-react'
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 import { useTranslation } from '@/hooks/useTranslation'
@@ -52,29 +53,47 @@ export default function MatchLive() {
   const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
   const [tournament, setTournament] = useState<any>(null)
   const [relatedMatches, setRelatedMatches] = useState<Match[]>([])
-  const [relatedInningsMap, setRelatedInningsMap] = useState<Map<string, { teamA: any | null; teamB: any | null }>>(new Map())
-  const [relatedLoading, setRelatedLoading] = useState(false)
+  const [relatedInningsMap] = useState<Map<string, { teamA: any | null; teamB: any | null; aso?: any; bso?: any }>>(new Map())
   const [commentary, setCommentary] = useState<CommentaryEntry[]>([])
   const [activeCommentaryFilter, setActiveCommentaryFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [relatedLoading, setRelatedLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('summary')
+  const [isAnimating, setIsAnimating] = useState(false)
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['summary']))
   const didInitTab = useRef(false)
   const [now, setNow] = useState<Date>(() => new Date())
-  const [centerEventText, setCenterEventText] = useState<string>('')
-  const [isWicketDisplay, setIsWicketDisplay] = useState<boolean>(false)
-  const [animationEvent, setAnimationEvent] = useState<string>('')
-  const [showAnimation, setShowAnimation] = useState<boolean>(false)
   const [displayedInnings, setDisplayedInnings] = useState<InningsStats | null>(null)
   const [isPinned, setIsPinned] = useState(false)
 
-  // Track visited tabs for lazy loading optimization
+  // --- Early Initialization of Swipe Navigation Hooks ---
+  // Must be called at the top level to obey the Rules of Hooks
+  const tabIndexRef = useRef(0) // Stores current tab index, updated later when matchTabs is available
+  const x = useMotionValue(0)
+  const animatedX = useTransform(x, (value) => {
+    return `calc(-${tabIndexRef.current * 100}% + ${value}px)`
+  })
+
+  // Track visited tabs for lazy loading optimization & handle scroll reset
   useEffect(() => {
     setVisitedTabs(prev => new Set([...Array.from(prev), activeTab]))
+
+    // Only scroll if we are not currently animating a swipe
+    if (didInitTab.current && !isAnimatingRef.current) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
   }, [activeTab])
   const prevBallKeyRef = useRef<string | null>(null)
   const isAnimatingRef = useRef(false)
   const scoreTimerRef = useRef<any>(null)
+
+  // --- Swipe Navigation Reset ---
+  // Reset drag position when tab changes (click or swipe)
+  useEffect(() => {
+    if (!isAnimatingRef.current) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 })
+    }
+  }, [activeTab, x])
 
   useEffect(() => {
     const pinnedId = localStorage.getItem('pinnedMatchId')
@@ -282,13 +301,13 @@ export default function MatchLive() {
   // Load balls for commentary
   useEffect(() => {
     if (!match || !matchId) return
-    const inningId = match.currentBatting || 'teamA'
+    const inningId = (match.currentBatting || 'teamA') as any
 
-    matchService.getBalls(matchId, inningId).then(setBalls).catch(console.error)
+    matchService.getBalls(matchId || '', inningId).then(setBalls).catch(console.error)
 
     // Subscribe to balls - reload when innings change
     const interval = setInterval(() => {
-      matchService.getBalls(matchId, inningId).then(setBalls).catch(console.error)
+      matchService.getBalls(matchId || '', inningId).then(setBalls).catch(console.error)
     }, 2000) // Refresh every 2 seconds for live updates
 
     return () => clearInterval(interval)
@@ -542,6 +561,10 @@ export default function MatchLive() {
     return raw
   }
 
+  const [centerEventText, setCenterEventText] = useState('')
+  const [isWicketDisplay, setIsWicketDisplay] = useState(false)
+  const [animationEvent, setAnimationEvent] = useState('')
+  const [showAnimation, setShowAnimation] = useState(false)
   const [showBoundaryAnim, setShowBoundaryAnim] = useState(false)
 
   // Center event animation sequence:
@@ -1201,7 +1224,6 @@ export default function MatchLive() {
         const m2 = m as any;
         const winnerId = m2.winnerId || m2.winnerSquadId;
         const winnerName = String(m2.winnerName || m2.winner || m2.winningTeam || '').toLowerCase();
-        const resSum = String(m2.resultSummary || '').toLowerCase();
 
         // 1. Explicit winner check
         if (winnerId || (winnerName && !['tie', 'pending'].includes(winnerName))) {
@@ -1431,6 +1453,8 @@ export default function MatchLive() {
       { id: 'playing-xi', label: t('tab_playing_xi') },
     ]
 
+
+
     // Add Points Table if match specifically belongs to a group
     const hasGroup = Boolean((match as any)?.groupName || (match as any)?.groupId)
 
@@ -1444,7 +1468,7 @@ export default function MatchLive() {
     }
 
     return baseTabs
-  }, [match?.tournamentId, isFinishedMatch, isLiveMatch, isLiveEffective, match, tournament, t])
+  }, [match?.tournamentId, isFinishedMatch, isLiveMatch, isLiveEffective, match, t])
 
   const calculatedResultSummary = useMemo(() => {
     if (!isFinishedMatch) return null
@@ -1453,7 +1477,7 @@ export default function MatchLive() {
       teamBName,
       teamAInnings,
       teamBInnings,
-      match,
+      match as any,
       teamASuperInnings,
       teamBSuperInnings
     )
@@ -1707,7 +1731,7 @@ export default function MatchLive() {
         const isSOComm = (match as any).isSuperOver || String(effInningsComm?.inningId || '').includes('super');
         const effOversLimitComm = isSOComm ? 1 : (match.oversLimit || 20);
         return (
-          <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen">
+          <div className="bg-slate-50 dark:bg-[#060b16]">
             <CrexLiveSection
               match={match as any}
               striker={striker as any}
@@ -1773,7 +1797,7 @@ export default function MatchLive() {
         )
       case 'points-table':
         return match?.tournamentId ? (
-          <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen py-6">
+          <div className="bg-slate-50 dark:bg-[#060b16] py-6">
             <TournamentPointsTable embedded={true} tournamentId={match.tournamentId} highlightMatch={match as any} />
           </div>
         ) : null
@@ -1783,7 +1807,7 @@ export default function MatchLive() {
         const isSOLive = (match as any).isSuperOver || String(effInningsLive?.inningId || '').includes('super');
         const effOversLimitLive = isSOLive ? 1 : (match.oversLimit || 20);
         return (
-          <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen">
+          <div className="bg-slate-50 dark:bg-[#060b16]">
             <CrexLiveSection
               match={match as any}
               striker={striker as any}
@@ -1827,18 +1851,9 @@ export default function MatchLive() {
         return null
     }
   }
-
   // --- Swipe Navigation Logic ---
   const currentTabIndex = matchTabs.findIndex(t => t.id === activeTab)
-  const handleSwipe = (direction: 'left' | 'right') => {
-    if (direction === 'left' && currentTabIndex < matchTabs.length - 1) {
-      const nextTab = matchTabs[currentTabIndex + 1]
-      if (!nextTab.disabled) setActiveTab(nextTab.id)
-    } else if (direction === 'right' && currentTabIndex > 0) {
-      const prevTab = matchTabs[currentTabIndex - 1]
-      if (!prevTab.disabled) setActiveTab(prevTab.id)
-    }
-  }
+  tabIndexRef.current = currentTabIndex // Keep the ref in sync for the useTransform callback
 
   return (
     <div
@@ -1907,63 +1922,104 @@ export default function MatchLive() {
             />
           </div>
 
-          {/* Non-sticky Chase Detail Bar */}
-          <MatchLiveHero
-            key="non-sticky-chase"
-            match={match}
-            teamAName={teamAName}
-            teamBName={teamBName}
-            teamASquad={teamASquad}
-            teamBSquad={teamBSquad}
-            currentInnings={displayedInnings || currentInnings}
-            teamAInnings={teamAInnings}
-            teamBInnings={teamBInnings}
-            teamASuperInnings={teamASuperInnings}
-            teamBSuperInnings={teamBSuperInnings}
-            isFinishedMatch={isFinishedMatch}
-            resultSummary={calculatedResultSummary || resultSummary}
-            centerEventText={centerEventText || '—'}
-            showBoundaryAnim={false}
-            lastBall={null}
-            hideMainScorecard={true}
-          />
         </>
       )}
 
       {/* 4. Tab Content with Dynamic Carousel & Swipe Support */}
-      <div className="relative overflow-hidden w-full">
+      <div className="relative w-full bg-slate-50 dark:bg-[#060b16] flex-1 overflow-hidden">
         <motion.div
-          animate={{ x: `-${currentTabIndex * 100}%` }}
-          transition={{
-            type: 'spring',
-            damping: 30,
-            stiffness: 250,
-            mass: 0.8
-          }}
+          style={{ x: animatedX, willChange: 'transform' }}
           drag="x"
+          dragDirectionLock
           dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.4}
+          dragElastic={1} // 1:1 Tracking!
+
+          onDragStart={() => {
+            isAnimatingRef.current = true;
+            setIsAnimating(true);
+          }}
           onDragEnd={(_, info) => {
-            const swipeThreshold = 50
-            const velocityThreshold = 500
+            const swipeThreshold = window.innerWidth * 0.25 // 25% of screen to switch
+            const velocityThreshold = 400
+
+            // Snap back to 0 visually before React state updates, making the transition seamless
+            let nextIndex = currentTabIndex
 
             if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
-              handleSwipe('left')
+              if (currentTabIndex < matchTabs.length - 1) {
+                const nextTab = matchTabs[currentTabIndex + 1]
+                if (!nextTab.disabled) {
+                  nextIndex = currentTabIndex + 1
+                  setActiveTab(nextTab.id)
+                }
+              }
             } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
-              handleSwipe('right')
+              if (currentTabIndex > 0) {
+                const prevTab = matchTabs[currentTabIndex - 1]
+                if (!prevTab.disabled) {
+                  nextIndex = currentTabIndex - 1
+                  setActiveTab(prevTab.id)
+                }
+              }
             }
+
+            // Snap the visual position back to center for the newly selected index
+            animate(x, 0, {
+              type: 'spring',
+              stiffness: 400,
+              damping: 40,
+              velocity: info.velocity.x
+            })
+            setTimeout(() => {
+              isAnimatingRef.current = false;
+              setIsAnimating(false);
+            }, 50);
           }}
-          className="flex w-full touch-pan-y items-start"
+          className="flex w-full items-start touch-pan-y"
         >
-          {matchTabs.map((tab) => (
-            <div
-              key={tab.id}
-              className="w-full shrink-0 min-h-screen"
-              style={{ width: '100%' }}
-            >
-              {renderTabById(tab.id)}
-            </div>
-          ))}
+          {matchTabs.map((tab, idx) => {
+            const isVisible = Math.abs(idx - currentTabIndex) <= 1; // Preload adjacent
+            const isVisited = visitedTabs.has(tab.id);
+
+            return (
+              <div
+                key={tab.id}
+                className="w-full shrink-0"
+                style={{
+                  width: '100%',
+                  pointerEvents: idx === currentTabIndex ? 'auto' : 'none'
+                }}
+              >
+                {/* Secondary Info Bar - Simple & Clean */}
+                {isVisible && tab.id !== 'graphs' && tab.id !== 'playing-xi' && (
+                  <div className="bg-[#0f172a] border-b border-white/5">
+                    <MatchLiveHero
+                      match={match!}
+                      teamAName={teamAName}
+                      teamBName={teamBName}
+                      teamASquad={teamASquad}
+                      teamBSquad={teamBSquad}
+                      currentInnings={displayedInnings || currentInnings}
+                      teamAInnings={teamAInnings}
+                      teamBInnings={teamBInnings}
+                      teamASuperInnings={teamASuperInnings}
+                      teamBSuperInnings={teamBSuperInnings}
+                      isFinishedMatch={isFinishedMatch}
+                      resultSummary={calculatedResultSummary || resultSummary}
+                      centerEventText={centerEventText || '—'}
+                      showBoundaryAnim={false}
+                      lastBall={null}
+                      hideMainScorecard={true}
+                    />
+                  </div>
+                )}
+
+                <div className="w-full">
+                  {isVisited || isVisible ? renderTabById(tab.id) : null}
+                </div>
+              </div>
+            );
+          })}
         </motion.div>
       </div>
       <MatchSettingsSheet
@@ -1993,7 +2049,7 @@ export default function MatchLive() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <MatchPlayingXI compact={true} match={match || undefined} />
+            <MatchPlayingXI compact={true} match={(match as any) || undefined} />
           </div>
         </div>
       )}

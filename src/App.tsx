@@ -38,11 +38,13 @@ import AdminEmailBroadcast from './pages/admin/AdminEmailBroadcast'
 import AdminSettings from './pages/admin/AdminSettings'
 import RegisterPlayer from './pages/RegisterPlayer'
 import AdminPlayerRequests from './pages/admin/AdminPlayerRequests'
-import SplashScreen from './components/common/SplashScreen'
+import AppSplashScreen from './components/common/SplashScreen'
 import ScrollToTop from './components/common/ScrollToTop'
 import NativeAppWrapper from './components/common/NativeAppWrapper'
 import AuthLoadingOverlay from './components/common/AuthLoadingOverlay'
+import PageTransition from './components/common/PageTransition'
 import { useAuthStore } from './store/authStore'
+import { AnimatePresence } from 'framer-motion'
 
 
 function LayoutWrapper() {
@@ -76,7 +78,7 @@ function App() {
   };
 
   if (showSplash) {
-    return <SplashScreen onFinish={handleSplashFinish} />;
+    return <AppSplashScreen onFinish={handleSplashFinish} />;
   }
 
   return (
@@ -84,77 +86,77 @@ function App() {
       <NativeAppWrapper />
       <ScrollToTop />
       <AuthLoadingOverlay isVisible={isAuthProcessing} />
-      <Routes>
+      <AnimatePresence mode="wait">
+        <Routes>
+          {/* Login Route - Redirect to Home with popup trigger */}
+          <Route path="/login" element={<Navigate to="/menu?login=true" replace />} />
+          <Route path="/admin/auth" element={<Login />} />
+          <Route path="/search" element={<Search />} />
 
+          {/* Public Routes - Wrapped in Layout */}
+          <Route element={<LayoutWrapper />}>
+            <Route path="/" element={<PageTransition><Home /></PageTransition>} />
+            <Route path="/tournaments" element={<PageTransition><Tournaments /></PageTransition>} />
+            <Route path="/tournaments/:tournamentId" element={<PageTransition><TournamentDetails /></PageTransition>} />
+            <Route path="/tournaments/:tournamentId/points" element={<TournamentTabRedirect tab="points" />} />
+            <Route path="/tournaments/:tournamentId/stats" element={<TournamentTabRedirect tab="stats" />} />
+            <Route path="/terms" element={<PageTransition><TermsPage /></PageTransition>} />
+            <Route path="/squads" element={<PageTransition><Squads /></PageTransition>} />
+            <Route path="/squads/:squadId" element={<PageTransition><SquadDetails /></PageTransition>} />
+            <Route path="/players" element={<PageTransition><Players /></PageTransition>} />
+            <Route path="/players/:playerId" element={<PageTransition><PlayerProfile /></PageTransition>} />
+            <Route path="/champions" element={<PageTransition><Champions /></PageTransition>} />
+            <Route path="/rankings" element={<PageTransition><Rankings /></PageTransition>} />
+            <Route path="/schedule" element={<PageTransition><Schedule /></PageTransition>} />
+            <Route path="/menu" element={<PageTransition><Menu /></PageTransition>} />
+            <Route path="/account" element={<PageTransition><Account /></PageTransition>} />
+            <Route path="/edit-profile" element={<PageTransition><EditProfile /></PageTransition>} />
+            <Route path="/register-player" element={<PageTransition><RegisterPlayer /></PageTransition>} />
 
-        {/* Login Route - Redirect to Home with popup trigger */}
-        <Route path="/login" element={<Navigate to="/menu?login=true" replace />} />
-        <Route path="/admin/auth" element={<Login />} />
-        <Route path="/search" element={<Search />} />
+            {/* Match Routes */}
+            <Route path="/match/:matchId" element={<PageTransition><MatchLive /></PageTransition>} />
+            <Route path="/match/:matchId/info" element={<PageTransition><MatchInfo /></PageTransition>} />
+            <Route path="/match/:matchId/scorecard" element={<PageTransition><MatchScorecard /></PageTransition>} />
+            <Route path="/match/:matchId/graphs" element={<PageTransition><MatchGraphs /></PageTransition>} />
+            <Route path="/match/:matchId/playing-xi" element={<PageTransition><MatchPlayingXI /></PageTransition>} />
+          </Route>
 
-        {/* Public Routes - Wrapped in Layout */}
-        <Route element={<LayoutWrapper />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/tournaments" element={<Tournaments />} />
-          <Route path="/tournaments/:tournamentId" element={<TournamentDetails />} />
-          <Route path="/tournaments/:tournamentId/points" element={<TournamentTabRedirect tab="points" />} />
-          <Route path="/tournaments/:tournamentId/stats" element={<TournamentTabRedirect tab="stats" />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/squads" element={<Squads />} />
-          <Route path="/squads/:squadId" element={<SquadDetails />} />
-          <Route path="/players" element={<Players />} />
-          <Route path="/players/:playerId" element={<PlayerProfile />} />
-          <Route path="/champions" element={<Champions />} />
-          <Route path="/rankings" element={<Rankings />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/menu" element={<Menu />} />
-          <Route path="/account" element={<Account />} />
-          <Route path="/edit-profile" element={<EditProfile />} />
-          <Route path="/register-player" element={<RegisterPlayer />} />
+          {/* Admin Routes - Wrapped in AdminLayout */}
+          <Route element={<AdminLayout />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/tournaments" element={<AdminTournaments />} />
+            <Route path="/admin/tournaments/:id/dashboard" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/:id/groups" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/:id/fixtures" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/:id/knockout" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/:id/standings" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/:id/settings" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/:id/edit" element={<TournamentControlSystem />} />
+            <Route path="/admin/tournaments/new" element={<AdminTournaments mode="create" />} />
+            <Route path="/admin/squads" element={<AdminSquads />} />
+            <Route path="/admin/squads/new" element={<AdminSquads mode="create" />} />
+            <Route path="/admin/squads/:id/edit" element={<AdminSquads mode="edit" />} />
+            <Route path="/admin/players" element={<AdminPlayers />} />
+            <Route path="/admin/players/new" element={<AdminPlayers mode="create" />} />
+            <Route path="/admin/players/:id/edit" element={<AdminPlayers mode="edit" />} />
+            <Route path="/admin/matches" element={<AdminMatches />} />
+            <Route path="/admin/matches/new" element={<AdminMatches mode="create" />} />
+            <Route path="/admin/matches/:id/edit" element={<AdminMatches mode="edit" />} />
+            <Route path="/admin/matches/:id" element={<AdminMatches mode="view" />} />
+            <Route path="/admin/live" element={<AdminLiveMatches />} />
+            <Route path="/admin/live/:matchId" element={<AdminLiveScoring />} />
+            <Route path="/admin/live/:matchId/scoring" element={<AdminLiveScoring />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/player-approvals" element={<AdminPlayerRequests />} />
+            <Route path="/admin/broadcast" element={<AdminEmailBroadcast />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
+          </Route>
 
-          {/* Match Routes */}
-          <Route path="/match/:matchId" element={<MatchLive />} />
-          <Route path="/match/:matchId/info" element={<MatchInfo />} />
-          <Route path="/match/:matchId/scorecard" element={<MatchScorecard />} />
-          <Route path="/match/:matchId/graphs" element={<MatchGraphs />} />
-          <Route path="/match/:matchId/playing-xi" element={<MatchPlayingXI />} />
-        </Route>
-
-        {/* Admin Routes - Wrapped in AdminLayout */}
-        <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/tournaments" element={<AdminTournaments />} />
-          <Route path="/admin/tournaments/:id/dashboard" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/:id/groups" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/:id/fixtures" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/:id/knockout" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/:id/standings" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/:id/settings" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/:id/edit" element={<TournamentControlSystem />} />
-          <Route path="/admin/tournaments/new" element={<AdminTournaments mode="create" />} />
-          <Route path="/admin/squads" element={<AdminSquads />} />
-          <Route path="/admin/squads/new" element={<AdminSquads mode="create" />} />
-          <Route path="/admin/squads/:id/edit" element={<AdminSquads mode="edit" />} />
-          <Route path="/admin/players" element={<AdminPlayers />} />
-          <Route path="/admin/players/new" element={<AdminPlayers mode="create" />} />
-          <Route path="/admin/players/:id/edit" element={<AdminPlayers mode="edit" />} />
-          <Route path="/admin/matches" element={<AdminMatches />} />
-          <Route path="/admin/matches/new" element={<AdminMatches mode="create" />} />
-          <Route path="/admin/matches/:id/edit" element={<AdminMatches mode="edit" />} />
-          <Route path="/admin/matches/:id" element={<AdminMatches mode="view" />} />
-          <Route path="/admin/live" element={<AdminLiveMatches />} />
-          <Route path="/admin/live/:matchId" element={<AdminLiveScoring />} />
-          <Route path="/admin/live/:matchId/scoring" element={<AdminLiveScoring />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/player-approvals" element={<AdminPlayerRequests />} />
-          <Route path="/admin/broadcast" element={<AdminEmailBroadcast />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-        </Route>
-
-        {/* Catch all - redirect to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Catch all - redirect to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AnimatePresence>
     </BrowserRouter>
   )
 }

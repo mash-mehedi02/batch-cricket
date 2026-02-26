@@ -30,10 +30,42 @@ export default function Champions() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#05060f] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-slate-200 dark:border-slate-800 border-t-amber-500 rounded-full animate-spin" />
-          <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-xs">Loading wall of fame...</p>
+      <div className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24">
+        {/* Hero Header Skeleton */}
+        <div className="bg-[#050B18] text-white pt-20 pb-16 px-6 relative overflow-hidden">
+          <div className="max-w-5xl mx-auto flex flex-col items-center">
+            <div className="w-20 h-20 bg-white/5 rounded-3xl border border-white/10 mb-8 animate-pulse" />
+            <div className="w-64 h-10 bg-white/5 rounded-lg mb-4 animate-pulse" />
+            <div className="w-48 h-4 bg-white/5 rounded animate-pulse" />
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="max-w-5xl mx-auto px-6 -mt-10 relative z-20 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {[1, 2].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-white/5 shadow-lg overflow-hidden h-[500px] animate-pulse">
+                <div className="p-8 space-y-10">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <div className="w-16 h-6 rounded-full bg-slate-200 dark:bg-slate-800" />
+                        <div className="w-20 h-6 rounded-full bg-slate-200 dark:bg-slate-800" />
+                      </div>
+                      <div className="w-48 h-8 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+                  </div>
+                  <div className="h-28 rounded-3xl bg-amber-500/10" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 h-16 rounded-2xl bg-slate-50 dark:bg-white/5" />
+                    <div className="h-16 rounded-2xl bg-slate-50 dark:bg-white/5" />
+                    <div className="h-16 rounded-2xl bg-slate-50 dark:bg-white/5" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )

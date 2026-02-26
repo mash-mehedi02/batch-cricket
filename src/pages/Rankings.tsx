@@ -2,11 +2,11 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { gsap } from 'gsap'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { Tournament } from '@/types'
-import { UserCircle, Trophy, Medal, Filter, RefreshCw, SwatchBook, Swords, Target, LayoutGrid, ChevronDown } from 'lucide-react'
+import { UserCircle, Trophy, Filter, RefreshCw, SwatchBook, Swords, Target, LayoutGrid, ChevronDown } from 'lucide-react'
 import { calculateFantasyPoints, calculateBattingPoints, calculateBowlingPoints } from '@/utils/statsCalculator'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'react-hot-toast'
@@ -25,6 +25,18 @@ export default function Rankings() {
     const [isSyncing, setIsSyncing] = useState(false)
     const [showFilters, setShowFilters] = useState(false)
     const { user } = useAuthStore()
+
+    const modesOrder: ('overall' | 'batting' | 'bowling')[] = ['overall', 'batting', 'bowling'];
+    const currentModeIndex = modesOrder.indexOf(rankMode);
+    const isAnimatingRef = useRef(false);
+    const x = useMotionValue(0);
+    const animatedX = useTransform(x, (value) => `calc(-${currentModeIndex * 100}% + ${value}px)`);
+
+    useEffect(() => {
+        if (!isAnimatingRef.current) {
+            animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 });
+        }
+    }, [currentModeIndex, x]);
 
     const loadData = async () => {
         try {
@@ -150,28 +162,26 @@ export default function Rankings() {
                 <div className="max-w-4xl mx-auto">
                     {/* Mode & Filter Section */}
                     <div className="flex items-center gap-3 mb-8">
-                        <div className="flex-1 flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                            <button
-                                onClick={() => setRankMode('overall')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rankMode === 'overall' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
-                            >
-                                <LayoutGrid size={14} />
-                                Overall
-                            </button>
-                            <button
-                                onClick={() => setRankMode('batting')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rankMode === 'batting' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
-                            >
-                                <Swords size={14} />
-                                Batting
-                            </button>
-                            <button
-                                onClick={() => setRankMode('bowling')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rankMode === 'bowling' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
-                            >
-                                <Target size={14} />
-                                Bowling
-                            </button>
+                        <div className="flex-1 flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl relative">
+                            {(['overall', 'batting', 'bowling'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setRankMode(mode)}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative z-10 ${rankMode === mode ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}
+                                >
+                                    {mode === 'overall' && <LayoutGrid size={14} />}
+                                    {mode === 'batting' && <Swords size={14} />}
+                                    {mode === 'bowling' && <Target size={14} />}
+                                    {mode}
+                                    {rankMode === mode && (
+                                        <motion.div
+                                            layoutId="rankModeActive"
+                                            className="absolute inset-0 bg-white dark:bg-slate-700 rounded-xl shadow-sm -z-10"
+                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                        />
+                                    )}
+                                </button>
+                            ))}
                         </div>
 
                         <button
@@ -252,153 +262,182 @@ export default function Rankings() {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 mt-8">
-                {/* Top 3 Podium */}
-                {!loading && filteredRankings.length >= 3 && (
-                    <div className="flex items-end justify-center gap-2 sm:gap-4 mb-12 mt-4 px-2">
-                        {/* 2nd Place */}
-                        <Link to={`/players/${filteredRankings[1].id}`} className="flex-1 max-w-[120px] flex flex-col items-center group">
-                            <div className="relative mb-3">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 overflow-hidden group-hover:scale-105 transition-transform">
-                                    {filteredRankings[1].photoUrl ? (
-                                        <img src={filteredRankings[1].photoUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                            <UserCircle size={32} />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-slate-400 text-white flex items-center justify-center text-sm font-black shadow-lg border-2 border-white dark:border-slate-900">
-                                    2
-                                </div>
-                            </div>
-                            <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{filteredRankings[1].name}</span>
-                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{filteredRankings[1].displayPoints[rankMode]}</span>
-                        </Link>
+            {/* 4. Tab Content with Dynamic Carousel & Swipe Support */}
+            <div className="relative w-full overflow-hidden">
+                <motion.div
+                    style={{ x: animatedX, willChange: 'transform' }}
+                    drag="x"
+                    dragDirectionLock
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={1} // 1:1 tracking
+                    onDragStart={() => {
+                        isAnimatingRef.current = true;
+                    }}
+                    onDragEnd={(_, info) => {
+                        const swipeThreshold = window.innerWidth * 0.25;
+                        const velocityThreshold = 400;
 
-                        {/* 1st Place */}
-                        <Link to={`/players/${filteredRankings[0].id}`} className="flex-1 max-w-[140px] flex flex-col items-center group -translate-y-4">
-                            <div className="relative mb-4">
-                                <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-                                    <Trophy size={28} className="text-amber-500 animate-bounce" />
-                                </div>
-                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-amber-50 dark:bg-amber-500/10 border-4 border-amber-400/30 overflow-hidden group-hover:scale-105 transition-transform shadow-xl shadow-amber-500/10">
-                                    {filteredRankings[0].photoUrl ? (
-                                        <img src={filteredRankings[0].photoUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-amber-500">
-                                            <UserCircle size={40} />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center text-lg font-black shadow-lg border-2 border-white dark:border-slate-900">
-                                    1
-                                </div>
-                            </div>
-                            <span className="text-[12px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{filteredRankings[0].name}</span>
-                            <span className="text-[18px] font-black text-amber-500 tabular-nums">{filteredRankings[0].displayPoints[rankMode]}</span>
-                        </Link>
+                        if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+                            if (currentModeIndex < modesOrder.length - 1) setRankMode(modesOrder[currentModeIndex + 1]);
+                        } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
+                            if (currentModeIndex > 0) setRankMode(modesOrder[currentModeIndex - 1]);
+                        }
 
-                        {/* 3rd Place */}
-                        <Link to={`/players/${filteredRankings[2].id}`} className="flex-1 max-w-[120px] flex flex-col items-center group">
-                            <div className="relative mb-3">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-amber-700/30 overflow-hidden group-hover:scale-105 transition-transform">
-                                    {filteredRankings[2].photoUrl ? (
-                                        <img src={filteredRankings[2].photoUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-amber-800">
-                                            <UserCircle size={32} />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-amber-800 text-white flex items-center justify-center text-sm font-black shadow-lg border-2 border-white dark:border-slate-900">
-                                    3
-                                </div>
-                            </div>
-                            <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{filteredRankings[2].name}</span>
-                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{filteredRankings[2].displayPoints[rankMode]}</span>
-                        </Link>
-                    </div>
-                )}
+                        animate(x, 0, {
+                            type: 'spring',
+                            stiffness: 400,
+                            damping: 40,
+                            velocity: info.velocity.x
+                        });
 
-                <div className="space-y-4">
-                    {loading ? (
-                        <RankingsSkeleton />
-                    ) : filteredRankings.length === 0 ? (
+                        setTimeout(() => {
+                            isAnimatingRef.current = false;
+                        }, 50);
+                    }}
+                    className="flex w-full items-start touch-pan-y"
+                >
+                    {(['overall', 'batting', 'bowling'] as const).map((currentMode) => {
+                        const pointsForMode = (player: any) => {
+                            if (currentMode === 'overall') return calculateFantasyPoints(selectedTournamentId === 'all' ? player.stats : (player.tournamentStats?.[selectedTournamentId] || player.stats))
+                            if (currentMode === 'batting') return calculateBattingPoints(selectedTournamentId === 'all' ? player.stats : (player.tournamentStats?.[selectedTournamentId] || player.stats))
+                            if (currentMode === 'bowling') return calculateBowlingPoints(selectedTournamentId === 'all' ? player.stats : (player.tournamentStats?.[selectedTournamentId] || player.stats))
+                            return 0
+                        }
 
-                        <div className="py-32 flex flex-col items-center justify-center text-center px-8">
-                            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                                <Filter className="text-slate-300 dark:text-slate-600" size={32} />
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tight mb-2">No Rankings Found</h3>
-                            <p className="text-slate-400 text-sm max-w-xs font-bold">
-                                Try adjusting your filters. If you're an admin, make sure to sync all stats first.
-                            </p>
-                            {(selectedSquadId !== 'all' || selectedTournamentId !== 'all') && (
-                                <button
-                                    onClick={() => {
-                                        setSelectedSquadId('all')
-                                        setSelectedTournamentId('all')
-                                    }}
-                                    className="mt-8 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:underline"
-                                >
-                                    Reset All Filters
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        filteredRankings.slice(filteredRankings.length >= 3 ? 3 : 0).map((player, index) => {
-                            const actualIndex = filteredRankings.length >= 3 ? index + 3 : index
-                            const squad = squads.find(s => s.id === player.squadId)
-                            const squadName = squad?.name || 'Unassigned'
-                            const points = player.displayPoints[rankMode] || 0
+                        const listForMode = players.map(player => {
+                            const stats = selectedTournamentId === 'all'
+                                ? player.stats
+                                : (player.tournamentStats?.[selectedTournamentId] || null)
 
-                            return (
-                                <Link
-                                    key={player.id}
-                                    to={`/players/${player.id}`}
-                                    className="ranking-card group flex items-center gap-3 bg-white dark:bg-slate-900 p-2.5 px-4 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all duration-300 relative"
-                                >
-                                    {/* Rank Number - Far Left & Small */}
-                                    <div className="w-5 shrink-0 text-[11px] font-black text-slate-400 tabular-nums">
-                                        {actualIndex + 1}
-                                    </div>
+                            return {
+                                ...player,
+                                displayStats: stats,
+                                modePoints: pointsForMode(player)
+                            }
+                        }).filter(player => {
+                            const matchesSquad = selectedSquadId === 'all' || player.squadId === selectedSquadId
+                            return matchesSquad && !!player.displayStats && player.modePoints > 0
+                        }).sort((a, b) => b.modePoints - a.modePoints)
 
-                                    {/* Avatar - Slightly smaller */}
-                                    <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-50 dark:border-white/5">
-                                        {player.photoUrl ? (
-                                            <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <UserCircle className="text-slate-300 dark:text-slate-600" size={24} strokeWidth={1.5} />
+                        return (
+                            <div key={currentMode} className="w-full shrink-0 px-4 sm:px-6">
+                                {/* Top 3 Podium for this mode */}
+                                {!loading && listForMode.length >= 3 && (
+                                    <div className="flex items-end justify-center gap-2 sm:gap-4 mb-12 mt-4 px-2">
+                                        {/* 2nd Place */}
+                                        <Link to={`/players/${listForMode[1].id}`} className="flex-1 max-w-[120px] flex flex-col items-center group">
+                                            <div className="relative mb-3">
+                                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 overflow-hidden group-hover:scale-105 transition-transform">
+                                                    {listForMode[1].photoUrl ? (
+                                                        <img src={listForMode[1].photoUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                            <UserCircle size={32} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-slate-400 text-white flex items-center justify-center text-sm font-black shadow-lg border-2 border-white dark:border-slate-900">
+                                                    2
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
+                                            <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{listForMode[1].name}</span>
+                                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{listForMode[1].modePoints}</span>
+                                        </Link>
 
-                                    {/* Info - Smaller name, no role */}
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase truncate group-hover:text-blue-600 transition-colors">
-                                            {player.name}
-                                        </h3>
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{squadName}</span>
-                                        </div>
-                                    </div>
+                                        {/* 1st Place */}
+                                        <Link to={`/players/${listForMode[0].id}`} className="flex-1 max-w-[140px] flex flex-col items-center group -translate-y-4">
+                                            <div className="relative mb-4">
+                                                <div className="absolute -top-6 left-1/2 -translate-x-1/2">
+                                                    <Trophy size={28} className="text-amber-500 animate-bounce" />
+                                                </div>
+                                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-amber-50 dark:bg-amber-500/10 border-4 border-amber-400/30 overflow-hidden group-hover:scale-105 transition-transform shadow-xl shadow-amber-500/10">
+                                                    {listForMode[0].photoUrl ? (
+                                                        <img src={listForMode[0].photoUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-amber-500">
+                                                            <UserCircle size={40} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center text-lg font-black shadow-lg border-2 border-white dark:border-slate-900">
+                                                    1
+                                                </div>
+                                            </div>
+                                            <span className="text-[12px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{listForMode[0].name}</span>
+                                            <span className="text-[18px] font-black text-amber-500 tabular-nums">{listForMode[0].modePoints}</span>
+                                        </Link>
 
-                                    {/* Points - Compact */}
-                                    <div className="text-right">
-                                        <div className="text-lg font-black text-slate-900 dark:text-white leading-none tabular-nums">
-                                            {points}
-                                        </div>
-                                        <div className="text-[8px] font-black text-slate-500/60 uppercase tracking-widest mt-0.5">
-                                            {rankMode === 'overall' ? 'PTS' : rankMode === 'batting' ? 'BAT' : 'BOWL'}
-                                        </div>
+                                        {/* 3rd Place */}
+                                        <Link to={`/players/${listForMode[2].id}`} className="flex-1 max-w-[120px] flex flex-col items-center group">
+                                            <div className="relative mb-3">
+                                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-amber-700/30 overflow-hidden group-hover:scale-105 transition-transform">
+                                                    {listForMode[2].photoUrl ? (
+                                                        <img src={listForMode[2].photoUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-amber-800">
+                                                            <UserCircle size={32} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-amber-800 text-white flex items-center justify-center text-sm font-black shadow-lg border-2 border-white dark:border-slate-900">
+                                                    3
+                                                </div>
+                                            </div>
+                                            <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{listForMode[2].name}</span>
+                                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{listForMode[2].modePoints}</span>
+                                        </Link>
                                     </div>
-                                </Link>
-                            )
-                        })
-                    )}
-                </div>
+                                )}
+
+                                <div className="space-y-4 pb-20">
+                                    {loading ? (
+                                        <RankingsSkeleton />
+                                    ) : listForMode.length === 0 ? (
+                                        <div className="py-20 flex flex-col items-center justify-center text-center">
+                                            <p className="text-slate-500 font-bold">No players found</p>
+                                        </div>
+                                    ) : (
+                                        listForMode.slice(listForMode.length >= 3 ? 3 : 0).map((player, index) => {
+                                            const actualIndex = listForMode.length >= 3 ? index + 3 : index
+                                            const squad = squads.find(s => s.id === player.squadId)
+                                            const squadName = squad?.name || 'Unassigned'
+                                            const points = player.modePoints
+
+                                            return (
+                                                <Link
+                                                    key={player.id}
+                                                    to={`/players/${player.id}`}
+                                                    className="ranking-card group flex items-center gap-3 bg-white dark:bg-slate-900 p-2.5 px-4 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all duration-300 relative"
+                                                >
+                                                    <div className="w-5 shrink-0 text-[11px] font-black text-slate-400 tabular-nums">{actualIndex + 1}</div>
+                                                    <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-50 dark:border-white/5">
+                                                        {player.photoUrl ? (
+                                                            <img src={player.photoUrl} alt={player.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <UserCircle className="text-slate-300 dark:text-slate-600" size={24} strokeWidth={1.5} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase truncate group-hover:text-blue-600 transition-colors">{player.name}</h3>
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{squadName}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-lg font-black text-slate-900 dark:text-white leading-none tabular-nums">{points}</div>
+                                                        <div className="text-[8px] font-black text-slate-500/60 uppercase tracking-widest mt-0.5">
+                                                            {currentMode === 'overall' ? 'PTS' : currentMode === 'batting' ? 'BAT' : 'BOWL'}
+                                                        </div>
+                                                    </div>
+                                                </Link>
+                                            )
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </motion.div>
             </div>
         </div>
     )

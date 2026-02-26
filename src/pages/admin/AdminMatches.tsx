@@ -144,6 +144,74 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     return base
   }, [formData.groupId, formData.tournamentId, squads, tournamentGroups, tournamentSquadIds])
 
+  // --- AUTOMATED KNOCKOUT SCHEDULING STATE ---
+  const [roundType, setRoundType] = useState<string>('group')
+  const [matchSlot, setMatchSlot] = useState<string>('')
+
+  // Calculates which teams should play in the selected knockout slot based on tournament structure
+  const getKnockoutPairings = (rType: string, slot: string) => {
+    if (!selectedTournament || !slot) return { a: '', b: '' }
+
+    // Attempt to resolve dynamically from groups or previous matches
+    const isQuarter = rType === 'quarter_final'
+    const isSemi = rType === 'semi_final'
+    const isFinal = rType === 'final'
+    const confirmedQualifiers = (selectedTournament as any).confirmedQualifiers || {}
+    const groups = (selectedTournament as any).config?.groups || []
+    const groupIds = groups.length > 0 ? groups.map((g: any) => g.id) : Object.keys(confirmedQualifiers).sort()
+
+    // Helper: Find qualified team name or use placeholder
+    const resolveTeam = (groupId: string, rank: number) => {
+      const teamId = confirmedQualifiers[groupId]?.[rank - 1]
+      if (teamId) {
+        const squad = squads.find(s => s.id === teamId)
+        if (squad) return { name: squad.name, id: squad.id };
+      }
+      const gName = groups.find((g: any) => g.id === groupId)?.name || groupId || 'Group'
+      const postfix = rank === 1 ? '1st' : rank === 2 ? '2nd' : rank === 3 ? '3rd' : '4th'
+      return { name: `${gName} ${postfix}`, id: '' }
+    }
+
+    // Helper: Find winner of a past match from the full matchList
+    const getWinner = (matchNum: string) => {
+      const match = matches.find(m => m.matchNo === matchNum && m.tournamentId === selectedTournament.id)
+      if (match?.status === 'finished') {
+        const wid = String(match.winnerId).trim()
+        if (wid === String(match.teamAId) || wid === String(match.teamASquadId) || wid === String((match as any).teamA)) {
+          return { name: match.teamAName || 'Team A', id: wid }
+        }
+        if (wid === String(match.teamBId) || wid === String(match.teamBSquadId) || wid === String((match as any).teamB)) {
+          return { name: match.teamBName || 'Team B', id: wid }
+        }
+      }
+      return { name: `Winner ${matchNum}`, id: '' }
+    }
+
+    if (isQuarter) {
+      if (groupIds.length === 4) {
+        const g = groupIds;
+        if (slot === 'QF1') return { a: resolveTeam(g[0], 1), b: resolveTeam(g[2], 2) }
+        if (slot === 'QF2') return { a: resolveTeam(g[1], 1), b: resolveTeam(g[3], 2) }
+        if (slot === 'QF3') return { a: resolveTeam(g[2], 1), b: resolveTeam(g[0], 2) }
+        if (slot === 'QF4') return { a: resolveTeam(g[3], 1), b: resolveTeam(g[1], 2) }
+      } else if (groupIds.length === 2) {
+        const g = groupIds;
+        if (slot === 'QF1') return { a: resolveTeam(g[0], 1), b: resolveTeam(g[1], 4) }
+        if (slot === 'QF2') return { a: resolveTeam(g[0], 2), b: resolveTeam(g[1], 3) }
+        if (slot === 'QF3') return { a: resolveTeam(g[0], 3), b: resolveTeam(g[1], 2) }
+        if (slot === 'QF4') return { a: resolveTeam(g[0], 4), b: resolveTeam(g[1], 1) }
+      }
+      return { a: { name: 'TBD', id: '' }, b: { name: 'TBD', id: '' } }
+    } else if (isSemi) {
+      if (slot === 'SF1') return { a: getWinner('QF1'), b: getWinner('QF2') }
+      if (slot === 'SF2') return { a: getWinner('QF3'), b: getWinner('QF4') }
+    } else if (isFinal) {
+      if (slot === 'F1') return { a: getWinner('SF1'), b: getWinner('SF2') }
+    }
+
+    return { a: { name: '', id: '' }, b: { name: '', id: '' } }
+  }
+
   useEffect(() => {
     if (mode === 'list') {
       loadMatches()
@@ -152,6 +220,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         loadAdmins()
       }
     } else {
+      loadMatches()
       loadTournaments()
       loadSquads()
       if ((mode === 'edit' || mode === 'view') && id) {
@@ -727,27 +796,21 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
 
     // Client-side hard validation
-    // Tournament is now optional for independent matches
-    /*
-    if (!formData.tournamentId) {
-      toast.error('Please select a tournament.')
-      return
-    }
-    */
+    const isKnockout = roundType !== 'group' && !!formData.tournamentId
 
-    if (!formData.teamA || !formData.teamB) {
+    if (!isKnockout && (!formData.teamA || !formData.teamB)) {
       toast.error('Please select both Team A and Team B.')
       return
     }
 
     console.log('📝 [AdminMatches] Form Data:', formData)
 
-    if (formData.tournamentId && tournamentGroups.length > 0 && !formData.groupId) {
+    if (formData.tournamentId && tournamentGroups.length > 0 && !formData.groupId && !isKnockout) {
       toast.error('Please select a group for this tournament.')
       return
     }
 
-    if (formData.tournamentId && tournamentGroups.length > 0 && formData.groupId) {
+    if (formData.tournamentId && tournamentGroups.length > 0 && formData.groupId && !isKnockout) {
       const g = tournamentGroups.find((x) => x.id === formData.groupId)
       const allowed = new Set<string>((g?.squadIds || []).map((x: any) => String(x)))
       if (formData.teamA && !allowed.has(String(formData.teamA))) {
@@ -761,7 +824,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
 
     // Prevent selecting same squad for both teams
-    if (formData.teamA && formData.teamB && formData.teamA === formData.teamB) {
+    if (!isKnockout && formData.teamA && formData.teamB && formData.teamA === formData.teamB) {
       toast.error('Team A and Team B cannot be the same.')
       return
     }
@@ -793,7 +856,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         return
       }
 
-      if (!formData.teamA || !formData.teamB) {
+      if (!isKnockout && (!formData.teamA || !formData.teamB)) {
         toast.error('Please select both Team A and Team B.')
         setSaving(false)
         return
@@ -802,8 +865,16 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       const selectedGroup = tournamentGroups.find((g) => g.id === formData.groupId)
       const squadA = squads.find((s) => s.id === formData.teamA)
       const squadB = squads.find((s) => s.id === formData.teamB)
-      const resolvedTeamAName = formData.teamAName || squadA?.name || 'Team A'
-      const resolvedTeamBName = formData.teamBName || squadB?.name || 'Team B'
+
+      let resolvedTeamAName = squadA?.name || 'Team A'
+      let resolvedTeamBName = squadB?.name || 'Team B'
+      if (isKnockout) {
+        resolvedTeamAName = formData.teamAName || 'TBD 1'
+        resolvedTeamBName = formData.teamBName || 'TBD 2'
+      } else {
+        resolvedTeamAName = formData.teamAName || resolvedTeamAName
+        resolvedTeamBName = formData.teamBName || resolvedTeamBName
+      }
 
       const matchData = stripUndefined({
         tournamentId: formData.tournamentId,
@@ -811,12 +882,12 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         groupName: tournamentGroups.length > 0 ? (selectedGroup?.name || '') : undefined,
         school: selectedTournament?.school || (user as any)?.managedSchools?.[0] || 'SMA',
         // Keep legacy + canonical team fields for compatibility across pages
-        teamA: formData.teamA,
-        teamB: formData.teamB,
-        teamAId: formData.teamA,
-        teamBId: formData.teamB,
-        teamASquadId: formData.teamA,
-        teamBSquadId: formData.teamB,
+        teamA: formData.teamA || undefined,
+        teamB: formData.teamB || undefined,
+        teamAId: formData.teamA || undefined,
+        teamBId: formData.teamB || undefined,
+        teamASquadId: formData.teamA || undefined,
+        teamBSquadId: formData.teamB || undefined,
         teamAName: resolvedTeamAName,
         teamBName: resolvedTeamBName,
         venue: formData.venue || '',
@@ -832,6 +903,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         adminId: user?.uid || '',
         adminEmail: user?.email || '',
         createdBy: mode === 'create' ? user?.uid || '' : undefined,
+        stage: isKnockout ? 'knockout' : 'group',
+        round: roundType !== 'group' && !!formData.tournamentId ? roundType : undefined
       })
 
       console.log('🚀 [AdminMatches] Sending to matchService...', matchData)
@@ -1071,89 +1144,189 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
             </div>
 
             {tournamentGroups.length > 0 ? (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Group *</label>
-                <select
-                  required
-                  value={formData.groupId}
-                  onChange={(e) => {
-                    const nextGroupId = e.target.value
-                    setFormData((prev) => ({
-                      ...prev,
-                      groupId: nextGroupId,
-                      // Reset teams when group changes (prevents cross-group match)
-                      teamA: '',
-                      teamB: '',
-                    }))
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                  disabled={!formData.tournamentId}
-                >
-                  <option value="">Select Group</option>
-                  {tournamentGroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name} ({(g.squadIds || []).length} teams)
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">Group stage: only teams from the same group can play.</p>
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Stage *</label>
+                  <select
+                    value={roundType}
+                    onChange={(e) => {
+                      const newRound = e.target.value
+                      setRoundType(newRound)
+                      setMatchSlot('') // Reset slot when stage changes
+                      setFormData((prev) => ({
+                        ...prev,
+                        groupId: '',
+                        teamA: '',
+                        teamB: '',
+                        teamAName: '',
+                        teamBName: ''
+                      }))
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="group">Group Stage</option>
+                    <option value="quarter_final">Quarter Finals</option>
+                    <option value="semi_final">Semi Finals</option>
+                    <option value="final">Final</option>
+                  </select>
+                </div>
+
+                {roundType === 'group' ? (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Group *</label>
+                    <select
+                      required
+                      value={formData.groupId}
+                      onChange={(e) => {
+                        const nextGroupId = e.target.value
+                        setFormData((prev) => ({
+                          ...prev,
+                          groupId: nextGroupId,
+                          // Reset teams when group changes (prevents cross-group match)
+                          teamA: '',
+                          teamB: '',
+                        }))
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="">Select Group</option>
+                      {tournamentGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name} ({(g.squadIds || []).length} teams)
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-gray-500 mt-1">Group stage: only teams from the same group can play.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Match Slot *</label>
+                    <select
+                      required
+                      value={matchSlot}
+                      onChange={(e) => {
+                        const newSlot = e.target.value
+                        setMatchSlot(newSlot)
+                        // Auto-calculate pairings
+                        const pair = getKnockoutPairings(roundType, newSlot)
+                        setFormData((prev) => ({
+                          ...prev,
+                          matchNo: newSlot, // e.g. QF1
+                          teamA: pair.a.id || '', // Use actual ID if resolved
+                          teamB: pair.b.id || '',
+                          teamAName: pair.a.name,
+                          teamBName: pair.b.name
+                        }))
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="">Select Slot</option>
+                      {roundType === 'quarter_final' && (
+                        <>
+                          <option value="QF1">Quarter Final 1</option>
+                          <option value="QF2">Quarter Final 2</option>
+                          <option value="QF3">Quarter Final 3</option>
+                          <option value="QF4">Quarter Final 4</option>
+                        </>
+                      )}
+                      {roundType === 'semi_final' && (
+                        <>
+                          <option value="SF1">Semi Final 1</option>
+                          <option value="SF2">Semi Final 2</option>
+                        </>
+                      )}
+                      {roundType === 'final' && <option value="F1">Final Match</option>}
+                    </select>
+                    {matchSlot && (
+                      <p className="text-[10px] font-bold text-indigo-600 mt-1">
+                        Auto-determined: {formData.teamAName} vs {formData.teamBName}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : null}
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Team A *</label>
-              <select
-                required
-                value={formData.teamA}
-                onChange={(e) => {
-                  const nextTeamA = e.target.value
-                  setFormData((prev) => ({
-                    ...prev,
-                    teamA: nextTeamA,
-                    // If same as Team B, clear Team B
-                    teamB: prev.teamB === nextTeamA ? '' : prev.teamB,
-                  }))
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                disabled={tournamentGroups.length > 0 && !formData.groupId}
-              >
-                <option value="">Select Squad</option>
-                {availableSquads.map((squad) => (
-                  <option key={squad.id} value={squad.id}>
-                    {squad.name}
-                  </option>
-                ))}
-              </select>
-              {tournamentGroups.length > 0 && !formData.groupId ? (
-                <p className="text-xs text-gray-500 mt-1">Select a group first.</p>
-              ) : null}
-            </div>
+            {roundType === 'group' || !formData.tournamentId ? (
+              <>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Team A *</label>
+                  <select
+                    required
+                    value={formData.teamA}
+                    onChange={(e) => {
+                      const nextTeamA = e.target.value
+                      setFormData((prev) => ({
+                        ...prev,
+                        teamA: nextTeamA,
+                        // If same as Team B, clear Team B
+                        teamB: prev.teamB === nextTeamA ? '' : prev.teamB,
+                      }))
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    disabled={tournamentGroups.length > 0 && !formData.groupId}
+                  >
+                    <option value="">Select Squad</option>
+                    {availableSquads.map((squad) => (
+                      <option key={squad.id} value={squad.id}>
+                        {squad.name}
+                      </option>
+                    ))}
+                  </select>
+                  {tournamentGroups.length > 0 && !formData.groupId ? (
+                    <p className="text-xs text-gray-500 mt-1">Select a group first.</p>
+                  ) : null}
+                </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Team B *</label>
-              <select
-                required
-                value={formData.teamB}
-                onChange={(e) => {
-                  const nextTeamB = e.target.value
-                  setFormData((prev) => ({
-                    ...prev,
-                    teamB: nextTeamB,
-                    // If same as Team A, clear Team A
-                    teamA: prev.teamA === nextTeamB ? '' : prev.teamA,
-                  }))
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                disabled={tournamentGroups.length > 0 && !formData.groupId}
-              >
-                <option value="">Select Squad</option>
-                {availableSquads.map((squad) => (
-                  <option key={squad.id} value={squad.id} disabled={!!formData.teamA && squad.id === formData.teamA}>
-                    {squad.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Team B *</label>
+                  <select
+                    required
+                    value={formData.teamB}
+                    onChange={(e) => {
+                      const nextTeamB = e.target.value
+                      setFormData((prev) => ({
+                        ...prev,
+                        teamB: nextTeamB,
+                        // If same as Team A, clear Team A
+                        teamA: prev.teamA === nextTeamB ? '' : prev.teamA,
+                      }))
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    disabled={tournamentGroups.length > 0 && !formData.groupId}
+                  >
+                    <option value="">Select Squad</option>
+                    {availableSquads.map((squad) => (
+                      <option key={squad.id} value={squad.id} disabled={!!formData.teamA && squad.id === formData.teamA}>
+                        {squad.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Team A Format</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={formData.teamAName || 'TBD'}
+                    className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-500 rounded-lg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Auto-populated based on stage context.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Team B Format</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={formData.teamBName || 'TBD'}
+                    className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-500 rounded-lg"
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Venue</label>

@@ -23,6 +23,7 @@ import MatchCard from '@/components/match/MatchCard'
 import { memo } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { oneSignalService } from '@/services/oneSignalService'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { db } from '@/config/firebase'
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import toast from 'react-hot-toast'
@@ -50,6 +51,18 @@ export default function TournamentDetails() {
   const [players, setPlayers] = useState<Player[]>([])
   const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
   const [loading, setLoading] = useState(true)
+
+  const tabsArray: Tab[] = ['overview', 'matches', 'teams', 'points', 'stats'];
+  const currentTabIndex = tabsArray.indexOf(activeTab);
+  const isAnimatingRef = useRef(false);
+  const x = useMotionValue(0);
+  const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`);
+
+  useEffect(() => {
+    if (!isAnimatingRef.current) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 });
+    }
+  }, [currentTabIndex, x]);
 
   const { user } = useAuthStore()
   const isFollowing = useMemo(() => followService.isFollowing(user, 'tournament', tournamentId!), [user, tournamentId])
@@ -203,8 +216,36 @@ export default function TournamentDetails() {
 
   if (loading && !tournamentData) {
     return (
-      <div className="min-h-screen bg-[#050B18] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24">
+        {/* Sticky Top Bar Skeleton */}
+        <div className="bg-[#050B18] text-white sticky top-0 z-50 border-b border-white/5 h-14 flex items-center px-5 gap-3">
+          <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />
+          <div className="w-32 h-4 rounded bg-white/10 animate-pulse" />
+        </div>
+
+        {/* Hero Skeleton */}
+        <div className="bg-[#050B18] text-white p-5 py-10 flex justify-between items-start">
+          <div className="space-y-4 flex-1">
+            <div className="w-48 h-8 rounded bg-white/10 animate-pulse" />
+            <div className="w-32 h-4 rounded bg-white/10 animate-pulse" />
+            <div className="w-24 h-6 rounded bg-white/10 animate-pulse" />
+          </div>
+          <div className="w-20 h-20 rounded-2xl bg-white/10 animate-pulse" />
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="max-w-4xl mx-auto px-5 py-8 space-y-10">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="w-32 h-4 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+              <div className="w-16 h-4 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="h-44 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 animate-pulse" />
+              <div className="h-44 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 animate-pulse" />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -259,7 +300,7 @@ export default function TournamentDetails() {
 
           {/* Tab Navigation - Nested in Sticky Bar for zero-jump effect */}
           <div className="overflow-x-auto no-scrollbar pb-1">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-8 px-2">
               {[
                 { id: 'overview', label: 'Overview' },
                 { id: 'matches', label: 'Matches' },
@@ -274,7 +315,12 @@ export default function TournamentDetails() {
                     }`}
                 >
                   {tab.label}
-                  {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 rounded-full" />}
+                  {activeTab === tab.id && (
+                    <motion.div
+                      layoutId="activeTabUnderlineTournament"
+                      className="absolute bottom-0 left-0 w-full h-0.5 bg-red-500 rounded-full"
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -306,9 +352,89 @@ export default function TournamentDetails() {
         </div>
       </div>
 
-      {/* 3. Main Content Content Container */}
-      <div className="max-w-4xl mx-auto px-5">
-        {content}
+      {/* 3. Main Content Container - Using Swipe Carousel */}
+      <div className="overflow-hidden">
+        <motion.div
+          style={{ x: animatedX, willChange: 'transform' }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={1} // 1:1 tracking
+          dragDirectionLock
+          onDragStart={() => {
+            isAnimatingRef.current = true;
+          }}
+          onDragEnd={(_, info) => {
+            const swipeThreshold = window.innerWidth * 0.25;
+            const velocityThreshold = 400;
+
+            if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+              if (currentTabIndex < tabsArray.length - 1) {
+                setActiveTab(tabsArray[currentTabIndex + 1]);
+              }
+            } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
+              if (currentTabIndex > 0) {
+                setActiveTab(tabsArray[currentTabIndex - 1]);
+              }
+            }
+
+            animate(x, 0, {
+              type: 'spring',
+              stiffness: 400,
+              damping: 40,
+              velocity: info.velocity.x
+            });
+
+            setTimeout(() => {
+              isAnimatingRef.current = false;
+            }, 50);
+          }}
+          className="flex w-full touch-pan-y"
+        >
+          {/* OVERVIEW TAB */}
+          <div className="w-full shrink-0">
+            <div className="max-w-4xl mx-auto px-5">
+              {tournamentData && (
+                <OverviewTab
+                  tournament={tournamentData}
+                  matches={matches}
+                  squads={squads}
+                  players={players}
+                  inningsMap={inningsMap}
+                  setActiveTab={setActiveTab}
+                  squadsMap={squadsMap}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* MATCHES TAB */}
+          <div className="w-full shrink-0">
+            <div className="max-w-4xl mx-auto px-5">
+              <TournamentMatchesTab matches={matches} squadsMap={squadsMap} />
+            </div>
+          </div>
+
+          {/* TEAMS TAB */}
+          <div className="w-full shrink-0">
+            <div className="max-w-4xl mx-auto px-5">
+              <TournamentTeamsTab squads={squads} players={players} />
+            </div>
+          </div>
+
+          {/* POINTS TABLE TAB */}
+          <div className="w-full shrink-0">
+            <div className="max-w-4xl mx-auto px-5">
+              <TournamentPointsTable embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
+            </div>
+          </div>
+
+          {/* STATS TAB */}
+          <div className="w-full shrink-0">
+            <div className="max-w-4xl mx-auto px-5">
+              <TournamentKeyStats embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
+            </div>
+          </div>
+        </motion.div>
       </div>
       <ShareModal
         isOpen={isShareModalOpen}

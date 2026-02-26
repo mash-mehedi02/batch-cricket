@@ -148,9 +148,16 @@ export default function Players() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8 animate-pulse">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-44 md:h-56 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5"></div>
+              <div key={i} className="h-44 md:h-56 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 overflow-hidden rounded-2xl md:rounded-[2rem] animate-pulse flex">
+                <div className="w-[60%] p-6 md:p-8 space-y-4">
+                  <div className="w-full h-8 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                  <div className="w-1/2 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                  <div className="w-2/3 h-4 bg-slate-200 dark:bg-slate-800 rounded mt-8" />
+                </div>
+                <div className="w-[40%] bg-slate-100 dark:bg-slate-800" style={{ clipPath: 'polygon(15% 0, 100% 0, 100% 100%, 0% 100%)' }} />
+              </div>
             ))}
           </div>
         ) : filteredPlayers.length === 0 ? (
@@ -163,7 +170,8 @@ export default function Players() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
             {filteredPlayers.map((player) => {
               const hasPhoto = !!(player.photoUrl || (player as any).photo)
-              const squadName = squads[player.squadId] || 'Unassigned'
+              const squad = squads.find((s: Squad) => s.id === player.squadId)
+              const squadName = squad ? squad.name : 'Unassigned'
               // Translate Role
               let roleText = t('all_rounder')
               if (player.role === 'wicket-keeper') roleText = t('wicket_keeper')

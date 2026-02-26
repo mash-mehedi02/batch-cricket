@@ -3,7 +3,7 @@
  * Displays a professional list of all tournaments grouped by month/year.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { Tournament } from '@/types'
@@ -38,39 +38,47 @@ export default function Tournaments() {
   }, [])
 
   // Group tournaments by "Month Year" (e.g., "January 2026")
-  const groupedTournaments = tournaments.reduce((groups, tournament) => {
-    const date = tournament.startDate ? new Date(tournament.startDate) : new Date()
-    // Localize month name? Use date-fns here too for the key?
-    // If I translate key, grouping might break if not careful, but key is just for display?
-    // Wait, the key is used for sorting in lines 60-64: new Date(a).
-    // If key is "জানুয়ারি ২০২৬", new Date() might fail.
-    // So I should keeping Key as English or parseable date string, but Display differently.
+  const groupedTournaments = useMemo(() => {
+    return tournaments.reduce((groups, tournament) => {
+      const date = tournament.startDate ? new Date(tournament.startDate) : new Date()
+      const key = date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+      if (!groups[key]) {
+        groups[key] = []
+      }
+      groups[key].push(tournament)
+      return groups
+    }, {} as Record<string, Tournament[]>)
+  }, [tournaments])
 
-    // I will use English key for grouping and sorting, but translate strictly for display.
-    // But lines 49-57 groups by readable string.
-    // I'll stick to English grouping key for now to avoid sorting issues, and just translate only if needed or keep Month names in English for technical reasons?
-    // Actually, line 61: new Date("January 2026") works. new Date("জানুয়ারি ২০২৬") fails.
-    // So grouping KEY must be English.
-
-    const key = date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-    if (!groups[key]) {
-      groups[key] = []
-    }
-    groups[key].push(tournament)
-    return groups
-  }, {} as Record<string, Tournament[]>)
-
-  // Sort groups by date (converting key back to date for sorting)
-  const sortedGroupKeys = Object.keys(groupedTournaments).sort((a, b) => {
-    const dateA = new Date(a)
-    const dateB = new Date(b)
-    return dateB.getTime() - dateA.getTime() // Descending
-  })
+  const sortedGroupKeys = useMemo(() => {
+    return Object.keys(groupedTournaments).sort((a, b) => {
+      const dateA = new Date(a)
+      const dateB = new Date(b)
+      return dateB.getTime() - dateA.getTime() // Descending
+    })
+  }, [groupedTournaments])
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-slate-200 border-t-teal-600 rounded-full animate-spin" />
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
+        <div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
+            <div className="w-32 h-6 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+          {[1, 2].map(g => (
+            <div key={g} className="space-y-4">
+              <div className="w-24 h-4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-20 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 animate-pulse" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -99,7 +107,7 @@ export default function Tournaments() {
             <p className="text-slate-500">{t('check_back_later')}</p>
           </div>
         ) : (
-          sortedGroupKeys.map(groupKey => {
+          sortedGroupKeys.map((groupKey: string) => {
             // Translate the Group Header (Month Year)
             // groupKey is "January 2026" (English)
             const groupDate = new Date(groupKey);
@@ -114,7 +122,7 @@ export default function Tournaments() {
                 </h2>
 
                 <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-                  {groupedTournaments[groupKey].map(tournament => (
+                  {groupedTournaments[groupKey].map((tournament: Tournament) => (
                     <Link
                       key={tournament.id}
                       to={`/tournaments/${tournament.id}`}

@@ -1,0 +1,132 @@
+﻿src/components/admin/tournament-system/BracketManager.tsx(1,10): error TS6133: 'useState' is declared but its value is never read.
+src/components/admin/tournament-system/BracketManager.tsx(1,31): error TS6133: 'useMemo' is declared but its value is never read.
+src/components/admin/tournament-system/BracketManager.tsx(4,1): error TS6133: 'computeGroupStandings' is declared but its value is never read.
+src/components/admin/tournament-system/BracketManager.tsx(15,62): error TS6133: 'matches' is declared but its value is never read.
+src/components/admin/tournament-system/BracketManager.tsx(15,71): error TS6133: 'inningsMap' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,49): error TS6133: 'MoreVertical' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,63): error TS6133: 'Share2' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,79): error TS6133: 'Users' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,86): error TS6133: 'AlertTriangle' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,101): error TS6133: 'Save' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,107): error TS6133: 'Mic' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,112): error TS6133: 'Lock' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,118): error TS6133: 'Check' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(2,140): error TS6133: 'CalendarIcon' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(3,10): error TS6133: 'Link' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(5,1): error TS6133: 'squadService' is declared but its value is never read.
+src/components/admin/tournament-system/MatchManager.tsx(6,36): error TS6133: 'MatchStatus' is declared but its value is never read.
+src/components/admin/tournament-system/StructureBuilder.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/admin/tournament-system/StructureBuilder.tsx(2,43): error TS6133: 'TournamentStageStatus' is declared but its value is never read.
+src/components/admin/tournament-system/StructureBuilder.tsx(3,24): error TS6133: 'GripVertical' is declared but its value is never read.
+src/components/admin/tournament-system/StructureBuilder.tsx(3,52): error TS6133: 'Circle' is declared but its value is never read.
+src/components/admin/tournament-system/StructureBuilder.tsx(3,72): error TS6133: 'PauseCircle' is declared but its value is never read.
+src/components/common/WheelDatePicker.tsx(3,34): error TS6133: 'setMonth' is declared but its value is never read.
+src/components/common/WheelDatePicker.tsx(3,44): error TS6133: 'setYear' is declared but its value is never read.
+src/components/common/WheelDatePicker.tsx(4,1): error TS6192: All imports in import declaration are unused.
+src/components/common/WheelDatePicker.tsx(5,1): error TS6192: All imports in import declaration are unused.
+src/components/live/CrexActionsBar.tsx(6,1): error TS6133: 'React' is declared but its value is never read.
+src/components/live/CrexBallTimeline.tsx(7,1): error TS6133: 'getBallColor' is declared but its value is never read.
+src/components/live/CrexHeroScoreboard.tsx(34,3): error TS6133: 'teamAName' is declared but its value is never read.
+src/components/live/CrexHeroScoreboard.tsx(35,3): error TS6133: 'teamBName' is declared but its value is never read.
+src/components/live/CrexHeroScoreboard.tsx(38,3): error TS6133: 'currentInnings' is declared but its value is never read.
+src/components/live/CrexInsightsPanel.tsx(6,8): error TS6133: 'React' is declared but its value is never read.
+src/components/live/WinProbability.tsx(29,5): error TS6133: 'batsmenForm' is declared but its value is never read.
+src/components/live/WinProbability.tsx(30,5): error TS6133: 'remainingBowlers' is declared but its value is never read.
+src/components/live/WinProbability.tsx(89,26): error TS2339: Property 'recommendedBowler' does not exist on type 'WinProbabilityOutput'.
+src/components/live/WinProbability.tsx(91,86): error TS2339: Property 'recommendedBowler' does not exist on type 'WinProbabilityOutput'.
+src/components/match/BallTimeline.tsx(9,10): error TS6133: 'getBallColorFromType' is declared but its value is never read.
+src/components/match/MatchSettingsSheet.tsx(4,34): error TS6133: 'Info' is declared but its value is never read.
+src/components/match/MatchSettingsSheet.tsx(21,11): error TS6133: 'togglePin' is declared but its value is never read.
+src/components/match/PinnedScoreWidget.tsx(12,12): error TS6133: 'loading' is declared but its value is never read.
+src/components/match/PinnedScoreWidget.tsx(119,33): error TS2339: Property 'crr' does not exist on type 'InningsStats'.
+src/components/match/PinnedScoreWidget.tsx(177,33): error TS6133: 'event' is declared but its value is never read.
+src/components/match/PinnedScoreWidget.tsx(206,43): error TS2339: Property 'crr' does not exist on type 'InningsStats'.
+src/components/match/PinnedScoreWidget.tsx(208,55): error TS2339: Property 'crr' does not exist on type 'InningsStats'.
+src/components/scorecard/CrexScorecardPage.tsx(13,26): error TS7016: Could not find a declaration file for module '../live/BallTimeline'. 'C:/Users/Mehedi Hasan/OneDrive/Desktop/Android app/School-Cricket-Live/src/components/live/BallTimeline.jsx' implicitly has an 'any' type.
+src/components/scorecard/CrexScorecardPage.tsx(14,33): error TS7016: Could not find a declaration file for module '../live/ProjectedScoreTable'. 'C:/Users/Mehedi Hasan/OneDrive/Desktop/Android app/School-Cricket-Live/src/components/live/ProjectedScoreTable.jsx' implicitly has an 'any' type.
+src/components/scorecard/CrexScorecardPage.tsx(42,9): error TS6133: 'bowlingTeam' is declared but its value is never read.
+src/components/tournament/PlayoffBracket.tsx(224,48): error TS6133: 'round' is declared but its value is never read.
+src/config/firebase.ts(11,1): error TS6133: 'getMessaging' is declared but its value is never read.
+src/engine/tournament/knockout.ts(11,3): error TS6196: 'KnockoutConfig' is declared but never used.
+src/engine/tournament/knockout.ts(20,1): error TS6133: 'getAuth' is declared but its value is never read.
+src/hooks/useScreenshotShare.ts(11,57): error TS6133: 'captureRef' is declared but its value is never read.
+src/pages/admin/AdminEmailBroadcast.tsx(14,1): error TS6133: 'db' is declared but its value is never read.
+src/pages/admin/AdminEmailBroadcast.tsx(15,1): error TS6192: All imports in import declaration are unused.
+src/pages/admin/AdminEmailBroadcast.tsx(282,104): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/pages/admin/AdminEmailBroadcast.tsx(283,105): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/pages/admin/AdminLiveScoring.tsx(945,31): error TS18047: 'match' is possibly 'null'.
+src/pages/admin/AdminLiveScoring.tsx(1055,17): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/admin/AdminLiveScoring.tsx(1057,17): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/pages/admin/AdminLiveScoring.tsx(1128,17): error TS2322: Type 'null' is not assignable to type 'string | undefined'.
+src/pages/admin/AdminLiveScoring.tsx(1129,17): error TS2322: Type 'null' is not assignable to type 'string | undefined'.
+src/pages/admin/AdminLiveScoring.tsx(1226,280): error TS2322: Type 'null' is not assignable to type 'string | undefined'.
+src/pages/admin/AdminPlayers.tsx(18,39): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/admin/AdminPlayers.tsx(142,11): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/pages/admin/AdminSquads.tsx(8,24): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/admin/AdminSquads.tsx(8,32): error TS6133: 'Plus' is declared but its value is never read.
+src/pages/admin/AdminTournaments.tsx(17,1): error TS6133: 'format' is declared but its value is never read.
+src/pages/admin/AdminTournaments.tsx(412,17): error TS18048: 'res' is possibly 'undefined'.
+src/pages/admin/AdminTournaments.tsx(525,13): error TS2552: Cannot find name 'generateKnockoutFixtures'. Did you mean 'generateGroupFixtures'?
+src/pages/admin/AdminTournaments.tsx(1366,51): error TS6133: 'index' is declared but its value is never read.
+src/pages/admin/AdminUsers.tsx(18,5): error TS6133: 'Check' is declared but its value is never read.
+src/pages/admin/AdminUsers.tsx(164,17): error TS7034: Variable 'requests' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/pages/admin/AdminUsers.tsx(170,32): error TS7005: Variable 'requests' implicitly has an 'any[]' type.
+src/pages/admin/AdminUsers.tsx(281,36): error TS2339: Property 'promoted' does not exist on type '{ success: boolean; uid: string; }'.
+src/pages/admin/ProfessionalTournamentManager.tsx(139,11): error TS2322: Type '"Batch Cricket" | "T20" | "ODI" | "Test"' is not assignable to type '"T20" | "ODI" | "Test"'.
+  Type '"Batch Cricket"' is not assignable to type '"T20" | "ODI" | "Test"'.
+src/pages/admin/ProfessionalTournamentManager.tsx(140,11): error TS2322: Type '"upcoming" | "completed" | "paused" | "ongoing"' is not assignable to type '"upcoming" | "completed" | "ongoing"'.
+  Type '"paused"' is not assignable to type '"upcoming" | "completed" | "ongoing"'.
+src/pages/admin/TournamentControlSystem.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/pages/MatchInfo.tsx(15,1): error TS6133: 'MatchPlayingXI' is declared but its value is never read.
+src/pages/MatchInfo.tsx(24,54): error TS6133: 'onSwitchTab' is declared but its value is never read.
+src/pages/MatchLive.tsx(60,10): error TS6133: 'relatedLoading' is declared but its value is never read.
+src/pages/MatchLive.tsx(62,10): error TS6133: 'isAnimating' is declared but its value is never read.
+src/pages/MatchLive.tsx(549,10): error TS6133: 'isWicketDisplay' is declared but its value is never read.
+src/pages/MatchLive.tsx(550,10): error TS6133: 'animationEvent' is declared but its value is never read.
+src/pages/MatchLive.tsx(551,10): error TS6133: 'showAnimation' is declared but its value is never read.
+src/pages/MatchLive.tsx(1941,17): error TS6133: 'nextIndex' is declared but its value is never read.
+src/pages/MatchPlayingXI.tsx(10,1): error TS6133: 'X' is declared but its value is never read.
+src/pages/MatchPlayingXI.tsx(42,9): error TS6133: 'navigate' is declared but its value is never read.
+src/pages/MatchScorecard.tsx(6,37): error TS6133: 'useState' is declared but its value is never read.
+src/pages/MatchScorecard.tsx(6,47): error TS6133: 'useRef' is declared but its value is never read.
+src/pages/MatchScorecard.tsx(7,18): error TS6133: 'AnimatePresence' is declared but its value is never read.
+src/pages/MatchScorecard.tsx(288,9): error TS6133: 'currentInningsData' is declared but its value is never read.
+src/pages/Menu.tsx(17,5): error TS6133: 'UserPlus' is declared but its value is never read.
+src/pages/PlayerProfile.tsx(13,70): error TS6133: 'Squad' is declared but its value is never read.
+src/pages/PlayerProfile.tsx(23,87): error TS6133: 'Upload' is declared but its value is never read.
+src/pages/PlayerProfile.tsx(111,13): error TS2304: Cannot find name 'updatePlayerPersonalInfo'.
+src/pages/Players.tsx(173,36): error TS2349: This expression is not callable.
+  Type 'String' has no call signatures.
+src/pages/TournamentDetails.tsx(16,1): error TS6133: 'getMatchResultString' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(20,56): error TS6133: 'Shield' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(20,64): error TS6133: 'MapPin' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(20,72): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(20,82): error TS6133: 'Users' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(20,89): error TS6133: 'Trophy' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(27,1): error TS6133: 'db' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(28,1): error TS6192: All imports in import declaration are unused.
+src/pages/TournamentDetails.tsx(29,1): error TS6133: 'toast' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(188,9): error TS6133: 'content' is declared but its value is never read.
+src/services/ai/aiAnomaly.ts(86,41): error TS2367: This comparison appears to be unintentional because the types '"no-ball"' and '"bye"' have no overlap.
+src/services/ai/aiAnomaly.ts(86,70): error TS2367: This comparison appears to be unintentional because the types '"no-ball"' and '"leg-bye"' have no overlap.
+src/services/ai/aiAnomaly.ts(112,15): error TS6133: 'playerId' is declared but its value is never read.
+src/services/ai/aiAnomaly.ts(246,3): error TS6133: 'matchState' is declared but its value is never read.
+src/services/ai/aiInsights.ts(87,3): error TS6133: 'matchContext' is declared but its value is never read.
+src/services/ai/aiInsights.ts(200,3): error TS6133: 'matchContext' is declared but its value is never read.
+src/services/ai/winProbabilityEngine.ts(88,11): error TS6133: 'crr' is declared but its value is never read.
+src/services/firestore/playerClaim.ts(2,42): error TS6133: 'deleteDoc' is declared but its value is never read.
+src/services/stats/index.ts(12,1): error TS2308: Module './notOutDetector' has already exported a member named 'MatchContext'. Consider explicitly re-exporting to resolve the ambiguity.
+src/services/stats/index.ts(18,1): error TS2308: Module './seasonAggregator' has already exported a member named 'MatchWithSummary'. Consider explicitly re-exporting to resolve the ambiguity.
+src/services/stats/notOutDetector.ts(74,38): error TS2367: This comparison appears to be unintentional because the types 'false | undefined' and 'true' have no overlap.
+src/services/stats/testUtils.ts(7,1): error TS6133: 'calculateBattingStats' is declared but its value is never read.
+src/services/stats/testUtils.ts(8,1): error TS6133: 'calculateBowlingStats' is declared but its value is never read.
+src/services/stats/testUtils.ts(9,1): error TS6133: 'countMatches' is declared but its value is never read.
+src/services/stats/testUtils.ts(87,45): error TS18047: 'test.expected' is possibly 'null'.
+src/services/stats/validateBallEvent.ts(49,9): error TS6133: 'batRuns' is declared but its value is never read.
+src/utils/icc-rules.ts(6,16): error TS6133: 'BallExtras' is declared but its value is never read.
+src/utils/scorecardFormatters.ts(38,3): error TS6133: 'dismissedBy' is declared but its value is never read.

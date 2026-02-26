@@ -196,7 +196,7 @@ export default function TournamentDashboard() {
                     )}
 
                     {activeTab === 'structure' && (
-                        <StructureBuilder tournament={tournament} onUpdate={handleUpdate} isLocked={isLocked} />
+                        <StructureBuilder tournament={tournament} matches={matches} onUpdate={handleUpdate} isLocked={isLocked} />
                     )}
 
                     {activeTab === 'groups' && (

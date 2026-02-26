@@ -1,9 +1,3 @@
-/**
- * CREX-style Match Card (Professional Redesign)
- * Side-by-side layout for all match states (Live, Finished, Upcoming)
- * Optimized for readability with large scores and small team names
- */
-
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Match, Squad, InningsStats } from '@/types'
@@ -414,4 +408,4 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     )
 }
 
-export default MatchCard
+export default React.memo(MatchCard)
