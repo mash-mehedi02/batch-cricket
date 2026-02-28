@@ -14,9 +14,7 @@ import {
     Moon,
     Bell,
     ShieldCheck,
-    UserPlus,
     Users,
-    User,
 } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 import schoolConfig from '@/config/school';
@@ -41,6 +39,7 @@ export default function MenuPage() {
     const { t } = useTranslation();
     const [vibration, setVibration] = useState(() => localStorage.getItem('match_vibration') === 'true');
     const [sound, setSound] = useState(() => localStorage.getItem('match_sound') === 'true');
+    const [imageError, setImageError] = useState(false);
 
     const toggleVibration = () => {
         const newVal = !vibration;
@@ -105,8 +104,13 @@ export default function MenuPage() {
                 >
                     <div className="flex items-center gap-5">
                         <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 overflow-hidden shrink-0 border border-slate-200 dark:border-white/5">
-                            {user?.photoURL ? (
-                                <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
+                            {user?.photoURL && !imageError ? (
+                                <img
+                                    src={user.photoURL}
+                                    alt={user.displayName || 'User'}
+                                    className="w-full h-full object-cover"
+                                    onError={() => setImageError(true)}
+                                />
                             ) : (
                                 <UserIcon size={24} strokeWidth={1.5} />
                             )}
@@ -218,7 +222,7 @@ export default function MenuPage() {
                     >
                         <div className="flex items-center gap-4">
                             <div className="w-8 h-8 flex items-center justify-center text-emerald-500">
-                                <User size={22} />
+                                <UserIcon size={22} />
                             </div>
                             <span className="font-semibold text-[15px]">{t('nav_players')}</span>
                         </div>

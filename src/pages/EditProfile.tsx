@@ -76,6 +76,7 @@ export default function EditProfilePage() {
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [newLinkUrl, setNewLinkUrl] = useState('');
+    const [imageError, setImageError] = useState(false);
 
     // Fetch full player data if linked
     useEffect(() => {
@@ -138,7 +139,10 @@ export default function EditProfilePage() {
         if (e.target.files && e.target.files.length > 0) {
             const file = e.target.files[0];
             const reader = new FileReader();
-            reader.addEventListener('load', () => setTempImage(reader.result as string));
+            reader.addEventListener('load', () => {
+                setTempImage(reader.result as string);
+                setImageError(false); // Reset error state on new photo selection
+            });
             reader.readAsDataURL(file);
         }
     };
@@ -401,12 +405,17 @@ export default function EditProfilePage() {
                 {/* Profile Photo */}
                 <div className="flex flex-col items-center py-8">
                     <div className="relative">
-                        <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-white text-3xl font-bold overflow-hidden border-4 border-white dark:border-slate-700 shadow-lg">
-                            {form.photoURL ? (
-                                <img src={form.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                        <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 overflow-hidden border-4 border-white dark:border-slate-700 shadow-lg">
+                            {form.photoURL && !imageError ? (
+                                <img
+                                    src={form.photoURL}
+                                    alt="Profile"
+                                    className="w-full h-full object-cover"
+                                    onError={() => setImageError(true)}
+                                />
                             ) : (
-                                <div className="bg-teal-500 w-full h-full flex items-center justify-center">
-                                    {form.displayName?.charAt(0).toUpperCase() || <UserIcon size={36} />}
+                                <div className="bg-slate-100 dark:bg-slate-800 w-full h-full flex items-center justify-center">
+                                    <UserIcon size={46} strokeWidth={1.5} />
                                 </div>
                             )}
                         </div>

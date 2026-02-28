@@ -72,10 +72,21 @@ const CrexLiveSection = ({
   hasGroup,
   tournamentId,
   resolveMatchSideRef,
+  playersMap,
 }) => {
   const { t } = useTranslation();
   const isFinishedMatch = matchStatus === 'Finished' || matchStatus === 'Completed';
   const isInningsBreak = matchStatus === 'InningsBreak';
+
+  // Helper: find a player's career stats by name from the playersMap
+  const findPlayerByName = (name) => {
+    if (!playersMap || !name) return null;
+    let found = null;
+    playersMap.forEach((p) => {
+      if (p?.name === name || p?.displayName === name) found = p;
+    });
+    return found;
+  };
 
   // Calculate Win Probability
   const winProb = React.useMemo(() => {
@@ -819,13 +830,18 @@ const CrexLiveSection = ({
                   if (item.manual) {
                     if (item.type === 'entry') {
                       const pos = playerTracker[item.batsman]?.pos || '...';
-                      groupedCommentary.push({ type: 'entry', text: item.text, player: item.batsman, position: pos });
+                      const stats = playerTracker[item.batsman] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+                      groupedCommentary.push({ type: 'entry', text: item.text, player: item.batsman, position: pos, stats });
+                    } else if (item.type === 'bowler_entry') {
+                      const stats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
+                      groupedCommentary.push({ type: 'bowler_entry', text: item.text, player: item.bowler, stats });
                     } else {
                       groupedCommentary.push({ type: 'announcement', ...item });
                     }
                   } else if (item.text?.toLowerCase().includes('is in at')) {
                     const pos = playerTracker[item.batsman]?.pos || '...';
-                    groupedCommentary.push({ type: 'entry', text: item.text, player: item.batsman, position: pos });
+                    const stats = playerTracker[item.batsman] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+                    groupedCommentary.push({ type: 'entry', text: item.text, player: item.batsman, position: pos, stats });
                   } else {
                     groupedCommentary.push({ type: 'ball', ...item });
                   }
@@ -958,22 +974,32 @@ const CrexLiveSection = ({
                       }
 
                       if (node.type === 'entry') {
+                        const playerData = findPlayerByName(node.player);
+                        const career = playerData?.stats?.batting;
+                        const careerInnings = career?.innings || 0;
+                        const careerRuns = career?.runs || 0;
+                        const careerSR = career?.strikeRate ? career.strikeRate.toFixed(1) : '0.0';
+
                         return (
                           <div key={`entry-${idx}`} className="mx-4 my-4 space-y-3">
                             {/* Career Stats / Player Info Card */}
                             <div className="bg-[#1a1a1a] rounded-2xl p-4 text-white shadow-xl border border-white/5 relative overflow-hidden">
                               <div className="flex items-center justify-between mb-3">
                                 <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                                  Batting at ... Position
+                                  Batting at #{node.position !== '...' ? node.position : ''} Position
                                 </span>
                                 <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                                  Player Info
+                                  Career Stats
                                 </span>
                               </div>
 
                               <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10 flex items-center justify-center shrink-0">
-                                  <div className="text-2xl opacity-40">👤</div>
+                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {playerData?.photoUrl ? (
+                                    <img src={playerData.photoUrl} className="w-full h-full object-cover" alt="" />
+                                  ) : (
+                                    <div className="text-2xl opacity-40">👤</div>
+                                  )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <h3 className="text-lg font-bold tracking-tight truncate leading-tight uppercase italic">{node.player}</h3>
@@ -982,15 +1008,15 @@ const CrexLiveSection = ({
                                 <div className="grid grid-cols-3 gap-4 text-center shrink-0">
                                   <div>
                                     <span className="text-[9px] font-bold text-white/30 uppercase block">Inns</span>
-                                    <span className="text-sm font-bold tabular-nums">--</span>
+                                    <span className="text-sm font-bold tabular-nums">{careerInnings}</span>
                                   </div>
                                   <div>
                                     <span className="text-[9px] font-bold text-white/30 uppercase block">Runs</span>
-                                    <span className="text-sm font-bold tabular-nums">--</span>
+                                    <span className="text-sm font-bold tabular-nums">{careerRuns}</span>
                                   </div>
                                   <div>
                                     <span className="text-[9px] font-bold text-white/30 uppercase block">SR</span>
-                                    <span className="text-sm font-bold tabular-nums text-amber-400">--</span>
+                                    <span className="text-sm font-bold tabular-nums text-amber-400">{careerSR}</span>
                                   </div>
                                 </div>
                               </div>
@@ -999,6 +1025,62 @@ const CrexLiveSection = ({
                             {/* Entry Announcement Text */}
                             <div className="text-[14px] font-bold text-slate-800 dark:text-slate-200 pl-1 italic">
                               <span className="text-blue-600 dark:text-blue-400 font-black mr-2">NEW BATTER:</span>
+                              {node.text}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (node.type === 'bowler_entry') {
+                        const playerData = findPlayerByName(node.player);
+                        const career = playerData?.stats?.bowling;
+                        const careerInnings = career?.innings || 0;
+                        const careerWickets = career?.wickets || 0;
+                        const careerEco = career?.economy ? career.economy.toFixed(2) : '0.00';
+
+                        return (
+                          <div key={`entry-${idx}`} className="mx-4 my-4 space-y-3">
+                            <div className="bg-[#1a1a1a] rounded-2xl p-4 text-white shadow-xl border border-white/5 relative overflow-hidden">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                  New Bowler
+                                </span>
+                                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                  Career Stats
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {playerData?.photoUrl ? (
+                                    <img src={playerData.photoUrl} className="w-full h-full object-cover" alt="" />
+                                  ) : (
+                                    <div className="text-2xl opacity-40">🏏</div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-lg font-bold tracking-tight truncate leading-tight uppercase italic">{node.player}</h3>
+                                  <span className="text-[11px] font-medium text-white/50 block">Bowler</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4 text-center shrink-0">
+                                  <div>
+                                    <span className="text-[9px] font-bold text-white/30 uppercase block">Inns</span>
+                                    <span className="text-sm font-bold tabular-nums">{careerInnings}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] font-bold text-white/30 uppercase block">Wkts</span>
+                                    <span className="text-sm font-bold tabular-nums text-amber-500">{careerWickets}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[9px] font-bold text-white/30 uppercase block">Eco</span>
+                                    <span className="text-sm font-bold tabular-nums">{careerEco}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-[14px] font-bold text-slate-800 dark:text-slate-200 pl-1 italic">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-black mr-2">BOWLER CHANGE:</span>
                               {node.text}
                             </div>
                           </div>
@@ -1165,11 +1247,6 @@ const CrexLiveSection = ({
                                     <span className="text-[13px] font-extrabold tabular-nums text-amber-400">{strikeRate}</span>
                                   </div>
                                 </div>
-                              </div>
-
-                              {/* Bottom: Text description */}
-                              <div className="mt-4 pt-3 border-t border-white/10 text-[12px] font-medium text-white/90 italic leading-relaxed">
-                                {node.text}
                               </div>
                             </div>
                           </div>

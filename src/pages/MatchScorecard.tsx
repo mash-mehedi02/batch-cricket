@@ -372,9 +372,9 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-4xl mx-auto px-0 pt-3 pb-0 space-y-2">
         {/* 2. Top Innings Tab Switcher */}
-        <div className="flex gap-2.5 px-0.5 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex gap-2.5 px-3 overflow-x-auto no-scrollbar pb-1">
           {inningsTabs.map((tab) => {
             const isActive = selectedInning === tab.id;
             const isSuperTab = tab.inningId.includes('super');
@@ -400,7 +400,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
               <button
                 key={tab.id}
                 onClick={() => setSelectedInning(tab.id)}
-                className={`flex-1 min-w-[120px] px-5 py-3 rounded-xl transition-all duration-200 border relative overflow-hidden
+                className={`flex-1 min-w-[120px] px-4 py-2 rounded-xl transition-all duration-200 border relative overflow-hidden
                   ${isActive
                     ? (isSuperTab
                       ? 'bg-amber-500 border-amber-400 text-white shadow-md'
@@ -409,21 +409,21 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                   }`}
               >
                 <div className="flex items-center justify-center gap-2 whitespace-nowrap z-10 relative">
-                  <span className={`text-[13px] font-bold uppercase tracking-wide
+                  <span className={`text-[12px] font-bold uppercase tracking-wide
                     ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'}
                   `}>
                     {tab.label}
                   </span>
 
                   {hasData ? (
-                    <span className={`text-[14px] font-bold tabular-nums
+                    <span className={`text-[13px] font-bold tabular-nums
                       ${isActive ? 'text-white' : 'text-slate-900 dark:text-white'}
                     `}>
                       {displayRuns}-{displayWickets}
-                      <span className={`text-[11px] font-medium ml-0.5 ${isActive ? 'text-white/70' : 'text-slate-400'}`}>({displayOvers})</span>
+                      <span className={`text-[10px] font-medium ml-0.5 ${isActive ? 'text-white/70' : 'text-slate-400'}`}>({displayOvers})</span>
                     </span>
                   ) : (
-                    <span className={`text-[11px] font-medium italic
+                    <span className={`text-[10px] font-medium italic
                       ${isActive ? 'text-white/80' : 'text-slate-400'}
                     `}>
                       {isSuperTab ? 'Waiting...' : 'Yet to bat'}
@@ -513,7 +513,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
               return (
                 <div key={tab.id} className="w-full shrink-0">
                   {processedInnings ? (
-                    <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 overflow-hidden divide-y divide-slate-100 dark:divide-white/5 mx-0.5">
+                    <div className="bg-white dark:bg-[#0f172a] shadow-sm border border-slate-100 dark:border-white/5 overflow-hidden divide-y divide-slate-100 dark:divide-white/5 mx-0">
                       {processedInnings._isSummaryOnly && (
                         <div className="bg-blue-50/50 dark:bg-blue-900/20 px-6 py-8 text-center border-b border-blue-100 dark:border-blue-500/20">
                           <div className="text-[24px] font-semibold text-slate-900 dark:text-white mb-1">
@@ -624,7 +624,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                                       <PlayerAvatar photoUrl={p?.photoUrl || p?.photo} name={p?.name} className="w-full h-full object-cover" />
                                     </div>
                                     <div className="min-w-0">
-                                      <PlayerLink playerId={pid} playerName={p?.name || 'Player'} className={`text-[14px] font-semibold text-slate-800 dark:text-slate-200 block group-hover:text-blue-500`}>
+                                      <PlayerLink playerId={pid} playerName={p?.name || 'Player'} className="text-[14px] font-semibold text-slate-800 dark:text-slate-200 block group-hover:text-blue-500">
                                         {formatPlayerScorecardName(p?.name || 'Player')}
                                         {pid === (iid.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
                                         {pid === (iid.startsWith('teamA') ? matchData.teamAKeeperId : matchData.teamBKeeperId) && ' (wk)'}
@@ -637,9 +637,196 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
                           </div>
                         );
                       })()}
+
+                      {/* BOWLING SECTION */}
+                      <div className="pt-2">
+                        <div className="bg-slate-50/50 dark:bg-white/[0.03] px-5 py-3 border-y border-slate-100 dark:border-white/5 mb-2">
+                          <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.2em]">BOWLING</h3>
+                        </div>
+
+                        <div className="px-5 py-3.5 grid grid-cols-[5fr,1fr,1fr,1fr,1fr,1.3fr] gap-1 items-center text-slate-400 text-[10px] font-semibold border-b border-slate-100 dark:border-white/5 uppercase tracking-wider">
+                          <div className="flex items-center gap-1 text-blue-600 dark:text-[#4a90e2]">
+                            Bowler <span className="text-[10px]">🔴</span>
+                          </div>
+                          <span className="text-center font-medium">O</span>
+                          <span className="text-center font-medium">M</span>
+                          <span className="text-center font-medium">R</span>
+                          <span className="text-center font-medium">W</span>
+                          <span className="text-right font-medium">Eco</span>
+                        </div>
+
+                        <div className="divide-y divide-slate-100 dark:border-white/5">
+                          {processedInnings.bowlerStats?.map((bw: any, idx: number) => {
+                            const isActive = bw.bowlerId === processedInnings.currentBowlerId;
+                            return (
+                              <div key={idx} className="px-5 py-5 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors">
+                                <div className="grid grid-cols-[5fr,1fr,1fr,1fr,1fr,1.3fr] gap-1 items-center">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <PlayerLink
+                                      playerId={bw.bowlerId}
+                                      playerName={bw.bowlerName}
+                                      className={`text-[13px] font-semibold truncate whitespace-nowrap text-slate-800 dark:text-slate-300 hover:text-blue-500`}
+                                    >
+                                      {formatPlayerScorecardName(bw.bowlerName)}
+                                    </PlayerLink>
+                                    {isActive && <div className="w-2 h-2 bg-slate-500 rounded-full"></div>}
+                                  </div>
+                                  <span className="text-center text-[13px] font-bold text-slate-700 dark:text-slate-400 tabular-nums">{bw.overs}</span>
+                                  <span className="text-center text-[13px] font-bold text-slate-700 dark:text-slate-400 tabular-nums">{bw.maidens || 0}</span>
+                                  <span className="text-center text-[13px] font-bold text-slate-700 dark:text-slate-400 tabular-nums">{bw.runsConceded}</span>
+                                  <span className="text-center text-[14px] font-black text-slate-900 dark:text-white tabular-nums">{bw.wickets}</span>
+                                  <span className="text-right text-[12px] font-bold text-slate-700 dark:text-slate-500 tabular-nums">{(bw.economy || 0).toFixed(2)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* FALL OF WICKETS SECTION */}
+                      {
+                        (processedInnings.fallOfWickets?.length || 0) > 0 && (
+                          <div className="mt-4">
+                            <div className="bg-slate-50/50 dark:bg-white/[0.03] px-5 py-3 border-y border-slate-100 dark:border-white/5 mb-2">
+                              <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.2em]">FALL OF WICKETS</h3>
+                            </div>
+
+                            <div className="px-5 py-3 flex items-center justify-between text-slate-400 text-[10px] font-semibold border-b border-slate-100 dark:border-white/5 uppercase tracking-wider">
+                              <span className="w-1/2">Batter</span>
+                              <div className="flex-1 flex justify-between pr-2">
+                                <span className="flex-1 text-center font-medium">W-Runs</span>
+                                <span className="w-12 text-right font-medium">Over</span>
+                              </div>
+                            </div>
+
+                            <div className="divide-y divide-slate-100 dark:border-white/5">
+                              {processedInnings.fallOfWickets.map((fw: any, i: number) => (
+                                <div key={i} className="px-5 py-4.5 flex items-center justify-between">
+                                  <div className="w-1/2 min-w-0 pr-4">
+                                    <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                      {fw.batsmanName || 'Player'}
+                                      {fw.batsmanId === (iid.startsWith('teamA') ? matchData.teamACaptainId : matchData.teamBCaptainId) && ' (C)'}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex-1 flex justify-between items-center pr-2">
+                                    <span className="flex-1 text-center text-[14px] font-black text-slate-900 dark:text-white">
+                                      {fw.wicket}-{fw.score}
+                                    </span>
+                                    <span className="w-12 text-right text-[12px] font-bold text-slate-700 dark:text-slate-500 tabular-nums">
+                                      {fw.over}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      {/* PARTNERSHIPS SECTION */}
+                      <div className="pt-2 pb-6">
+                        <div className="bg-slate-50/50 dark:bg-white/[0.03] px-5 py-3 border-y border-slate-100 dark:border-white/5 mb-2">
+                          <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.2em]">PARTNERSHIPS</h3>
+                        </div>
+
+                        <div className="flex items-center justify-between px-5 mb-4 gap-4 flex-wrap">
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider truncate max-w-[45%]">
+                            {(() => {
+                              const p = processedInnings?.partnership?.batter1;
+                              const id = p?.id || (matchData as any).currentStrikerId;
+                              return playersMap.get(id)?.name || processedInnings?.batsmanStats?.find((s: any) => s.batsmanId === id)?.batsmanName || 'Batter 1';
+                            })()}
+                          </span>
+                          <span className="text-[11px] font-bold text-rose-600 dark:text-rose-500 uppercase tracking-wider truncate max-w-[45%]">
+                            {(() => {
+                              const p = processedInnings?.partnership?.batter2;
+                              const id = p?.id || (matchData as any).currentNonStrikerId;
+                              return playersMap.get(id)?.name || processedInnings?.batsmanStats?.find((s: any) => s.batsmanId === id)?.batsmanName || 'Batter 2';
+                            })()}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          {(() => {
+                            const allP = [...(processedInnings.partnerships || [])];
+                            if (processedInnings.partnership && processedInnings.partnership.runs !== undefined) {
+                              allP.push({
+                                ...processedInnings.partnership,
+                                isCurrent: true,
+                                wicketNo: (processedInnings.partnerships?.length || 0) + 1
+                              });
+                            }
+
+                            return allP.map((p: any, idx: number) => {
+                              const b1Id = p.batter1?.id;
+                              const b2Id = p.batter2?.id;
+                              const getRefinedName = (id: string, providedName: string, fallback: string) => {
+                                if (providedName && providedName !== 'Player' && providedName !== 'Batter 1' && providedName !== 'Batter 2') return providedName;
+                                const fromMap = playersMap.get(id)?.name;
+                                if (fromMap) return fromMap;
+                                const fromStats = processedInnings?.batsmanStats?.find((s: any) => s.batsmanId === id)?.batsmanName;
+                                if (fromStats) return fromStats;
+                                return fallback;
+                              };
+
+                              const b1Name = getRefinedName(b1Id, p.batter1?.name, 'Batter 1');
+                              const b2Name = getRefinedName(b2Id, p.batter2?.name, 'Batter 2');
+
+                              const totalR = p.runs || 1;
+                              const b1Runs = p.batter1?.runs || 0;
+                              const b2Runs = p.batter2?.runs || 0;
+                              const b1Pct = totalR > 0 ? (b1Runs / totalR) * 100 : 50;
+                              const b2Pct = 100 - b1Pct;
+                              const wNo = p.wicketNo;
+                              const suffix = wNo === 1 ? 'ST' : wNo === 2 ? 'ND' : wNo === 3 ? 'RD' : 'TH';
+
+                              return (
+                                <div key={idx} className={`px-5 py-6 ${p.isCurrent ? 'bg-blue-50/50 dark:bg-blue-900/10 shadow-[inset_4px_0_0_#f5a623]' : 'bg-transparent'} border-b border-slate-100 dark:border-white/5`}>
+                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
+                                    {wNo}{suffix} WICKET
+                                  </div>
+
+                                  <div className="flex items-start justify-between">
+                                    <div className="w-1/3 min-w-0">
+                                      <div className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-400 truncate mb-1">
+                                        {b1Name}
+                                      </div>
+                                      <div className="text-[14px] font-black text-slate-900 dark:text-white leading-none">
+                                        {b1Runs} <span className="text-[11px] text-slate-600 dark:text-slate-500 font-bold ml-0.5">({p.batter1?.balls || 0})</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-1 flex flex-col items-center pt-0.5">
+                                      <div className="flex items-baseline gap-1.5 mb-3">
+                                        <span className="text-[18px] font-black text-[#f5a623]">{p.runs}</span>
+                                        <span className="text-[12px] font-bold text-slate-500">({p.balls})</span>
+                                      </div>
+
+                                      <div className="w-[100px] h-[6px] bg-slate-200 dark:bg-white/5 flex overflow-hidden rounded-full ring-1 ring-slate-200 dark:ring-white/10">
+                                        <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400" style={{ width: `${b1Pct}%` }}></div>
+                                        <div className="h-full bg-gradient-to-r from-rose-500 to-rose-400" style={{ width: `${b2Pct}%` }}></div>
+                                      </div>
+                                    </div>
+
+                                    <div className="w-1/3 text-right min-w-0">
+                                      <div className="text-[13px] font-semibold text-rose-600 dark:text-rose-400 truncate mb-1">
+                                        {b2Name}
+                                      </div>
+                                      <div className="text-[14px] font-black text-slate-900 dark:text-white leading-none">
+                                        <span className="text-[11px] text-slate-600 dark:text-slate-500 font-bold mr-1">({p.batter2?.balls || 0})</span> {b2Runs}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <div className="py-20 text-center bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 mx-0.5">
+                    <div className="py-20 text-center bg-white dark:bg-[#0f172a] shadow-sm border border-slate-100 dark:border-white/5 mx-0">
                       <div className="w-16 h-16 bg-white/[0.05] rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <span className="text-3xl text-slate-500">🏟️</span>
                       </div>

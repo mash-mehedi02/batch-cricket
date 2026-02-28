@@ -106,53 +106,72 @@ export default function Rankings() {
 
 
 
-    const filteredRankings = useMemo(() => {
-        let list = players.map(player => {
+    // Optimized: Calculate all rankings once in a single useMemo
+    const memoizedRankings = useMemo(() => {
+        if (!players.length) return { overall: [], batting: [], bowling: [] };
+
+        // 1. Pre-filter and pre-calculate points for all relevant players ONCE
+        const baseList = players.map(player => {
             const stats = selectedTournamentId === 'all'
                 ? player.stats
-                : (player.tournamentStats?.[selectedTournamentId] || null)
+                : (player.tournamentStats?.[selectedTournamentId] || null);
+
+            // If player doesn't have stats for this tournament, or doesn't match squad, skip
+            if (!stats || (selectedSquadId !== 'all' && player.squadId !== selectedSquadId)) return null;
 
             return {
                 ...player,
                 displayStats: stats,
-                displayPoints: {
+                points: {
                     overall: calculateFantasyPoints(stats),
                     batting: calculateBattingPoints(stats),
                     bowling: calculateBowlingPoints(stats)
                 }
-            }
-        }).filter(player => {
-            // Squad & Tournament filter
-            const matchesSquad = selectedSquadId === 'all' || player.squadId === selectedSquadId
-            const hasStats = !!player.displayStats
+            };
+        }).filter((p): p is NonNullable<typeof p> => p !== null);
 
-            return matchesSquad && hasStats
-        })
+        // 2. Helper to get sorted top 100 for a specific mode
+        const getTopForMode = (mode: 'overall' | 'batting' | 'bowling') => {
+            return baseList
+                .filter(p => p.points[mode] > 0)
+                .sort((a, b) => b.points[mode] - a.points[mode])
+                .slice(0, 100); // Only keep top 100 for performance
+        };
 
-        // Sort by current rank mode
-        return [...list].sort((a, b) => b.displayPoints[rankMode] - a.displayPoints[rankMode])
-            .filter(p => p.displayPoints[rankMode] > 0) // Hide players with 0 points in that category
-    }, [players, rankMode, selectedSquadId, selectedTournamentId])
+        return {
+            overall: getTopForMode('overall'),
+            batting: getTopForMode('batting'),
+            bowling: getTopForMode('bowling')
+        };
+    }, [players, selectedSquadId, selectedTournamentId]);
 
-    // GSAP Animations
+    // Used for GSAP trigger only
+    const currentModeRankings = memoizedRankings[rankMode];
+
+    // GSAP Animations (Scoped to active mode)
     useEffect(() => {
-        if (!loading && filteredRankings.length > 0) {
+        if (!loading && currentModeRankings.length > 0) {
             const ctx = gsap.context(() => {
-                gsap.fromTo(".ranking-card",
-                    { x: -30, opacity: 0 },
-                    {
-                        x: 0,
-                        opacity: 1,
-                        duration: 0.5,
-                        stagger: 0.05,
-                        ease: "power2.out",
-                        clearProps: "all"
-                    }
-                )
+                const selector = `.ranking-card-${rankMode}`;
+                const targets = containerRef.current?.querySelectorAll(selector);
+
+                if (targets && targets.length > 0) {
+                    gsap.fromTo(selector,
+                        { y: 15, opacity: 0 },
+                        {
+                            y: 0,
+                            opacity: 1,
+                            duration: 0.35,
+                            stagger: 0.02,
+                            ease: "power2.out",
+                            clearProps: "all"
+                        }
+                    )
+                }
             }, containerRef)
             return () => ctx.revert()
         }
-    }, [loading, filteredRankings.length])
+    }, [loading, rankMode, selectedSquadId, selectedTournamentId])
 
 
 
@@ -297,27 +316,7 @@ export default function Rankings() {
                     className="flex w-full items-start touch-pan-y"
                 >
                     {(['overall', 'batting', 'bowling'] as const).map((currentMode) => {
-                        const pointsForMode = (player: any) => {
-                            if (currentMode === 'overall') return calculateFantasyPoints(selectedTournamentId === 'all' ? player.stats : (player.tournamentStats?.[selectedTournamentId] || player.stats))
-                            if (currentMode === 'batting') return calculateBattingPoints(selectedTournamentId === 'all' ? player.stats : (player.tournamentStats?.[selectedTournamentId] || player.stats))
-                            if (currentMode === 'bowling') return calculateBowlingPoints(selectedTournamentId === 'all' ? player.stats : (player.tournamentStats?.[selectedTournamentId] || player.stats))
-                            return 0
-                        }
-
-                        const listForMode = players.map(player => {
-                            const stats = selectedTournamentId === 'all'
-                                ? player.stats
-                                : (player.tournamentStats?.[selectedTournamentId] || null)
-
-                            return {
-                                ...player,
-                                displayStats: stats,
-                                modePoints: pointsForMode(player)
-                            }
-                        }).filter(player => {
-                            const matchesSquad = selectedSquadId === 'all' || player.squadId === selectedSquadId
-                            return matchesSquad && !!player.displayStats && player.modePoints > 0
-                        }).sort((a, b) => b.modePoints - a.modePoints)
+                        const listForMode = memoizedRankings[currentMode];
 
                         return (
                             <div key={currentMode} className="w-full shrink-0 px-4 sm:px-6">
@@ -341,7 +340,7 @@ export default function Rankings() {
                                                 </div>
                                             </div>
                                             <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{listForMode[1].name}</span>
-                                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{listForMode[1].modePoints}</span>
+                                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{listForMode[1].points[currentMode]}</span>
                                         </Link>
 
                                         {/* 1st Place */}
@@ -364,7 +363,7 @@ export default function Rankings() {
                                                 </div>
                                             </div>
                                             <span className="text-[12px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{listForMode[0].name}</span>
-                                            <span className="text-[18px] font-black text-amber-500 tabular-nums">{listForMode[0].modePoints}</span>
+                                            <span className="text-[18px] font-black text-amber-500 tabular-nums">{listForMode[0].points[currentMode]}</span>
                                         </Link>
 
                                         {/* 3rd Place */}
@@ -384,7 +383,7 @@ export default function Rankings() {
                                                 </div>
                                             </div>
                                             <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase truncate w-full text-center">{listForMode[2].name}</span>
-                                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{listForMode[2].modePoints}</span>
+                                            <span className="text-[14px] font-black text-slate-400 tabular-nums">{listForMode[2].points[currentMode]}</span>
                                         </Link>
                                     </div>
                                 )}
@@ -397,17 +396,18 @@ export default function Rankings() {
                                             <p className="text-slate-500 font-bold">No players found</p>
                                         </div>
                                     ) : (
-                                        listForMode.slice(listForMode.length >= 3 ? 3 : 0).map((player, index) => {
+                                        // Lazy Render: Only render list items for the ACTIVE tab to save DOM complexity
+                                        rankMode === currentMode && listForMode.slice(listForMode.length >= 3 ? 3 : 0).map((player, index) => {
                                             const actualIndex = listForMode.length >= 3 ? index + 3 : index
                                             const squad = squads.find(s => s.id === player.squadId)
                                             const squadName = squad?.name || 'Unassigned'
-                                            const points = player.modePoints
+                                            const points = player.points[currentMode]
 
                                             return (
                                                 <Link
                                                     key={player.id}
                                                     to={`/players/${player.id}`}
-                                                    className="ranking-card group flex items-center gap-3 bg-white dark:bg-slate-900 p-2.5 px-4 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all duration-300 relative"
+                                                    className={`ranking-card-${currentMode} group flex items-center gap-3 bg-white dark:bg-slate-900 p-2.5 px-4 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all duration-300 relative`}
                                                 >
                                                     <div className="w-5 shrink-0 text-[11px] font-black text-slate-400 tabular-nums">{actualIndex + 1}</div>
                                                     <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-50 dark:border-white/5">

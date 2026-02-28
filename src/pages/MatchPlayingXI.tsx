@@ -285,7 +285,7 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
   }
 
   return (
-    <div className={`min-h-screen ${compact ? 'bg-white text-slate-900' : 'bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white'} pb-20`}>
+    <div className={`${compact ? 'bg-transparent text-slate-900 dark:text-white pb-0' : 'min-h-screen bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white pb-20'}`}>
       {/* Premium Header */}
       {!compact && (
         <div className="bg-[#0f172a] border-b border-white/5 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-black/20">
@@ -297,8 +297,8 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
       )}
 
       {/* Team Tabs */}
-      <div className={`${compact ? 'sticky top-0 z-20 bg-white border-b border-slate-100' : 'max-w-5xl mx-auto pt-8 px-3 sm:px-8'}`}>
-        <div className={`flex gap-6 ${compact ? 'px-6' : 'p-1.5 bg-slate-100 dark:bg-white/5 rounded-[1.5rem] ring-1 ring-slate-200 dark:ring-white/10 max-w-md mx-auto'}`}>
+      <div className={`${compact ? 'bg-slate-50 dark:bg-[#060b16] border-b border-slate-100 dark:border-white/5' : 'max-w-5xl mx-auto pt-8 px-3 sm:px-8'}`}>
+        <div className={`flex gap-6 ${compact ? 'px-4' : 'p-1.5 bg-slate-100 dark:bg-white/5 rounded-[1.5rem] ring-1 ring-slate-200 dark:ring-white/10 max-w-md mx-auto'}`}>
           {[
             { side: firstSide, name: firstSide === 'A' ? teamAName : teamBName },
             { side: secondSide, name: secondSide === 'A' ? teamAName : teamBName }
@@ -331,7 +331,7 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-6">
+      <div className={`max-w-5xl mx-auto ${compact ? 'px-0 py-0 pt-2' : 'px-4 sm:px-8 py-6'}`}>
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {loadingSquads ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

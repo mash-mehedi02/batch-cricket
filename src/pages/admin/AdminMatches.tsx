@@ -3,7 +3,7 @@
  * List, Create, Edit matches
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, Fragment } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
@@ -2051,7 +2051,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                 </tr>
               ) : (
                 groupedByStatusAndTournament.map(section => (
-                  <>
+                  <Fragment key={`status-group-${section.statusKey}`}>
                     {/* Status Section Header */}
                     <tr key={`status-${section.statusKey}`}>
                       <td colSpan={user?.role === 'super_admin' ? 6 : 5} className={`px-6 py-3 border-l-4 ${section.statusColor} font-bold text-sm tracking-wide`}>
@@ -2062,7 +2062,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                       </td>
                     </tr>
                     {section.tournamentGroups.map(tGroup => (
-                      <>
+                      <Fragment key={`${section.statusKey}-tourney-${tGroup.tournamentId}`}>
                         {/* Tournament Sub-header */}
                         <tr key={`${section.statusKey}-t-${tGroup.tournamentId}`}>
                           <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-2 bg-slate-50/80">
@@ -2166,9 +2166,9 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                             </tr>
                           )
                         })}
-                      </>
+                      </Fragment>
                     ))}
-                  </>
+                  </Fragment>
                 ))
               )}
             </tbody>

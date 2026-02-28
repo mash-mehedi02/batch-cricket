@@ -34,8 +34,8 @@ import { MapPin, Info, Users, Hash, Pin, LayoutDashboard, X } from 'lucide-react
 import { coerceToDate, formatDateLabelTZ, formatTimeHMTo12h, formatTimeLabelBD } from '@/utils/date'
 
 import { useTranslation } from '@/hooks/useTranslation'
-import { useScreenshotShare } from '@/hooks/useScreenshotShare'
-import ShareModal from '@/components/common/ShareModal'
+import toast from 'react-hot-toast'
+// Removed useScreenshotShare and ShareModal
 import { preloadImages } from '@/hooks/useImagePreloader'
 
 export default function MatchLive() {
@@ -57,6 +57,7 @@ export default function MatchLive() {
   const [commentary, setCommentary] = useState<CommentaryEntry[]>([])
   const [activeCommentaryFilter, setActiveCommentaryFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [tournamentMatches, setTournamentMatches] = useState<Match[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('summary')
   const [isAnimating, setIsAnimating] = useState(false)
@@ -66,13 +67,7 @@ export default function MatchLive() {
   const [displayedInnings, setDisplayedInnings] = useState<InningsStats | null>(null)
   const [isPinned, setIsPinned] = useState(false)
 
-  // --- Early Initialization of Swipe Navigation Hooks ---
-  // Must be called at the top level to obey the Rules of Hooks
-  const tabIndexRef = useRef(0) // Stores current tab index, updated later when matchTabs is available
-  const x = useMotionValue(0)
-  const animatedX = useTransform(x, (value) => {
-    return `calc(-${tabIndexRef.current * 100}% + ${value}px)`
-  })
+  // Swipe navigation values removed
 
   // Track visited tabs for lazy loading optimization & handle scroll reset
   useEffect(() => {
@@ -87,20 +82,21 @@ export default function MatchLive() {
   const isAnimatingRef = useRef(false)
   const scoreTimerRef = useRef<any>(null)
 
-  // --- Swipe Navigation Reset ---
-  // Reset drag position when tab changes (click or swipe)
-  useEffect(() => {
-    if (!isAnimatingRef.current) {
-      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 })
-    }
-  }, [activeTab, x])
-
+  // --- Pin Logic ---
   useEffect(() => {
     const pinnedId = localStorage.getItem('pinnedMatchId')
     setIsPinned(pinnedId === matchId)
   }, [matchId])
 
   const togglePin = () => {
+    if (user?.role !== 'admin' && user?.role !== 'super_admin') {
+      toast.error('Premium subscription is required to pin scores 🏏', {
+        icon: '💎',
+        style: { fontSize: '13px', fontWeight: 'bold', borderRadius: '12px' }
+      })
+      return
+    }
+
     if (isPinned) {
       localStorage.removeItem('pinnedMatchId')
       setIsPinned(false)
@@ -118,14 +114,7 @@ export default function MatchLive() {
   const [screenshotImage, setScreenshotImage] = useState('')
   const pageRef = useRef<HTMLDivElement>(null)
 
-  const { longPressProps } = useScreenshotShare({
-    onScreenshotReady: (img) => {
-      setScreenshotImage(img)
-      setIsShareModalOpen(true)
-    },
-    captureRef: pageRef,
-    delay: 1000 // Slightly longer to avoid accidental triggers
-  })
+  // Long-press share removed
 
   // Provide global functions for child components to interact with the parent
   useEffect(() => {
@@ -225,6 +214,18 @@ export default function MatchLive() {
 
     return () => unsubscribeMatch()
   }, [matchId])
+
+  // Subscribe to all matches in the tournament (for Points Table & Bracket)
+  useEffect(() => {
+    const tid = match?.tournamentId
+    if (!tid) return
+
+    const unsub = matchService.subscribeByTournament(tid, (list) => {
+      setTournamentMatches(list)
+    })
+
+    return () => unsub()
+  }, [match?.tournamentId])
 
   // Subscribe to both innings + Initial load
   useEffect(() => {
@@ -527,6 +528,10 @@ export default function MatchLive() {
         // Fallback to prettyWicket only if we can't find a better label
         return rawValue || 'OUT'
       }
+      if (type === 'penalty' || rawValue.startsWith('P')) {
+        const pRuns = rawValue.replace('P', '') || '5';
+        return `${pRuns} PENALTY RUN`;
+      }
 
       if (!rawValue) return ''
       return rawValue === '·' ? '0' : rawValue
@@ -552,6 +557,10 @@ export default function MatchLive() {
       const total = Number(ballDoc?.totalRuns || 0)
       const extraRuns = Math.max(0, total - 1)
       return extraRuns > 0 ? `NO BALL + ${extraRuns}` : 'NO BALL'
+    }
+    if (type === 'penalty' || (ballDoc?.extras?.penalty && ballDoc.extras.penalty > 0)) {
+      const pRuns = ballDoc?.extras?.penalty || 5;
+      return `${pRuns} PENALTY RUN`;
     }
     const badge = String(ballDoc?.badge || '').trim()
     if (badge) return badge
@@ -585,7 +594,7 @@ export default function MatchLive() {
     const totalLegalBalls = Number(inn?.legalBalls || 0)
     const isAtOverBoundary = totalLegalBalls > 0 && totalLegalBalls % 6 === 0
 
-    if (!innLast && isAtOverBoundary && inn?.recentOvers?.length > 0) {
+    if (!innLast && inn?.recentOvers?.length > 0) {
       const lastOver = inn.recentOvers[inn.recentOvers.length - 1]
       const ballsInOver = lastOver?.balls || lastOver?.deliveries || []
       if (ballsInOver.length > 0) {
@@ -676,7 +685,8 @@ export default function MatchLive() {
           const bType = String(b?.type || '').toLowerCase()
           const isWide = Number(bExtras?.wides || 0) > 0 || bType === 'wide'
           const isNB = Number(bExtras?.noBalls || 0) > 0 || bType === 'no-ball' || bType === 'noball'
-          return !isWide && !isNB
+          const isPenalty = bType === 'penalty' || (b?.value || '').startsWith('P')
+          return !isWide && !isNB && !isPenalty
         }).length
 
         if (!isInningsEnded && !isFinishedMatch) {
@@ -1455,10 +1465,8 @@ export default function MatchLive() {
 
 
 
-    // Add Points Table if match specifically belongs to a group
-    const hasGroup = Boolean((match as any)?.groupName || (match as any)?.groupId)
-
-    if (match?.tournamentId && hasGroup) {
+    // Add Points Table if match belongs to a tournament
+    if (match?.tournamentId) {
       baseTabs.push({ id: 'points-table', label: t('tab_point_table') })
     }
 
@@ -1767,6 +1775,7 @@ export default function MatchLive() {
               hasGroup={Boolean((match as any)?.groupName || (match as any)?.groupId)}
               tournamentId={match.tournamentId}
               resolveMatchSideRef={resolveMatchSideRef}
+              playersMap={playersMap}
             />
           </div>
         )
@@ -1798,7 +1807,14 @@ export default function MatchLive() {
       case 'points-table':
         return match?.tournamentId ? (
           <div className="bg-slate-50 dark:bg-[#060b16] py-6">
-            <TournamentPointsTable embedded={true} tournamentId={match.tournamentId} highlightMatch={match as any} />
+            <TournamentPointsTable
+              embedded={true}
+              tournamentId={match.tournamentId}
+              highlightMatch={match as any}
+              tournament={tournament}
+              matches={tournamentMatches}
+              squads={Array.from(squadsById.values())}
+            />
           </div>
         ) : null
       case 'live':
@@ -1844,6 +1860,7 @@ export default function MatchLive() {
               hasGroup={Boolean((match as any)?.groupName || (match as any)?.groupId)}
               tournamentId={match.tournamentId}
               resolveMatchSideRef={resolveMatchSideRef}
+              playersMap={playersMap}
             />
           </div>
         )
@@ -1851,14 +1868,11 @@ export default function MatchLive() {
         return null
     }
   }
-  // --- Swipe Navigation Logic ---
-  const currentTabIndex = matchTabs.findIndex(t => t.id === activeTab)
-  tabIndexRef.current = currentTabIndex // Keep the ref in sync for the useTransform callback
+  // Tab navigation logic removed
 
   return (
     <div
       ref={pageRef}
-      {...longPressProps}
       className="min-h-screen bg-slate-50 dark:bg-[#060b16]"
     >
       {/* 1. Page Header (Sticky) */}
@@ -1926,101 +1940,11 @@ export default function MatchLive() {
       )}
 
       {/* 4. Tab Content with Dynamic Carousel & Swipe Support */}
-      <div className="relative w-full bg-slate-50 dark:bg-[#060b16] flex-1 overflow-hidden">
-        <motion.div
-          style={{ x: animatedX, willChange: 'transform' }}
-          drag="x"
-          dragDirectionLock
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={1} // 1:1 Tracking!
-
-          onDragStart={() => {
-            isAnimatingRef.current = true;
-            setIsAnimating(true);
-          }}
-          onDragEnd={(_, info) => {
-            const swipeThreshold = window.innerWidth * 0.25 // 25% of screen to switch
-            const velocityThreshold = 400
-
-            // Snap back to 0 visually before React state updates, making the transition seamless
-            let nextIndex = currentTabIndex
-
-            if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
-              if (currentTabIndex < matchTabs.length - 1) {
-                const nextTab = matchTabs[currentTabIndex + 1]
-                if (!nextTab.disabled) {
-                  nextIndex = currentTabIndex + 1
-                  setActiveTab(nextTab.id)
-                }
-              }
-            } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
-              if (currentTabIndex > 0) {
-                const prevTab = matchTabs[currentTabIndex - 1]
-                if (!prevTab.disabled) {
-                  nextIndex = currentTabIndex - 1
-                  setActiveTab(prevTab.id)
-                }
-              }
-            }
-
-            // Snap the visual position back to center for the newly selected index
-            animate(x, 0, {
-              type: 'spring',
-              stiffness: 400,
-              damping: 40,
-              velocity: info.velocity.x
-            })
-            setTimeout(() => {
-              isAnimatingRef.current = false;
-              setIsAnimating(false);
-            }, 50);
-          }}
-          className="flex w-full items-start touch-pan-y"
-        >
-          {matchTabs.map((tab, idx) => {
-            const isVisible = Math.abs(idx - currentTabIndex) <= 1; // Preload adjacent
-            const isVisited = visitedTabs.has(tab.id);
-
-            return (
-              <div
-                key={tab.id}
-                className="w-full shrink-0"
-                style={{
-                  width: '100%',
-                  pointerEvents: idx === currentTabIndex ? 'auto' : 'none'
-                }}
-              >
-                {/* Secondary Info Bar - Simple & Clean */}
-                {isVisible && tab.id !== 'graphs' && tab.id !== 'playing-xi' && (
-                  <div className="bg-[#0f172a] border-b border-white/5">
-                    <MatchLiveHero
-                      match={match!}
-                      teamAName={teamAName}
-                      teamBName={teamBName}
-                      teamASquad={teamASquad}
-                      teamBSquad={teamBSquad}
-                      currentInnings={displayedInnings || currentInnings}
-                      teamAInnings={teamAInnings}
-                      teamBInnings={teamBInnings}
-                      teamASuperInnings={teamASuperInnings}
-                      teamBSuperInnings={teamBSuperInnings}
-                      isFinishedMatch={isFinishedMatch}
-                      resultSummary={calculatedResultSummary || resultSummary}
-                      centerEventText={centerEventText || '—'}
-                      showBoundaryAnim={false}
-                      lastBall={null}
-                      hideMainScorecard={true}
-                    />
-                  </div>
-                )}
-
-                <div className="w-full">
-                  {isVisited || isVisible ? renderTabById(tab.id) : null}
-                </div>
-              </div>
-            );
-          })}
-        </motion.div>
+      {/* 4. Tab Content - Simplified Rendering */}
+      <div className="relative w-full bg-slate-50 dark:bg-[#060b16] flex-1">
+        <div className="max-w-4xl mx-auto pb-20">
+          {renderTabById(activeTab)}
+        </div>
       </div>
       <MatchSettingsSheet
         isOpen={isSettingsOpen}
@@ -2029,12 +1953,7 @@ export default function MatchLive() {
         matchTitle={`${teamAName} vs ${teamBName}`}
       />
 
-      <ShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        image={screenshotImage}
-        title="Share Live Score"
-      />
+      {/* ShareModal removed */}
 
       {/* Full Screen Playing XI Modal */}
       {showPlayingXIModal && (

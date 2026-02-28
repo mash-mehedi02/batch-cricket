@@ -54,7 +54,7 @@ export interface BallEvent {
  */
 export interface OverBall {
   value: string // Display value: '0', '1', '4', '6', 'W', 'wd', 'nb', etc.
-  type: 'normal' | 'wide' | 'noball' | 'wicket' | 'bye' | 'legbye' // Type of ball
+  type: 'normal' | 'wide' | 'noball' | 'wicket' | 'bye' | 'legbye' | 'penalty' // Type of ball
   runsOffBat?: number // Runs scored off bat (for normal balls)
   wicketType?: string | null
 }
@@ -209,10 +209,11 @@ export function parseBallEvent(ball: any): BallEvent & {
     penalty: num(rawExtras.penalty),
   };
 
-  // Determine if ball is legal (ICC Rule: Wide and No-ball are NOT legal)
+  // Determine if ball is legal (ICC Rule: Wide, No-ball and Penalty are NOT legal balls for over count)
   const isWide = ball.extraType === 'wide' || ball.isWide === true || extras.wides > 0;
   const isNoBall = ball.extraType === 'no-ball' || ball.isNoBall === true || ball.extraType === 'noBall' || extras.noBalls > 0;
-  const isLegal = ball.isLegal !== false && !isWide && !isNoBall;
+  const isPenalty = extras.penalty > 0;
+  const isLegal = ball.isLegal !== false && !isWide && !isNoBall && !isPenalty;
 
   // Determine runs
   const runsOffBat = num(ball.runsOffBat || ball.batRuns);
@@ -287,7 +288,12 @@ function ballToBadge(ball: ReturnType<typeof parseBallEvent>): { value: string; 
     return { value: `${ball.extras.byes}b`, type: 'bye' }
   }
 
-  // 4. Normal Runs
+  // 4. Penalty
+  if (ball.extras?.penalty && ball.extras.penalty > 0) {
+    return { value: `P${ball.extras.penalty}`, type: 'penalty' }
+  }
+
+  // 5. Normal Runs
   const runs = ball.runsOffBat || 0
   return { value: runs.toString(), type: 'normal' }
 }
@@ -765,7 +771,7 @@ export async function recalculateInnings(
 
       // Mark over as locked if it has 6 legal balls
       // We count legal balls in the array (excluding wides/noballs)
-      const legalBallCount = over.balls.filter(b => b.type !== 'wide' && b.type !== 'noball').length
+      const legalBallCount = over.balls.filter(b => b.type !== 'wide' && b.type !== 'noball' && b.type !== 'penalty').length
       if (legalBallCount >= 6) {
         over.isLocked = true
       }

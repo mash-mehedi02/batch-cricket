@@ -128,7 +128,7 @@ function sendOneSignalNotification(tag: string, title: string, body: string, mat
             url: `https://batchcrick.vercel.app/match/${matchId}`,
             android_visibility: 1,
             priority: 10,
-            android_channel_id: "match_alerts",
+            // android_channel_id: "match_alerts", // Removed to avoid 400 error if not created in OneSignal dashboard
             collapse_id: tag,
             thread_id: tag
         });

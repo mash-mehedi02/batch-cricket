@@ -47,9 +47,9 @@ export default function Layout({ children }: LayoutProps) {
       <TournamentCountdownPopup />
       {/* Navigation - Professional Header - Hidden on Detail Pages & Menu Page */}
       {!isDetailPage && !isMenuPage && (
-        <nav className={`z-50 backdrop-blur-xl border-b sticky top-0 transition-colors duration-300 ${isHome
-          ? 'bg-[#0f172a]/95 text-white border-white/5'
-          : 'bg-white/90 dark:bg-[#060b16]/90 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
+        <nav className={`z-50 backdrop-blur-xl sticky top-0 transition-colors duration-300 ${isHome
+          ? 'bg-[#0f172a]/95 text-white border-none'
+          : 'border-b bg-white/90 dark:bg-[#060b16]/90 text-slate-900 dark:text-white border-slate-100 dark:border-white/5'
           }`}>
           <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-[var(--status-bar-height)]">
             <div className="flex justify-between items-center h-14">

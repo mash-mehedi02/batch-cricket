@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import tazkirImage from '@/assets/tazkir.png';
 import { StatusBar } from '@capacitor/status-bar';
 import { motion, AnimatePresence } from 'framer-motion';
+import schoolConfig from '@/config/school';
 
 const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
   const [progress, setProgress] = useState(0);
@@ -75,7 +76,10 @@ const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
             </div>
             <div className="w-12 sm:w-16 h-1 bg-gradient-to-r from-transparent via-[#10B981] to-transparent rounded-full mb-3" />
             <p className="text-slate-500 text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] opacity-80 text-center">
-              SHALNAGOR MODERN ACADEMY
+              {schoolConfig.appFullName}
+            </p>
+            <p className="text-teal-500 text-[7px] sm:text-[9px] font-bold uppercase tracking-[0.3em] mt-2 opacity-90 italic">
+              — {schoolConfig.slogan} —
             </p>
 
           </motion.div>

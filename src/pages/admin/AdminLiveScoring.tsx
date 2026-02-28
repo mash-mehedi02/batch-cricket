@@ -10,6 +10,9 @@ import { recalculateInnings } from '@/services/matchEngine/recalculateInnings';
 import { Match, InningsStats, Player } from '@/types';
 import {
     Loader2,
+    CloudRain,
+    Coffee,
+    PauseCircle,
     CheckCircle,
     RotateCcw,
     ArrowRightLeft,
@@ -19,7 +22,10 @@ import {
     Megaphone,
     Send,
     SwitchCamera,
-    X
+    X,
+    Flame,
+    SunDim,
+    Stethoscope
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { getMatchResultString, calculateMatchWinner } from '@/utils/matchWinner';
@@ -509,6 +515,12 @@ const AdminLiveScoring = () => {
             // 2. Delete linked commentary
             await commentaryService.deleteCommentaryForBall(matchId, ballToUndo.id);
 
+            // 2b. Delete orphaned manual commentary (e.g. "New Batter") that happened after this ball
+            if (ballToUndo.timestamp) {
+                const ts = ballToUndo.timestamp.toDate ? ballToUndo.timestamp.toDate() : new Date(ballToUndo.timestamp);
+                await commentaryService.deleteOrphanedCommentaryAfter(matchId, ts);
+            }
+
             // 3. Recalculate stats - This updates the innings document and some match fields
             await recalculateInnings(matchId, inningKv as any, { useTransaction: false });
 
@@ -724,7 +736,7 @@ const AdminLiveScoring = () => {
         const payload = {
             runsOffBat: batRuns,
             extras: { wides: wideVal, noBalls: nbVal, byes: byeVal, legByes: lbVal, penalty: penaltyVal },
-            isLegal: !extras.wide && !extras.noBall,
+            isLegal: !extras.wide && !extras.noBall && !extras.penalty,
             isWide: !!extras.wide,
             isNoBall: !!extras.noBall,
             batsmanId: selectedStriker,
@@ -733,6 +745,30 @@ const AdminLiveScoring = () => {
             freeHit: !!match.freeHit,
             wicket: wicketData || null
         };
+
+        // --- OPTIMISTIC UI UPDATE ---
+        // Instantly update local state so the UI reflects the score BEFORE the server responds.
+        if (currentInnings) {
+            const totalThisBall = batRuns + wideVal + nbVal + byeVal + lbVal + penaltyVal;
+            const isLegal = !extras.wide && !extras.noBall && !extras.penalty;
+
+            const nextInnings = {
+                ...currentInnings,
+                totalRuns: (currentInnings.totalRuns || 0) + totalThisBall,
+                totalWickets: (currentInnings.totalWickets || 0) + (wicketData ? 1 : 0),
+                legalBalls: (currentInnings.legalBalls || 0) + (isLegal ? 1 : 0)
+            };
+
+            // Quick over estimation for UI
+            const o = Math.floor(nextInnings.legalBalls / 6);
+            const b = nextInnings.legalBalls % 6;
+            nextInnings.overs = `${o}.${b}`;
+
+            if (inningKv === 'teamA') setInningsA(nextInnings as any);
+            else if (inningKv === 'teamB') setInningsB(nextInnings as any);
+            else if (inningKv === 'teamA_super') setInningsASO(nextInnings as any);
+            else if (inningKv === 'teamB_super') setInningsBSO(nextInnings as any);
+        }
 
         try {
             // Speed optimization: Pass local balls count to avoid getDocs(balls) in service
@@ -766,49 +802,57 @@ const AdminLiveScoring = () => {
                         ? ballInnings?.overs
                         : `${Math.floor(currentLegalBalls / 6)}.${(currentLegalBalls % 6) + 1}`;
 
-                    await commentaryService.generateAutoCommentary(matchId, inningKv as any, {
-                        runs: batRuns,
-                        totalRuns: totalBallRuns,
-                        ballType: extras.wide ? 'wide' : extras.noBall ? 'no-ball' : extras.bye ? 'bye' : extras.legBye ? 'leg-bye' : 'normal',
-                        wicketType: wicketData?.type || null,
-                        batsman: strikerObj?.name || 'Batter',
-                        nonStriker: nonStrikerObj?.name || 'Non-Striker',
-                        bowler: bowlerObj?.name || 'Bowler',
-                        fielder: fielderObj?.name || '',
-                        isBoundary: batRuns === 4 || batRuns === 6,
-                        isFour: batRuns === 4,
-                        isSix: batRuns === 6,
-                        over: overLabel || '0.0',
-                        overNumber: currentOverNumber,
-                        ball: (currentLegalBalls % 6) + (isLegalBall ? 0 : 1),
-                        ballDocId: result.ballId,
-                        style: 'tv',
-                        matchContext: {
-                            currentScore: ballInnings?.totalRuns,
-                            wickets: ballInnings?.totalWickets,
-                        }
-                    });
-
-                    // 1. Wicket Notification
-                    if (wicketData) {
-                        const scoreMsg = `${ballInnings?.totalRuns || 0}/${ballInnings?.totalWickets || 0} (${ballInnings?.overs || '0.0'} ov)`;
-                        const wktMsg = `Wicket: ${strikerObj?.name || 'Batter'} is OUT! 🔴\n${scoreMsg}`;
-                        triggerLiveNotification(wktMsg);
+                    try {
+                        await commentaryService.generateAutoCommentary(matchId, inningKv as any, {
+                            runs: batRuns,
+                            totalRuns: totalBallRuns,
+                            ballType: extras.wide ? 'wide' : extras.noBall ? 'no-ball' : extras.bye ? 'bye' : extras.legBye ? 'leg-bye' : 'normal',
+                            wicketType: wicketData?.type || null,
+                            batsman: strikerObj?.name || 'Batter',
+                            nonStriker: nonStrikerObj?.name || 'Non-Striker',
+                            bowler: bowlerObj?.name || 'Bowler',
+                            fielder: fielderObj?.name || '',
+                            isBoundary: batRuns === 4 || batRuns === 6,
+                            isFour: batRuns === 4,
+                            isSix: batRuns === 6,
+                            over: overLabel || '0.0',
+                            overNumber: currentOverNumber,
+                            ball: (currentLegalBalls % 6) + (isLegalBall ? 0 : 1),
+                            ballDocId: result.ballId,
+                            style: 'tv',
+                            matchContext: {
+                                currentScore: ballInnings?.totalRuns,
+                                wickets: ballInnings?.totalWickets,
+                            }
+                        });
+                    } catch (commErr) {
+                        console.error("[AdminLiveScoring] Auto Commentary failed:", commErr);
                     }
 
-                    // 2. Milestones (50/100)
-                    const batsmanStats = ballInnings?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
-                    if (batsmanStats) {
-                        const currentRuns = batsmanStats.runs || 0;
-                        const preRuns = currentRuns - batRuns;
-                        if (currentRuns >= 100 && preRuns < 100) {
-                            triggerLiveNotification(`CENTURY! 💯🏏\n${batsmanStats.batsmanName} scored a MASSIVE 100! 🌟`);
-                        } else if (currentRuns >= 50 && preRuns < 50) {
-                            triggerLiveNotification(`Milestone! 🏏✨\n${batsmanStats.batsmanName} reached 50 runs! 🔥`);
+                    try {
+                        // 1. Wicket Notification
+                        if (wicketData) {
+                            const scoreMsg = `${ballInnings?.totalRuns || 0}/${ballInnings?.totalWickets || 0} (${ballInnings?.overs || '0.0'} ov)`;
+                            const wktMsg = `Wicket: ${strikerObj?.name || 'Batter'} is OUT! 🔴\n${scoreMsg}`;
+                            await triggerLiveNotification(wktMsg);
                         }
+
+                        // 2. Milestones (50/100)
+                        const batsmanStats = ballInnings?.batsmanStats?.find((s: any) => s.batsmanId === selectedStriker);
+                        if (batsmanStats) {
+                            const currentRuns = batsmanStats.runs || 0;
+                            const preRuns = currentRuns - batRuns;
+                            if (currentRuns >= 100 && preRuns < 100) {
+                                await triggerLiveNotification(`CENTURY! 💯🏏\n${batsmanStats.batsmanName} scored a MASSIVE 100! 🌟`);
+                            } else if (currentRuns >= 50 && preRuns < 50) {
+                                await triggerLiveNotification(`Milestone! 🏏✨\n${batsmanStats.batsmanName} reached 50 runs! 🔥`);
+                            }
+                        }
+                    } catch (notifErr) {
+                        console.error("[AdminLiveScoring] Notification trigger failed:", notifErr);
                     }
-                } catch (commErr) {
-                    console.error("[AdminLiveScoring] Notification/Commentary failed:", commErr);
+                } catch (generalErr) {
+                    console.error("[AdminLiveScoring] Background ball tasks failed:", generalErr);
                 }
             })();
 
@@ -981,6 +1025,25 @@ const AdminLiveScoring = () => {
             setProcessing(true);
             processingRef.current = true;
             await matchService.update(matchId, { currentBowlerId: nextBowlerId });
+
+            // Generate entry commentary for the bowler
+            const bowlerName = getPlayerName(nextBowlerId);
+            const currentOvers = currentInnings?.overs || '0.0';
+            const currentBalls = currentInnings?.legalBalls || 0;
+            const inningId = (match.currentBatting as any) || 'teamA';
+
+            await commentaryService.addManualCommentary(
+                matchId,
+                inningId,
+                `${bowlerName} is now into the attack.`,
+                currentOvers,
+                currentBalls % 6,
+                0, false, false,
+                '',
+                bowlerName,
+                'bowler_entry'
+            );
+
             setNextBowlerModalOpen(false);
             setNextBowlerId('');
             toast.success("New bowler ready!");
@@ -1155,6 +1218,44 @@ const AdminLiveScoring = () => {
         );
     }, [match, inningsA, inningsB, inningsASO, inningsBSO]);
 
+    const handleQuickStatus = async (status: string, keyword: string) => {
+        if (!matchId || !match) return;
+        setProcessing(true);
+        processingRef.current = true;
+
+        const isTogglingOff = match.matchPhase === status;
+        const targetStatus = isTogglingOff
+            ? (match.currentBatting === 'teamB' || match.currentBatting === 'teamB_super' ? 'SecondInnings' : 'FirstInnings')
+            : status;
+
+        try {
+            await matchService.update(matchId, { matchPhase: targetStatus });
+
+            if (!isTogglingOff) {
+                const currentInn = match.currentBatting === 'teamB' ? inningsB : inningsA;
+                await commentaryService.addManualCommentary(
+                    matchId,
+                    (match.currentBatting as any) || 'teamA',
+                    `Match Update: ${keyword}`,
+                    currentInn?.overs || '0.0',
+                    0, 0, false, false,
+                    '', '', 'status'
+                );
+
+                triggerLiveNotification(`Update: ${keyword} 📢`);
+                toast.success(`Status updated: ${keyword}`);
+            } else {
+                toast.success(`Resumed: ${keyword} cleared`);
+            }
+        } catch (err: any) {
+            toast.error("Failed to update status");
+            console.error(err);
+        } finally {
+            setProcessing(false);
+            processingRef.current = false;
+        }
+    };
+
 
     if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}><Loader2 className="w-10 h-10 animate-spin text-teal-600" /></div>;
     if (!match) return <div style={{ padding: '40px', color: 'red', fontWeight: 700, textAlign: 'center' }}>Match not found</div>;
@@ -1169,28 +1270,39 @@ const AdminLiveScoring = () => {
     const kbtn = (bg: string, clr: string) => ({ display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, borderRadius: '8px', fontWeight: 800 as const, fontSize: '20px', border: 'none' as const, cursor: 'pointer' as const, background: bg, color: clr, transition: 'transform 0.1s', minHeight: '56px', width: '100%' });
 
     return (
-        <div style={{ maxWidth: '480px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#e8ecf1', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
+        <div style={{ maxWidth: '480px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f1f5f9', fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
             {/* HEADER */}
-            <div style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', color: '#fff', padding: '10px 14px 12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, opacity: 0.8 }}> </span>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        {match.status === 'live' && <span style={{ fontSize: '9px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px', letterSpacing: '1px' }}>LIVE</span>}
+            <div style={{ background: 'linear-gradient(135deg,#0d9488,#0f766e)', color: '#fff', padding: '14px 16px', boxShadow: '0 4px 12px rgba(13,148,136,0.15)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', background: '#4ade80', borderRadius: '50%', boxShadow: '0 0 8px #4ade80' }}></div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{match.matchPhase === 'Tied' ? 'TIED' : (match.status === 'live' ? 'LIVE SCORING' : match.status?.toUpperCase())}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         {(!currentInnings || (currentInnings.legalBalls || 0) === 0) && (
-                            <button onClick={() => { if (window.confirm(`Switch to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; matchService.update(matchId as string, { currentBatting: nb, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('Switched!'); } }} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '6px', padding: '4px', cursor: 'pointer' }}><SwitchCamera size={13} /></button>
+                            <button onClick={() => { if (window.confirm(`Switch to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; matchService.update(matchId as string, { currentBatting: nb, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('Switched!'); } }} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><SwitchCamera size={14} /></button>
                         )}
+                        <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '8px' }}>{match.oversLimit} OVERS</span>
                     </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-                    <div style={{ width: '100%', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px', opacity: 0.9 }}>
-                        {match.teamAName} <span style={{ opacity: 0.6, fontSize: '10px' }}>vs</span> {match.teamBName}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.8)', letterSpacing: '0.2px' }}>
+                        {match.teamAName} <span style={{ opacity: 0.5, fontSize: '11px', margin: '0 4px' }}>vs</span> {match.teamBName}
                     </div>
-                    <span style={{ fontSize: '12px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '1px 6px', borderRadius: '4px', marginRight: '2px' }}>{battingTeamName}</span>
-                    <span style={{ fontSize: '32px', fontWeight: 900, letterSpacing: '-1px', lineHeight: 1 }}>{currentInnings?.totalRuns || 0}/{currentInnings?.totalWickets || 0}</span>
-                    <span style={{ fontSize: '15px', fontWeight: 500, opacity: 0.85 }}>({currentInnings?.overs || '0.0'}/{match.oversLimit || 20})</span>
-                    {isSuper && <span style={{ fontSize: '9px', fontWeight: 800, background: '#f59e0b', padding: '2px 6px', borderRadius: '6px' }}>SUPER OVER</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 900, background: '#fff', color: '#0d9488', padding: '2px 8px', borderRadius: '6px' }}>{battingTeamName}</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ fontSize: '38px', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1 }}>{currentInnings?.totalRuns || 0}/{currentInnings?.totalWickets || 0}</span>
+                            <span style={{ fontSize: '16px', fontWeight: 600, opacity: 0.8 }}>({currentInnings?.overs || '0.0'})</span>
+                        </div>
+                    </div>
                 </div>
-                {isSuper && <div style={{ fontSize: '10px', opacity: 0.65, marginTop: '2px' }}>Main: {match.teamAName} {match.mainMatchScore?.teamA?.runs || inningsA?.totalRuns || 0}/{match.mainMatchScore?.teamA?.wickets || inningsA?.totalWickets || 0} • {match.teamBName} {match.mainMatchScore?.teamB?.runs || inningsB?.totalRuns || 0}/{match.mainMatchScore?.teamB?.wickets || inningsB?.totalWickets || 0}</div>}
+                {isSuper && (
+                    <div style={{ marginTop: '10px', padding: '6px 10px', background: 'rgba(245, 158, 11, 0.2)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: '#fbbf24', letterSpacing: '1px' }}>SUPER OVER</span>
+                        <div style={{ fontSize: '10px', opacity: 0.8, fontWeight: 600 }}>Main: {match.teamAName} {match.mainMatchScore?.teamA?.runs || inningsA?.totalRuns || 0}/{match.mainMatchScore?.teamA?.wickets || inningsA?.totalWickets || 0} • {match.teamBName} {match.mainMatchScore?.teamB?.runs || inningsB?.totalRuns || 0}/{match.mainMatchScore?.teamB?.wickets || inningsB?.totalWickets || 0}</div>
+                    </div>
+                )}
             </div>
 
             {isBreakOrTied ? (
@@ -1410,9 +1522,9 @@ const AdminLiveScoring = () => {
                                     justifyContent: 'center',
                                     fontSize: b.value.length > 2 ? '9px' : '10px',
                                     fontWeight: 900,
-                                    background: b.type === 'wicket' ? '#dc2626' : b.type === 'boundary' ? '#16a34a' : '#f1f5f9',
-                                    color: (b.type === 'wicket' || b.type === 'boundary') ? '#fff' : '#334155',
-                                    border: b.type === 'normal' ? '1px solid #e2e8f0' : 'none',
+                                    background: b.type === 'wicket' ? '#dc2626' : b.type === 'boundary' ? '#16a34a' : b.type === 'penalty' ? '#f59e0b' : '#f1f5f9',
+                                    color: (b.type === 'wicket' || b.type === 'boundary' || b.type === 'penalty') ? '#fff' : '#334155',
+                                    border: (b.type === 'normal' || b.type === 'bye' || b.type === 'legbye') ? '1px solid #e2e8f0' : 'none',
                                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                                     whiteSpace: 'nowrap'
                                 }}>{b.value}</div>
@@ -1446,20 +1558,21 @@ const AdminLiveScoring = () => {
 
                     {/* KEYPAD */}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '6px', gap: '5px', background: '#e8ecf1' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '5px' }}>
-                            {[7, 5, 6, 4, 1].map(r => <button key={r} onClick={() => handleScoreClick(r)} disabled={processing || isInningsComplete} style={{ ...kbtn(runInput === r ? '#065f46' : r === 6 ? '#1e40af' : r === 4 ? '#16a34a' : '#94a3b8', '#fff'), fontSize: r === 6 || r === 4 ? '18px' : '16px', padding: '0', minHeight: '52px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: runInput === r ? 'inset 0 0 0 3px #10b981' : 'none' }}>{r}</button>)}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '6px' }}>
+                            <button onClick={() => toggleExtra('penalty')} disabled={processing || isInningsComplete} style={{ ...kbtn(extras.penalty ? '#6366f1' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '56px', fontWeight: 900, boxShadow: extras.penalty ? 'inset 0 0 0 3px #818cf8' : 'none' }}>PEN</button>
+                            {[5, 6, 4, 1].map(r => <button key={r} onClick={() => handleScoreClick(r)} disabled={processing || isInningsComplete} style={{ ...kbtn(runInput === r ? '#065f46' : r === 6 ? '#1e40af' : r === 4 ? '#16a34a' : '#94a3b8', '#fff'), fontSize: r === 6 || r === 4 ? '20px' : '18px', padding: '0', minHeight: '56px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: runInput === r ? 'inset 0 0 0 3px #10b981' : 'none', border: '1px solid rgba(0,0,0,0.05)' }}>{r}</button>)}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '5px' }}>
-                            <button onClick={() => { if (isInningsComplete) return; if (match.freeHit) setWicketType('runout'); setWicketModalOpen(true); }} disabled={processing || isInningsComplete} style={{ ...kbtn('#dc2626', '#fff'), fontSize: '18px', padding: '0', minHeight: '52px', opacity: (processing || isInningsComplete) ? 0.5 : 1 }}>W</button>
-                            {[3, 2, 0].map(r => <button key={r} onClick={() => handleScoreClick(r)} disabled={processing || isInningsComplete} style={{ ...kbtn(runInput === r ? '#065f46' : '#94a3b8', '#fff'), padding: '0', minHeight: '52px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: runInput === r ? 'inset 0 0 0 3px #10b981' : 'none' }}>{r}</button>)}
-                            <button onClick={() => setFinalizeModalOpen(true)} style={{ ...kbtn('#0f766e', '#fff'), fontSize: '14px', padding: '0', minHeight: '52px' }}>•••</button>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '6px' }}>
+                            <button onClick={() => { if (isInningsComplete) return; if (match.freeHit) setWicketType('runout'); setWicketModalOpen(true); }} disabled={processing || isInningsComplete} style={{ ...kbtn('#dc2626', '#fff'), fontSize: '20px', padding: '0', minHeight: '56px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: '0 4px 10px rgba(220, 38, 38, 0.2)' }}>W</button>
+                            {[3, 2, 0].map(r => <button key={r} onClick={() => handleScoreClick(r)} disabled={processing || isInningsComplete} style={{ ...kbtn(runInput === r ? '#065f46' : '#94a3b8', '#fff'), padding: '0', minHeight: '56px', opacity: (processing || isInningsComplete) ? 0.5 : 1, boxShadow: runInput === r ? 'inset 0 0 0 3px #10b981' : 'none', border: '1px solid rgba(0,0,0,0.05)' }}>{r}</button>)}
+                            <button onClick={() => setFinalizeModalOpen(true)} style={{ ...kbtn('#0f766e', '#fff'), fontSize: '14px', padding: '0', minHeight: '56px', boxShadow: '0 4px 10px rgba(15, 118, 110, 0.2)' }}>•••</button>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '5px' }}>
-                            <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ ...kbtn('#475569', '#fff'), fontSize: '10px', padding: '0', minHeight: '52px', letterSpacing: '0.5px' }}>UNDO</button>
-                            <button onClick={() => toggleExtra('legBye')} style={{ ...kbtn(extras.legBye ? '#0f766e' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>LB</button>
-                            <button onClick={() => toggleExtra('bye')} style={{ ...kbtn(extras.bye ? '#0f766e' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>BYE</button>
-                            <button onClick={() => toggleExtra('noBall')} style={{ ...kbtn(extras.noBall ? '#dc2626' : '#ef4444', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>NB</button>
-                            <button onClick={() => toggleExtra('wide')} style={{ ...kbtn(extras.wide ? '#0f766e' : '#64748b', '#fff'), fontSize: '12px', padding: '0', minHeight: '52px', fontWeight: 700 }}>WD</button>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '6px' }}>
+                            <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ ...kbtn('#475569', '#fff'), fontSize: '11px', padding: '0', minHeight: '56px', letterSpacing: '0.5px' }}>UNDO</button>
+                            <button onClick={() => toggleExtra('legBye')} style={{ ...kbtn(extras.legBye ? '#0f766e' : '#64748b', '#fff'), fontSize: '13px', padding: '0', minHeight: '56px', fontWeight: 800 }}>LB</button>
+                            <button onClick={() => toggleExtra('bye')} style={{ ...kbtn(extras.bye ? '#0f766e' : '#64748b', '#fff'), fontSize: '13px', padding: '0', minHeight: '56px', fontWeight: 800 }}>BYE</button>
+                            <button onClick={() => toggleExtra('noBall')} style={{ ...kbtn(extras.noBall ? '#dc2626' : '#ef4444', '#fff'), fontSize: '13px', padding: '0', minHeight: '56px', fontWeight: 800 }}>NB</button>
+                            <button onClick={() => toggleExtra('wide')} style={{ ...kbtn(extras.wide ? '#0f766e' : '#64748b', '#fff'), fontSize: '13px', padding: '0', minHeight: '56px', fontWeight: 800 }}>WD</button>
                         </div>
                         {/* SUBMIT BAR */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: '10px', padding: '8px 12px', marginTop: '2px', border: '1px solid #e2e8f0' }}>
@@ -1499,12 +1612,23 @@ const AdminLiveScoring = () => {
                                 {processing ? 'Submitting...' : (isBowlerBlocked ? 'Change Bowler' : 'Submit')}
                             </button>
                         </div>
+                        {/* Quick Status Bar */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
+                            <button onClick={() => handleQuickStatus('DrinksBreak', 'Drinks Break')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'DrinksBreak' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'DrinksBreak' ? 'inset 0 0 0 2px #3b82f6' : 'none' }}><Coffee size={12} strokeWidth={2.5} className="text-blue-500" /> DRINKS</button>
+                            <button onClick={() => handleQuickStatus('RainDelay', 'Match Delay due to Rain')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'RainDelay' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'RainDelay' ? 'inset 0 0 0 2px #6366f1' : 'none' }}><CloudRain size={12} strokeWidth={2.5} className="text-indigo-500" /> RAIN</button>
+                            <button onClick={() => handleQuickStatus('Paused', 'Match Paused for Technical Issues')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'Paused' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'Paused' ? 'inset 0 0 0 2px #f59e0b' : 'none' }}><PauseCircle size={12} strokeWidth={2.5} className="text-amber-500" /> PAUSE</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '6px' }}>
+                            <button onClick={() => handleQuickStatus('BadLight', 'Match Delay due to Bad Light')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'BadLight' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'BadLight' ? 'inset 0 0 0 2px #64748b' : 'none' }}><SunDim size={14} strokeWidth={2.5} className="text-slate-500" /> BAD LIGHT</button>
+                            <button onClick={() => handleQuickStatus('PlayerInjured', 'Match Paused: Player Injured')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'PlayerInjured' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'PlayerInjured' ? 'inset 0 0 0 2px #ef4444' : 'none' }}><Stethoscope size={14} strokeWidth={2.5} className="text-rose-500" /> INJURED</button>
+                        </div>
+
                         {/* Sync + Commentary */}
-                        <div style={{ marginTop: '4px', display: 'flex', gap: '6px' }}>
-                            <button onClick={async () => { setProcessing(true); try { await Promise.all([recalculateInnings(matchId!, 'teamA'), recalculateInnings(matchId!, 'teamB'), recalculateInnings(matchId!, 'teamA_super'), recalculateInnings(matchId!, 'teamB_super')]); toast.success('Synced!'); } catch (e) { console.error(e); toast.error('Sync failed'); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '8px 12px', background: '#dbeafe', border: '1px solid #bfdbfe', borderRadius: '8px', fontWeight: 700, fontSize: '11px', color: '#2563eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><RotateCcw size={12} /> Sync</button>
-                            <div style={{ flex: 1, display: 'flex', gap: '4px' }}>
-                                <input value={manualCommentary} onChange={(e) => setManualCommentary(e.target.value)} placeholder="Announcement..." style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', outline: 'none' }} />
-                                <button onClick={handleManualCommentarySubmit} disabled={processing || !manualCommentary.trim()} style={{ padding: '8px 12px', background: '#0d9488', borderRadius: '8px', border: 'none', color: '#fff', cursor: 'pointer' }}><Send size={14} /></button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={async () => { setProcessing(true); try { await Promise.all([recalculateInnings(matchId!, 'teamA'), recalculateInnings(matchId!, 'teamB'), recalculateInnings(matchId!, 'teamA_super'), recalculateInnings(matchId!, 'teamB_super')]); toast.success('Synced!'); } catch (e) { console.error(e); toast.error('Sync failed'); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '10px 14px', background: '#dbeafe', border: '1px solid #bfdbfe', borderRadius: '10px', fontWeight: 700, fontSize: '11px', color: '#2563eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}><RotateCcw size={14} /> Sync</button>
+                            <div style={{ flex: 1, display: 'flex', gap: '6px' }}>
+                                <input value={manualCommentary} onChange={(e) => setManualCommentary(e.target.value)} placeholder="Announcement..." style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', background: '#fff' }} />
+                                <button onClick={handleManualCommentarySubmit} disabled={processing || !manualCommentary.trim()} style={{ padding: '10px 14px', background: '#0d9488', borderRadius: '10px', border: 'none', color: '#fff', cursor: 'pointer', boxShadow: '0 4px 10px rgba(13, 148, 136, 0.2)' }}><Send size={16} /></button>
                             </div>
                         </div>
                     </div>

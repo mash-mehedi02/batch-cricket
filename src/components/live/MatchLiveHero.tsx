@@ -153,12 +153,24 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     // Special Case: 1st Inning Start (show Toss Info)
     const isFirstInningStart = !isFinishedMatch && totalLegals === 0 && targetScore === 0 && tossWinnerName && !isSuperOver;
 
+    // Phase labels
+    const phaseLabels: Record<string, string> = {
+        'DrinksBreak': 'DRINKS BREAK',
+        'RainDelay': 'RAIN DELAY',
+        'Paused': 'MATCH PAUSED',
+        'BadLight': 'BAD LIGHT DELAY',
+        'PlayerInjured': 'PLAYER INJURED',
+        'Tied': 'MATCH TIED',
+        'InningsBreak': 'INNINGS BREAK'
+    };
+    const phaseKeyword = phaseLabels[match.matchPhase || ''] || '';
+
     let displayEvent = isFinishedMatch
         ? (resultSummary || t('match_completed').toUpperCase())
-        : (isTied ? t('match_tied').toUpperCase() : (isSuperOver && totalLegals === 0 ? t('waiting_super_over').toUpperCase() : (isInningsBreak ? t('innings_break').toUpperCase() : (isFirstInningStart ? tossText : (centerEventText || '—')))))
+        : (isTied ? t('match_tied').toUpperCase() : (phaseKeyword ? phaseKeyword : (isSuperOver && totalLegals === 0 ? t('waiting_super_over').toUpperCase() : (isInningsBreak ? t('innings_break').toUpperCase() : (isFirstInningStart ? tossText : (centerEventText || '—'))))))
 
     // Special Case: 2nd Innings Start (Player Entering) - Also applies to Super Over 2nd Inn
-    if (isPlayerEntering) {
+    if (isPlayerEntering && !phaseKeyword) {
         displayEvent = t('player_entering').toUpperCase();
     }
 
@@ -166,6 +178,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
     // Determine if the event is a boundary, wicket, or other type for styling
     const isRun = !isFinishedMatch && !isInningsBreak && ['0', '1', '2', '3', '4', '5', '6'].includes(displayEvent);
+    const isPenalty = !isFinishedMatch && !isInningsBreak && displayEvent.includes('PENALTY');
 
     // Result split logic for finished matches
     const { resultMain, resultSub } = useMemo(() => {
@@ -221,7 +234,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         eventColorClass = 'text-amber-400 text-center px-4 leading-tight';
     } else if (displayEvent === 'BALL') {
         eventColorClass = 'text-amber-400 font-semibold italic tracking-widest';
-    } else if (isSix) {
+    } else if (isSix || isPenalty) {
         eventColorClass = 'text-amber-400';
     }
 
@@ -237,6 +250,8 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
             return 'bg-[#0d3d2c] animate-pulse border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
         } else if (isWicket) {
             return 'bg-[#64101e] animate-pulse border-red-500/30'
+        } else if (isPenalty) {
+            return 'bg-[#7c2d12] animate-pulse border-amber-600/30 shadow-[0_0_30px_rgba(245,158,11,0.2)]'
         }
         return 'bg-[#0f172a]';
     }, [displayEvent, isWicket, showAnimation, showBoundaryAnim, isFinishedMatch, isInningsBreak]);
@@ -248,6 +263,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         if (displayEvent === '4') return `drop-shadow-[0_0_15px_rgba(59,130,246,0.6)] ${baseColor}`;
         if (displayEvent === '6') return `drop-shadow-[0_0_15px_rgba(16,185,129,0.6)] ${baseColor}`;
         if (isWicket) return `drop-shadow-[0_0_15px_rgba(239,68,68,0.6)] ${baseColor}`;
+        if (isPenalty) return `drop-shadow-[0_0_15px_rgba(245,158,11,0.6)] ${baseColor}`;
         return baseColor;
     }, [displayEvent, isWicket, isInningsBreak]);
 
@@ -275,7 +291,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                         <div className="absolute top-0 bottom-0 left-[62%] sm:left-[60%] w-[1.5px] bg-gradient-to-b from-transparent via-white/20 to-transparent -skew-x-[12deg] z-20 shadow-[0_0_12px_rgba(148,225,212,0.3)]" />
 
                         {/* LEFT: Team Score (62%) - Reduced padding on mobile */}
-                        <div className="w-[62%] sm:w-[60%] p-2 xs:p-3 sm:p-5 flex items-center gap-3 sm:gap-6 relative min-w-0">
+                        <div className="w-[62%] sm:w-[60%] py-2 pl-1 pr-2 xs:py-3 xs:pl-2 xs:pr-3 sm:py-5 sm:pl-3 sm:pr-5 flex items-center gap-2 sm:gap-6 relative min-w-0">
                             {/* Team Logo with sophisticated shadow */}
                             {(() => {
                                 const squadId = currentSquad?.id || (currentSquad as any)?.squadId;
@@ -326,7 +342,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                         </div>
 
                         {/* RIGHT: Event Badge (38%) */}
-                        <div className="w-[38%] sm:w-[40%] p-2 sm:p-3 flex items-center justify-center bg-black/20 relative overflow-hidden">
+                        <div className="w-[38%] sm:w-[40%] py-2 pl-2 pr-1 sm:py-3 sm:pl-3 sm:pr-2 flex items-center justify-center bg-black/20 relative overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-40 pointer-events-none" />
 
                             {showBoundaryAnim && isFour ? (
@@ -379,7 +395,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                 )}
                 {/* 2. Stats Row - CRR / RRR / Target */}
                 {!isFinishedMatch && !hideMainScorecard && (
-                    <div className="px-5 py-2 bg-black/20 border-t border-white/5 flex items-center justify-between text-[11px] sm:text-xs">
+                    <div className="px-2 sm:px-4 py-2 bg-black/20 border-t border-white/5 flex items-center justify-between text-[11px] sm:text-xs">
                         {/* LEFT SIDE Stats */}
                         <div className="flex items-center gap-5">
                             <div className="flex items-center gap-2">
@@ -431,7 +447,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
             {/* 3. Chase Detail Sub-header - Visible in Innings Break too */}
             {targetScore > 0 && !isFinishedMatch && !hideChaseBar && (
                 <div className="bg-amber-50 dark:bg-[#1e1b0b] py-1.5 border-t border-amber-100/50 dark:border-white/5 text-center shadow-lg relative z-0">
-                    <div className="overflow-x-auto whitespace-nowrap px-4 scrollbar-hide">
+                    <div className="overflow-x-auto whitespace-nowrap px-2 scrollbar-hide">
                         <span className="text-[11px] sm:text-xs font-semibold text-amber-700 dark:text-amber-500 tracking-wider inline-block">
                             {isSuperOver ? '⚡ ' : ''}
                             {isInningsBreak ? (

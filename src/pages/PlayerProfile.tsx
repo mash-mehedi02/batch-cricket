@@ -20,7 +20,7 @@ import cricketBallIcon from '@/assets/cricket-ball.png'
 import { useAuthStore } from '@/store/authStore'
 import { verifyPlayerAccess, handleGoogleRedirectResult, finalizeClaim } from '@/services/firestore/playerClaim'
 import toast from 'react-hot-toast'
-import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload } from 'lucide-react'
+import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload, Check } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
@@ -28,8 +28,7 @@ import { uploadImage } from '@/services/cloudinary/uploader'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
 import { calculateBattingPoints, calculateBowlingPoints } from '@/utils/statsCalculator'
 import { playerService } from '@/services/firestore/players'
-import { useScreenshotShare } from '@/hooks/useScreenshotShare'
-import ShareModal from '@/components/common/ShareModal'
+// Screenshot-based sharing removed
 
 const detectPlatform = (url: string): 'instagram' | 'facebook' | 'x' | 'linkedin' | null => {
   const lower = url.toLowerCase()
@@ -132,20 +131,28 @@ export default function PlayerProfile() {
     }
   }
   const [activeTab, setActiveTab] = useState('overview')
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'matches', label: 'Matches' },
+    { id: 'player-info', label: 'Player Info' },
+  ]
+  const currentTabIndex = tabs.findIndex(t => t.id === activeTab)
+  const isAnimatingRef = useRef(false)
+  const x = useMotionValue(0)
+  const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`)
+
+  useEffect(() => {
+    if (!isAnimatingRef.current) {
+      animate(x, 0, { type: 'spring', stiffness: 400, damping: 40, mass: 0.5 })
+    }
+  }, [currentTabIndex, x])
+
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
   const [isEditing, setIsEditing] = useState(false)
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [screenshotImage, setScreenshotImage] = useState('')
   const pageRef = useRef<HTMLDivElement>(null)
 
-  const { longPressProps } = useScreenshotShare({
-    onScreenshotReady: (img) => {
-      setScreenshotImage(img)
-      setIsShareModalOpen(true)
-    },
-    captureRef: pageRef,
-    delay: 1000
-  })
+  // Long-press screenshot sharing removed
 
   // Claim & Edit States
   const { user } = useAuthStore()
@@ -370,7 +377,9 @@ export default function PlayerProfile() {
         console.error('Error fetching ranks:', err)
       }
     }
-    fetchRanks()
+    // Defer ranking computation so it doesn't block initial render
+    const timer = setTimeout(() => fetchRanks(), 500)
+    return () => clearTimeout(timer)
   }, [playerId])
 
   // 1. Listen to the Player document in real-time
@@ -481,14 +490,16 @@ export default function PlayerProfile() {
         sixes: Number(batsStat?.sixes || 0),
         notOut: Boolean(batsStat) && !isOut,
         out: isOut,
+        // Flat bowling keys
         wickets: Number(bowlStat?.wickets || 0),
         runsConceded: Number(bowlStat?.runsConceded || 0),
         ballsBowled: bb,
         oversBowled: bowlStat?.overs || (bb / 6),
-        // Strict Participation Rules (Only counts as innings if they actually did something)
+        // Strict Participation Rules
         batted: b > 0 || isOut,
-        bowled: bb > 0 || (bowlStat?.overs && Number(bowlStat.overs) > 0),
-        inPlayingXI: true // Rule: they are in Playing XI and match started
+        bowled: bb > 0,
+        inPlayingXI: true,
+        tournamentName: m.tournamentName || m.seriesName || 'Friendly Match'
       }
       processedLiveEntries.push(entry)
     })
@@ -497,12 +508,69 @@ export default function PlayerProfile() {
     const validDbStatsFiltered = dbStats.filter(s => validMatchMap.has(s.matchId))
 
     // To prevent double counting and ensure matches count even if no stats documented yet in playerMatchStats
-    // We combine them but use matchId as unique key
     const uniqueMatchStats = new Map<string, any>()
 
-    // 1. Add DB stats first
+    // 1. Add DB stats first (Normalize them to flat keys)
     validDbStatsFiltered.forEach(s => {
-      uniqueMatchStats.set(s.matchId, { ...s, inPlayingXI: true })
+      const bowling = s.bowling || {}
+      const batting = s.batting || {}
+      const m = validMatchMap.get(s.matchId) as any
+
+      // Determine Result logic
+      let determinedResult = s.result || m?.result || ''
+      const status = m?.status?.toLowerCase() || ''
+      const isFinished = status === 'finished' || status === 'completed' || status === 'ended' || status === 'result'
+
+      if (m && isFinished) {
+        let inA = (m.teamAPlayingXI || []).includes(playerId || '')
+        let inB = (m.teamBPlayingXI || []).includes(playerId || '')
+
+        // Fallback: If XI lists are empty, check opponentMatch
+        if (!inA && !inB && s.opponentName) {
+          const sOpp = s.opponentName.toLowerCase().trim()
+          const mOppA = (m.teamAName || m.teamA || '').toLowerCase().trim()
+          const mOppB = (m.teamBName || m.teamB || '').toLowerCase().trim()
+
+          // If our opponent is teamB, we are teamA
+          if (sOpp === mOppB) inA = true
+          else if (sOpp === mOppA) inB = true
+        }
+
+        const mySide = inA ? 'teamA' : inB ? 'teamB' : null
+        const myName = inA ? (m.teamAName || m.teamA || '') : (m.teamBName || m.teamB || '')
+
+        if (mySide && m.winningSide) {
+          determinedResult = mySide === m.winningSide ? 'Won' : 'Lost'
+        } else if (myName && m.result) {
+          // Final Fallback: Keyword search in result string
+          const resStr = m.result.toLowerCase()
+          const nameStr = myName.toLowerCase()
+          if (resStr.includes(nameStr) && resStr.includes('won')) {
+            determinedResult = 'Won'
+          } else if (resStr.includes('won')) {
+            determinedResult = 'Lost'
+          }
+        }
+      }
+
+      uniqueMatchStats.set(s.matchId, {
+        matchId: s.matchId,
+        runs: s.runs ?? batting.runs ?? 0,
+        balls: s.balls ?? batting.balls ?? 0,
+        fours: s.fours ?? batting.fours ?? 0,
+        sixes: s.sixes ?? batting.sixes ?? 0,
+        out: s.out ?? batting.dismissed ?? false,
+        notOut: s.notOut ?? (batting.runs !== undefined && !batting.dismissed) ?? false,
+        wickets: s.wickets ?? s.bowlingWickets ?? bowling.wickets ?? 0,
+        runsConceded: s.runsConceded ?? s.bowlingRuns ?? bowling.runsConceded ?? 0,
+        ballsBowled: s.ballsBowled ?? (s.oversBowled ? Math.floor(s.oversBowled) * 6 + Math.round((s.oversBowled % 1) * 10) : 0) ?? (bowling.overs ? Math.floor(bowling.overs) * 6 + Math.round((bowling.overs % 1) * 10) : 0) ?? 0,
+        oversBowled: s.oversBowled ?? bowling.overs ?? 0,
+        inPlayingXI: true,
+        date: s.date || m?.date,
+        opponentName: s.opponentName || ((m?.teamAPlayingXI || []).includes(playerId || '') ? (m?.teamBName || m?.teamB) : (m?.teamAName || m?.teamA)),
+        tournamentName: s.tournamentName || s.seriesName || m?.tournamentName || m?.seriesName || 'Friendly Match',
+        result: determinedResult
+      })
     })
 
     // 2. Add/Override with Live stats
@@ -680,22 +748,7 @@ export default function PlayerProfile() {
     ? Math.floor((new Date().getTime() - new Date(player.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null
 
-  const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'matches', label: 'Matches' },
-    { id: 'player-info', label: 'Player Info' },
-  ]
-  const currentTabIndex = tabs.findIndex(t => t.id === activeTab)
-  const isAnimatingRef = useRef(false)
-  const x = useMotionValue(0)
-  const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`)
-
-  useEffect(() => {
-    // Reset position when tab changes externally (like clicking a tab)
-    if (!isAnimatingRef.current) {
-      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 })
-    }
-  }, [currentTabIndex, x])
+  // Swipe navigation removed
 
   // Filter matches based on viewMode - only show if they actually participated (min 1 ball)
   const filteredMatches = mergedMatches
@@ -718,7 +771,7 @@ export default function PlayerProfile() {
       return {
         runs: Number(match.runs || 0),
         balls: Number(match.balls || 0),
-        isNotOut: match.notOut === true || (match.out === false && Number(match.balls || 0) > 0),
+        isNotOut: match.notOut === true,
         wickets: Number(match.wickets || 0),
         runsConceded: Number(match.runsConceded || 0),
         opponent: match.opponentName || 'Opponent',
@@ -726,10 +779,12 @@ export default function PlayerProfile() {
       }
     })
 
-  // Prioritize calculated stats derived from history & live data
-  const matchesCount = Number(careerStats?.matches || 0)
-  const battingStats = careerStats?.batting
-  const bowlingStats = careerStats?.bowling
+  // Use pre-computed player.stats as instant fallback, then override with live-computed careerStats once ready
+  const hasLiveStats = mergedMatches.length > 0
+  const effectiveCareer = hasLiveStats ? careerStats : (player?.stats ? { matches: player.stats.matches || 0, batting: player.stats.batting || {}, bowling: player.stats.bowling || {} } : careerStats)
+  const matchesCount = Number(effectiveCareer?.matches || 0)
+  const battingStats = effectiveCareer?.batting
+  const bowlingStats = effectiveCareer?.bowling
 
   // Batting Stats
   const battingInnings = Number(battingStats?.innings || 0)
@@ -796,7 +851,6 @@ export default function PlayerProfile() {
   return (
     <div
       ref={pageRef}
-      {...longPressProps}
       className="min-h-screen bg-slate-50 dark:bg-[#060b16] relative pb-24 text-slate-900 dark:text-white"
     >
       <PageHeader
@@ -874,10 +928,13 @@ export default function PlayerProfile() {
                     </span>
                   )}
                   {squadName && (
-                    <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-200">
+                    <Link
+                      to={`/squads/${player.squadId}`}
+                      className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-200 active:scale-95 transition-transform"
+                    >
                       <span className="text-emerald-500 text-xs md:text-base">👥</span>
                       <span className="text-[10px] md:text-sm whitespace-nowrap text-white">{squadName}</span>
-                    </span>
+                    </Link>
                   )}
                   {age && (
                     <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-300">
@@ -1099,12 +1156,12 @@ export default function PlayerProfile() {
                         {filteredMatches.map((match: any, idx: number) => {
                           const matchId = match.matchId || match.id
                           if (!matchId) return null
-                          const isNotOut = match.notOut === true || (match.out === false && Number(match.balls || 0) > 0)
-                          const runs = match.runs ?? match.batting?.runs ?? 0
-                          const balls = match.balls ?? match.batting?.balls ?? 0
-                          const wickets = match.bowlingWickets ?? match.bowling?.wickets ?? 0
-                          const runsConceded = match.bowlingRuns ?? match.bowling?.runsConceded ?? 0
-                          const overs = match.overs ?? match.bowling?.overs ?? '0.0'
+                          const isNotOut = match.notOut === true
+                          const runs = Number(match.runs || 0)
+                          const balls = Number(match.balls || 0)
+                          const wickets = Number(match.wickets || 0)
+                          const runsConceded = Number(match.runsConceded || 0)
+                          const overs = match.oversBowled || 0
 
                           // Match date logic
                           const matchDate = match.date
@@ -1119,81 +1176,76 @@ export default function PlayerProfile() {
                             <Link
                               key={idx}
                               to={`/match/${matchId}`}
-                              className="group bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-100 dark:border-white/5 p-5 hover:border-emerald-500 dark:hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-300 shadow-sm"
+                              className="group relative bg-white dark:bg-[#0f172a] rounded-[2rem] p-5 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500 border border-slate-100 dark:border-white/5 active:scale-[0.98] overflow-hidden"
                             >
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-4 min-w-0">
-                                  {/* Date Block */}
-                                  <div className="hidden sm:flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 shrink-0 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 group-hover:border-emerald-100 dark:group-hover:border-emerald-500/20 transition-colors">
-                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
-                                      {!isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString(undefined, { month: 'short' }) : '---'}
-                                    </span>
-                                    <span className="text-lg font-black text-slate-700 dark:text-slate-200 leading-none">
-                                      {!isNaN(dateObj.getTime()) ? dateObj.getDate() : '--'}
-                                    </span>
-                                  </div>
-
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                        vs {match.opponentName || 'Opponent'}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                                <div className="flex-1 min-w-0">
+                                  {/* Identity Group */}
+                                  <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-2.5">
+                                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md shrink-0">
+                                        VS
                                       </span>
-                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{formattedDate}</span>
+                                      <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                                        {match.opponentName || 'Opponent'}
+                                      </h3>
                                     </div>
-                                    <h4 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
-                                      {match.tournamentName}
-                                    </h4>
+                                    <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400 dark:text-slate-500 ml-1 sm:ml-10">
+                                      <span className="truncate max-w-[150px] sm:max-w-none">{match.tournamentName || 'Friendly'}</span>
+                                      <span className="w-1 h-1 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+                                      <span className="shrink-0">{formattedDate}</span>
+                                    </div>
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-6 shrink-0">
-                                  {/* Main Stats */}
-                                  <div className="text-right">
+                                <div className="flex items-center justify-between sm:justify-end gap-8 pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-50 dark:border-white/5">
+                                  {/* Stats with Micro Labels */}
+                                  <div className="flex gap-6">
                                     {viewMode === 'batting' ? (
-                                      <div className="flex flex-col items-end">
+                                      <div className="flex flex-col items-start sm:items-end">
                                         <div className="flex items-baseline gap-1">
-                                          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
+                                          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
                                             {runs}
+                                            {isNotOut && <span className="text-emerald-500 ml-0.5">*</span>}
                                           </span>
-                                          {isNotOut && <span className="text-lg font-black text-emerald-600 dark:text-emerald-500 leading-none">*</span>}
-                                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({balls})</span>
+                                          <span className="text-xs font-bold text-slate-400 dark:text-slate-600">
+                                            ({balls})
+                                          </span>
                                         </div>
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Runs Scored</span>
+                                        <span className="text-[9px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-widest mt-1">Runs (Balls)</span>
                                       </div>
                                     ) : (
-                                      <div className="flex flex-col items-end">
+                                      <div className="flex flex-col items-start sm:items-end">
                                         <div className="flex items-baseline gap-1">
-                                          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
-                                            {wickets}
+                                          <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
+                                            {wickets}/{runsConceded}
                                           </span>
-                                          <span className="text-lg font-bold text-slate-300 dark:text-slate-600 mx-0.5">/</span>
-                                          <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white leading-none">
-                                            {runsConceded}
+                                          <span className="text-xs font-bold text-slate-400 dark:text-slate-600">
+                                            ({typeof overs === 'number' ? overs.toFixed(1) : overs})
                                           </span>
-                                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 ml-1">({overs})</span>
                                         </div>
-                                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-1">Bowling Figure</span>
+                                        <span className="text-[9px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-widest mt-1">Figure (Overs)</span>
                                       </div>
                                     )}
                                   </div>
 
-                                  {/* Result Indicator */}
-                                  <div className="hidden sm:block">
-                                    {match.result?.toLowerCase() === 'won' && (
-                                      <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                                        <span className="text-[10px] font-black italic">W</span>
-                                      </div>
+                                  {/* Refined Result Badge */}
+                                  <div className={clsx(
+                                    "px-4 py-2 rounded-2xl flex items-center gap-2 transition-all duration-500",
+                                    match.result?.toLowerCase() === 'won' ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm" :
+                                      match.result?.toLowerCase() === 'lost' ? "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-sm" :
+                                        "bg-slate-50 dark:bg-white/5 text-slate-400"
+                                  )}>
+                                    {match.result?.toLowerCase() === 'won' ? (
+                                      <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                                    ) : match.result?.toLowerCase() === 'lost' ? (
+                                      <X className="w-3.5 h-3.5" strokeWidth={3} />
+                                    ) : (
+                                      <div className="w-1.5 h-1.5 rounded-full bg-current" />
                                     )}
-                                    {match.result?.toLowerCase() === 'lost' && (
-                                      <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
-                                        <span className="text-[10px] font-black italic">L</span>
-                                      </div>
-                                    )}
-                                    {(!match.result || match.result?.toLowerCase() === 'tied' || match.result?.toLowerCase() === 'n/r') && (
-                                      <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center text-white">
-                                        <span className="text-[10px] font-black italic">-</span>
-                                      </div>
-                                    )}
+                                    <span className="text-[10px] font-black uppercase tracking-wider leading-none">
+                                      {match.result || 'Result'}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -1595,7 +1647,7 @@ export default function PlayerProfile() {
       </div>
 
       {/* Floating Toggle FAB (CREX Style) - HORIZONTAL BOTTOM RIGHT */}
-      < div className="hide-in-screenshot fixed bottom-6 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100" >
+      < div className="hide-in-screenshot fixed bottom-20 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100" >
         <button
           onClick={() => setViewMode('batting')}
           className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
@@ -1619,12 +1671,7 @@ export default function PlayerProfile() {
       </div >
 
 
-      <ShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        image={screenshotImage}
-        title="Share Profile"
-      />
+      {/* ShareModal removed */}
     </div >
   )
 }

@@ -27,8 +27,7 @@ import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { db } from '@/config/firebase'
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import toast from 'react-hot-toast'
-import { useScreenshotShare } from '@/hooks/useScreenshotShare'
-import ShareModal from '@/components/common/ShareModal'
+// Screenshot sharing removed
 import { followService } from '@/services/firestore/followService'
 
 
@@ -52,17 +51,17 @@ export default function TournamentDetails() {
   const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
   const [loading, setLoading] = useState(true)
 
-  const tabsArray: Tab[] = ['overview', 'matches', 'teams', 'points', 'stats'];
-  const currentTabIndex = tabsArray.indexOf(activeTab);
-  const isAnimatingRef = useRef(false);
-  const x = useMotionValue(0);
-  const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`);
+  // const tabsArray: Tab[] = ['overview', 'matches', 'teams', 'points', 'stats'];
+  // const currentTabIndex = tabsArray.indexOf(activeTab);
+  // const isAnimatingRef = useRef(false);
+  // const x = useMotionValue(0);
+  // const animatedX = useTransform(x, (value) => `calc(-${currentTabIndex * 100}% + ${value}px)`);
 
-  useEffect(() => {
-    if (!isAnimatingRef.current) {
-      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 });
-    }
-  }, [currentTabIndex, x]);
+  // useEffect(() => {
+  //   if (!isAnimatingRef.current) {
+  //     animate(x, 0, { type: 'spring', stiffness: 300, damping: 30, mass: 0.5 });
+  //   }
+  // }, [currentTabIndex, x]);
 
   const { user } = useAuthStore()
   const isFollowing = useMemo(() => followService.isFollowing(user, 'tournament', tournamentId!), [user, tournamentId])
@@ -153,18 +152,7 @@ export default function TournamentDetails() {
   }, [tournamentId])
 
   const [scrolled, setScrolled] = useState(false)
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
-  const [screenshotImage, setScreenshotImage] = useState('')
-  const pageRef = useRef<HTMLDivElement>(null)
-
-  const { longPressProps, captureScreenshot } = useScreenshotShare({
-    onScreenshotReady: (img) => {
-      setScreenshotImage(img)
-      setIsShareModalOpen(true)
-    },
-    captureRef: pageRef,
-    delay: 1000
-  })
+  // Long-press screenshot sharing removed
 
   useEffect(() => {
     const handleScroll = () => {
@@ -254,8 +242,6 @@ export default function TournamentDetails() {
 
   return (
     <div
-      ref={pageRef}
-      {...longPressProps}
       className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24"
     >
       {/* 1. Sticky Top Bar - Clean & Stable */}
@@ -290,8 +276,8 @@ export default function TournamentDetails() {
               )}
 
               <button
-                onClick={captureScreenshot}
-                className="hide-in-screenshot p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all"
+                className="hide-in-screenshot p-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-white/40 cursor-not-allowed"
+                disabled
               >
                 <Share2 size={16} />
               </button>
@@ -352,96 +338,13 @@ export default function TournamentDetails() {
         </div>
       </div>
 
-      {/* 3. Main Content Container - Using Swipe Carousel */}
-      <div className="overflow-hidden">
-        <motion.div
-          style={{ x: animatedX, willChange: 'transform' }}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={1} // 1:1 tracking
-          dragDirectionLock
-          onDragStart={() => {
-            isAnimatingRef.current = true;
-          }}
-          onDragEnd={(_, info) => {
-            const swipeThreshold = window.innerWidth * 0.25;
-            const velocityThreshold = 400;
-
-            if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
-              if (currentTabIndex < tabsArray.length - 1) {
-                setActiveTab(tabsArray[currentTabIndex + 1]);
-              }
-            } else if (info.offset.x > swipeThreshold || info.velocity.x > velocityThreshold) {
-              if (currentTabIndex > 0) {
-                setActiveTab(tabsArray[currentTabIndex - 1]);
-              }
-            }
-
-            animate(x, 0, {
-              type: 'spring',
-              stiffness: 400,
-              damping: 40,
-              velocity: info.velocity.x
-            });
-
-            setTimeout(() => {
-              isAnimatingRef.current = false;
-            }, 50);
-          }}
-          className="flex w-full touch-pan-y"
-        >
-          {/* OVERVIEW TAB */}
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto px-5">
-              {tournamentData && (
-                <OverviewTab
-                  tournament={tournamentData}
-                  matches={matches}
-                  squads={squads}
-                  players={players}
-                  inningsMap={inningsMap}
-                  setActiveTab={setActiveTab}
-                  squadsMap={squadsMap}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* MATCHES TAB */}
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto px-5">
-              <TournamentMatchesTab matches={matches} squadsMap={squadsMap} />
-            </div>
-          </div>
-
-          {/* TEAMS TAB */}
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto px-5">
-              <TournamentTeamsTab squads={squads} players={players} />
-            </div>
-          </div>
-
-          {/* POINTS TABLE TAB */}
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto px-5">
-              <TournamentPointsTable embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
-            </div>
-          </div>
-
-          {/* STATS TAB */}
-          <div className="w-full shrink-0">
-            <div className="max-w-4xl mx-auto px-5">
-              <TournamentKeyStats embedded tournamentId={tournamentId!} matches={matches} inningsMap={inningsMap} />
-            </div>
-          </div>
-        </motion.div>
+      {/* 3. Main Content Container - Simplified Rendering */}
+      <div className="w-full">
+        <div className="max-w-4xl mx-auto px-5 pt-6 min-h-[60vh]">
+          {content}
+        </div>
       </div>
-      <ShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        image={screenshotImage}
-        title="Share Tournament"
-      />
+      {/* ShareModal removed */}
     </div>
   )
 }

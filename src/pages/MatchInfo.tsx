@@ -359,7 +359,7 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
     })() : null;
 
     return (
-        <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 ${compact ? 'py-4' : 'py-12'} space-y-6 pb-24 bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white`}>
+        <div className={`max-w-5xl mx-auto ${compact ? 'px-0 py-0 space-y-0.5' : 'px-4 sm:px-6 lg:px-8 py-12 space-y-6 pb-24'} bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white`}>
 
             {/* 1. Toss Message */}
             {tossMessage && (
@@ -371,7 +371,7 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
 
             {/* 2. Brand/Series Card */}
             <div
-                className="bg-white dark:bg-[#0f172a] rounded-2xl p-4 border border-slate-200 dark:border-white/5 shadow-sm flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-colors"
+                className={`bg-white dark:bg-[#0f172a] p-4 shadow-sm flex items-center justify-between group cursor-pointer transition-colors ${compact ? 'rounded-none border-x-0 border-y border-slate-100 dark:border-white/5' : 'rounded-2xl border border-slate-200 dark:border-white/5 hover:border-blue-500/30'}`}
                 onClick={() => navigate(tournament?.id ? `/tournaments/${tournament.id}` : '/tournaments')}
             >
                 <div className="space-y-1">
@@ -391,7 +391,7 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
             </div>
 
             {/* 3. Match Metadata */}
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-4 border border-slate-200 dark:border-white/5 shadow-sm space-y-4">
+            <div className={`bg-white dark:bg-[#0f172a] p-4 shadow-sm space-y-4 ${compact ? 'rounded-none border-x-0 border-b border-slate-100 dark:border-white/5' : 'rounded-2xl border border-slate-200 dark:border-white/5'}`}>
                 <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400 font-semibold">
                     <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-white/[0.03] flex items-center justify-center border border-slate-200 dark:border-white/5">
                         <Calendar className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
@@ -611,30 +611,30 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
                     <button className="text-[12px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors uppercase tracking-tight">All Matches</button>
                 </div>
 
-                {/* Summary View */}
-                <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-8 border border-slate-200 dark:border-white/5 shadow-sm space-y-10">
-                    <div className="flex items-center justify-center gap-10 sm:gap-20">
-                        <div className="text-center space-y-4">
-                            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center p-4 mx-auto shadow-md">
-                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-semibold text-white/10">{teamAName[0]}</span>}
+                {/* Summary View - More Compact */}
+                <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-5 border border-slate-200 dark:border-white/5 shadow-sm space-y-6">
+                    <div className="flex items-center justify-center gap-4 sm:gap-8">
+                        <div className="text-center space-y-2">
+                            <div className="w-14 h-14 rounded-full bg-slate-50 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center p-3 mx-auto shadow-md">
+                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-2xl font-semibold text-white/10">{teamAName[0]}</span>}
                             </div>
-                            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.2em]">{(match as any).teamAShort || formatShortTeamName(teamAName)}</div>
+                            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">{(match as any).teamAShort || formatShortTeamName(teamAName)}</div>
                         </div>
 
                         <div className="flex flex-col items-center">
-                            <div className="text-5xl font-semibold flex items-center gap-6 tabular-nums tracking-tighter text-slate-900 dark:text-white">
+                            <div className="text-3xl font-semibold flex items-center gap-3 tabular-nums tracking-tighter text-slate-900 dark:text-white">
                                 <span>{headToHead.teamA}</span>
-                                <span className="text-white/10 text-3xl font-normal">—</span>
+                                <span className="text-white/10 text-xl font-normal">—</span>
                                 <span>{headToHead.teamB}</span>
                             </div>
-                            {headToHead.tie > 0 && <div className="text-[10px] font-semibold text-slate-500 mt-2 uppercase tracking-widest">{headToHead.tie} {headToHead.tie === 1 ? 'Tie' : 'Ties'}</div>}
+                            {headToHead.tie > 0 && <div className="text-[9px] font-semibold text-slate-500 mt-1 uppercase tracking-widest">{headToHead.tie} {headToHead.tie === 1 ? 'Tie' : 'Ties'}</div>}
                         </div>
 
-                        <div className="text-center space-y-4">
-                            <div className="w-20 h-20 rounded-full bg-slate-50 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center p-4 mx-auto shadow-md">
-                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-4xl font-semibold text-white/10">{teamBName[0]}</span>}
+                        <div className="text-center space-y-2">
+                            <div className="w-14 h-14 rounded-full bg-slate-50 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 flex items-center justify-center p-3 mx-auto shadow-md">
+                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-2xl font-semibold text-white/10">{teamBName[0]}</span>}
                             </div>
-                            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.2em]">{(match as any).teamBShort || formatShortTeamName(teamBName)}</div>
+                            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">{(match as any).teamBShort || formatShortTeamName(teamBName)}</div>
                         </div>
                     </div>
 

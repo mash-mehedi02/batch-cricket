@@ -182,9 +182,9 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto p-4 space-y-6 mt-4">
+      <div className={`max-w-5xl mx-auto ${compact ? 'p-0 space-y-2' : 'p-4 space-y-6 mt-4'}`}>
         {/* Manhattan Chart */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden p-6 sm:p-8">
+        <div className={`bg-white dark:bg-[#0f172a] shadow-sm overflow-hidden ${compact ? 'border-y border-slate-100 dark:border-white/5 p-4 sm:p-6' : 'rounded-[2rem] border border-slate-200 dark:border-white/5 p-6 sm:p-8'}`}>
           <div className="mb-8 items-baseline flex gap-2">
             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Manhattan</h3>
             <span className="text-xs font-bold text-slate-400 dark:text-slate-500">Runs per over comparison</span>
@@ -288,7 +288,7 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
         </div>
 
         {/* Worm Chart */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden p-6 sm:p-8">
+        <div className={`bg-white dark:bg-[#0f172a] shadow-sm overflow-hidden ${compact ? 'border-y border-slate-100 dark:border-white/5 p-4 sm:p-6' : 'rounded-[2rem] border border-slate-200 dark:border-white/5 p-6 sm:p-8'}`}>
           <div className="mb-8 items-baseline flex gap-2">
             <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Worm Graph</h3>
             <span className="text-xs font-bold text-slate-400 dark:text-slate-500">Cumulative score progression</span>

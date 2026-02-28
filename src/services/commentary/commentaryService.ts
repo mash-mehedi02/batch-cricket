@@ -105,6 +105,26 @@ export async function deleteCommentaryForBall(matchId: string, ballDocId: string
 }
 
 /**
+ * Delete manual orphaned commentary entries (like "New Batter") that occurred after a ball being undone.
+ * We delete any `manual: true` commentary where the `createdAt` timestamp is strictly greater than the undone ball.
+ */
+export async function deleteOrphanedCommentaryAfter(matchId: string, timestampAfter: Date): Promise<void> {
+  const { getDocs, deleteDoc, doc: docRef } = await import('firebase/firestore')
+  const commentaryRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY)
+
+  // Find all manual commentary created AFTER the ball we just undid
+  const q = query(
+    commentaryRef,
+    where('manual', '==', true),
+    where('timestamp', '>', Timestamp.fromDate(timestampAfter))
+  )
+
+  const snap = await getDocs(q)
+  const deletions = snap.docs.map((d) => deleteDoc(docRef(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY, d.id)))
+  await Promise.all(deletions)
+}
+
+/**
  * Add manual commentary (Admin only)
  */
 export async function addManualCommentary(

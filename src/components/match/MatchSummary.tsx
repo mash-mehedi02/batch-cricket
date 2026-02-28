@@ -10,6 +10,7 @@ import { squadService } from '@/services/firestore/squads'
 import { getMatchResultString } from '@/utils/matchWinner'
 import { formatShortTeamName } from '@/utils/teamName'
 import { formatDateLabel } from '@/utils/date'
+import { formatKnockoutTitle } from '@/utils/matchFormatters'
 import { Trophy, Edit3, Calendar, Users, MapPin, ChevronRight, Bell, Settings, BarChart2, Table } from 'lucide-react'
 import vsIcon from '@/assets/vs.png'
 
@@ -264,8 +265,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                         </h2>
                         <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-[0.2em] mt-1 opacity-80">
                             {(match as any).stage === 'knockout'
-                                ? `KNOCKOUT (${String((match as any).round || '').replace('_', ' ')})`
-                                : (match as any).matchNo ? `MATCH ${(match as any).matchNo}` : `${match.oversLimit || 20} OVERS`} • {tournament?.name || 'FRIENDLY MATCH'}
+                                ? `${formatKnockoutTitle(match)?.toUpperCase()} • ${tournament?.name || 'FRIENDLY MATCH'}`
+                                : (match as any).matchNo ? `MATCH ${(match as any).matchNo} • ${tournament?.name || 'FRIENDLY MATCH'}` : `${match.oversLimit || 20} OVERS • ${tournament?.name || 'FRIENDLY MATCH'}`}
                         </div>
                     </div>
 
@@ -298,16 +299,22 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                         </div>
 
                         {/* Mid Divider */}
-                        <div className="px-3 shrink-0">
-                            <div className="bg-slate-800 w-9 h-5 sm:w-10 sm:h-6
-                                shadow-lg flex items-center justify-center overflow-hidden border border-white/10"
-                                style={{ clipPath: 'polygon(8% 0%, 92% 0%, 97% 3%, 100% 10%, 92% 90%, 88% 97%, 85% 100%, 15% 100%, 12% 97%, 8% 90%, 0% 10%, 3% 3%)' }}>
-                                <img
-                                    src={vsIcon}
-                                    alt="VS"
-                                    className="w-full h-full object-cover scale-90"
-                                    style={{ filter: 'brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2500%) hue-rotate(3deg) brightness(100%) contrast(105%)' }}
-                                />
+                        <div className="px-3 md:px-5 lg:px-6 shrink-0 z-20">
+                            <div className="relative" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
+                                <div className="bg-white dark:bg-slate-800 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
+                                    style={{
+                                        WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
+                                        WebkitMaskSize: '100% 100%',
+                                        maskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
+                                        maskSize: '100% 100%'
+                                    }}>
+                                    <img
+                                        src={vsIcon}
+                                        alt="VS"
+                                        className="w-[90%] h-[90%] object-contain"
+                                        style={{ filter: 'brightness(0) saturate(100%) invert(50%) sepia(90%) saturate(4000%) hue-rotate(10deg) brightness(100%) contrast(110%)' }}
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -400,7 +407,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                                                             className={`h-7 rounded-full flex items-center justify-center font-bold border transition-all whitespace-nowrap text-[11px] ${String(ball.value).includes('W') ? 'bg-rose-600 text-white border-rose-500' :
                                                                 ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
                                                                     ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                                                        'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800 shadow-sm'
+                                                                        String(ball.value).startsWith('P') ? 'bg-amber-500 text-white border-amber-500' :
+                                                                            'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800 shadow-sm'
                                                                 }`}
                                                             style={{
                                                                 minWidth: '1.75rem',

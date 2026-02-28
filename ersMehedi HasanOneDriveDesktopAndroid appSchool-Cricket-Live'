@@ -1,0 +1,5 @@
+[33m15c33a7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m feat: Automated knockout scheduling with correct logo and team name resolution
+[33m092746d[m feat: add independent match support, polish commentary and UI
+[33md83c769[m feat: enhance live scoring display, scorecard auto-focus, and commentary feed optimization
+[33mbf4db5f[m Fix SquadDetails loading and auto-scroll, refine MatchCard UI and result display
+[33m0776b0f[m Polish match summary and UI refinements

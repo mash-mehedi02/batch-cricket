@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Sound/vibration
             vibration_pattern: [200, 200, 200],
-            android_channel_id: 'match_alerts',
+            // android_channel_id: 'match_alerts', // Removed to avoid 400 error if not created in OneSignal dashboard
 
             // Target ALL platforms (web + mobile)
             isAnyWeb: true,

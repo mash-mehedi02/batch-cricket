@@ -216,7 +216,7 @@ export default function TournamentDashboard() {
                     )}
 
                     {activeTab === 'champions' && (
-                        <ChampionCenter tournament={tournament} squads={squads} onUpdate={handleUpdate} />
+                        <ChampionCenter tournament={tournament} squads={squads} matches={matches} onUpdate={handleUpdate} />
                     )}
 
                     {activeTab === 'standings' && (

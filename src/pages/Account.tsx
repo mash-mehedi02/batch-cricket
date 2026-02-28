@@ -27,6 +27,7 @@ export default function AccountPage() {
     const [followedTournaments, setFollowedTournaments] = useState<Tournament[]>([]);
     const [followedSquads, setFollowedSquads] = useState<Squad[]>([]);
     const [isFetchingFollows, setIsFetchingFollows] = useState(false);
+    const [imageError, setImageError] = useState(false);
 
     useEffect(() => {
         if (!loading && !user) {
@@ -89,13 +90,16 @@ export default function AccountPage() {
                 {/* Profile Section */}
                 <div className={`px-5 py-5 border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-white text-xl font-bold overflow-hidden shrink-0">
-                            {user?.photoURL ? (
-                                <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
+                        <div className="w-14 h-14 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 overflow-hidden shrink-0 border border-slate-200 dark:border-white/5">
+                            {user?.photoURL && !imageError ? (
+                                <img
+                                    src={user.photoURL}
+                                    alt={user.displayName || 'User'}
+                                    className="w-full h-full object-cover"
+                                    onError={() => setImageError(true)}
+                                />
                             ) : (
-                                <div className="bg-teal-500 w-full h-full flex items-center justify-center">
-                                    {user?.displayName?.charAt(0).toUpperCase() || <UserIcon size={24} />}
-                                </div>
+                                <UserIcon size={28} strokeWidth={1.5} />
                             )}
                         </div>
                         <div className="min-w-0 flex-1">

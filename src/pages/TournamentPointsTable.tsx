@@ -7,6 +7,28 @@ import type { Match, Tournament, InningsStats } from '@/types'
 import type { MatchResult } from '@/engine/tournament'
 import { computeGroupStandings, validateTournamentConfig } from '@/engine/tournament'
 import { formatShortTeamName } from '@/utils/teamName'
+import PlayoffBracket from '@/components/tournament/PlayoffBracket'
+
+function TournamentPointsTableSkeleton({ forcedDark }: { forcedDark?: boolean }) {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex items-center justify-between mb-5">
+        <div className={`h-6 w-32 rounded-lg ${forcedDark ? 'bg-white/10' : 'bg-slate-200 dark:bg-white/10'}`} />
+      </div>
+      <div className={`${forcedDark ? 'bg-slate-950/20' : 'bg-white dark:bg-slate-950'} rounded-2xl border ${forcedDark ? 'border-white/5' : 'border-slate-100 dark:border-white/5'} overflow-hidden`}>
+        <div className="p-4 space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-4">
+              <div className={`w-8 h-8 rounded-full ${forcedDark ? 'bg-white/10' : 'bg-slate-100 dark:bg-white/10'}`} />
+              <div className={`h-4 flex-1 rounded ${forcedDark ? 'bg-white/10' : 'bg-slate-100 dark:bg-white/10'}`} />
+              <div className={`h-4 w-20 rounded ${forcedDark ? 'bg-white/10' : 'bg-slate-100 dark:bg-white/10'}`} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type Row = {
   squadId: string
@@ -51,7 +73,9 @@ export default function TournamentPointsTable({
   highlightMatch,
   filterSquadIds,
   hideQualification = false,
-  forcedDark
+  forcedDark,
+  tournament: tournamentProp,
+  squads: squadsProp,
 }: {
   embedded?: boolean
   tournamentId?: string
@@ -61,17 +85,22 @@ export default function TournamentPointsTable({
   filterSquadIds?: string[]
   hideQualification?: boolean
   forcedDark?: boolean
+  tournament?: Tournament | null
+  squads?: any[]
 } = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
-  const [tournament, setTournament] = useState<Tournament | null>(null)
-  const [matches, setMatches] = useState<Match[]>([])
-  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(new Map())
-  const [squadsById, setSquadsById] = useState<Map<string, any>>(new Map())
+  const [tournament, setTournament] = useState<Tournament | null>(tournamentProp || null)
+  const [matches, setMatches] = useState<Match[]>(matchesProp || [])
+  const [inningsMap, setInningsMap] = useState<Map<string, { teamA: InningsStats | null; teamB: InningsStats | null; aso?: InningsStats | null; bso?: InningsStats | null }>>(inningsMapProp || new Map())
+  const [squadsById, setSquadsById] = useState<Map<string, any>>(() => {
+    const m = new Map<string, any>()
+    if (squadsProp) squadsProp.forEach(s => s?.id && m.set(s.id, s))
+    return m
+  })
   const [squadIdByName, setSquadIdByName] = useState<Map<string, string>>(new Map())
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!tournamentProp && !matchesProp)
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
-  const [showTeamForm, setShowTeamForm] = useState(false)
 
   // Sync props
   useEffect(() => {
@@ -88,29 +117,51 @@ export default function TournamentPointsTable({
   useEffect(() => {
     const run = async () => {
       if (!tournamentId) return
+      // Skip fetching if everything is provided via props
+      if (tournamentProp && matchesProp && inningsMapProp && squadsProp) {
+        setLoading(false)
+        return
+      }
+
       if (!matchesProp && !inningsMapProp) setLoading(true)
 
       try {
-        const t = await tournamentService.getById(tournamentId)
-        setTournament(t)
+        if (!tournamentProp) {
+          const t = await tournamentService.getById(tournamentId)
+          setTournament(t)
+        }
 
         const ms = matchesProp || await matchService.getByTournament(tournamentId)
         if (!matchesProp) setMatches(ms)
 
         const byId = new Map<string, any>()
         const byName = new Map<string, string>()
-        const unsubSquads = squadService.subscribeAll((allSquads) => {
-          byId.clear()
-          byName.clear()
-            ; (allSquads as any[]).forEach((s) => {
-              if (!s?.id) return
-              byId.set(s.id, s)
-              const key = getSquadDisplayName(s).toLowerCase()
-              if (key) byName.set(key, s.id)
-            })
+
+        // If squads are provided, use them; otherwise subscribe
+        let unsubSquads = () => { }
+        if (squadsProp) {
+          squadsProp.forEach((s) => {
+            if (!s?.id) return
+            byId.set(s.id, s)
+            const key = getSquadDisplayName(s).toLowerCase()
+            if (key) byName.set(key, s.id)
+          })
           setSquadsById(new Map(byId))
           setSquadIdByName(new Map(byName))
-        })
+        } else {
+          unsubSquads = squadService.subscribeAll((allSquads) => {
+            byId.clear()
+            byName.clear()
+              ; (allSquads as any[]).forEach((s) => {
+                if (!s?.id) return
+                byId.set(s.id, s)
+                const key = getSquadDisplayName(s).toLowerCase()
+                if (key) byName.set(key, s.id)
+              })
+            setSquadsById(new Map(byId))
+            setSquadIdByName(new Map(byName))
+          })
+        }
 
         if (!inningsMapProp) {
           const entries = await Promise.all(
@@ -135,7 +186,7 @@ export default function TournamentPointsTable({
       }
     }
     run()
-  }, [tournamentId, matchesProp, inningsMapProp])
+  }, [tournamentId, matchesProp, inningsMapProp, tournamentProp, squadsProp])
 
   const { groups, standingsByGroup, confirmedQualifiedIds } = useMemo(() => {
     const WIN = 2
@@ -376,7 +427,7 @@ export default function TournamentPointsTable({
     if (groups.length > 0 && !activeGroupId) setActiveGroupId(groups[0].id)
   }, [groups, activeGroupId])
 
-  if (loading) return <div className="p-10 text-center animate-pulse">Loading standings...</div>
+  if (loading) return <TournamentPointsTableSkeleton forcedDark={forcedDark} />
 
   const activeGroup = groups.find(g => g.id === activeGroupId) || groups[0]
   const rows = standingsByGroup.get(activeGroup?.id || '') || []
@@ -386,15 +437,6 @@ export default function TournamentPointsTable({
       {/* Table Header Section */}
       <div className="flex items-center justify-between mb-5">
         <h2 className={`text-base font-bold ${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Points Table</h2>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Team form</span>
-          <button
-            onClick={() => setShowTeamForm(!showTeamForm)}
-            className={`w-9 h-5 rounded-full relative transition-colors ${showTeamForm ? 'bg-[#0f172a]' : 'bg-slate-200 dark:bg-slate-800'}`}
-          >
-            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${showTeamForm ? 'left-4.5' : 'left-0.5'}`} />
-          </button>
-        </div>
       </div>
 
       {/* Group Pills */}
@@ -471,7 +513,7 @@ export default function TournamentPointsTable({
                           </div>
                         </div>
                         <div className={`${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'} font-bold uppercase truncate max-w-[100px]`}>
-                          {squad ? formatShortTeamName(squad.name, squad.batch) : r.squadName}
+                          {squad ? formatShortTeamName(squad.name) : r.squadName}
                         </div>
                       </Link>
                     </td>
@@ -496,6 +538,22 @@ export default function TournamentPointsTable({
           </div>
         )}
       </div>
+
+      {/* Playoff Bracket */}
+      {tournament && (tournament as any).config?.knockout?.custom?.matches?.length > 0 && (
+        <div className="mt-12">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-px flex-1 bg-slate-100 dark:bg-white/5" />
+            <h3 className={`text-base font-black uppercase tracking-widest ${forcedDark ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Playoff Bracket</h3>
+            <div className="h-px flex-1 bg-slate-100 dark:bg-white/5" />
+          </div>
+          <PlayoffBracket
+            tournament={tournament}
+            matches={matches}
+            squads={Array.from(squadsById.values())}
+          />
+        </div>
+      )}
 
     </div>
   )

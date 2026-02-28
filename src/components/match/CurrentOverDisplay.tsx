@@ -63,9 +63,11 @@ export default function CurrentOverDisplay({
           <div
             key={idx}
             className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm border ${ball.type === 'empty'
-                ? 'border border-slate-200 dark:border-slate-800 bg-transparent text-slate-300'
-                : ball.type === 'wicket' || ball.value === 'W'
-                  ? 'bg-rose-600 text-white border-rose-500'
+              ? 'border border-slate-200 dark:border-slate-800 bg-transparent text-slate-300'
+              : ball.type === 'wicket' || ball.value === 'W'
+                ? 'bg-rose-600 text-white border-rose-500'
+                : ball.type === 'penalty' || (ball.value || '').startsWith('P')
+                  ? 'bg-amber-500 text-white border-amber-500'
                   : ball.value === '6'
                     ? 'bg-emerald-600 text-white border-emerald-600'
                     : ball.value === '4'
