@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { Search, User, Filter, Plus } from 'lucide-react'
+import { Search, User, Users, Edit2, Trophy, Check, AlertTriangle, Trash2 } from 'lucide-react'
 import { squadService } from '@/services/firestore/squads'
 import { playerService } from '@/services/firestore/players'
 import { adminService } from '@/services/firestore/admins'
@@ -15,7 +15,6 @@ import { Timestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
-import { Trash2 } from 'lucide-react'
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 
 interface AdminSquadsProps {
@@ -557,7 +556,7 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {(() => {
           const filteredSquads = squads.filter(s => {
             const matchesSearch = (s.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
@@ -574,8 +573,16 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
 
           if (filteredSquads.length === 0) {
             return (
-              <div className="col-span-full text-center py-12 text-gray-500">
-                {searchTerm || selectedAdminFilter ? 'No matches found for your filter.' : 'No squads found. Create your first squad!'}
+              <div className="col-span-full bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-white/5 p-20 text-center">
+                <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-slate-300">
+                  <Users size={40} strokeWidth={1} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                  {searchTerm || selectedAdminFilter ? 'No matches found' : 'No squads found'}
+                </h3>
+                <p className="text-slate-500 text-sm">
+                  {searchTerm || selectedAdminFilter ? 'Try adjusting your filters or search term.' : 'Start by creating your first squad!'}
+                </p>
               </div>
             );
           }
@@ -583,43 +590,86 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
           return filteredSquads.map((squad) => (
             <div
               key={squad.id}
-              className="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition"
+              className="group bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-white/5 p-6 hover:shadow-2xl hover:shadow-indigo-500/10 hover:border-indigo-100 dark:hover:border-indigo-500/20 transition-all duration-500 flex flex-col"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{squad.name}</h3>
-                  <p className="text-sm text-gray-500">Batch: {(squad as any).batch || squad.year}</p>
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-xl shadow-inner group-hover:scale-110 transition-transform duration-500">
+                    {squad.logoUrl ? (
+                      <img src={squad.logoUrl} alt="" className="w-full h-full object-cover rounded-2xl" />
+                    ) : (
+                      squad.name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{squad.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded text-[9px] font-black uppercase tracking-widest">
+                        Batch {(squad as any).batch || squad.year}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all duration-300">
                   <Link
                     to={`/admin/squads/${squad.id}/edit`}
-                    className="text-teal-600 hover:text-teal-700 text-sm"
+                    className="p-2.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors"
+                    title="Edit Squad"
                   >
-                    Edit
+                    <Edit2 size={18} />
                   </Link>
                   <button
                     onClick={() => handleDeleteClick(squad)}
-                    className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1"
+                    className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                    title="Delete Squad"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Delete
+                    <Trash2 size={18} />
                   </button>
                 </div>
               </div>
-              <div className="text-sm text-gray-600">
-                <div>Players: {squad.playerIds?.length || 0}</div>
-                {squad.captainId && <div>Captain: Assigned</div>}
-                {squad.wicketKeeperId && <div>WK: Assigned</div>}
-                {user?.role === 'super_admin' && (
-                  <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-400 truncate" title={(squad as any).adminId || (squad as any).createdBy}>
-                    Creator: {((squad as any).adminEmail || (squad as any).createdBy || 'System').split('@')[0]}
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-50 dark:border-white/5">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                    <Users size={12} /> Players
                   </div>
-                )}
+                  <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{squad.playerIds?.length || 0}</div>
+                </div>
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-50 dark:border-white/5">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                    <Trophy size={12} /> Status
+                  </div>
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 h-[28px]">
+                    {squad.captainId ? (
+                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-lg">
+                        <Check size={10} strokeWidth={3} /> Ready
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-lg">
+                        <AlertTriangle size={10} /> No Cpt
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              {user?.role === 'super_admin' && (
+                <div className="mt-auto pt-4 border-t border-slate-50 dark:border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-400 uppercase">
+                      {((squad as any).adminEmail || (squad as any).createdBy || 'S').charAt(0)}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400">
+                      {((squad as any).adminEmail || (squad as any).createdBy || 'System').split('@')[0]}
+                    </span>
+                  </div>
+                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Creator</div>
+                </div>
+              )}
             </div>
           ));
         })()}
-      </div >
+      </div>
 
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}

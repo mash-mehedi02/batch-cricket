@@ -24,6 +24,24 @@ import toast from 'react-hot-toast'
 // Role-based access is controlled via Firestore 'admins' collection.
 const processingLogins = new Set<string>();
 
+/**
+ * Fetch IP and basic location info for security logging
+ */
+async function fetchConnectivityInfo() {
+  try {
+    const res = await fetch('https://ipapi.co/json/').catch(() => null);
+    if (!res) return { ip: 'unknown', city: 'unknown', country: 'unknown' };
+    const data = await res.json();
+    return {
+      ip: data.ip || 'unknown',
+      city: data.city || 'unknown',
+      country: data.country_name || 'unknown'
+    };
+  } catch (err) {
+    return { ip: 'unknown', city: 'unknown', country: 'unknown' };
+  }
+}
+
 
 interface AuthState {
   user: User | null
@@ -349,6 +367,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       console.log("[AuthStore] Identity Processing Complete. Final Role:", finalUserData.role);
 
+      // --- STEP 5: LOG LOGIN ACTIVITY ---
+      const connectivity = await fetchConnectivityInfo();
+      const loginLogRef = doc(collection(db, 'login_logs'));
+      await setDoc(loginLogRef, {
+        uid: user.uid,
+        email: user.email,
+        timestamp: serverTimestamp(),
+        ip: connectivity.ip,
+        location: `${connectivity.city}, ${connectivity.country}`,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+      });
+
       return isNewUser;
 
     } catch (error: any) {
@@ -382,10 +413,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         updatedAt: serverTimestamp()
       };
 
-      await updateDoc(userRef, profileUpdates);
-
-      // CRITICAL: If they are a registered player, sync data to the public 'players' collection too
       const currentUser = get().user;
+
+      // Log name change if applicable
+      if (currentUser && data.displayName && data.displayName !== currentUser.displayName) {
+        const changeLogRef = doc(collection(db, 'name_changes'));
+        await setDoc(changeLogRef, {
+          uid: currentUser.uid,
+          oldName: currentUser.displayName || 'Unnamed',
+          newName: data.displayName,
+          timestamp: serverTimestamp(),
+          adminId: auth.currentUser?.uid || 'system'
+        });
+      }
+
+      await updateDoc(userRef, profileUpdates);
       if (currentUser?.playerId) {
         console.log("[AuthStore] Syncing public player profile for:", currentUser.playerId);
         const playerRef = doc(db, 'players', currentUser.playerId);

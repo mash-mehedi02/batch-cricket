@@ -18,7 +18,13 @@ import {
     Check,
     Eye,
     EyeOff,
-    Key
+    Key,
+    Activity,
+    Smartphone,
+    MapPin,
+    Globe,
+    History,
+    ExternalLink
 } from 'lucide-react'
 import { adminService, AdminUser } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
@@ -28,7 +34,7 @@ import PlayerAvatar from '@/components/common/PlayerAvatar'
 import toast from 'react-hot-toast'
 import { userService } from '@/services/firestore/users'
 import { squadService } from '@/services/firestore/squads'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp, query, collection, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { db } from '@/config/firebase'
 import { COLLECTIONS } from '@/services/firestore/collections'
 import { playerRequestService, PlayerRegistrationRequest } from '@/services/firestore/playerRequests'
@@ -74,6 +80,13 @@ export default function AdminUsers() {
     const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null)
     const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
     const [isDeleting, setIsDeleting] = useState(false)
+
+    // Details View State
+    const [selectedDetailUser, setSelectedDetailUser] = useState<User | null>(null)
+    const [showDetailModal, setShowDetailModal] = useState(false)
+    const [loginLogs, setLoginLogs] = useState<any[]>([])
+    const [nameChangeLogs, setNameChangeLogs] = useState<any[]>([])
+    const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
     const togglePasswordVisibility = (uid: string) => {
         setShowPasswords(prev => ({ ...prev, [uid]: !prev[uid] }))
@@ -144,6 +157,40 @@ export default function AdminUsers() {
             }
         }
     }, [isSuperAdmin, authLoading, navigate])
+
+    const handleViewDetails = async (user: User) => {
+        setSelectedDetailUser(user)
+        setShowDetailModal(true)
+        setIsLoadingDetails(true)
+        setLoginLogs([])
+        setNameChangeLogs([])
+
+        try {
+            // 1. Fetch Login Logs (Last 10)
+            const loginQ = query(
+                collection(db, 'login_logs'),
+                where('uid', '==', user.uid),
+                orderBy('timestamp', 'desc'),
+                limit(10)
+            )
+            const loginSnap = await getDocs(loginQ)
+            setLoginLogs(loginSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+
+            // 2. Fetch Name Change Logs
+            const nameQ = query(
+                collection(db, 'name_changes'),
+                where('uid', '==', user.uid),
+                orderBy('timestamp', 'desc')
+            )
+            const nameSnap = await getDocs(nameQ)
+            setNameChangeLogs(nameSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+        } catch (error) {
+            console.error('Failed to load user details:', error)
+            toast.error('Failed to load activity logs')
+        } finally {
+            setIsLoadingDetails(false)
+        }
+    }
 
     const loadData = async () => {
         setLoading(true)
@@ -662,117 +709,211 @@ export default function AdminUsers() {
                             )}
                         </div>
                     ) : activeTab === 'users' ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50/50 border-b border-slate-100">
-                                    <tr>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">User / Profile</th>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Onboarding Status</th>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Squad Status</th>
-                                        <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredUsers.length > 0 ? (
-                                        filteredUsers.map((user) => (
-                                            <tr key={user.uid} className="hover:bg-slate-50/30 transition-all group">
-                                                <td className="px-6 py-6 font-inter">
-                                                    <div className="flex items-center gap-4">
-                                                        <PlayerAvatar
-                                                            photoUrl={user.photoURL || user.playerProfile?.photoUrl}
-                                                            name={user.displayName || user.email}
-                                                            size="lg"
-                                                            className="ring-4 ring-slate-50 shadow-inner group-hover:scale-105 transition-transform"
-                                                        />
-                                                        <div>
-                                                            <div className="text-slate-900 font-black text-base transition-colors">
-                                                                {user.displayName || user.email.split('@')[0]}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-[10px] font-bold text-slate-400 max-w-[150px] truncate">{user.email}</span>
-                                                                {user.role === 'super_admin' && <Shield className="w-3 h-3 text-indigo-500" />}
+                        <>
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50/50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">User / Profile</th>
+                                            <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Onboarding Status</th>
+                                            <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Squad Status</th>
+                                            <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredUsers.length > 0 ? (
+                                            filteredUsers.map((user) => (
+                                                <tr key={user.uid} className="hover:bg-slate-50/30 transition-all group">
+                                                    <td className="px-6 py-6 font-inter">
+                                                        <div className="flex items-center gap-4">
+                                                            <PlayerAvatar
+                                                                photoUrl={user.photoURL || user.playerProfile?.photoUrl}
+                                                                name={user.displayName || user.email}
+                                                                size="lg"
+                                                                className="ring-4 ring-slate-50 shadow-inner group-hover:scale-105 transition-transform"
+                                                            />
+                                                            <div>
+                                                                <div className="text-slate-900 font-black text-base transition-colors">
+                                                                    {user.displayName || user.email.split('@')[0]}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <span className="text-[10px] font-bold text-slate-400 max-w-[150px] truncate">{user.email}</span>
+                                                                    {user.role === 'super_admin' && <Shield className="w-3 h-3 text-indigo-500" />}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-6">
-                                                    <div className="flex items-center gap-2">
-                                                        {(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer) ? (
-                                                            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
-                                                                <CheckCircle2 className="w-3 h-3" />
-                                                                <span className="text-[10px] font-black uppercase tracking-wider">Setup Complete</span>
+                                                    </td>
+                                                    <td className="px-6 py-6">
+                                                        <div className="flex items-center gap-2">
+                                                            {(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer) ? (
+                                                                <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                                                                    <CheckCircle2 className="w-3 h-3" />
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider">Setup Complete</span>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full border border-amber-100">
+                                                                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider">Awaiting Setup</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-6">
+                                                        {(user.linkedPlayerId || user.playerId) ? (
+                                                            <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-3">
+                                                                <div className="p-1.5 bg-blue-600 text-white rounded-lg">
+                                                                    <UserCheck className="w-3.5 h-3.5" />
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] font-black text-blue-900 uppercase tracking-tighter">Active Player</span>
+                                                                    <span className="text-[10px] font-bold text-blue-600 truncate max-w-[120px]">
+                                                                        {squads.find(s => s.playerIds?.includes((user.linkedPlayerId || user.playerId)!))?.name || 'In Squad'}
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                         ) : (
-                                                            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-full border border-amber-100">
-                                                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-                                                                <span className="text-[10px] font-black uppercase tracking-wider">Awaiting Setup</span>
+                                                            <span className="text-[10px] font-black text-slate-300 uppercase italic">Not in Squad</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-6 text-right">
+                                                        {(user.linkedPlayerId || user.playerId) ? (
+                                                            <button
+                                                                onClick={() => navigate(`/admin/players/${user.linkedPlayerId || user.playerId}/edit`)}
+                                                                className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-all active:scale-95"
+                                                            >
+                                                                Edit Profile
+                                                            </button>
+                                                        ) : pendingRequests.some(r => r.uid === user.uid) ? (
+                                                            <button
+                                                                onClick={() => setActiveTab('requests')}
+                                                                className="px-5 py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 active:scale-95 flex items-center gap-2 ml-auto"
+                                                            >
+                                                                <Clock size={14} />
+                                                                Review Request
+                                                            </button>
+                                                        ) : (
+                                                            <div className="flex items-center justify-end gap-3">
+                                                                <button
+                                                                    onClick={() => handleViewDetails(user)}
+                                                                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-50 transition-all shadow-sm active:scale-95 flex items-center gap-2"
+                                                                >
+                                                                    <Activity size={14} className="text-blue-500" />
+                                                                    Details
+                                                                </button>
+
+                                                                <button
+                                                                    disabled={!(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer)}
+                                                                    onClick={() => {
+                                                                        setSelectedUser(user);
+                                                                        setShowSquadModal(true);
+                                                                    }}
+                                                                    className="px-5 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95 disabled:opacity-30 disabled:shadow-none"
+                                                                >
+                                                                    Invite to Squad
+                                                                </button>
                                                             </div>
                                                         )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-6">
-                                                    {(user.linkedPlayerId || user.playerId) ? (
-                                                        <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-3">
-                                                            <div className="p-1.5 bg-blue-600 text-white rounded-lg">
-                                                                <UserCheck className="w-3.5 h-3.5" />
-                                                            </div>
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[9px] font-black text-blue-900 uppercase tracking-tighter">Active Player</span>
-                                                                <span className="text-[10px] font-bold text-blue-600 truncate max-w-[120px]">
-                                                                    {squads.find(s => s.playerIds?.includes((user.linkedPlayerId || user.playerId)!))?.name || 'In Squad'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-[10px] font-black text-slate-300 uppercase italic">Not in Squad</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-6 text-right">
-                                                    {(user.linkedPlayerId || user.playerId) ? (
-                                                        <button
-                                                            onClick={() => navigate(`/admin/players/${user.linkedPlayerId || user.playerId}/edit`)}
-                                                            className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-slate-200 transition-all active:scale-95"
-                                                        >
-                                                            Edit Profile
-                                                        </button>
-                                                    ) : pendingRequests.some(r => r.uid === user.uid) ? (
-                                                        <button
-                                                            onClick={() => setActiveTab('requests')}
-                                                            className="px-5 py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 active:scale-95 flex items-center gap-2 ml-auto"
-                                                        >
-                                                            <Clock size={14} />
-                                                            Review Request
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            disabled={!(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer)}
-                                                            onClick={() => {
-                                                                setSelectedUser(user);
-                                                                setShowSquadModal(true);
-                                                            }}
-                                                            className="px-5 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95 disabled:opacity-30 disabled:shadow-none"
-                                                        >
-                                                            Invite to Squad
-                                                        </button>
-                                                    )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={4} className="py-32 text-center">
+                                                    <Search className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+                                                    <h3 className="text-slate-900 font-bold text-xl">No users found</h3>
+                                                    <p className="text-slate-400 font-medium">Try adjusting your search filters.</p>
                                                 </td>
                                             </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={4} className="py-32 text-center">
-                                                <Search className="w-16 h-16 text-slate-100 mx-auto mb-4" />
-                                                <h3 className="text-slate-900 font-bold text-xl">No users found</h3>
-                                                <p className="text-slate-400 font-medium">Try adjusting your search filters.</p>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Card View */}
+                            <div className="lg:hidden space-y-4 p-4">
+                                {allUsers.filter(u =>
+                                    (u.displayName || u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                ).length > 0 ? (
+                                    allUsers.filter(u =>
+                                        (u.displayName || u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                    ).map((user) => (
+                                        <div key={user.uid} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm active:scale-[0.98] transition-all">
+                                            <div className="flex items-start gap-4 mb-4">
+                                                <PlayerAvatar
+                                                    photoUrl={user.photoURL || user.playerProfile?.photoUrl}
+                                                    name={user.displayName || user.email}
+                                                    size="lg"
+                                                    className="shadow-md ring-2 ring-slate-50"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{user.displayName || 'No Name'}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">{user.email}</p>
+                                                    <div className="flex items-center gap-2 mt-2">
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${user.role === 'super_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {user.role}
+                                                        </span>
+                                                        {(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer) ? (
+                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">Verified</span>
+                                                        ) : (
+                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Awaiting Setup</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100/50">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Squad Status</span>
+                                                        <span className="text-[10px] font-bold text-slate-700">
+                                                            {(user.linkedPlayerId || user.playerId) ? (
+                                                                squads.find(s => s.playerIds?.includes((user.linkedPlayerId || user.playerId)!))?.name || 'In Squad'
+                                                            ) : 'Not Assigned'}
+                                                        </span>
+                                                    </div>
+                                                    {(user.linkedPlayerId || user.playerId) && (
+                                                        <button
+                                                            onClick={() => navigate(`/admin/players/${user.linkedPlayerId || user.playerId}/edit`)}
+                                                            className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 shadow-sm active:scale-90 transition-all"
+                                                            title="Edit Profile"
+                                                        >
+                                                            <ExternalLink size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleViewDetails(user)}
+                                                        className="flex-1 py-3 bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                    >
+                                                        <Activity size={14} className="text-blue-500" />
+                                                        Activity
+                                                    </button>
+                                                    <button
+                                                        disabled={!(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer)}
+                                                        onClick={() => {
+                                                            setSelectedUser(user);
+                                                            setShowSquadModal(true);
+                                                        }}
+                                                        className="flex-1 py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-30"
+                                                    >
+                                                        Invite
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="py-20 text-center">
+                                        <Search className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No users found</p>
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     ) : (
                         <div className="p-2 sm:p-6">
-                            {/* Requests View Integrated */}
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between mb-4 px-2">
                                     <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Pending Approvals</h2>
@@ -1076,6 +1217,145 @@ export default function AdminUsers() {
                                     {isDeleting ? 'Removing...' : 'Permanently Delete'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* User Details Modal */}
+            {showDetailModal && selectedDetailUser && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[80] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+                        {/* Modal Header */}
+                        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                            <div className="flex items-center gap-5">
+                                <PlayerAvatar
+                                    photoUrl={selectedDetailUser.photoURL || selectedDetailUser.playerProfile?.photoUrl}
+                                    name={selectedDetailUser.displayName || selectedDetailUser.email}
+                                    size="xl"
+                                    className="ring-4 ring-white shadow-xl"
+                                />
+                                <div>
+                                    <h3 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight truncate max-w-[150px] sm:max-w-none">
+                                        {selectedDetailUser.displayName || 'Unnamed User'}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 truncate max-w-[100px] sm:max-w-none">{selectedDetailUser.email}</span>
+                                        <span className={`text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${selectedDetailUser.role === 'super_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {selectedDetailUser.role}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowDetailModal(false)} className="p-2 sm:p-3 hover:bg-slate-200 rounded-full transition-all active:scale-90 shrink-0">
+                                <X size={20} className="sm:w-6 sm:h-6 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-8 sm:space-y-10 custom-scrollbar">
+                            {isLoadingDetails ? (
+                                <div className="py-20 flex flex-col items-center justify-center gap-4">
+                                    <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Activity...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Login History */}
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                                            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl"><Smartphone size={18} className="sm:w-5 sm:h-5" /></div>
+                                            <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Recent Activity</h4>
+                                        </div>
+                                        <div className="space-y-3 sm:space-y-4">
+                                            {loginLogs.length > 0 ? loginLogs.map((log) => (
+                                                <div key={log.id} className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+                                                    <div className="flex items-center gap-3 sm:gap-4">
+                                                        <div className="p-2 sm:p-2.5 bg-white rounded-xl shadow-sm"><Globe size={16} className="text-slate-400 sm:w-[18px] sm:h-[18px]" /></div>
+                                                        <div>
+                                                            <div className="text-xs sm:text-sm font-bold text-slate-800">{log.ip}</div>
+                                                            <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase mt-1">
+                                                                <MapPin size={10} className="text-rose-400" />
+                                                                {log.location}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <div className="text-[10px] sm:text-xs font-black text-slate-900">
+                                                            {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleString(undefined, {
+                                                                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                            }) : 'Recently'}
+                                                        </div>
+                                                        <div className="text-[8px] sm:text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter truncate max-w-[80px] sm:max-w-[150px]">
+                                                            {log.userAgent?.split(')')[1]?.trim() || 'Mobile'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="py-8 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No logs found</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Name Change History */}
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                                            <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl"><History size={18} className="sm:w-5 sm:h-5" /></div>
+                                            <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Name Changes</h4>
+                                        </div>
+                                        <div className="space-y-3 sm:space-y-4">
+                                            {nameChangeLogs.length > 0 ? nameChangeLogs.map((log) => (
+                                                <div key={log.id} className="p-4 sm:p-5 bg-amber-50/30 rounded-2xl border border-amber-100/50 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+                                                        <div className="w-1 h-8 sm:w-1.5 sm:h-10 bg-amber-200 rounded-full shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                                                <span className="text-[10px] sm:text-xs font-bold text-slate-500 line-through truncate max-w-[80px]">{log.oldName}</span>
+                                                                <span className="text-[11px] sm:text-sm font-black text-slate-900 truncate max-w-[100px]">→ {log.newName}</span>
+                                                            </div>
+                                                            <div className="text-[9px] sm:text-[10px] text-amber-600 font-bold uppercase mt-1">
+                                                                {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="hidden sm:block px-3 py-1 bg-white rounded-lg text-[9px] font-black text-slate-400 uppercase border border-amber-100 shadow-sm shrink-0">
+                                                        Logged
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <div className="py-8 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No history</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-5 sm:p-8 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:gap-4">
+                            <button
+                                onClick={() => setShowDetailModal(false)}
+                                className="w-full sm:flex-1 py-3.5 sm:py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-white hover:shadow-xl transition-all"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowDetailModal(false);
+                                    if (selectedDetailUser.linkedPlayerId || selectedDetailUser.playerId) {
+                                        navigate(`/admin/players/${selectedDetailUser.linkedPlayerId || selectedDetailUser.playerId}/edit`);
+                                    } else {
+                                        toast.error("Not linked to player");
+                                    }
+                                }}
+                                className="w-full sm:flex-1 py-3.5 sm:py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <ExternalLink size={14} />
+                                Manage
+                            </button>
                         </div>
                     </div>
                 </div>

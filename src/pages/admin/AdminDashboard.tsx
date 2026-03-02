@@ -200,51 +200,88 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
-          <div className="flex-1 overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-[10px]">
-                <tr>
-                  <th className="px-6 py-4">Match</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                {recentMatches.length === 0 ? (
+          <div className="flex-1">
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-[10px]">
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
-                      No recent matches found. Start one!
-                    </td>
+                    <th className="px-6 py-4">Match</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4 text-right">Action</th>
                   </tr>
-                ) : (
-                  recentMatches.map((match) => (
-                    <tr key={match.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900">
-                          {match.teamAName || match.teamA} <span className="text-slate-400 font-normal px-1">vs</span> {match.teamBName || match.teamB}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-0.5">{match.tournamentName || 'Friendly Match'}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={match.status} />
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        {match.date ? new Date(match.date?.toDate?.() || match.date).toLocaleDateString() : 'TBA'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          to={`/admin/matches/${match.id}`}
-                          className="text-slate-400 hover:text-blue-600 font-medium transition-colors"
-                        >
-                          Manage
-                        </Link>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {recentMatches.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                        No recent matches found. Start one!
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    recentMatches.map((match) => (
+                      <tr key={match.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-slate-900 dark:text-white">
+                            {match.teamAName || match.teamA} <span className="text-slate-400 font-normal px-1 italic text-[10px]">vs</span> {match.teamBName || match.teamB}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">{match.tournamentName || 'Friendly Match'}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <StatusBadge status={match.status} />
+                        </td>
+                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400 font-medium">
+                          {match.date ? new Date(match.date?.toDate?.() || match.date).toLocaleDateString() : 'TBA'}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link
+                            to={`/admin/matches/${match.id}`}
+                            className="text-slate-400 hover:text-blue-600 font-bold transition-colors uppercase text-[10px] tracking-widest"
+                          >
+                            Manage
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden divide-y divide-slate-100 dark:divide-white/5">
+              {recentMatches.length === 0 ? (
+                <div className="px-6 py-12 text-center text-slate-400">No recent activity</div>
+              ) : (
+                recentMatches.map((match) => (
+                  <div key={match.id} className="p-4 active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 truncate">
+                          {match.tournamentName || 'Friendly Match'}
+                        </div>
+                        <div className="font-bold text-slate-900 dark:text-white truncate">
+                          {match.teamAName || match.teamA} <span className="text-slate-300 font-normal mx-1">vs</span> {match.teamBName || match.teamB}
+                        </div>
+                      </div>
+                      <StatusBadge status={match.status} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        {match.date ? new Date(match.date?.toDate?.() || match.date).toLocaleDateString() : 'TBA'}
+                      </div>
+                      <Link
+                        to={`/admin/matches/${match.id}`}
+                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg text-[10px] font-black uppercase tracking-wider border border-slate-200 dark:border-white/10 active:scale-95 transition-all shadow-sm"
+                      >
+                        Manage
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 

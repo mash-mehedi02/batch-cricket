@@ -2507,97 +2507,163 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 w-[40%]">Tournament Name</th>
-                <th className="px-6 py-4">Season</th>
-                <th className="px-6 py-4">Format</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-center">Teams</th>
-                {user?.role === 'super_admin' && <th className="px-6 py-4">Creator</th>}
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredTournaments.length === 0 ? (
+        {/* Table/Cards */}
+        <>
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center text-slate-400">
-                      <Trophy size={48} strokeWidth={1} className="mb-4 text-slate-200" />
-                      <p className="text-lg font-medium text-slate-900">No tournaments found</p>
-                      <p className="text-sm">Try adjusting your search or create a new one.</p>
-                    </div>
-                  </td>
+                  <th className="px-6 py-4 w-[40%]">Tournament Name</th>
+                  <th className="px-6 py-4">Season</th>
+                  <th className="px-6 py-4">Format</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-center">Teams</th>
+                  {user?.role === 'super_admin' && <th className="px-6 py-4">Creator</th>}
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
-              ) : (
-                filteredTournaments.map((tournament) => (
-                  <tr key={tournament.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-xs shrink-0 overflow-hidden">
-                          {tournament.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-cover" /> : <Trophy size={18} />}
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900 leading-tight">{tournament.name}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">{tournament.school || 'Official Tournament'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 font-medium">
-                      {tournament.year}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                        {tournament.format}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <StatusBadge status={tournament.status} />
-                    </td>
-                    <td className="px-6 py-4 text-center text-slate-600 font-medium">
-                      {(tournament as any).participantSquadIds?.length || 0}
-                    </td>
-                    {user?.role === 'super_admin' && (
-                      <td className="px-6 py-4 text-slate-500 text-xs">
-                        <span className="truncate block max-w-[100px]" title={(tournament as any).adminId || (tournament as any).createdBy || 'System'}>
-                          {((tournament as any).adminEmail || (tournament as any).createdBy || 'System').split('@')[0]}
-                        </span>
-                      </td>
-                    )}
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                        <Link
-                          to={`/admin/tournaments/${tournament.id}/dashboard`}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Manage"
-                        >
-                          <Settings size={18} />
-                        </Link>
-                        <Link
-                          to={`/admin/tournaments/${tournament.id}/edit`}
-                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 size={18} />
-                        </Link>
-                        <button
-                          onClick={() => handleDeleteClick(tournament)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredTournaments.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <Trophy size={48} strokeWidth={1} className="mb-4 text-slate-200" />
+                        <p className="text-lg font-medium text-slate-900">No tournaments found</p>
+                        <p className="text-sm">Try adjusting your search or create a new one.</p>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredTournaments.map((tournament) => (
+                    <tr key={tournament.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-xs shrink-0 overflow-hidden">
+                            {tournament.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-cover" /> : <Trophy size={18} />}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 leading-tight">{tournament.name}</div>
+                            <div className="text-xs text-slate-500 mt-0.5">{tournament.school || 'Official Tournament'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 font-medium">
+                        {tournament.year}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          {tournament.format}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={tournament.status} />
+                      </td>
+                      <td className="px-6 py-4 text-center text-slate-600 font-medium">
+                        {(tournament as any).participantSquadIds?.length || 0}
+                      </td>
+                      {user?.role === 'super_admin' && (
+                        <td className="px-6 py-4 text-slate-500 text-xs">
+                          <span className="truncate block max-w-[100px]" title={(tournament as any).adminId || (tournament as any).createdBy || 'System'}>
+                            {((tournament as any).adminEmail || (tournament as any).createdBy || 'System').split('@')[0]}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <Link
+                            to={`/admin/tournaments/${tournament.id}/dashboard`}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Manage"
+                          >
+                            <Settings size={18} />
+                          </Link>
+                          <Link
+                            to={`/admin/tournaments/${tournament.id}/edit`}
+                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={18} />
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteClick(tournament)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="lg:hidden divide-y divide-slate-100">
+            {filteredTournaments.length === 0 ? (
+              <div className="py-20 text-center">
+                <Trophy size={48} strokeWidth={1} className="mb-4 text-slate-200 mx-auto" />
+                <p className="text-lg font-medium text-slate-900">No tournaments</p>
+              </div>
+            ) : (
+              filteredTournaments.map((tournament) => (
+                <div key={tournament.id} className="p-4 active:bg-slate-50 transition-colors">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 overflow-hidden shadow-sm">
+                      {tournament.logoUrl ? <img src={tournament.logoUrl} className="w-full h-full object-cover" /> : <Trophy size={20} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-slate-900 truncate uppercase tracking-tight">{tournament.name}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <StatusBadge status={tournament.status} />
+                        <span className="text-[10px] font-bold text-slate-400">{tournament.year} • {tournament.format}</span>
+                      </div>
+                    </div>
+                    <Link
+                      to={`/admin/tournaments/${tournament.id}/dashboard`}
+                      className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 active:scale-95 transition-all shadow-sm"
+                    >
+                      <LayoutDashboard size={18} />
+                    </Link>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-slate-50/50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-4">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Teams</span>
+                        <span className="text-sm font-bold text-slate-700">{(tournament as any).participantSquadIds?.length || 0}</span>
+                      </div>
+                      {user?.role === 'super_admin' && (
+                        <div className="flex flex-col border-l border-slate-200 pl-4">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Creator</span>
+                          <span className="text-[10px] font-bold text-slate-600 truncate max-w-[80px]">
+                            {((tournament as any).adminEmail || (tournament as any).createdBy || 'System').split('@')[0]}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/admin/tournaments/${tournament.id}/edit`}
+                        className="p-2 text-slate-400 hover:text-slate-600 active:bg-slate-200 rounded-lg"
+                      >
+                        <Edit2 size={18} />
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteClick(tournament)}
+                        className="p-2 text-slate-400 hover:text-red-600 active:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
       </div>
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}

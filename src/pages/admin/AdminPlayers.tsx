@@ -902,89 +902,153 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-white/5">
-              <tr>
-                <th className="px-6 py-4 w-[30%]">Player Name</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4">Squad</th>
-                <th className="px-6 py-4 hidden md:table-cell">Batting</th>
-                <th className="px-6 py-4 hidden md:table-cell">Bowling</th>
-                {user?.role === 'super_admin' && <th className="px-6 py-4">Admin</th>}
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-              {filteredPlayers.length === 0 ? (
+        {/* Table/Cards */}
+        <>
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-white/5">
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center text-slate-400">
-                      <User size={48} strokeWidth={1} className="mb-4 text-slate-200" />
-                      <p className="text-lg font-medium text-slate-900">No players found</p>
-                      <p className="text-sm">Try adjusting filters or add a new player.</p>
-                    </div>
-                  </td>
+                  <th className="px-6 py-4 w-[30%]">Player Name</th>
+                  <th className="px-6 py-4">Role</th>
+                  <th className="px-6 py-4">Squad</th>
+                  <th className="px-6 py-4 hidden md:table-cell">Batting</th>
+                  <th className="px-6 py-4 hidden md:table-cell">Bowling</th>
+                  {user?.role === 'super_admin' && <th className="px-6 py-4">Admin</th>}
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
-              ) : (
-                filteredPlayers.map((player) => (
-                  <tr key={player.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <PlayerAvatar photoUrl={player.photoUrl} name={player.name} size="md" className="ring-1 ring-slate-200" />
-                        <div>
-                          <div className="font-bold text-slate-900">{player.name}</div>
-                          <div className="text-xs text-slate-500">{player.school || 'BatchCrick High'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <RoleBadge role={player.role} />
-                    </td>
-                    <td className="px-6 py-4">
-                      {player.squadId ? (
-                        <span className="font-medium text-slate-700">{squads.find(s => s.id === player.squadId)?.name || 'Unknown Squad'}</span>
-                      ) : (
-                        <span className="text-slate-400 italic">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell text-slate-600 capitalize">
-                      {player.battingStyle || '-'}
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell text-slate-600 capitalize">
-                      {player.bowlingStyle ? player.bowlingStyle.replace(/-/g, ' ') : '-'}
-                    </td>
-                    {user?.role === 'super_admin' && (
-                      <td className="px-6 py-4 text-slate-500 text-xs">
-                        <span className="truncate block max-w-[80px]" title={(player as any).adminId || (player as any).createdBy || 'System'}>
-                          {((player as any).adminEmail || (player as any).createdBy || 'System').split('@')[0]}
-                        </span>
-                      </td>
-                    )}
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                        <Link
-                          to={`/admin/players/${player.id}/edit`}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 size={18} />
-                        </Link>
-                        <button
-                          onClick={() => handleDeleteClick(player)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {filteredPlayers.length === 0 ? (
+                  <tr>
+                    <td colSpan={user?.role === 'super_admin' ? 7 : 6} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <User size={48} strokeWidth={1} className="mb-4 text-slate-200" />
+                        <p className="text-lg font-medium text-slate-900 dark:text-white">No players found</p>
+                        <p className="text-sm">Try adjusting filters or add a new player.</p>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredPlayers.map((player) => (
+                    <tr key={player.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <PlayerAvatar photoUrl={player.photoUrl} name={player.name} size="md" className="ring-1 ring-slate-200" />
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white">{player.name}</div>
+                            <div className="text-xs text-slate-500">{player.school || 'BatchCrick High'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <RoleBadge role={player.role} />
+                      </td>
+                      <td className="px-6 py-4">
+                        {player.squadId ? (
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{squads.find(s => s.id === player.squadId)?.name || 'Unknown Squad'}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 hidden md:table-cell text-slate-600 dark:text-slate-400 capitalize">
+                        {player.battingStyle || '-'}
+                      </td>
+                      <td className="px-6 py-4 hidden md:table-cell text-slate-600 dark:text-slate-400 capitalize">
+                        {player.bowlingStyle ? player.bowlingStyle.replace(/-/g, ' ') : '-'}
+                      </td>
+                      {user?.role === 'super_admin' && (
+                        <td className="px-6 py-4 text-slate-500 text-xs">
+                          <span className="truncate block max-w-[80px]" title={(player as any).adminId || (player as any).createdBy || 'System'}>
+                            {((player as any).adminEmail || (player as any).createdBy || 'System').split('@')[0]}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <Link
+                            to={`/admin/players/${player.id}/edit`}
+                            className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 size={18} />
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteClick(player)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="lg:hidden divide-y divide-slate-100 dark:divide-white/5 bg-slate-50 dark:bg-slate-900/50">
+            {filteredPlayers.length === 0 ? (
+              <div className="py-16 text-center">
+                <User size={48} strokeWidth={1} className="mb-4 text-slate-200 mx-auto" />
+                <p className="text-lg font-medium text-slate-900 dark:text-white">No players found</p>
+              </div>
+            ) : (
+              filteredPlayers.map((player) => (
+                <div key={player.id} className="p-4 bg-white dark:bg-slate-900 active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <PlayerAvatar photoUrl={player.photoUrl} name={player.name} size="md" className="ring-1 ring-slate-200" />
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white">{player.name}</div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-widest">{player.school || 'BatchCrick High'}</div>
+                      </div>
+                    </div>
+                    <RoleBadge role={player.role} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-white/5">
+                      <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Squad</div>
+                      <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {player.squadId ? (squads.find(s => s.id === player.squadId)?.name || 'Unknown Squad') : 'Unassigned'}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-white/5">
+                      <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Style</div>
+                      <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {player.battingStyle && player.bowlingStyle ? `${player.battingStyle[0].toUpperCase()}B / ${player.bowlingStyle.split('-')[0].toUpperCase()[0]}B` : player.battingStyle || '-'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    {user?.role === 'super_admin' && (
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        Admin: {((player as any).adminEmail || (player as any).createdBy || 'System').split('@')[0]}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 ml-auto">
+                      <Link
+                        to={`/admin/players/${player.id}/edit`}
+                        className="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded-lg active:scale-95 transition-all"
+                      >
+                        <Edit2 size={18} />
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteClick(player)}
+                        className="p-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg active:scale-95 transition-all"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
       </div>
 
       <DeleteConfirmationModal

@@ -12,6 +12,8 @@ export const COLLECTIONS = {
   ADMINS: 'admins',
   NOTIFICATIONS: 'notifications',
   SETTINGS: 'settings',
+  LOGIN_LOGS: 'login_logs',
+  NAME_CHANGES: 'name_changes',
 } as const
 
 export const SUBCOLLECTIONS = {

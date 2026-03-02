@@ -246,6 +246,14 @@ export const squadService = {
       updatedAt: Timestamp.now(),
     })
     console.log('[squadService] Firestore update successful')
+
+    // Cascading: Propagate name change if name updated
+    if (data.name) {
+      const { propagateSquadRename } = await import('./cascadingUpdates')
+      await propagateSquadRename(id, data.name).catch(err =>
+        console.error('[squadService] Failed to propagate name change:', err)
+      )
+    }
   },
 
   /**

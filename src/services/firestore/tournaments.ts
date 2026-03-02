@@ -108,8 +108,20 @@ export const tournamentService = {
 
   /**
    * Delete tournament
+   * Cascading: Deletes all matches in the tournament (which in turn clears player stats)
    */
   async delete(id: string): Promise<void> {
+    const { matchService } = await import('./matches')
+
+    // 1. Fetch all matches for this tournament
+    const matches = await matchService.getByTournament(id)
+    console.log(`[TournamentService] Deleting tournament ${id} and its ${matches.length} matches.`)
+
+    // 2. Delete each match (this handles player stats cleanup internally)
+    const matchDeletePromises = matches.map(m => matchService.delete(m.id))
+    await Promise.all(matchDeletePromises)
+
+    // 3. Delete the tournament document
     const docRef = doc(db, COLLECTIONS.TOURNAMENTS, id)
     await deleteDoc(docRef)
   },

@@ -172,6 +172,14 @@ export const playerService = {
       ...data,
       updatedAt: Timestamp.now(),
     })
+
+    // Cascading: Propagate name change if name updated
+    if (data.name) {
+      const { propagatePlayerRename } = await import('./cascadingUpdates')
+      await propagatePlayerRename(id, data.name).catch(err =>
+        console.error('[playerService] Failed to propagate name change:', err)
+      )
+    }
   },
 
   /**

@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Calendar, Clock, Trophy, MoreVertical, Share2, Filter, Users, AlertTriangle, Save, Mic, Lock, Check, X, Calendar as CalendarIcon, MapPin, ExternalLink, Trash2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Search, Calendar, Clock, Trophy, Filter, X, MapPin, ExternalLink, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { matchService } from '@/services/firestore/matches';
-import { squadService } from '@/services/firestore/squads';
-import { Tournament, Squad, Match, MatchStatus } from '@/types';
+import { Tournament, Squad, Match } from '@/types';
 import { useAuthStore } from '@/store/authStore';
 import { Timestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -235,9 +234,9 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                 </div>
             </div>
 
-            {/* Match List */}
             <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full">
                         <thead>
                             <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50">
@@ -326,10 +325,6 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                                         try {
                                                             await matchService.delete(match.id);
                                                             toast.success('Match deleted successfully');
-                                                            // Usually we should trigger a reload or update parent state
-                                                            // Since this is a component, let's hope the parent is listening to matches changes
-                                                            // If not, we might need a callback.
-                                                            // Given the current structure, a full reload might be needed if they don't have real-time sync.
                                                         } catch (err) {
                                                             console.error(err);
                                                             toast.error('Failed to delete match');
@@ -345,16 +340,100 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
                                     </td>
                                 </tr>
                             ))}
-                            {filteredMatches.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="py-20 text-center text-slate-400 font-medium italic">
-                                        No matches found matching your filters.
-                                    </td>
-                                </tr>
-                            )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-50">
+                    {filteredMatches.map((match) => (
+                        <div key={match.id} className="p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    {(match as any).matchNo && (
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-white text-[10px] font-bold">
+                                            {(match as any).matchNo}
+                                        </span>
+                                    )}
+                                    <span className="text-xs font-black text-indigo-600">#{match.id.substring(0, 6).toUpperCase()}</span>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${match.status === 'live' ? 'bg-rose-50 text-rose-600 animate-pulse' :
+                                    match.status === 'finished' ? 'bg-emerald-50 text-emerald-600' :
+                                        'bg-slate-50 text-slate-400'
+                                    }`}>
+                                    {match.status}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 py-2">
+                                <div className="flex-1 text-center">
+                                    <div className="text-sm font-black text-slate-900 line-clamp-1">{match.teamAName}</div>
+                                </div>
+                                <div className="text-[10px] font-black text-slate-300 uppercase">VS</div>
+                                <div className="flex-1 text-center">
+                                    <div className="text-sm font-black text-slate-900 line-clamp-1">{match.teamBName}</div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <CalendarIcon size={14} className="text-slate-300" />
+                                    {formatMatchDate(match.date)}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider justify-end">
+                                    <MapPin size={14} className="text-slate-300" />
+                                    <span className="truncate">{match.venue || 'No Venue'}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 pt-2">
+                                <button
+                                    onClick={() => {
+                                        setSetupMatch(match);
+                                        setIsSetupModalOpen(true);
+                                    }}
+                                    className="flex-1 py-3 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-xl font-bold"
+                                >
+                                    Setup
+                                </button>
+                                <button
+                                    onClick={() => navigate(`/admin/live/${match.id}`)}
+                                    className={`p-3 rounded-xl shadow-sm ${match.status === 'live' || match.status === 'finished'
+                                        ? 'bg-slate-900 text-white'
+                                        : 'bg-white border border-slate-100 text-slate-400'
+                                        }`}
+                                >
+                                    <ExternalLink size={16} />
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
+                                            toast.error('Permission denied');
+                                            return;
+                                        }
+                                        if (window.confirm('Are you sure?')) {
+                                            try {
+                                                await matchService.delete(match.id);
+                                                toast.success('Deleted');
+                                            } catch (err) {
+                                                toast.error('Failed');
+                                            }
+                                        }
+                                    }}
+                                    className="p-3 bg-white border border-slate-100 text-slate-400 rounded-xl"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {filteredMatches.length === 0 && (
+                    <div className="py-20 text-center text-slate-400 font-medium italic">
+                        No matches found matching your filters.
+                    </div>
+                )}
             </div>
 
             {/* Create Match Modal */}

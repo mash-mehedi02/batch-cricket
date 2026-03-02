@@ -2110,53 +2110,179 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-xs tracking-wider">
-              <tr>
-                <th className="px-6 py-4">Match Info</th>
-                <th className="px-6 py-4">Teams</th>
-                <th className="px-6 py-4">Schedule</th>
-                <th className="px-6 py-4">Status</th>
-                {user?.role === 'super_admin' && <th className="px-6 py-4">Creator</th>}
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredMatches.length === 0 ? (
+        {/* Table/Cards */}
+        <>
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-xs tracking-wider">
                 <tr>
-                  <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center justify-center text-slate-400">
-                      <Calendar className="mb-4 text-slate-200" size={48} strokeWidth={1} />
-                      <p className="text-lg font-medium text-slate-900">No matches found</p>
-                      <p className="text-sm">Create a new match to get started.</p>
-                    </div>
-                  </td>
+                  <th className="px-6 py-4">Match Info</th>
+                  <th className="px-6 py-4">Teams</th>
+                  <th className="px-6 py-4">Schedule</th>
+                  <th className="px-6 py-4">Status</th>
+                  {user?.role === 'super_admin' && <th className="px-6 py-4">Creator</th>}
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
-              ) : (
-                groupedByStatusAndTournament.map(section => (
-                  <Fragment key={`status-group-${section.statusKey}`}>
-                    {/* Status Section Header */}
-                    <tr key={`status-${section.statusKey}`}>
-                      <td colSpan={user?.role === 'super_admin' ? 6 : 5} className={`px-6 py-3 border-l-4 ${section.statusColor} font-bold text-sm tracking-wide`}>
-                        {section.statusLabel}
-                        <span className="ml-2 text-xs font-normal opacity-70">
-                          ({section.tournamentGroups.reduce((sum, g) => sum + g.matches.length, 0)} matches)
-                        </span>
-                      </td>
-                    </tr>
-                    {section.tournamentGroups.map(tGroup => (
-                      <Fragment key={`${section.statusKey}-tourney-${tGroup.tournamentId}`}>
-                        {/* Tournament Sub-header */}
-                        <tr key={`${section.statusKey}-t-${tGroup.tournamentId}`}>
-                          <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-2 bg-slate-50/80">
-                            <div className="flex items-center gap-2">
-                              <Trophy size={14} className="text-amber-500" />
-                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{tGroup.tournamentName}</span>
-                              <span className="text-[10px] text-slate-400 font-medium ml-1">({tGroup.matches.length})</span>
-                            </div>
-                          </td>
-                        </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredMatches.length === 0 ? (
+                  <tr>
+                    <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-20 text-center">
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <Calendar className="mb-4 text-slate-200" size={48} strokeWidth={1} />
+                        <p className="text-lg font-medium text-slate-900">No matches found</p>
+                        <p className="text-sm">Create a new match to get started.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  groupedByStatusAndTournament.map(section => (
+                    <Fragment key={`status-group-${section.statusKey}`}>
+                      {/* Status Section Header */}
+                      <tr key={`status-${section.statusKey}`}>
+                        <td colSpan={user?.role === 'super_admin' ? 6 : 5} className={`px-6 py-3 border-l-4 ${section.statusColor} font-bold text-sm tracking-wide`}>
+                          {section.statusLabel}
+                          <span className="ml-2 text-xs font-normal opacity-70">
+                            ({section.tournamentGroups.reduce((sum, g) => sum + g.matches.length, 0)} matches)
+                          </span>
+                        </td>
+                      </tr>
+                      {section.tournamentGroups.map(tGroup => (
+                        <Fragment key={`${section.statusKey}-tourney-${tGroup.tournamentId}`}>
+                          {/* Tournament Sub-header */}
+                          <tr key={`${section.statusKey}-t-${tGroup.tournamentId}`}>
+                            <td colSpan={user?.role === 'super_admin' ? 6 : 5} className="px-6 py-2 bg-slate-50/80">
+                              <div className="flex items-center gap-2">
+                                <Trophy size={14} className="text-amber-500" />
+                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{tGroup.tournamentName}</span>
+                                <span className="text-[10px] text-slate-400 font-medium ml-1">({tGroup.matches.length})</span>
+                              </div>
+                            </td>
+                          </tr>
+                          {tGroup.matches.map(match => {
+                            const matchDate = coerceToDate((match as any).date) || new Date();
+                            const statusRaw = String((match as any).status || '').toLowerCase();
+                            const isLive = statusRaw === 'live';
+                            const isUpcoming = statusRaw === 'upcoming';
+                            const tourneyName = tournaments.find(t => t.id === match.tournamentId)?.name || 'Friendly Match';
+
+                            return (
+                              <tr key={match.id} className="hover:bg-slate-50/50 transition-colors group">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded font-mono text-xs font-bold ${(match as any).matchNo ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
+                                      {(match as any).matchNo ? (match as any).matchNo : `#${match.id.slice(0, 6).toUpperCase()}`}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold text-blue-600 uppercase tracking-tight">{tourneyName}</div>
+                                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                        {(match as any).stage === 'knockout'
+                                          ? `Knockout (${String((match as any).round || '').replace('_', ' ')})`
+                                          : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="font-bold text-slate-900 text-sm">
+                                    <div className="mb-1">{match.teamAName || 'Team A'}</div>
+                                    <div className="text-slate-400 text-xs font-normal mb-1">vs</div>
+                                    <div>{match.teamBName || 'Team B'}</div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col text-slate-600">
+                                    <span className="flex items-center gap-1.5 font-medium text-slate-900">
+                                      <Calendar size={14} className="text-slate-400" />
+                                      {formatDateLabel(matchDate)}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+                                      <Clock size={14} className="text-slate-400" />
+                                      {(match as any).time || matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <StatusBadge status={statusRaw} />
+                                </td>
+                                {user?.role === 'super_admin' && (
+                                  <td className="px-6 py-4">
+                                    <span className="text-xs text-slate-500 truncate block max-w-[80px]" title={(match as any).adminId || (match as any).createdBy || 'System'}>
+                                      {((match as any).adminEmail || (match as any).createdBy || 'System').split('@')[0]}
+                                    </span>
+                                  </td>
+                                )}
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {isUpcoming && (
+                                      <button
+                                        onClick={() => handleStartMatch(match.id)}
+                                        className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-bold hover:bg-emerald-700 transition"
+                                      >
+                                        Start
+                                      </button>
+                                    )}
+                                    {isLive && (
+                                      <Link
+                                        to={`/admin/live/${match.id}/scoring`}
+                                        className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 transition"
+                                      >
+                                        Score
+                                      </Link>
+                                    )}
+
+                                    <div className="flex items-center bg-slate-100 rounded-lg p-1">
+                                      {isUpcoming && (
+                                        <button onClick={() => handleOpenReschedule(match)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition" title="Reschedule">
+                                          <CalendarClock size={16} />
+                                        </button>
+                                      )}
+                                      <Link to={`/admin/matches/${match.id}/edit`} className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-white rounded-md transition" title="Edit">
+                                        <Edit2 size={16} />
+                                      </Link>
+                                      <Link to={`/admin/matches/${match.id}`} className="p-1.5 text-slate-900 bg-white shadow-sm rounded-md transition" title="View Full Control">
+                                        <Eye size={16} />
+                                      </Link>
+                                      <button onClick={() => handleDeleteClick(match)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md transition" title="Delete">
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </Fragment>
+                      ))}
+                    </Fragment>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="lg:hidden divide-y divide-slate-100 bg-slate-50">
+            {filteredMatches.length === 0 ? (
+              <div className="py-20 text-center">
+                <Calendar size={48} strokeWidth={1} className="mb-4 text-slate-200 mx-auto" />
+                <p className="text-lg font-medium text-slate-900">No matches found</p>
+              </div>
+            ) : (
+              groupedByStatusAndTournament.map(section => (
+                <div key={`mob-status-${section.statusKey}`} className="flex flex-col">
+                  <div className={`px-4 py-2 bg-white border-l-4 ${section.statusColor} font-bold text-xs sticky top-0 z-10 shadow-sm flex items-center justify-between`}>
+                    <span className="uppercase tracking-wider">{section.statusLabel}</span>
+                    <span className="text-[10px] text-slate-400">{section.tournamentGroups.reduce((sum, g) => sum + g.matches.length, 0)} Matches</span>
+                  </div>
+
+                  {section.tournamentGroups.map(tGroup => (
+                    <div key={`mob-t-${tGroup.tournamentId}`} className="mb-2">
+                      <div className="px-4 py-2 bg-slate-100/50 flex items-center gap-2 border-y border-slate-200/50">
+                        <Trophy size={12} className="text-amber-500" />
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest truncate">{tGroup.tournamentName}</span>
+                      </div>
+
+                      <div className="divide-y divide-slate-200/50">
                         {tGroup.matches.map(match => {
                           const matchDate = coerceToDate((match as any).date) || new Date();
                           const statusRaw = String((match as any).status || '').toLowerCase();
@@ -2165,57 +2291,43 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                           const tourneyName = tournaments.find(t => t.id === match.tournamentId)?.name || 'Friendly Match';
 
                           return (
-                            <tr key={match.id} className="hover:bg-slate-50/50 transition-colors group">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className={`p-2 rounded font-mono text-xs font-bold ${(match as any).matchNo ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
-                                    {(match as any).matchNo ? (match as any).matchNo : `#${match.id.slice(0, 6).toUpperCase()}`}
-                                  </div>
-                                  <div>
-                                    <div className="text-xs font-bold text-blue-600 uppercase tracking-tight">{tourneyName}</div>
-                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
-                                      {(match as any).stage === 'knockout'
-                                        ? `Knockout (${String((match as any).round || '').replace('_', ' ')})`
-                                        : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
+                            <div key={match.id} className="p-4 bg-white active:bg-slate-50 transition-colors">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <div className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-black ${(match as any).matchNo ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
+                                      {(match as any).matchNo ? (match as any).matchNo : `#${match.id.slice(0, 6).toUpperCase()}`}
                                     </div>
+                                    <StatusBadge status={statusRaw} />
+                                  </div>
+                                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    {(match as any).stage === 'knockout'
+                                      ? `Knockout (${String((match as any).round || '').replace('_', ' ')})`
+                                      : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
                                   </div>
                                 </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="font-bold text-slate-900 text-sm">
-                                  <div className="mb-1">{match.teamAName || 'Team A'}</div>
-                                  <div className="text-slate-400 text-xs font-normal mb-1">vs</div>
-                                  <div>{match.teamBName || 'Team B'}</div>
+                                <div className="text-right">
+                                  <div className="text-[10px] font-bold text-slate-900">{formatDateLabel(matchDate)}</div>
+                                  <div className="text-[10px] text-slate-500">{(match as any).time || matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                 </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col text-slate-600">
-                                  <span className="flex items-center gap-1.5 font-medium text-slate-900">
-                                    <Calendar size={14} className="text-slate-400" />
-                                    {formatDateLabel(matchDate)}
-                                  </span>
-                                  <span className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
-                                    <Clock size={14} className="text-slate-400" />
-                                    {(match as any).time || matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
+                              </div>
+
+                              <div className="flex items-center justify-between mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div className="flex-1 text-center truncate px-2">
+                                  <div className="text-sm font-black text-slate-800 uppercase tracking-tight">{match.teamAName || 'Team A'}</div>
                                 </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <StatusBadge status={statusRaw} />
-                              </td>
-                              {user?.role === 'super_admin' && (
-                                <td className="px-6 py-4">
-                                  <span className="text-xs text-slate-500 truncate block max-w-[80px]" title={(match as any).adminId || (match as any).createdBy || 'System'}>
-                                    {((match as any).adminEmail || (match as any).createdBy || 'System').split('@')[0]}
-                                  </span>
-                                </td>
-                              )}
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
+                                <div className="px-3 text-[10px] font-black text-slate-300 italic">VS</div>
+                                <div className="flex-1 text-center truncate px-2">
+                                  <div className="text-sm font-black text-slate-800 uppercase tracking-tight">{match.teamBName || 'Team B'}</div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
                                   {isUpcoming && (
                                     <button
                                       onClick={() => handleStartMatch(match.id)}
-                                      className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-bold hover:bg-emerald-700 transition"
+                                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold active:scale-95 transition"
                                     >
                                       Start
                                     </button>
@@ -2223,41 +2335,41 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                                   {isLive && (
                                     <Link
                                       to={`/admin/live/${match.id}/scoring`}
-                                      className="hidden group-hover:flex items-center gap-1 px-2 py-1 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 transition"
+                                      className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold active:scale-95 transition shadow-sm shadow-rose-100"
                                     >
                                       Score
                                     </Link>
                                   )}
-
-                                  <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                                    {isUpcoming && (
-                                      <button onClick={() => handleOpenReschedule(match)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition" title="Reschedule">
-                                        <CalendarClock size={16} />
-                                      </button>
-                                    )}
-                                    <Link to={`/admin/matches/${match.id}/edit`} className="p-1.5 text-slate-500 hover:text-teal-600 hover:bg-white rounded-md transition" title="Edit">
-                                      <Edit2 size={16} />
-                                    </Link>
-                                    <Link to={`/admin/matches/${match.id}`} className="p-1.5 text-slate-900 bg-white shadow-sm rounded-md transition" title="View Full Control">
-                                      <Eye size={16} />
-                                    </Link>
-                                    <button onClick={() => handleDeleteClick(match)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md transition" title="Delete">
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </div>
+                                  <Link to={`/admin/matches/${match.id}`} className="p-2 text-slate-900 bg-slate-100 rounded-lg border border-slate-200 active:scale-95 transition">
+                                    <Eye size={16} />
+                                  </Link>
                                 </div>
-                              </td>
-                            </tr>
-                          )
+
+                                <div className="flex items-center gap-1">
+                                  {isUpcoming && (
+                                    <button onClick={() => handleOpenReschedule(match)} className="p-2 text-slate-500 active:bg-slate-100 rounded-lg transition">
+                                      <CalendarClock size={16} />
+                                    </button>
+                                  )}
+                                  <Link to={`/admin/matches/${match.id}/edit`} className="p-2 text-slate-500 active:bg-slate-100 rounded-lg transition">
+                                    <Edit2 size={16} />
+                                  </Link>
+                                  <button onClick={() => handleDeleteClick(match)} className="p-2 text-slate-400 active:bg-red-50 active:text-red-600 rounded-lg transition">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
                         })}
-                      </Fragment>
-                    ))}
-                  </Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </>
       </div>
 
       {/* Reschedule Modal */}
