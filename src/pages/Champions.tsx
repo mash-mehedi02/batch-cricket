@@ -7,6 +7,9 @@ import { Trophy, Medal, Crown, Target, Zap, ChevronRight, Calendar } from 'lucid
 export default function Champions() {
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'schools' | 'seasons' | 'champion'>('schools')
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null)
+  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null)
 
   useEffect(() => {
     const loadTournaments = async () => {
@@ -28,6 +31,29 @@ export default function Champions() {
     loadTournaments()
   }, [])
 
+  // Group tournaments by school
+  const schoolGroups = tournaments.reduce((acc, t) => {
+    const schoolName = (t.school || 'Independent').trim()
+    if (!acc[schoolName]) {
+      acc[schoolName] = []
+    }
+    acc[schoolName].push(t)
+    return acc
+  }, {} as Record<string, Tournament[]>)
+
+  // Sort schools alphabetically
+  const sortedSchools = Object.keys(schoolGroups).sort((a, b) => a.localeCompare(b))
+
+  const handleBack = () => {
+    if (view === 'champion') {
+      setView('seasons')
+      setSelectedTournament(null)
+    } else if (view === 'seasons') {
+      setView('schools')
+      setSelectedSchool(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-[#05060f] pb-24">
@@ -44,23 +70,23 @@ export default function Champions() {
         <div className="max-w-5xl mx-auto px-6 -mt-10 relative z-20 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {[1, 2].map(i => (
-              <div key={i} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-white/5 shadow-lg overflow-hidden h-[500px] animate-pulse">
-                <div className="p-8 space-y-10">
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden h-[480px] animate-pulse">
+                <div className="p-7 space-y-8">
                   <div className="flex justify-between items-start">
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <div className="flex gap-2">
-                        <div className="w-16 h-6 rounded-full bg-slate-200 dark:bg-slate-800" />
-                        <div className="w-20 h-6 rounded-full bg-slate-200 dark:bg-slate-800" />
+                        <div className="w-12 h-5 rounded-md bg-slate-200 dark:bg-slate-800" />
+                        <div className="w-16 h-5 rounded-md bg-slate-200 dark:bg-slate-800" />
                       </div>
-                      <div className="w-48 h-8 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                      <div className="w-40 h-7 rounded-lg bg-slate-200 dark:bg-slate-800" />
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+                    <div className="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-800" />
                   </div>
-                  <div className="h-28 rounded-3xl bg-amber-500/10" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 h-16 rounded-2xl bg-slate-50 dark:bg-white/5" />
-                    <div className="h-16 rounded-2xl bg-slate-50 dark:bg-white/5" />
-                    <div className="h-16 rounded-2xl bg-slate-50 dark:bg-white/5" />
+                  <div className="h-24 rounded-2xl bg-slate-200/50 dark:bg-white/5" />
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map(j => (
+                      <div key={j} className="h-24 rounded-2xl bg-slate-100 dark:bg-white/5" />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -82,12 +108,25 @@ export default function Champions() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-500/10 rounded-3xl border border-amber-500/20 mb-8 backdrop-blur-sm shadow-2xl">
             <Trophy size={40} className="text-amber-500" strokeWidth={2.5} />
           </div>
-          <h1 className="text-4xl md:text-6xl font-black mb-4 tracking-tight">
-            CHAMPIONS <span className="text-amber-500 uppercase">ARCHIVE</span>
+          <h1 className="text-4xl md:text-6xl font-black mb-4 tracking-tight uppercase">
+            {view === 'schools' ? 'CHAMPIONS ARCHIVE' : view === 'seasons' ? selectedSchool : selectedTournament?.name}
           </h1>
           <p className="text-slate-400 font-medium max-w-xl mx-auto uppercase tracking-[0.2em] text-[10px] md:text-sm">
-            Honoring the legends and elite squads of BatchCrick platform
+            {view === 'schools'
+              ? 'Honoring the legends and elite squads of BatchCrick platform'
+              : view === 'seasons'
+                ? `Select a season to view Champions of ${selectedSchool}`
+                : `${selectedTournament?.year} Champion Details`}
           </p>
+
+          {view !== 'schools' && (
+            <button
+              onClick={handleBack}
+              className="mt-8 px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+            >
+              ← Back {view === 'champion' ? 'to Seasons' : 'to Schools'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -98,105 +137,164 @@ export default function Champions() {
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">The quest continues...</h3>
             <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto text-sm">Winners will be immortalized here once tournaments reach their finale.</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {tournaments.map((tournament) => (
-              <Link
-                to={`/tournaments/${tournament.id}`}
-                key={tournament.id}
-                className="group block bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-white/5 shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden relative"
+        ) : view === 'schools' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sortedSchools.map((school) => (
+              <button
+                key={school}
+                onClick={() => {
+                  setSelectedSchool(school)
+                  setView('seasons')
+                }}
+                className="group bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200/60 dark:border-white/5 shadow-sm hover:shadow-xl transition-all duration-500 text-left relative overflow-hidden"
               >
-                {/* Visual Flair */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-2xl rounded-full -mr-16 -mt-16 group-hover:bg-amber-500/10 transition-colors" />
+                <div className="absolute -top-12 -right-12 w-24 h-24 bg-amber-500/5 blur-2xl rounded-full group-hover:bg-amber-500/10 transition-colors" />
 
-                <div className="p-8 relative">
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between mb-8">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-amber-500/10">
-                          {tournament.year}
-                        </span>
-                        <span className="px-3 py-1 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-full">
-                          {tournament.format}
-                        </span>
-                      </div>
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none group-hover:text-amber-600 dark:group-hover:text-amber-500 transition-colors">
-                        {tournament.name}
-                      </h3>
-                    </div>
-                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-50 dark:border-white/5 p-1 shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
-                      <img src={tournament.logoUrl || '/placeholder-tournament.png'} alt="" className="w-full h-full object-contain" />
-                    </div>
+                <div className="relative z-10 flex flex-col h-full">
+                  <div className="w-14 h-14 bg-slate-50 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-amber-500/10 transition-all">
+                    <Crown size={28} className="text-slate-400 dark:text-slate-500 group-hover:text-amber-500" />
                   </div>
 
-                  {/* Main Champion Card - High Profile */}
-                  <div className="relative mb-6">
-                    <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-3xl p-6 text-white shadow-xl shadow-amber-500/20 overflow-hidden relative">
-                      {/* Decoration */}
-                      <Crown size={80} className="absolute -bottom-4 -right-4 opacity-10 -rotate-12" />
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-amber-500 transition-colors">
+                    {school}
+                  </h3>
 
-                      <div className="relative">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Crown size={14} className="fill-white/80" />
-                          <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Champions</span>
-                        </div>
-                        <div className="text-3xl font-black tracking-tight leading-none">
-                          {tournament.winnerSquadName || 'TBD'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Awards Grid */}
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Runner Up */}
-                    <div className="col-span-2 bg-slate-50 dark:bg-white/[0.03] rounded-2xl p-4 border border-slate-100 dark:border-white/5 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 shadow-sm shrink-0">
-                        <Medal size={20} />
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Runner Up</p>
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{tournament.runnerUpSquadName || '---'}</p>
-                      </div>
-                    </div>
-
-                    {/* Individual Awards */}
-                    {[
-                      { label: 'Player of Series', val: tournament.playerOfTheTournament, icon: <Zap size={18} />, color: 'text-blue-500' },
-                      { label: 'Top Scorer', val: tournament.topRunScorer, icon: <Crown size={18} />, color: 'text-emerald-500' },
-                      { label: 'Top Taker', val: tournament.topWicketTaker, icon: <Target size={18} />, color: 'text-rose-500' },
-                    ].map((award, i) => (
-                      <div key={i} className="bg-slate-50 dark:bg-white/[0.03] rounded-2xl p-4 border border-slate-100 dark:border-white/5 flex items-center gap-4">
-                        <div className={`w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center ${award.color} shadow-sm shrink-0`}>
-                          {award.icon}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{award.label}</p>
-                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{award.val || '---'}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Footer Context */}
-                  <div className="mt-8 pt-6 border-t border-slate-50 dark:border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
-                      <Calendar size={14} />
-                      <span className="text-[10px] font-bold uppercase tracking-tight">Hall of Fame Member</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-amber-600 dark:text-amber-500 text-[10px] font-black uppercase tracking-widest group-hover:gap-2 transition-all">
-                      View Details
-                      <ChevronRight size={14} />
-                    </div>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      {schoolGroups[school].length} {schoolGroups[school].length === 1 ? 'Tournament' : 'Tournaments'}
+                    </span>
+                    <ChevronRight size={18} className="text-slate-300 dark:text-slate-700 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
                   </div>
                 </div>
-              </Link>
+              </button>
             ))}
+          </div>
+        ) : view === 'seasons' ? (
+          <div className="max-w-2xl mx-auto space-y-4">
+            {schoolGroups[selectedSchool!]
+              .sort((a, b) => Number(b.year || 0) - Number(a.year || 0))
+              .map((tournament) => (
+                <button
+                  key={tournament.id}
+                  onClick={() => {
+                    setSelectedTournament(tournament)
+                    setView('champion')
+                  }}
+                  className="w-full group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/60 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-50 dark:bg-white/5 rounded-xl flex items-center justify-center group-hover:bg-amber-500/10 transition-all">
+                      <Calendar size={20} className="text-slate-400 group-hover:text-amber-500" />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-0.5">{tournament.year} Season</div>
+                      <h4 className="text-lg font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-500 transition-colors">{tournament.name}</h4>
+                    </div>
+                  </div>
+                  <ChevronRight size={20} className="text-slate-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
+                </button>
+              ))}
+          </div>
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            <Link
+              to={`/tournaments/${selectedTournament?.id}`}
+              className="group block bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200/60 dark:border-white/5 shadow-2xl hover:shadow-amber-500/10 transition-all duration-500 overflow-hidden relative"
+            >
+              {/* Subtle Glow */}
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-amber-500/5 blur-[100px] rounded-full group-hover:bg-amber-500/10 transition-colors" />
+
+              <div className="p-8 md:p-12 relative">
+                {/* Card Header - Refined */}
+                <div className="flex items-start justify-between mb-10">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200/50 dark:border-white/5">
+                        {selectedTournament?.year}
+                      </span>
+                      <span className="px-3 py-1 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200/50 dark:border-white/5">
+                        {selectedTournament?.format}
+                      </span>
+                    </div>
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight group-hover:text-amber-600 transition-colors">
+                      {selectedTournament?.name}
+                    </h3>
+                  </div>
+                  <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-white/10 p-2 shrink-0 overflow-hidden group-hover:scale-110 transition-transform">
+                    <img src={selectedTournament?.logoUrl || '/placeholder-tournament.png'} alt="" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+
+                {/* High Profile Champion Section - Professional Look */}
+                <div className="relative mb-10">
+                  <div className="bg-[#1e293b] rounded-3xl p-10 text-white overflow-hidden relative border border-white/5 shadow-2xl">
+                    {/* Subtler Decoration */}
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/20 blur-[60px] rounded-full -mr-24 -mt-24" />
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 blur-[40px] rounded-full -ml-16 -mb-16" />
+
+                    <div className="relative z-10 flex flex-col items-center md:items-start">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 bg-amber-500/20 rounded-xl flex items-center justify-center">
+                          <Crown size={18} className="text-amber-400" />
+                        </div>
+                        <span className="text-sm font-black text-amber-400 uppercase tracking-[0.3em]">Champions</span>
+                      </div>
+                      <div className="text-4xl md:text-5xl font-black tracking-tighter text-white drop-shadow-2xl text-center md:text-left">
+                        {selectedTournament?.winnerSquadName || 'TBD'}
+                      </div>
+                    </div>
+
+                    {/* Illustrative Icon */}
+                    <Trophy size={120} className="absolute bottom-[-20px] right-[-20px] text-white/5 -rotate-12" />
+                  </div>
+                </div>
+
+                {/* Awards Grid - Unified 2x2 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Runner Up - Now part of the grid */}
+                  <div className="bg-slate-50 dark:bg-white/[0.02] rounded-3xl p-6 border border-slate-100 dark:border-white/5 flex flex-col gap-4 group/award">
+                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 shadow-sm shrink-0 border border-slate-100 dark:border-white/5 group-hover/award:scale-110 transition-transform">
+                      <Medal size={24} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Runner Up</p>
+                      <p className="text-xl font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{selectedTournament?.runnerUpSquadName || '---'}</p>
+                    </div>
+                  </div>
+
+                  {[
+                    { label: 'Player of Series', val: selectedTournament?.playerOfTheTournament, icon: <Zap size={24} />, color: 'text-blue-500' },
+                    { label: 'Top Scorer', val: selectedTournament?.topRunScorer, icon: <Crown size={24} />, color: 'text-emerald-500' },
+                    { label: 'Top Taker', val: selectedTournament?.topWicketTaker, icon: <Target size={24} />, color: 'text-rose-500' },
+                  ].map((award, i) => (
+                    <div key={i} className="bg-slate-50 dark:bg-white/[0.02] rounded-3xl p-6 border border-slate-100 dark:border-white/5 flex flex-col gap-4 group/award">
+                      <div className={`w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center ${award.color} shadow-sm shrink-0 border border-slate-100 dark:border-white/5 group-hover/award:scale-110 transition-transform`}>
+                        {award.icon}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{award.label}</p>
+                        <p className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate">{award.val || '---'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Refined Footer */}
+                <div className="mt-10 pt-8 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-slate-400">
+                    <Calendar size={16} strokeWidth={2.5} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Platform Immortal</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-amber-600 font-black text-[10px] uppercase tracking-[0.2em] group-hover:gap-3 transition-all">
+                    Visit Tournament Page
+                    <ChevronRight size={16} strokeWidth={3} />
+                  </div>
+                </div>
+              </div>
+            </Link>
           </div>
         )}
       </div>
     </div>
   )
 }
-

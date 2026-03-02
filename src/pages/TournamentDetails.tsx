@@ -17,7 +17,7 @@ import { getMatchResultString } from '@/utils/matchWinner'
 import TournamentPointsTable from '@/pages/TournamentPointsTable'
 import TournamentKeyStats from '@/pages/TournamentKeyStats'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { ArrowLeft, Bell, Share2, ChevronRight, Check, Shield, MapPin, Calendar, Users, Trophy } from 'lucide-react'
+import { ArrowLeft, Bell, Share2, ChevronRight, Check, Shield, MapPin, Calendar, Users, Trophy, Star, Medal } from 'lucide-react'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 import MatchCard from '@/components/match/MatchCard'
 import { memo } from 'react'
@@ -436,6 +436,24 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
     return { mostRuns, mostWkts, bestFig, highestScore, mostSixes }
   }, [inningsMap, players, squads])
 
+  const potPlayer = useMemo(() => {
+    if (!tournament.playerOfTheTournament) return null;
+    const searchStr = tournament.playerOfTheTournament.toLowerCase().trim();
+    return players.find(p =>
+      p.id === tournament.playerOfTheTournament ||
+      p.name.toLowerCase().trim() === searchStr
+    ) || null;
+  }, [tournament.playerOfTheTournament, players]);
+
+  const potTeam = useMemo(() => {
+    if (!potPlayer) {
+      // If we only have a name and no player object, we can't easily find the team
+      // unless we search by the name the user typed, which we already show.
+      return '';
+    }
+    return squads.find(s => s.id === potPlayer.squadId)?.name || (potPlayer as any).squadName || '';
+  }, [potPlayer, squads]);
+
   return (
     <div className="pt-6 space-y-10">
 
@@ -456,6 +474,76 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
 
       {/* 3. Key Stats Section - Redesigned to match high-fidelity cards */}
       <section>
+        {/* Champion Hero Card - High Fidelity */}
+        {(tournament.status === 'completed' || tournament.winnerSquadName) && tournament.winnerSquadName && (
+          <div className="bg-gradient-to-br from-indigo-600 via-blue-700 to-indigo-900 rounded-[2.5rem] p-8 flex items-center justify-between shadow-2xl shadow-blue-500/30 mb-8 relative overflow-hidden group border-4 border-white/10">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none" />
+            <Trophy size={160} className="absolute -right-8 -bottom-8 text-white/5 rotate-12 group-hover:rotate-0 transition-transform duration-1000" />
+
+            <div className="flex items-center gap-6 relative z-10">
+              <div className="relative">
+                <div className="absolute inset-0 bg-white/30 blur-3xl rounded-full scale-110" />
+                <div className="w-24 h-24 bg-white rounded-3xl p-3 shadow-2xl flex items-center justify-center relative z-10 border-2 border-white/20">
+                  <img
+                    src={squadsMap[tournament.winnerSquadId!]?.logoUrl || '/placeholder-team.png'}
+                    alt=""
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-amber-400 text-slate-900 rounded-lg px-2 py-0.5 font-black text-[9px] uppercase tracking-tighter shadow-lg z-20">
+                  WINNER
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] font-black text-white/70 uppercase tracking-[0.2em] mb-1.5 block">Tournament Champion</span>
+                <div className="text-3xl font-black text-white uppercase italic tracking-tighter leading-none drop-shadow-md">
+                  {tournament.winnerSquadName}
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="h-1 w-12 bg-amber-400 rounded-full" />
+                  <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Victory Elite</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-right hidden sm:block relative z-10">
+              <div className="inline-flex flex-col items-center">
+                <div className="w-14 h-14 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/20 mb-2">
+                  <Trophy size={28} className="text-amber-400" />
+                </div>
+                <span className="text-[9px] font-black text-white/80 uppercase tracking-widest">Season 2026</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Player of the Series - Hero Card (Champion Style) */}
+        {tournament.playerOfTheTournament && tournament.playerOfTheTournament.trim() !== '' && (
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-8 flex items-center justify-between shadow-xl shadow-slate-900/20 mb-10 relative overflow-hidden group border-2 border-white/10">
+            <Star size={140} className="absolute -right-8 -bottom-8 text-white/5 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+            <div className="flex items-center gap-6 relative z-10">
+              <div className="relative">
+                <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full animate-pulse" />
+                <PlayerAvatar photoUrl={potPlayer?.photoUrl} name={tournament.playerOfTheTournament} size="xl" className="border-4 border-white/10 relative z-10 shadow-2xl scale-110" />
+                <div className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-1.5 shadow-lg border border-amber-400 z-20">
+                  <Star size={14} fill="currentColor" />
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1 block">Player of the Series</span>
+                <div className="text-2xl font-black text-white italic uppercase tracking-tighter leading-tight drop-shadow-sm">{tournament.playerOfTheTournament}</div>
+                <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-1">{potTeam || 'Tournament Hero'}</div>
+              </div>
+            </div>
+            <div className="text-right relative z-10 hidden sm:block">
+              <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+                <Medal size={28} className="text-amber-400 mx-auto mb-1" />
+                <div className="text-[9px] text-white/90 font-black uppercase tracking-widest text-center">MVP AWARD</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Key Stats</h2>
           <button onClick={() => setActiveTab('stats')} className="text-blue-600 text-xs font-black uppercase tracking-widest hover:opacity-70 transition-opacity">See All</button>
@@ -606,6 +694,7 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-2 shadow-sm">
           <div className="divide-y divide-slate-50 dark:divide-white/5">
             <InfoRow label="Series" value={tournament.name} />
+            {tournament.winnerSquadName && <InfoRow label="Champion" value={tournament.winnerSquadName} />}
             <InfoRow label="Host" value={tournament.host || "N/A"} />
             <InfoRow label="Duration" value={`${coerceToDate(tournament.startDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'Asia/Dhaka' })} - ${coerceToDate(tournament.endDate)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' })}`} />
             <InfoRow label="Format" value={tournament.format || (tournament.totalMatches ? `${tournament.totalMatches} Matches` : "N/A")} />
@@ -613,6 +702,23 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
           </div>
         </div>
       </section>
+
+      {/* 6.5 Tournament Awards */}
+      {(tournament.playerOfTheTournament || tournament.topRunScorer || tournament.topWicketTaker || tournament.runnerUpSquadName) && (
+        <section>
+          <div className="flex items-center justify-between mb-4 mt-6">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Tournament Awards</h2>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-500/10 rounded-[2.5rem] p-2 shadow-sm">
+            <div className="divide-y divide-amber-100/50 dark:divide-amber-500/10">
+              {tournament.playerOfTheTournament && <InfoRow label="Player of the Series" value={tournament.playerOfTheTournament} />}
+              {tournament.topRunScorer && <InfoRow label="Highest Run Scorer" value={tournament.topRunScorer} />}
+              {tournament.topWicketTaker && <InfoRow label="Highest Wicket Taker" value={tournament.topWicketTaker} />}
+              {tournament.runnerUpSquadName && <InfoRow label="Runner Up" value={tournament.runnerUpSquadName} />}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 7. More Seasons */}
       <section className="pb-10">

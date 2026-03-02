@@ -4,10 +4,11 @@ import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { matchService } from '@/services/firestore/matches';
 import { playerService } from '@/services/firestore/players';
+import { tournamentService } from '@/services/firestore/tournaments';
 import { addBall, BallUpdateResult } from '@/services/matchEngine/ballUpdateService';
 import * as emailService from '@/services/emailService';
 import { recalculateInnings } from '@/services/matchEngine/recalculateInnings';
-import { Match, InningsStats, Player } from '@/types';
+import { Match, InningsStats, Player, Tournament } from '@/types';
 import {
     Loader2,
     CloudRain,
@@ -587,10 +588,11 @@ const AdminLiveScoring = () => {
         if (!match || !matchId) return;
 
         try {
-            const tournament = (match as any).tournamentName || (match as any).matchType || 'Match';
+            const tournamentName = (match as any).tournamentName || (match as any).matchType || 'Match';
+            const tournamentId = (match as any).tournamentId;
 
             // Professional Title: Team1 vs Team2, MatchNo (Tournament)
-            const title = `${match.teamAName} vs ${match.teamBName}${match.matchNo ? `, ${match.matchNo}` : ''} (${tournament})`;
+            const title = `${match.teamAName} vs ${match.teamBName}${match.matchNo ? `, ${match.matchNo}` : ''} (${tournamentName})`;
 
             // Resolve Batting Team Logo
             const battingTeamLogo = match.currentBatting === 'teamA' ? (match as any).teamALogoUrl : (match as any).teamBLogoUrl;
@@ -606,7 +608,8 @@ const AdminLiveScoring = () => {
                     { id: 'open_match', text: 'Open Match', icon: 'ic_menu_view' },
                     { id: 'turn_off', text: `Turn off for ${match.teamAName} vs ${match.teamBName}`, icon: 'ic_menu_close_clear_cancel' }
                 ],
-                `match_score_${matchId}` // Persistent collapse ID for score updates
+                `match_score_${matchId}`, // Persistent collapse ID for score updates
+                tournamentId ? `tournament_${tournamentId}` : undefined
             );
         } catch (err) {
             console.error("[AdminLiveScoring] Notification helper failed:", err);
@@ -847,6 +850,13 @@ const AdminLiveScoring = () => {
                             } else if (currentRuns >= 50 && preRuns < 50) {
                                 await triggerLiveNotification(`Milestone! 🏏✨\n${batsmanStats.batsmanName} reached 50 runs! 🔥`);
                             }
+                        }
+
+                        // 3. Boundary Notifications
+                        if (batRuns === 6) {
+                            await triggerLiveNotification(`MAXIMUM! 🚀 SIX Runs! 🔥\n${strikerObj?.name || 'Batter'} smashed it out of the park! 🌟`);
+                        } else if (batRuns === 4) {
+                            await triggerLiveNotification(`FOUR! 🏏 Boundary Alert! ✨\n${strikerObj?.name || 'Batter'} finds the fence! ⚡`);
                         }
                     } catch (notifErr) {
                         console.error("[AdminLiveScoring] Notification trigger failed:", notifErr);
@@ -1119,6 +1129,150 @@ const AdminLiveScoring = () => {
                 resultSummary: finalResult,
                 winnerId: winnerSquadId ? (winnerSquadId as string) : null
             });
+
+            // Auto-fill downstream tournament matches
+            if (match.tournamentId && winnerSquadId) {
+                const isTeamAWinner = winnerSquadId === (match as any).teamASquadId || winnerSquadId === (match as any).teamAId || winnerSquadId === (match as any).teamA;
+                const winnerName = isTeamAWinner ? match.teamAName : match.teamBName;
+                const loserId = isTeamAWinner ? ((match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB) : ((match as any).teamASquadId || (match as any).teamAId || (match as any).teamA);
+                const loserName = isTeamAWinner ? match.teamBName : match.teamAName;
+
+                try {
+                    // 1. Auto-fill bracket/schedule
+                    if (match.matchNo) {
+                        await matchService.autoFillDownstreamMatches(
+                            match.tournamentId,
+                            match.matchNo,
+                            winnerSquadId as string,
+                            winnerName,
+                            loserId ? String(loserId) : undefined,
+                            loserName
+                        );
+                    }
+
+                    // 2. FULL AUTOMATION: Champion & Awards
+                    const mNo = match.matchNo?.toLowerCase()?.trim() || '';
+                    const rTag = (match as any).round?.toLowerCase()?.trim() || '';
+                    const sTag = (match as any).stage?.toLowerCase()?.trim() || '';
+
+                    const isFinal = mNo === 'final' || mNo === 'f' || rTag === 'final' || sTag === 'final' ||
+                        (mNo.startsWith('f') && !mNo.includes('semi') && !mNo.includes('quarter')) ||
+                        (mNo.includes('final') && !mNo.includes('semi') && !mNo.includes('quarter'));
+
+                    if (isFinal) {
+                        console.log("[AdminLiveScoring] Final Match Detected. Automating Tournament Completion...");
+
+                        // Fetch all tournament data for stats
+                        const allMatches = await matchService.getByTournament(match.tournamentId);
+                        const matchStats = await Promise.all(allMatches.map(async (m) => {
+                            const [a, b] = await Promise.all([
+                                matchService.getInnings(m.id, 'teamA').catch(() => null),
+                                matchService.getInnings(m.id, 'teamB').catch(() => null)
+                            ]);
+                            return { teamA: a, teamB: b };
+                        }));
+
+                        // Aggregate Stats for Awards
+                        const runsMap: Record<string, { name: string, runs: number }> = {};
+                        const wktsMap: Record<string, { name: string, wkts: number }> = {};
+                        const playerIds = new Set<string>();
+
+                        matchStats.forEach(ms => {
+                            [ms.teamA, ms.teamB].filter(Boolean).forEach(inn => {
+                                (inn!.batsmanStats || []).forEach(b => {
+                                    if (!b.batsmanId) return;
+                                    playerIds.add(b.batsmanId);
+                                    runsMap[b.batsmanId] = {
+                                        name: b.name || (b as any).playerName || runsMap[b.batsmanId]?.name || 'Unknown',
+                                        runs: (runsMap[b.batsmanId]?.runs || 0) + (Number(b.runs) || 0)
+                                    };
+                                });
+                                (inn!.bowlerStats || []).forEach(bw => {
+                                    if (!bw.bowlerId) return;
+                                    playerIds.add(bw.bowlerId);
+                                    wktsMap[bw.bowlerId] = {
+                                        name: bw.name || (bw as any).playerName || wktsMap[bw.bowlerId]?.name || 'Unknown',
+                                        wkts: (wktsMap[bw.bowlerId]?.wkts || 0) + (Number(bw.wickets) || 0)
+                                    };
+                                });
+                            });
+                        });
+
+                        // Resolve "Unknown" names from DB
+                        const tDoc = await tournamentService.getById(match.tournamentId);
+                        const unknownIds = Array.from(playerIds).filter(id => {
+                            const rName = runsMap[id]?.name;
+                            const wName = wktsMap[id]?.name;
+                            return rName === 'Unknown' || wName === 'Unknown';
+                        });
+
+                        if (unknownIds.length > 0 && tDoc?.participantSquadIds) {
+                            const allPlayers = await Promise.all(
+                                tDoc.participantSquadIds.map(sid => playerService.getBySquad(sid))
+                            );
+                            const flattenedPlayers = allPlayers.flat();
+                            const nameMap: Record<string, string> = {};
+                            flattenedPlayers.forEach(p => { if (p.id) nameMap[p.id] = p.name; });
+
+                            unknownIds.forEach(id => {
+                                if (nameMap[id]) {
+                                    if (runsMap[id]) runsMap[id].name = nameMap[id];
+                                    if (wktsMap[id]) wktsMap[id].name = nameMap[id];
+                                }
+                            });
+                        }
+
+                        const topRunners = Object.values(runsMap).sort((a, b) => b.runs - a.runs);
+                        const topWicketeers = Object.values(wktsMap).sort((a, b) => b.wkts - a.wkts);
+
+                        const bestBatter = topRunners[0];
+                        const bestBowler = topWicketeers[0];
+
+                        // 5. PotT Ranking with Finalist Bonus
+                        const finalistIds = new Set<string>();
+                        const finalistSquadIds = [winnerSquadId, loserId].filter(Boolean);
+
+                        // We need player list for finalist check. Fetch if not already fetched
+                        let finalistPlayerList: any[] = [];
+                        if (tDoc?.participantSquadIds) {
+                            const squadPlayers = await Promise.all(
+                                finalistSquadIds.map(sid => playerService.getBySquad(sid as string))
+                            );
+                            finalistPlayerList = squadPlayers.flat();
+                        }
+                        finalistPlayerList.forEach(p => finalistIds.add(p.id));
+
+                        const playerScores = Array.from(playerIds).map(id => {
+                            const runs = runsMap[id]?.runs || 0;
+                            const wkts = wktsMap[id]?.wkts || 0;
+                            const name = runsMap[id]?.name || 'Unknown';
+                            const score = (runs * 1) + (wkts * 15);
+
+                            return { id, name, score, isFinalist: finalistIds.has(id) };
+                        })
+                            .filter(p => p.isFinalist) // Strict Filter: Only finalists eligible for PotT
+                            .sort((a, b) => b.score - a.score);
+
+                        const bestOverall = playerScores[0];
+
+                        // Declare Champion & Save Awards
+                        await tournamentService.update(match.tournamentId, {
+                            status: 'completed',
+                            winnerSquadId: winnerSquadId as string,
+                            winnerSquadName: winnerName,
+                            runnerUpSquadId: loserId ? String(loserId) : undefined,
+                            runnerUpSquadName: loserName,
+                            playerOfTheTournament: bestOverall?.name || '',
+                            topRunScorer: bestBatter ? `${bestBatter.name} (${bestBatter.runs} Runs)` : '',
+                            topWicketTaker: bestBowler ? `${bestBowler.name} (${bestBowler.wkts} Wkts)` : ''
+                        });
+
+                        toast.success("🏆 Tournament Completed & Awards Automated!");
+                    }
+                } catch (err) {
+                    console.error('Failed to automate tournament completion:', err);
+                }
+            }
 
             // 3. Send Push Notification for Match Result
             if (finalResult) {

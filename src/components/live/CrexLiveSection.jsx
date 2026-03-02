@@ -29,8 +29,8 @@ const getBallResultLabel = (item) => {
   const r = Number(item.runs || 0);
   const isW = item.isWicket || item.milestone === 'wicket';
   const upperText = String(item.text || '').toUpperCase();
-  const isWd = upperText.includes('WIDE');
-  const isNb = upperText.includes('NO BALL') || upperText.includes('NO-BALL');
+  const isWd = item.ballType === 'wide' || item.isWide === true || /\bWIDE\b/.test(upperText) || /\bWD\b/.test(upperText);
+  const isNb = item.ballType === 'no-ball' || item.isNoBall === true || /\bNO[\s-]?BALL\b/.test(upperText) || /\bNB\b/.test(upperText);
 
   if (isW) return 'W';
   if (isWd) return r > 1 ? `wd+${r - 1}` : 'wd';
@@ -81,11 +81,26 @@ const CrexLiveSection = ({
   // Helper: find a player's career stats by name from the playersMap
   const findPlayerByName = (name) => {
     if (!playersMap || !name) return null;
-    let found = null;
+    const searchName = name.trim().toLowerCase();
+    let matches = [];
+
     playersMap.forEach((p) => {
-      if (p?.name === name || p?.displayName === name) found = p;
+      const pName = (p?.name || '').trim().toLowerCase();
+      const pDisplay = (p?.displayName || '').trim().toLowerCase();
+      if (pName === searchName || pDisplay === searchName) {
+        matches.push(p);
+      }
     });
-    return found;
+
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0];
+
+    // If multiple matches, prioritize the one with more career stats
+    return matches.sort((a, b) => {
+      const aStats = (a.stats?.matches || 0);
+      const bStats = (b.stats?.matches || 0);
+      return bStats - aStats;
+    })[0];
   };
 
   // Calculate Win Probability
@@ -197,8 +212,17 @@ const CrexLiveSection = ({
 
     const ballsProcessed = new Set()
 
+    // Filter out manual/entry items — only process actual ball deliveries
+    const ballsOnly = commentary.filter(item => {
+      if (item.manual) return false
+      if (item.type === 'entry' || item.type === 'bowler_entry') return false
+      const overStr = String(item.over || '0.0')
+      if (parseFloat(overStr) <= 0) return false
+      return true
+    })
+
     // Commentary arrives in chronological order [oldest -> newest]
-    commentary.forEach(item => {
+    ballsOnly.forEach(item => {
       // Use explicit overNumber if available, otherwise fallback to parsing over string
       let overGroupNum = item.overNumber
       if (!overGroupNum) {
@@ -239,9 +263,9 @@ const CrexLiveSection = ({
 
     const finalResult = []
     sorted.forEach((group, idx) => {
-      // Add inning break if innings change
+      // Add inning break if innings change between adjacent groups
       if (idx > 0 && sorted[idx - 1].inningId !== group.inningId) {
-        finalResult.push({ type: 'break', label: 'Inning Break' })
+        finalResult.push({ type: 'break', label: 'End of Innings' })
       }
       finalResult.push(group)
     })
@@ -250,6 +274,16 @@ const CrexLiveSection = ({
   }, [commentary, activeCommentaryFilter])
 
   const scrollRef = React.useRef(null)
+  const [expandedOvers, setExpandedOvers] = React.useState(new Set())
+
+  const toggleOverExpand = React.useCallback((key) => {
+    setExpandedOvers(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   // Auto-scroll timeline
   React.useEffect(() => {
@@ -261,6 +295,7 @@ const CrexLiveSection = ({
   return (
     <div className="bg-slate-50 dark:bg-[#060b16] min-h-screen pb-8">
       <div className="max-w-4xl mx-auto px-0 sm:px-4 py-1 space-y-0.5">
+
 
         {/* 1. Timeline Strip - Reduced spacing */}
         {!onlyCommentary && recentOvers && (
@@ -294,7 +329,7 @@ const CrexLiveSection = ({
 
                           return (
                             <div key={bIdx}
-                              className={`${dotStyle} h-7 w-7 rounded-full flex items-center justify-center font-bold shrink-0 border transition-all whitespace-nowrap text-[11px]`}
+                              className={`${dotStyle} h-7 w-7 rounded-full flex items-center justify-center font-semibold shrink-0 border transition-all whitespace-nowrap text-[11px]`}
                               style={{
                                 minWidth: '1.75rem',
                                 width: 'auto',
@@ -380,7 +415,7 @@ const CrexLiveSection = ({
         {!onlyCommentary && (
           <div className="bg-white dark:bg-[#0f172a] border-y border-slate-100 dark:border-white/5 divide-y divide-slate-50 dark:divide-white/5">
             <div className="p-4 space-y-4 pb-3">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-white/[0.03] px-4 py-2 -mx-4 -mt-4 mb-2">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-white/[0.03] px-4 py-2 -mx-4 -mt-4 mb-2">
                 <span>BATTER</span>
                 <div className="flex gap-6 pr-1">
                   <span className="w-10 text-right">R (B)</span>
@@ -422,12 +457,12 @@ const CrexLiveSection = ({
                       </div>
                       <div className={`flex gap-6 pr-1 text-sm items-baseline ${p.isOut ? 'text-slate-600' : 'text-slate-800 dark:text-slate-200'}`}>
                         <div className="w-10 text-right flex items-baseline justify-end gap-1">
-                          <span className={`text-base font-bold ${p.isOut ? 'text-slate-700' : 'text-slate-900 dark:text-white'}`}>{p.runs || 0}</span>
+                          <span className={`text-base font-semibold ${p.isOut ? 'text-slate-700' : 'text-slate-900 dark:text-white'}`}>{p.runs || 0}</span>
                           <span className="text-[10px] opacity-80 font-medium">({p.balls || 0})</span>
                         </div>
-                        <span className="w-6 text-center opacity-80 font-semibold">{p.fours || 0}</span>
-                        <span className="w-6 text-center opacity-80 font-semibold">{p.sixes || 0}</span>
-                        <span className="w-10 text-right opacity-60 font-semibold text-[11px]">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
+                        <span className="w-6 text-center opacity-80 font-medium">{p.fours || 0}</span>
+                        <span className="w-6 text-center opacity-80 font-medium">{p.sixes || 0}</span>
+                        <span className="w-10 text-right opacity-60 font-medium text-[11px]">{(p.strikeRate || (p.balls > 0 ? (p.runs / p.balls * 100) : 0)).toFixed(1)}</span>
                       </div>
                     </div>
                   ));
@@ -435,17 +470,17 @@ const CrexLiveSection = ({
               </div>
               <div className="flex items-center justify-between pt-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">P'SHIP:</span>
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">P'SHIP:</span>
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{formatPartnership()}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">LAST WKT:</span>
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">LAST WKT:</span>
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{formatLastWicket() || '—'}</span>
                 </div>
               </div>
             </div>
             <div className="p-0 space-y-4">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-white/[0.03] px-4 py-2 border-y border-slate-100 dark:border-white/5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-tight bg-slate-50 dark:bg-white/[0.03] px-4 py-2 border-y border-slate-100 dark:border-white/5">
                 <span>BOWLER</span>
                 <div className="flex gap-6 pr-1">
                   <span className="w-10 text-right">W-R</span>
@@ -465,20 +500,21 @@ const CrexLiveSection = ({
                     )}
                   </div>
                   <div className="flex gap-6 pr-1 text-sm text-slate-800 dark:text-slate-200 items-center">
-                    <span className="w-10 text-right font-bold text-slate-900 dark:text-white">{currentBowler.wickets || 0}-{currentBowler.runsConceded || 0}</span>
+                    <span className="w-10 text-right font-semibold text-slate-900 dark:text-white">{currentBowler.wickets || 0}-{currentBowler.runsConceded || 0}</span>
                     <span className="text-[10px] w-10 text-center text-slate-500 dark:text-slate-400 font-semibold">({currentBowler.overs || 0})</span>
                     <span className="w-10 text-right text-slate-500 dark:text-slate-400 font-semibold text-[11px]">{(currentBowler.economy || 0).toFixed(1)}</span>
                   </div>
                 </div>
               )}
             </div>
-            {match?.id && match.status !== 'finished' && (
+            {match?.id && (
               <MatchVoting
                 matchId={match.id}
                 teamAName={match.teamAName || 'Team A'}
                 teamBName={match.teamBName || 'Team B'}
                 teamABatch={teamASquad?.batch}
                 teamBBatch={teamBSquad?.batch}
+                isFinished={match.status === 'finished'}
               />
             )}
           </div>
@@ -515,10 +551,11 @@ const CrexLiveSection = ({
           </div>
         )}
 
+
         {/* Second Innings: "At this stage" comparison - Shown only when target > 0 */}
         {!isFinishedMatch && !onlyCommentary && !isInningsBreak && (target && Number(target) > 0) && (
           <div className="px-4 py-2 space-y-3">
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">At this stage</h3>
+            <h3 className="text-base font-medium text-slate-800 dark:text-slate-200">At this stage</h3>
             <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-white/5 overflow-hidden p-4 relative shadow-sm">
               <div className="absolute inset-0 bg-gradient-to-b from-slate-500/5 dark:from-white/5 to-transparent" />
 
@@ -554,10 +591,10 @@ const CrexLiveSection = ({
                         </div>
                       )}
                       <div className="text-center">
-                        <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">
+                        <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">
                           {formatShortTeamName(name)}*
                         </div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">
+                        <div className="text-xl font-semibold text-slate-900 dark:text-white tabular-nums">
                           {currentRuns}-{currentInnings?.totalWickets || 0}
                         </div>
                       </div>
@@ -567,12 +604,12 @@ const CrexLiveSection = ({
 
                 {/* Over Mark (Center) */}
                 <div className="flex flex-col items-center px-4">
-                  <div className="px-3 py-1 bg-blue-600/10 dark:bg-blue-600/20 border border-blue-500/20 dark:border-blue-500/30 rounded-full text-[8px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5 shadow-sm">
+                  <div className="px-3 py-1 bg-blue-600/10 dark:bg-blue-600/20 border border-blue-500/20 dark:border-blue-500/30 rounded-full text-[8px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1.5 shadow-sm">
                     {currentOvers} Overs
                   </div>
                   <div className="flex items-center gap-1.5 opacity-20">
                     <div className="h-px w-6 bg-slate-900 dark:bg-white"></div>
-                    <span className="text-[10px] font-bold text-slate-900 dark:text-white">VS</span>
+                    <span className="text-[10px] font-medium text-slate-900 dark:text-white">VS</span>
                     <div className="h-px w-6 bg-slate-900 dark:bg-white"></div>
                   </div>
                 </div>
@@ -628,10 +665,10 @@ const CrexLiveSection = ({
                         </div>
                       )}
                       <div className="text-center">
-                        <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">
+                        <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">
                           {formatShortTeamName(defendingName)}
                         </div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-white tabular-nums">
+                        <div className="text-xl font-semibold text-slate-900 dark:text-white tabular-nums">
                           {stageSnapshot ? `${stageSnapshot.runs}-${stageSnapshot.wickets}` : (defenderProgress.length > 0 ? '—' : 'Sync...')}
                         </div>
                       </div>
@@ -651,7 +688,7 @@ const CrexLiveSection = ({
               <button
                 key={f.id}
                 onClick={() => onCommentaryFilterChange && onCommentaryFilterChange(f.id)}
-                className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all border ${activeCommentaryFilter === f.id
+                className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-[11px] font-medium uppercase tracking-wider transition-all border ${activeCommentaryFilter === f.id
                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                   : 'bg-slate-50 dark:bg-white/[0.03] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/[0.06]'
                   }`}
@@ -670,23 +707,29 @@ const CrexLiveSection = ({
                       return (
                         <div key={`break-${idx}`} className="py-6 flex items-center gap-4 px-8 bg-slate-50 dark:bg-[#060b16]">
                           <div className="h-px flex-1 bg-slate-900/10 dark:bg-white/10" />
-                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">End of Over {item.overNum}</span>
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">{item.label}</span>
                           <div className="h-px flex-1 bg-slate-900/10 dark:bg-white/10" />
                         </div>
                       );
                     }
 
+                    const overKey = `${item.inningId}-${item.overNum}`;
+                    const isExpanded = expandedOvers.has(overKey);
+
                     return (
                       <div key={`over-${idx}`} className="border-b border-slate-100 dark:border-white/5 overflow-hidden">
-                        <div className="px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors bg-white dark:bg-[#0f172a] cursor-pointer group">
+                        <div
+                          onClick={() => toggleOverExpand(overKey)}
+                          className="px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors bg-white dark:bg-[#0f172a] cursor-pointer group"
+                        >
                           <div className="flex items-center gap-6 flex-1 min-w-0">
-                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 w-10">Ov {item.overNum}</span>
+                            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 shrink-0 w-10">Ov {item.overNum}</span>
                             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
                               {item.balls.map((b, bi) => {
                                 const resLabel = getBallResultLabel(b);
                                 return (
                                   <div key={bi}
-                                    className={`h-7 rounded-full flex items-center justify-center font-bold shrink-0 border transition-all whitespace-nowrap text-[11px] ${getBallColorClass(resLabel)}`}
+                                    className={`h-7 rounded-full flex items-center justify-center font-semibold shrink-0 border transition-all whitespace-nowrap text-[11px] ${getBallColorClass(resLabel)}`}
                                     style={{
                                       minWidth: '1.75rem',
                                       width: 'auto',
@@ -703,10 +746,37 @@ const CrexLiveSection = ({
                             <div className="flex items-center gap-1.5 ml-1.5 cursor-default">
                               <span className="text-xs font-medium text-slate-400">=</span>
                               <span className="text-base font-medium text-slate-900 dark:text-slate-100">{item.totalRuns}</span>
-                              <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors ml-1.5" />
+                              <ChevronRight className={`w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-all ml-1.5 ${isExpanded ? 'rotate-90' : ''}`} />
                             </div>
                           </div>
                         </div>
+
+                        {/* Expanded ball-by-ball commentary */}
+                        {isExpanded && (
+                          <div className="bg-slate-50 dark:bg-[#060b16] border-t border-slate-100 dark:border-white/5 divide-y divide-slate-100 dark:divide-white/5">
+                            {item.balls.map((b, bi) => {
+                              const resLabel = getBallResultLabel(b);
+                              return (
+                                <div key={bi} className="px-5 py-3 flex items-start gap-3">
+                                  <div
+                                    className={`h-7 w-7 rounded-full flex items-center justify-center font-semibold shrink-0 border text-[11px] ${getBallColorClass(resLabel)}`}
+                                  >
+                                    {resLabel === '·' ? '0' : resLabel}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[12px] font-medium text-slate-700 dark:text-slate-300">
+                                      {b.bowler && b.batsman ? (
+                                        <span className="font-semibold text-slate-900 dark:text-white">{b.bowler} to {b.batsman}, </span>
+                                      ) : null}
+                                      <span>{b.text || `${resLabel} run${resLabel !== '1' ? 's' : ''}`}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-medium text-slate-400 shrink-0">{b.over}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -728,6 +798,13 @@ const CrexLiveSection = ({
 
                 const playerTracker = {};
                 const bowlerTracker = {};
+                const seenBowlers = new Set();
+                const internalState = {
+                  _overBalls: [],
+                  _currentStriker: null,
+                  _currentNonStriker: null,
+                  _lastStriker: null
+                };
 
                 const pushInningsSummary = (finalRuns, finalWickets, finalOvers, innId, batters, bowlers) => {
                   // Function disabled to remove summary cards from commentary
@@ -745,8 +822,9 @@ const CrexLiveSection = ({
                 chronologicalCommentary.forEach((item, idx) => {
                   const overStr = String(item.over || '0.0');
                   const [ov, b] = overStr.split('.');
-                  const overNum = parseInt(ov);
-                  const ballNum = parseInt(b);
+                  const overNum = parseInt(ov || '0');
+                  const ballNum = parseInt(b || '0');
+                  const isBall = !['entry', 'bowler_entry'].includes(item.type) && parseFloat(overStr) > 0;
 
                   if (item.inningId !== currentBatchInningId) {
                     // Before we reset, if we had a previous innings, push its summary
@@ -762,7 +840,11 @@ const CrexLiveSection = ({
                     currentBatchInningId = item.inningId;
                     Object.keys(playerTracker).forEach(k => delete playerTracker[k]);
                     Object.keys(bowlerTracker).forEach(k => delete bowlerTracker[k]);
-                    playerTracker._overBalls = [];
+                    seenBowlers.clear();
+                    internalState._overBalls = [];
+                    internalState._currentStriker = null;
+                    internalState._currentNonStriker = null;
+                    internalState._lastStriker = null;
                   }
 
                   // Initialize trackers
@@ -770,7 +852,13 @@ const CrexLiveSection = ({
                     batterCount++;
                     playerTracker[item.batsman] = { runs: 0, balls: 0, fours: 0, sixes: 0, pos: batterCount };
                   }
-                  if (item.bowler && !bowlerTracker[item.bowler]) bowlerTracker[item.bowler] = { runs: 0, wickets: 0, balls: 0 };
+                  if (item.bowler && !bowlerTracker[item.bowler]) {
+                    bowlerTracker[item.bowler] = { runs: 0, wickets: 0, balls: 0 };
+                  }
+                  // Track which bowlers have bowled (for entry card dedup)
+                  if (isBall && item.bowler) {
+                    seenBowlers.add(item.bowler);
+                  }
 
                   const runsPerBall = Number(item.runs || 0);
                   runningTotalRuns += runsPerBall;
@@ -783,39 +871,38 @@ const CrexLiveSection = ({
                   }
 
                   const upperText = String(item.text || '').toUpperCase();
-                  const isWide = item.ballType === 'wide' || upperText.includes('WIDE');
-                  const isNoBall = item.ballType === 'no-ball' || upperText.includes('NO BALL') || upperText.includes('NO-BALL');
+                  const isWide = item.ballType === 'wide' || item.isWide === true || /\bWIDE\b/.test(upperText) || /\bWD\b/.test(upperText);
+                  const isNoBall = item.ballType === 'no-ball' || item.isNoBall === true || /\bNO[\s-]?BALL\b/.test(upperText) || /\bNB\b/.test(upperText);
 
                   // Track Batter
-                  if (item.batsman) {
+                  if (isBall && item.batsman && playerTracker[item.batsman]) {
                     if (!isWide) {
-                      playerTracker[item.batsman].runs += runsPerBall;
-                      playerTracker[item.batsman].balls += 1;
-                      if (item.isFour || item.runs === 4) playerTracker[item.batsman].fours += 1;
-                      if (item.isSix || item.runs === 6) playerTracker[item.batsman].sixes += 1;
+                      playerTracker[item.batsman].runs = (playerTracker[item.batsman].runs || 0) + runsPerBall;
+                      playerTracker[item.batsman].balls = (playerTracker[item.batsman].balls || 0) + 1;
+                      if (item.isFour || item.runs === 4) playerTracker[item.batsman].fours = (playerTracker[item.batsman].fours || 0) + 1;
+                      if (item.isSix || item.runs === 6) playerTracker[item.batsman].sixes = (playerTracker[item.batsman].sixes || 0) + 1;
                       partnershipBalls += 1;
-                    } else {
-                      // Wide adds to partnership runs but not balls
                     }
                   }
 
                   // Track Bowler
-                  if (item.bowler) {
-                    bowlerTracker[item.bowler].runs += runsPerBall;
-                    if (item.isWicket) bowlerTracker[item.bowler].wickets += 1;
-                    if (!isWide && !isNoBall) bowlerTracker[item.bowler].balls += 1;
+                  if (isBall && item.bowler && bowlerTracker[item.bowler]) {
+                    bowlerTracker[item.bowler].runs = (bowlerTracker[item.bowler].runs || 0) + runsPerBall;
+                    if (item.isWicket) bowlerTracker[item.bowler].wickets = (bowlerTracker[item.bowler].wickets || 0) + 1;
+                    if (!isWide && !isNoBall) bowlerTracker[item.bowler].balls = (bowlerTracker[item.bowler].balls || 0) + 1;
                   }
+
 
                   // Keep track of who is currently at the crease (last seen pair)
                   if (item.batsman) {
-                    playerTracker._currentStriker = item.batsman;
+                    internalState._currentStriker = item.batsman;
                   }
                   if (item.nonStriker && item.nonStriker !== item.batsman) {
-                    playerTracker._currentNonStriker = item.nonStriker;
-                  } else if (item.batsman && playerTracker._currentStriker && playerTracker._lastStriker && playerTracker._lastStriker !== item.batsman) {
-                    playerTracker._currentNonStriker = playerTracker._lastStriker;
+                    internalState._currentNonStriker = item.nonStriker;
+                  } else if (item.batsman && internalState._currentStriker && internalState._lastStriker && internalState._lastStriker !== item.batsman) {
+                    internalState._currentNonStriker = internalState._lastStriker;
                   }
-                  playerTracker._lastStriker = item.batsman;
+                  internalState._lastStriker = item.batsman;
 
                   // Update last known state for finish detection
                   lastTotalRuns = runningTotalRuns;
@@ -823,8 +910,7 @@ const CrexLiveSection = ({
                   lastOvers = overStr;
 
                   // Collect ball for timeline
-                  if (!playerTracker._overBalls) playerTracker._overBalls = [];
-                  playerTracker._overBalls.push(item);
+                  internalState._overBalls.push(item);
 
                   // 1. Push Ball/Wicket/Entry FIRST
                   if (item.manual) {
@@ -833,8 +919,11 @@ const CrexLiveSection = ({
                       const stats = playerTracker[item.batsman] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
                       groupedCommentary.push({ type: 'entry', text: item.text, player: item.batsman, position: pos, stats });
                     } else if (item.type === 'bowler_entry') {
-                      const stats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
-                      groupedCommentary.push({ type: 'bowler_entry', text: item.text, player: item.bowler, stats });
+                      // Only show bowler entry card for first-time bowlers in this innings
+                      if (!seenBowlers.has(item.bowler)) {
+                        const stats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
+                        groupedCommentary.push({ type: 'bowler_entry', text: item.text, player: item.bowler, stats });
+                      }
                     } else {
                       groupedCommentary.push({ type: 'announcement', ...item });
                     }
@@ -884,8 +973,8 @@ const CrexLiveSection = ({
                     const bStats = bowlerTracker[item.bowler] || { runs: 0, wickets: 0, balls: 0 };
                     const bowlerOvers = `${Math.floor(bStats.balls / 6)}.${bStats.balls % 6}`;
 
-                    const sName = playerTracker._currentStriker;
-                    const nsName = playerTracker._currentNonStriker;
+                    const sName = internalState._currentStriker;
+                    const nsName = internalState._currentNonStriker;
                     const sStats = sName ? playerTracker[sName] : null;
                     const nsStats = nsName ? playerTracker[nsName] : null;
 
@@ -905,12 +994,12 @@ const CrexLiveSection = ({
                       nonStrikerStats: nsStats ? `${nsStats.runs}(${nsStats.balls})` : null,
                       overRuns: overRuns,
                       inningLabel: formatShortTeamName(item.inningId === 'teamA' ? teamAName : teamBName),
-                      overBalls: [...playerTracker._overBalls]
+                      overBalls: [...internalState._overBalls]
                     });
 
                     overRuns = 0;
                     overWickets = 0;
-                    playerTracker._overBalls = [];
+                    internalState._overBalls = [];
                   }
                 });
 

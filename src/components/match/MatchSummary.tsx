@@ -146,19 +146,18 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
         }
 
         // Only calculate for the winning team if we know it
-        // winnerSide is 'A' or 'B'
         if (winnerSide === 'A') {
-            teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
-            teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+            teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, Number(b.runs || 0)));
+            teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, Number(b.wickets || 0) * 15));
         } else if (winnerSide === 'B') {
-            teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
-            teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+            teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, Number(b.runs || 0)));
+            teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, Number(b.wickets || 0) * 15));
         } else {
             // Fallback: search both teams if winner is undetermined
-            teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
-            teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
-            teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, (b.runs || 0) + (b.runs > 49 ? 20 : 0)));
-            teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, (b.wickets * 20) + (b.wickets > 2 ? 10 : 0)));
+            teamAInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, Number(b.runs || 0)));
+            teamAInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, Number(b.wickets || 0) * 15));
+            teamBInnings?.batsmanStats?.forEach(b => addPoints(b.batsmanId, Number(b.runs || 0)));
+            teamBInnings?.bowlerStats?.forEach(b => addPoints(b.bowlerId, Number(b.wickets || 0) * 15));
         }
 
         playerPoints.forEach((pts, id) => {
@@ -300,8 +299,8 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
 
                         {/* Mid Divider */}
                         <div className="px-3 md:px-5 lg:px-6 shrink-0 z-20">
-                            <div className="relative" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>
-                                <div className="bg-white dark:bg-slate-800 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
+                            <div className="relative drop-shadow-[0_2px_4px_rgba(0,0,0,0.2)] dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]">
+                                <div className="bg-white dark:bg-slate-700 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
                                     style={{
                                         WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
                                         WebkitMaskSize: '100% 100%',

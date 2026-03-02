@@ -176,47 +176,36 @@ export default function Layout({ children }: LayoutProps) {
         isActive('/') && (
           <footer className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white mt-auto border-t border-slate-700 pb-14 md:pb-0">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-8">
-                <div className="col-span-2 md:col-span-1">
-                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <div className="grid grid-cols-1 gap-8 mb-8">
+                <div className="col-span-1 text-center">
+                  <h3 className="text-lg font-bold mb-4 flex items-center justify-center gap-2">
                     <img src={schoolConfig.batchLogo} alt="Logo" className="w-6 h-6 object-contain" /> {schoolConfig.appName}
                   </h3>
-                  <p className="text-slate-400 text-sm mb-2">
+                  <p className="text-slate-400 text-sm mb-2 max-w-md mx-auto">
                     {schoolConfig.footer.description}
                   </p>
                   <p className="text-slate-500 text-xs italic">
                     {schoolConfig.footer.dedication}
                   </p>
                 </div>
-                <div className="col-span-1">
-                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Quick Links</h4>
-                  <div className="space-y-2">
-                    <Link to="/" className="block text-slate-400 hover:text-teal-400 text-sm transition">Home</Link>
-                    <Link to="/tournaments" className="block text-slate-400 hover:text-teal-400 text-sm transition">Tournaments</Link>
-                    <Link to="/players" className="block text-slate-400 hover:text-teal-400 text-sm transition">Players</Link>
-                  </div>
-                </div>
-                <div className="col-span-1">
-                  <h4 className="text-sm font-semibold uppercase tracking-wider mb-4 text-slate-300">Platform</h4>
-                  <div className="space-y-2">
-                    <Link to="/champions" className="block text-slate-400 hover:text-teal-400 text-sm transition">Champions</Link>
-                    <Link to="/squads" className="block text-slate-400 hover:text-teal-400 text-sm transition">Squads</Link>
-                  </div>
-                </div>
               </div>
               <div className="border-t border-slate-700 pt-6 text-center">
                 <p className="text-slate-400 text-sm mb-1">
                   © {new Date().getFullYear()} {schoolConfig.appFullName}. All rights reserved.
                 </p>
-                <div className="mt-2">
+                <div className="mt-2 text-slate-500 text-xs">
                   <a
                     href="https://www.facebook.com/mehedihasan110571"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-500 text-xs hover:text-teal-500 transition-colors inline-flex items-center gap-1"
+                    className="hover:text-teal-500 transition-colors inline-flex items-center gap-1"
                   >
                     Developed by <span className="font-bold text-slate-400">Mehedi Hasan</span>
                   </a>
+                  <span className="mx-2 opacity-50">|</span>
+                  <span className="inline-flex items-center gap-1">
+                    Associated Design by <span className="font-bold text-slate-400">Ashik</span>
+                  </span>
                 </div>
               </div>
             </div>

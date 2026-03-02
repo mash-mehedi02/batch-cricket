@@ -301,6 +301,21 @@
     font-family: "Brush Script MT", "Brush Script Std", cursive, serif;
   }
 
+  /* Custom DiatypeBold Font Classes */
+  .font1 {
+    font-family: 'DiatypeBold', 'Inter', sans-serif;
+    color: #E9DF90 !important;
+    font-size: 56px;
+    line-height: 1;
+  }
+
+  .font3 {
+    font-family: 'DiatypeBold', 'Inter', sans-serif;
+    color: #E9DF90 !important;
+    font-size: 30px;
+    line-height: 1;
+  }
+
   .animate-marquee:hover {
     animation-play-state: paused;
   }
@@ -455,54 +470,59 @@
     @apply border-slate-800 !important;
   }
 }
-  /* Premium Shimmer for Skeletons */
-  .skeleton-shimmer {
-    position: relative;
-    overflow: hidden;
-    background-color: rgb(226, 232, 240);
-  }
 
-  .dark .skeleton-shimmer {
-    background-color: rgb(30, 41, 59);
-  }
+/* Premium Shimmer for Skeletons */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: rgb(226, 232, 240);
+}
 
-  .skeleton-shimmer::after {
-    position: absolute;
-    inset: 0;
-    content: '';
-    background: linear-gradient(
-      90deg,
+.dark .skeleton-shimmer {
+  background-color: rgb(30, 41, 59);
+}
+
+.skeleton-shimmer::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(90deg,
       transparent,
       rgba(255, 255, 255, 0.2) 20%,
       rgba(255, 255, 255, 0.5) 60%,
-      transparent
-    );
-    transform: translateX(-100%);
-    animation: skeleton-shimmer-ani 2s infinite;
-  }
+      transparent);
+  transform: translateX(-100%);
+  animation: skeleton-shimmer-ani 2s infinite;
+}
 
-  .dark .skeleton-shimmer::after {
-    background: linear-gradient(
-      90deg,
+.dark .skeleton-shimmer::after {
+  background: linear-gradient(90deg,
       transparent,
       rgba(255, 255, 255, 0.03) 20%,
       rgba(255, 255, 255, 0.08) 60%,
-      transparent
-    );
+      transparent);
+}
+
+@keyframes skeleton-shimmer-ani {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
   }
 
-  @keyframes skeleton-shimmer-ani {
-    100% {
-      transform: translateX(100%);
-    }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
   }
+}
 
-  @keyframes pulse-slow {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 0.7; transform: scale(1.05); }
-  }
-
-  .animate-pulse-slow {
-    animation: pulse-slow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
+.animate-pulse-slow {
+  animation: pulse-slow 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

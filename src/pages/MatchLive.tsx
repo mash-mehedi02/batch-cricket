@@ -89,23 +89,12 @@ export default function MatchLive() {
   }, [matchId])
 
   const togglePin = () => {
-    if (user?.role !== 'admin' && user?.role !== 'super_admin') {
-      toast.error('Premium subscription is required to pin scores 🏏', {
-        icon: '💎',
-        style: { fontSize: '13px', fontWeight: 'bold', borderRadius: '12px' }
-      })
-      return
-    }
-
-    if (isPinned) {
-      localStorage.removeItem('pinnedMatchId')
-      setIsPinned(false)
-    } else {
-      localStorage.setItem('pinnedMatchId', matchId || '')
-      localStorage.setItem('pinnedMatchTitle', `${teamAName} vs ${teamBName}`)
-      setIsPinned(true)
-    }
-    window.dispatchEvent(new Event('matchPinned'))
+    // Show premium message for everyone as requested
+    toast('Premium subscription is required to pin scores 🏏', {
+      icon: '💎',
+      style: { fontSize: '14px', fontWeight: 'bold', borderRadius: '12px', background: '#0f172a', color: '#fff' }
+    })
+    return
   }
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -1932,7 +1921,7 @@ export default function MatchLive() {
               centerEventText={centerEventText || '—'}
               showBoundaryAnim={showBoundaryAnim}
               lastBall={null}
-              hideChaseBar={true}
+              hideChaseBar={false}
             />
           </div>
 

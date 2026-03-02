@@ -112,15 +112,16 @@ export async function deleteOrphanedCommentaryAfter(matchId: string, timestampAf
   const { getDocs, deleteDoc, doc: docRef } = await import('firebase/firestore')
   const commentaryRef = collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY)
 
-  // Find all manual commentary created AFTER the ball we just undid
+  // Find all commentary created AFTER the ball we just undid, then filter manual ones client-side
+  // This avoids needing a composite index on (manual, timestamp)
   const q = query(
     commentaryRef,
-    where('manual', '==', true),
     where('timestamp', '>', Timestamp.fromDate(timestampAfter))
   )
 
   const snap = await getDocs(q)
-  const deletions = snap.docs.map((d) => deleteDoc(docRef(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY, d.id)))
+  const manualDocs = snap.docs.filter((d) => d.data().manual === true)
+  const deletions = manualDocs.map((d) => deleteDoc(docRef(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.COMMENTARY, d.id)))
   await Promise.all(deletions)
 }
 

@@ -63,6 +63,11 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
   const [emailChecking, setEmailChecking] = useState(false)
   const [duplicateEmailError, setDuplicateEmailError] = useState('')
 
+  // Autocomplete state
+  const [existingSchools, setExistingSchools] = useState<string[]>([])
+  const [filteredSchools, setFilteredSchools] = useState<string[]>([])
+  const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false)
+
 
   useEffect(() => {
     if (mode === 'list') {
@@ -79,6 +84,18 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
         setLoading(false)
       }
     }
+
+    // Fetch unique schools for autocomplete
+    const fetchSchools = async () => {
+      try {
+        const { tournamentService } = await import('@/services/firestore/tournaments')
+        const schools = await tournamentService.getUniqueSchools()
+        setExistingSchools(schools)
+      } catch (err) {
+        console.error('Error fetching schools:', err)
+      }
+    }
+    fetchSchools()
   }, [mode, id])
 
   const loadAdmins = async () => {
@@ -463,18 +480,66 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               )}
             </div>
 
-            {/* School Field */}
-            <div className="md:col-span-2">
+            {/* School Field with Autocomplete */}
+            <div className="md:col-span-2 relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                School
+                School <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={formData.school}
-                onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 transition"
-                placeholder="e.g. Shakib Al Hasan"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  value={formData.school}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setFormData({ ...formData, school: val })
+                    if (val.trim()) {
+                      const filtered = existingSchools.filter(s =>
+                        s.toLowerCase().includes(val.toLowerCase())
+                      )
+                      setFilteredSchools(filtered)
+                      setShowSchoolSuggestions(filtered.length > 0)
+                    } else {
+                      setShowSchoolSuggestions(false)
+                    }
+                    if (errors.school) setErrors(prev => ({ ...prev, school: '' }))
+                  }}
+                  onFocus={() => {
+                    if (formData.school.trim()) {
+                      const filtered = existingSchools.filter(s =>
+                        s.toLowerCase().includes(formData.school.toLowerCase())
+                      )
+                      setFilteredSchools(filtered)
+                      setShowSchoolSuggestions(filtered.length > 0)
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowSchoolSuggestions(false), 200)
+                  }}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.school ? 'border-red-500' : 'border-gray-300'}`}
+                  placeholder="e.g. BatchCrick High"
+                  autoComplete="off"
+                />
+
+                {showSchoolSuggestions && (
+                  <div className="absolute z-[110] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto overflow-x-hidden ring-1 ring-black/5">
+                    {filteredSchools.map((school, idx) => (
+                      <div
+                        key={idx}
+                        className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm font-medium text-slate-700 border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                        onClick={() => {
+                          setFormData({ ...formData, school })
+                          setShowSchoolSuggestions(false)
+                        }}
+                      >
+                        <span className="truncate">{school}</span>
+                        <Plus size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {errors.school && <p className="text-red-500 text-sm mt-1">{errors.school}</p>}
             </div>
 
             <div>

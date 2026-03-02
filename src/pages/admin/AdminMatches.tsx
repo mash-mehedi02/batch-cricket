@@ -98,6 +98,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterTournament, setFilterTournament] = useState<string>('')
+  const [isSyncing, setIsSyncing] = useState(false)
 
   // Tournament → Groups → Allowed squads (for tournament-based fixtures)
   const selectedTournament = useMemo(() => {
@@ -780,6 +781,49 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     }
   }
 
+  const handleSyncBrackets = async () => {
+    if (!user) {
+      toast.error('Please login to sync brackets.')
+      return
+    }
+    const confirmSync = window.confirm("This will scan all finished matches and auto-fill upcoming knockout slots (like SF1, Final) with actual team names. Proceed?");
+    if (!confirmSync) return;
+
+    setIsSyncing(true)
+    const toastId = toast.loading('Syncing tournament brackets...')
+    try {
+      // Find all finished matches that have a winner
+      const finishedMatches = matches.filter(m => (m.status === 'finished' || m.status === 'completed') && m.winnerId)
+      let count = 0;
+
+      for (const match of finishedMatches) {
+        if (!match.tournamentId || !match.matchNo) continue
+
+        const isTeamAWinner = match.winnerId === (match as any).teamASquadId || match.winnerId === (match as any).teamAId || match.winnerId === (match as any).teamA
+        const winnerName = isTeamAWinner ? match.teamAName : match.teamBName
+        const loserId = isTeamAWinner ? ((match as any).teamBSquadId || (match as any).teamBId || (match as any).teamB) : ((match as any).teamASquadId || (match as any).teamAId || (match as any).teamA)
+        const loserName = isTeamAWinner ? match.teamBName : match.teamAName
+
+        await matchService.autoFillDownstreamMatches(
+          match.tournamentId,
+          match.matchNo,
+          match.winnerId as string,
+          winnerName,
+          loserId ? String(loserId) : undefined,
+          loserName
+        )
+        count++;
+      }
+      toast.success(`Brackets synced! Processed ${count} finished matches.`, { id: toastId })
+      loadMatches() // Refresh UI
+    } catch (e) {
+      console.error('Error syncing brackets:', e)
+      toast.error('Failed to sync brackets.', { id: toastId })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     console.log('🚀 [AdminMatches] handleSubmit triggered. Mode:', mode)
@@ -827,6 +871,21 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     if (!isKnockout && formData.teamA && formData.teamB && formData.teamA === formData.teamB) {
       toast.error('Team A and Team B cannot be the same.')
       return
+    }
+
+    // Prevent duplicate knockout matches
+    if (mode === 'create' && isKnockout && formData.matchNo) {
+      const exists = matches.some(m => m.tournamentId === formData.tournamentId && m.matchNo === formData.matchNo)
+      if (exists) {
+        toast.error(
+          <div>
+            <p className="font-semibold text-red-600">⚠️ Match Already Exists</p>
+            <p className="text-sm mt-1">এই টুর্নামেন্টের জন্য <b>{formData.matchNo}</b> ম্যাচটি আগেই তৈরি করা হয়েছে।</p>
+            <p className="text-xs mt-2 text-slate-600">একই নকআউট ম্যাচ দুইবার তৈরি করলে কনফ্লিক্ট হতে পারে। দয়া করে আগের ম্যাচটি এডিট করুন বা ডিলিট করে নতুন করে তৈরি করুন।</p>
+          </div>
+        )
+        return
+      }
     }
 
     setSaving(true)
@@ -1113,6 +1172,8 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                 value={formData.tournamentId}
                 onChange={(e) => {
                   const nextTournamentId = e.target.value
+                  const t = tournaments.find(x => x.id === nextTournamentId)
+
                   // Reset group + teams when tournament changes (prevents invalid cross-tournament/group selections)
                   setFormData((prev) => ({
                     ...prev,
@@ -1120,11 +1181,11 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                     groupId: '',
                     teamA: '',
                     teamB: '',
+                    oversLimit: t?.oversLimit || 20, // Auto-sync overs with tournament limit
                   }))
 
                   // Auto-generate match number if creating a new match
                   if (mode === 'create' && nextTournamentId) {
-                    const t = tournaments.find(x => x.id === nextTournamentId)
                     if (t) {
                       generateMatchNumber(nextTournamentId, t.name).then(no => {
                         setFormData(prev => ({ ...prev, matchNo: no }))
@@ -1241,6 +1302,17 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                       <p className="text-[10px] font-bold text-indigo-600 mt-1">
                         Auto-determined: {formData.teamAName} vs {formData.teamBName}
                       </p>
+                    )}
+                    {mode === 'create' && matchSlot && matches.some(m => m.tournamentId === formData.tournamentId && m.matchNo === matchSlot) && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 animate-in fade-in">
+                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold text-red-700">⚠️ এই ম্যাচটি আগেই তৈরি করা হয়েছে!</p>
+                          <p className="text-[10px] text-red-600 mt-1">
+                            সিস্টেমের কনফ্লিক্ট এড়ানোর জন্য একই নকআউট ম্যাচ দুইবার তৈরি করা যাবে না। নতুন দলের সাথে এই ম্যাচটি সেট করতে চাইলে দয়া করে আগের <b>{matchSlot}</b> ম্যাচটি ডিলেট করুন।
+                          </p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1887,7 +1959,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         </div>
         <div className="space-y-4">
           <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
             {[1, 2, 3].map((i) => (
               <SkeletonCard key={i} />
             ))}
@@ -1907,57 +1979,69 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Match Center</h1>
           <p className="text-slate-500 text-sm mt-1">Manage fixture schedules, venues, and status.</p>
         </div>
-        <Link
-          to="/admin/matches/new"
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm"
-        >
-          <Plus size={18} />
-          Create Match
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSyncBrackets}
+            disabled={isSyncing}
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all border border-slate-200 disabled:opacity-50"
+          >
+            <Shield size={18} className={isSyncing ? "animate-spin" : ""} />
+            {isSyncing ? 'Syncing...' : 'Sync Bracket'}
+          </button>
+          <Link
+            to="/admin/matches/new"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-sm"
+          >
+            <Plus size={18} />
+            Create Match
+          </Link>
+        </div>
       </div>
 
       {/* Live Matches Section - Pinned */}
-      {activeLiveMatches.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {activeLiveMatches.map(match => (
-            <div key={match.id} className="bg-white rounded-xl shadow-sm border border-rose-100 p-5 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                <Clock size={64} className="text-rose-600" />
-              </div>
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-rose-600 uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
-                    Live Now
-                  </span>
-                  <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded">
-                    {match.oversLimit} Overs
-                  </span>
+      {
+        activeLiveMatches.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            {activeLiveMatches.map(match => (
+              <div key={match.id} className="bg-white rounded-xl shadow-sm border border-rose-100 p-5 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-3 opacity-10">
+                  <Clock size={64} className="text-rose-600" />
                 </div>
-                <h3 className="font-bold text-slate-900 text-lg leading-snug mb-1">
-                  {match.teamAName || 'Team A'} vs {match.teamBName || 'Team B'}
-                </h3>
-                <p className="text-sm text-slate-500 mb-4">{match.venue}</p>
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-rose-600 uppercase tracking-wider">
+                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                      Live Now
+                    </span>
+                    <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded">
+                      {match.oversLimit} Overs
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-lg leading-snug mb-1">
+                    {match.teamAName || 'Team A'} vs {match.teamBName || 'Team B'}
+                  </h3>
+                  <p className="text-sm text-slate-500 mb-4">{match.venue}</p>
 
-                <div className="flex gap-2">
-                  <Link
-                    to={`/admin/live/${match.id}/scoring`}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-2 px-3 rounded-lg text-center transition-colors shadow-sm shadow-rose-200"
-                  >
-                    Score Match
-                  </Link>
-                  <Link
-                    to={`/admin/matches/${match.id}`}
-                    className="flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white"
-                  >
-                    <ArrowRight size={18} />
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link
+                      to={`/admin/live/${match.id}/scoring`}
+                      className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-2 px-3 rounded-lg text-center transition-colors shadow-sm shadow-rose-200"
+                    >
+                      Score Match
+                    </Link>
+                    <Link
+                      to={`/admin/matches/${match.id}`}
+                      className="flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 bg-white"
+                    >
+                      <ArrowRight size={18} />
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )
+      }
 
       {/* Main Filter & Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
@@ -2177,77 +2261,79 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       </div>
 
       {/* Reschedule Modal */}
-      {rescheduleModal.open && rescheduleModal.match && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
-                <CalendarClock size={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Reschedule</h3>
-                <p className="text-xs text-slate-500">Update match timing</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="relative">
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Date</label>
-                <div
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer bg-white flex items-center justify-between"
-                  onClick={() => setShowRescheduleDatePicker(!showRescheduleDatePicker)}
-                >
-                  <span className={rescheduleData.date ? "text-slate-900" : "text-slate-400"}>
-                    {rescheduleData.date ? formatDateLabel(rescheduleData.date) : 'Select Date'}
-                  </span>
-                  <Calendar size={18} className="text-slate-400" />
+      {
+        rescheduleModal.open && rescheduleModal.match && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
+            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
+                  <CalendarClock size={24} />
                 </div>
-
-                {showRescheduleDatePicker && (
-                  <div className="absolute z-[110] mt-2 left-0 right-0">
-                    <div className="fixed inset-0 z-0 bg-transparent" onClick={() => setShowRescheduleDatePicker(false)}></div>
-                    <div className="relative z-10 bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
-                      <WheelDatePicker
-                        value={rescheduleData.date || new Date().toISOString().split('T')[0]}
-                        onChange={(val) => setRescheduleData({ ...rescheduleData, date: val })}
-                      />
-                      <button
-                        type="button"
-                        className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
-                        onClick={() => setShowRescheduleDatePicker(false)}
-                      >
-                        Done
-                      </button>
-                    </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Reschedule</h3>
+                  <p className="text-xs text-slate-500">Update match timing</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="relative">
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Date</label>
+                  <div
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer bg-white flex items-center justify-between"
+                    onClick={() => setShowRescheduleDatePicker(!showRescheduleDatePicker)}
+                  >
+                    <span className={rescheduleData.date ? "text-slate-900" : "text-slate-400"}>
+                      {rescheduleData.date ? formatDateLabel(rescheduleData.date) : 'Select Date'}
+                    </span>
+                    <Calendar size={18} className="text-slate-400" />
                   </div>
-                )}
+
+                  {showRescheduleDatePicker && (
+                    <div className="absolute z-[110] mt-2 left-0 right-0">
+                      <div className="fixed inset-0 z-0 bg-transparent" onClick={() => setShowRescheduleDatePicker(false)}></div>
+                      <div className="relative z-10 bg-white rounded-2xl shadow-2xl border border-slate-200 p-2">
+                        <WheelDatePicker
+                          value={rescheduleData.date || new Date().toISOString().split('T')[0]}
+                          onChange={(val) => setRescheduleData({ ...rescheduleData, date: val })}
+                        />
+                        <button
+                          type="button"
+                          className="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm"
+                          onClick={() => setShowRescheduleDatePicker(false)}
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Time</label>
+                  <input
+                    type="time"
+                    value={rescheduleData.time}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">New Time</label>
-                <input
-                  type="time"
-                  value={rescheduleData.time}
-                  onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                />
+              <div className="grid grid-cols-2 gap-3 mt-6">
+                <button
+                  onClick={() => setRescheduleModal({ open: false, match: null })}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRescheduleMatch}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-sm shadow-blue-200"
+                >
+                  Save Changes
+                </button>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-6">
-              <button
-                onClick={() => setRescheduleModal({ open: false, match: null })}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold hover:bg-slate-200 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRescheduleMatch}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition shadow-sm shadow-blue-200"
-              >
-                Save Changes
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       <DeleteConfirmationModal
         isOpen={deleteModalOpen}
@@ -2259,7 +2345,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         itemType="Match"
         isDeleting={isDeleting}
       />
-    </div>
+    </div >
   )
 }
 

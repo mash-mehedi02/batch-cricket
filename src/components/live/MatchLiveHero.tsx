@@ -67,7 +67,6 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const logoUrl = currentSquad?.logoUrl || (match as any)[baseBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
 
     const currentTeamAbbr = formatShortTeamName(currentTeamName, currentSquad?.batch)
-    const opponentTeamAbbr = formatShortTeamName(baseBatting === 'teamA' ? teamBName : teamAName, baseBatting === 'teamA' ? teamBSquad?.batch : teamASquad?.batch)
 
     // --- Toss Logic ---
     const m = match as any;
@@ -179,6 +178,13 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     // Determine if the event is a boundary, wicket, or other type for styling
     const isRun = !isFinishedMatch && !isInningsBreak && ['0', '1', '2', '3', '4', '5', '6'].includes(displayEvent);
     const isPenalty = !isFinishedMatch && !isInningsBreak && displayEvent.includes('PENALTY');
+
+    // Determine if event text needs to be smaller
+    const isSmallEventText = useMemo(() => {
+        const lowerEvent = displayEvent.toLowerCase();
+        const smallEvents = ['bowled', 'caught', 'drinks break', 'run out', 'paused', 'bad light delay', 'rain delay', 'lbw', 'stumped', 'hit wicket'];
+        return smallEvents.some(evt => lowerEvent.includes(evt) || lowerEvent === evt);
+    }, [displayEvent]);
 
     // Result split logic for finished matches
     const { resultMain, resultSub } = useMemo(() => {
@@ -372,10 +378,10 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                     <div className="flex flex-col items-center justify-center gap-1.5">
                                         <span
                                             ref={eventTextRef}
-                                            className={`font-bold tracking-tight uppercase drop-shadow-md
+                                            className={`tracking-tight uppercase drop-shadow-md
                                         ${isFinishedMatch || !isRun
-                                                    ? (resultMain.length > 15 ? 'text-[13px] sm:text-[15px] leading-[1.1]' : 'text-[16px] sm:text-[20px] leading-tight')
-                                                    : 'text-4xl sm:text-5xl leading-none'
+                                                    ? (isFinishedMatch ? 'text-[16px] sm:text-[20px] font-black tracking-widest' : (isSmallEventText || resultMain.length > 15) ? 'text-[10px] sm:text-[12px] leading-[1.1] font3 font-bold' : 'font3 leading-tight font-bold')
+                                                    : 'font1 leading-none font-bold'
                                                 }`}>
                                             {resultMain === '—' || resultMain === 'BALL' ? '' : resultMain}
                                         </span>
@@ -444,17 +450,16 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                 )}
             </div>
 
-            {/* 3. Chase Detail Sub-header - Visible in Innings Break too */}
+            {/* 3. Chase Detail Sub-header - Fused with Scoreboard */}
             {targetScore > 0 && !isFinishedMatch && !hideChaseBar && (
-                <div className="bg-amber-50 dark:bg-[#1e1b0b] py-1.5 border-t border-amber-100/50 dark:border-white/5 text-center shadow-lg relative z-0">
-                    <div className="overflow-x-auto whitespace-nowrap px-2 scrollbar-hide">
-                        <span className="text-[11px] sm:text-xs font-semibold text-amber-700 dark:text-amber-500 tracking-wider inline-block">
-                            {isSuperOver ? '⚡ ' : ''}
-                            {isInningsBreak ? (
-                                `${opponentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(targetScore)).replace('${balls}', String(matchOvers * 6))}`
-                            ) : (
-                                `${currentTeamAbbr} ${t('need_runs_in_balls').replace('${runs}', String(runsNeeded)).replace('${balls}', String(remainingBalls))}`
-                            )}
+                <div className="bg-amber-50 dark:bg-[#1e1b0b] py-1.5 border-t border-amber-100 dark:border-white/5 text-center relative z-0">
+                    <div className="px-4">
+                        <span className="text-[11px] sm:text-[13px] font-semibold text-amber-700 dark:text-amber-500 uppercase tracking-tight inline-block">
+                            {(() => {
+                                const chasingTeam = currentTeamAbbr;
+                                const text = `${chasingTeam} NEED ${runsNeeded} RUNS IN ${remainingBalls} BALLS`;
+                                return text;
+                            })()}
                         </span>
                     </div>
                 </div>

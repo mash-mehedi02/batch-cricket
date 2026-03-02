@@ -19,14 +19,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { title, message, tag, appId, url, icon, buttons, collapseId } = req.body;
+    const { title, message, tag, appId, url, icon, buttons, collapseId, tournamentTag } = req.body;
     const restKey = process.env.ONESIGNAL_REST_API_KEY;
 
-    console.log('[Notify API] Received request:', { title, message, tag, appId: appId?.substring(0, 8) + '...', url });
+    console.log('[Notify API] Received request:', {
+        title,
+        message,
+        matchTag: tag,
+        tournamentTag,
+        appId: appId?.substring(0, 8) + '...',
+        url
+    });
 
     if (!restKey) {
         console.error('[Notify API] ONESIGNAL_REST_API_KEY is not set in Vercel environment!');
-        return res.status(500).json({ error: 'Server configuration error: Missing REST API Key. Set ONESIGNAL_REST_API_KEY in Vercel environment variables.' });
+        return res.status(500).json({ error: 'Server configuration error: Missing REST API Key.' });
     }
 
     if (!appId) {
@@ -34,13 +41,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        // Construct filters: (Match Tag OR Tournament Tag OR All Matches)
+        const filters: any[] = [];
+
+        if (tag) {
+            filters.push({ field: 'tag', key: tag, relation: '=', value: 'subscribed' });
+        }
+
+        if (tournamentTag) {
+            if (filters.length > 0) filters.push({ operator: 'OR' });
+            filters.push({ field: 'tag', key: tournamentTag, relation: '=', value: 'subscribed' });
+        }
+
+        if (filters.length > 0) filters.push({ operator: 'OR' });
+        filters.push({ field: 'tag', key: 'all_matches', relation: '=', value: 'active' });
+
         const payload = {
             app_id: appId,
-            filters: [
-                { field: 'tag', key: tag, relation: '=', value: 'subscribed' },
-                { operator: 'OR' },
-                { field: 'tag', key: 'all_matches', relation: '=', value: 'active' }
-            ],
+            filters: filters,
             headings: { en: title },
             contents: { en: message },
             url: url,
@@ -59,13 +77,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Sound/vibration
             vibration_pattern: [200, 200, 200],
-            // android_channel_id: 'match_alerts', // Removed to avoid 400 error if not created in OneSignal dashboard
 
-            // Target ALL platforms (web + mobile)
+            // Target all web platforms
             isAnyWeb: true,
         };
 
-        console.log('[Notify API] Sending to OneSignal with tag filter:', tag);
+        console.log('[Notify API] Sending to OneSignal with filters count:', filters.length);
 
         const response = await fetch('https://onesignal.com/api/v1/notifications', {
             method: 'POST',

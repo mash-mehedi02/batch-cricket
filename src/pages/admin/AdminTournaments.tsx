@@ -84,6 +84,11 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [uploadingBanner, setUploadingBanner] = useState(false)
 
+  // Autocomplete state
+  const [existingSchools, setExistingSchools] = useState<string[]>([])
+  const [filteredSchools, setFilteredSchools] = useState<string[]>([])
+  const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false)
+
   useEffect(() => {
     setActiveTab(mode);
     if (mode === 'list' || mode === 'dashboard') {
@@ -99,7 +104,18 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       loadSquads()
       loadMatches(id)
     }
-  }, [mode, id])
+
+    // Fetch existing schools for autocomplete
+    const fetchSchools = async () => {
+      try {
+        const schools = await tournamentService.getUniqueSchools()
+        setExistingSchools(schools)
+      } catch (error) {
+        console.error('Error fetching schools:', error)
+      }
+    }
+    fetchSchools()
+  }, [id, mode, user])
 
   const isLocked = mode === 'edit' && formData.status !== 'upcoming';
 
@@ -221,7 +237,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           location: (data as any).location || '',
           groupBySquadId,
           groupMeta,
-          hasGroupStage: (data as any).stages?.some((s: any) => s.type === 'group') ?? true,
+          hasGroupStage: (data as any).hasGroupStage ?? (data as any).stages?.some((s: any) => s.type === 'group') ?? true,
         }))
       }
       setLoading(false)
@@ -284,17 +300,23 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         setSaving(false)
         return
       }
-      const groupBySquadId = ensureGroupAssignments(selectedIds, formData.groupCount, formData.groupBySquadId)
-      const gids = groupIds(formData.groupCount)
+      const finalGroupCount = formData.hasGroupStage ? formData.groupCount : 1
+      const gids = groupIds(finalGroupCount)
+      const groupBySquadId = formData.hasGroupStage
+        ? ensureGroupAssignments(selectedIds, formData.groupCount, formData.groupBySquadId)
+        : selectedIds.reduce((acc, sid) => ({ ...acc, [sid]: gids[0] }), {} as Record<string, string>)
+
       const groups = gids.map((gid, idx) => ({
         id: gid,
-        name: formData.groupMeta?.[gid]?.name || groupLabel(idx),
-        type: formData.groupMeta?.[gid]?.type || 'normal',
-        roundFormat: formData.groupMeta?.[gid]?.roundFormat || 'round_robin',
+        name: formData.hasGroupStage ? (formData.groupMeta?.[gid]?.name || groupLabel(idx)) : 'League Stage',
+        type: formData.hasGroupStage ? (formData.groupMeta?.[gid]?.type || 'normal') : 'normal',
+        roundFormat: formData.hasGroupStage ? (formData.groupMeta?.[gid]?.roundFormat || 'round_robin') : 'round_robin',
         squadIds: selectedIds.filter((sid) => groupBySquadId[sid] === gid),
         qualification: {
-          qualifyCount: Math.max(0, Number(formData.groupMeta?.[gid]?.qualifyCount ?? formData.qualificationPerGroup ?? 0)),
-          winnerPriority: Boolean(formData.groupMeta?.[gid]?.winnerPriority),
+          qualifyCount: formData.hasGroupStage
+            ? Math.max(0, Number(formData.groupMeta?.[gid]?.qualifyCount ?? formData.qualificationPerGroup ?? 0))
+            : selectedIds.length,
+          winnerPriority: formData.hasGroupStage ? Boolean(formData.groupMeta?.[gid]?.winnerPriority) : false,
         },
         teamCount: selectedIds.filter((sid) => groupBySquadId[sid] === gid).length,
       }))
@@ -308,6 +330,13 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         const batch = String((s?.batch || '')).trim() || undefined
         participantSquadMeta[sid] = { name, ...(batch ? { batch } : {}) }
       })
+
+      // Determine overs based on format
+      let finalOvers = 20
+      if (formData.format === 'T20') finalOvers = 20
+      else if (formData.format === 'ODI') finalOvers = 50
+      else if (formData.format === 'Test') finalOvers = 90
+      else if (formData.format === 'Custom') finalOvers = Number(formData.oversLimit || 20)
 
       const config: any = {
         version: 1,
@@ -335,7 +364,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         })),
         wildcards: { count: Math.max(0, Number(formData.wildcardQualifiers || 0)), method: 'overall' },
         locks: { groupsLocked: false, fixturesLocked: false, knockoutLocked: false },
-        oversLimit: formData.oversLimit,
+        oversLimit: finalOvers,
       }
 
       // IMPORTANT: Persist ONLY tournament fields. Avoid spreading full formData (contains UI-only fields
@@ -343,7 +372,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       const persistPayload = {
         name: formData.name,
         year: formData.year,
-        school: formData.school,
+        school: (formData.school || '').trim(),
         format: formData.format,
         status: formData.status,
         startDate: formData.startDate,
@@ -359,7 +388,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
           wildcards: Math.max(0, Number(formData.wildcardQualifiers || 0)),
           method: 'group',
         },
-        oversLimit: formData.oversLimit,
+        oversLimit: finalOvers,
         pointsForWin: formData.pointsForWin,
         pointsForLoss: formData.pointsForLoss,
         pointsForTie: formData.pointsForTie,
@@ -367,6 +396,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         logoUrl: formData.logoUrl,
         bannerUrl: formData.bannerUrl,
         location: formData.location,
+        hasGroupStage: formData.hasGroupStage,
       }
 
       if (mode === 'create') {
@@ -379,7 +409,13 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         await tournamentService.create({
           ...createPayload,
           stages: [
-            ...(formData.hasGroupStage ? [{ id: 'group-stage', name: 'Group Stage', type: 'group', order: 0, status: 'active' }] : []),
+            {
+              id: 'group-stage',
+              name: formData.hasGroupStage ? 'Group Stage' : 'League Stage',
+              type: 'group',
+              order: 0,
+              status: 'active'
+            },
             ...(formData.hasGroupStage
               ? (() => {
                 const totalQualifying = Object.values(formData.groupMeta || {}).reduce((acc: number, curr: any) => acc + (curr.qualifyCount || 0), 0) + (formData.wildcardQualifiers || 0);
@@ -774,20 +810,22 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                     <div key={id} className="flex items-center gap-2 text-sm text-amber-900 bg-white/50 px-2 py-1 rounded">
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
                       <span className="font-mono text-xs overflow-hidden text-ellipsis w-32">{id}</span>
-                      <select
-                        value={safeGroupBy[id] || gids[0]}
-                        onChange={(e) => setFormData((p) => ({
-                          ...p,
-                          groupBySquadId: { ...safeGroupBy, [id]: e.target.value }
-                        }))}
-                        className="ml-auto px-2 py-0.5 border border-amber-300 rounded text-xs bg-white"
-                      >
-                        {gids.map((gid, idx) => (
-                          <option key={gid} value={gid}>
-                            {formData.groupMeta?.[gid]?.name || groupLabel(idx)}
-                          </option>
-                        ))}
-                      </select>
+                      {formData.hasGroupStage && (
+                        <select
+                          value={safeGroupBy[id] || gids[0]}
+                          onChange={(e) => setFormData((p) => ({
+                            ...p,
+                            groupBySquadId: { ...safeGroupBy, [id]: e.target.value }
+                          }))}
+                          className="ml-auto px-2 py-0.5 border border-amber-300 rounded text-xs bg-white"
+                        >
+                          {gids.map((gid, idx) => (
+                            <option key={gid} value={gid}>
+                              {formData.groupMeta?.[gid]?.name || groupLabel(idx)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -827,7 +865,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                       <div className="font-semibold text-gray-900 truncate">{squad.name || squad.id}</div>
                       <div className="text-xs text-gray-500">Batch: {squad.batch || 'N/A'}</div>
                     </div>
-                    {checked && (
+                    {checked && formData.hasGroupStage && (
                       <select
                         value={safeGroupBy[squad.id] || gids[0]}
                         onChange={(e) => setFormData((p) => ({
@@ -1579,17 +1617,63 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                 </select>
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   School
                 </label>
-                <input
-                  type="text"
-                  value={formData.school}
-                  onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="e.g., SMA"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.school}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setFormData({ ...formData, school: val })
+                      if (val.trim()) {
+                        const filtered = existingSchools.filter(s =>
+                          s.toLowerCase().includes(val.toLowerCase())
+                        )
+                        setFilteredSchools(filtered)
+                        setShowSchoolSuggestions(filtered.length > 0)
+                      } else {
+                        setShowSchoolSuggestions(false)
+                      }
+                    }}
+                    onFocus={() => {
+                      if (formData.school.trim()) {
+                        const filtered = existingSchools.filter(s =>
+                          s.toLowerCase().includes(formData.school.toLowerCase())
+                        )
+                        setFilteredSchools(filtered)
+                        setShowSchoolSuggestions(filtered.length > 0)
+                      }
+                    }}
+                    onBlur={() => {
+                      // Small delay to allow clicking on a suggestion
+                      setTimeout(() => setShowSchoolSuggestions(false), 200)
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    placeholder="e.g., SMA"
+                    autoComplete="off"
+                  />
+
+                  {showSchoolSuggestions && (
+                    <div className="absolute z-[110] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto overflow-x-hidden ring-1 ring-black/5">
+                      {filteredSchools.map((school, idx) => (
+                        <div
+                          key={idx}
+                          className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm font-medium text-slate-700 border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                          onClick={() => {
+                            setFormData({ ...formData, school })
+                            setShowSchoolSuggestions(false)
+                          }}
+                        >
+                          <span className="truncate">{school}</span>
+                          <Plus size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1605,8 +1689,27 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                   <option value="T20">T20</option>
                   <option value="ODI">ODI</option>
                   <option value="Test">Test</option>
+                  <option value="Custom">Custom</option>
                 </select>
               </div>
+
+              {formData.format === 'Custom' && (
+                <div className="animate-in slide-in-from-top-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Tournament Overs *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={100}
+                    value={formData.oversLimit}
+                    onChange={(e) => setFormData({ ...formData, oversLimit: parseInt(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    placeholder="e.g., 6"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1624,19 +1727,6 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Overs Limit
-                </label>
-                <input
-                  type="number"
-                  min={5}
-                  max={50}
-                  value={formData.oversLimit}
-                  onChange={(e) => setFormData({ ...formData, oversLimit: parseInt(e.target.value) })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
-              </div>
 
               <div className="relative">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">

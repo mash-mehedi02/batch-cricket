@@ -19,15 +19,12 @@ export const MatchSettingsSheet: React.FC<Props> = ({ isOpen, onClose, matchId, 
     }, [matchId, isOpen]);
 
     const togglePin = () => {
-        if (isPinned) {
-            localStorage.removeItem('pinnedMatchId');
-            setIsPinned(false);
-        } else {
-            localStorage.setItem('pinnedMatchId', matchId);
-            // Optional: Store title too for quick access if needed
-            localStorage.setItem('pinnedMatchTitle', matchTitle);
-            setIsPinned(true);
-        }
+        import('react-hot-toast').then(({ default: toast }) => {
+            toast('Premium subscription is required to pin scores 🏏', {
+                icon: '💎',
+                style: { fontSize: '14px', fontWeight: 'bold', borderRadius: '12px', background: '#0f172a', color: '#fff' }
+            });
+        });
     };
 
     return (

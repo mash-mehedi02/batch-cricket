@@ -1,5 +1,4 @@
 import { InningsStats, Match, Player } from '@/types';
-import { calculateFantasyPoints } from './statsCalculator';
 import { calculateMatchWinner } from './matchWinner';
 
 /**
@@ -68,7 +67,7 @@ export function calculatePotM(
             }
         };
 
-        const points = calculateFantasyPoints(aggregatedStats);
+        const points = (aggregatedStats.batting.runs * 1) + (aggregatedStats.bowling.wickets * 15);
 
         if (points > maxPoints) {
             maxPoints = points;

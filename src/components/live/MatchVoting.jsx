@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { voteService } from '@/services/firestore/voteService';
 
-const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch }) => {
+const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, isFinished }) => {
     const [votes, setVotes] = useState({ teamAVotes: 0, teamBVotes: 0, totalVotes: 0 });
     const [userVote, setUserVote] = useState(null);
     const [isCasting, setIsCasting] = useState(false);
@@ -22,7 +22,7 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch }) 
     }, [matchId]);
 
     const handleVote = async (team) => {
-        if (userVote || isCasting) return;
+        if (userVote || isCasting || isFinished) return;
 
         setIsCasting(true);
         const success = await voteService.castVote(matchId, team);
@@ -31,6 +31,8 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch }) 
         }
         setIsCasting(false);
     };
+
+    const showResults = userVote || isFinished;
 
     const aPercent = votes.totalVotes > 0
         ? Math.round((votes.teamAVotes / votes.totalVotes) * 100)
@@ -49,8 +51,10 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch }) 
     return (
         <div className="p-4 bg-white dark:bg-[#0f172a] border-t border-slate-100 dark:border-white/5 space-y-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-200 tracking-tight">Who will win?</h3>
-                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <h3 className="text-sm font-medium text-slate-800 dark:text-slate-200 tracking-tight">
+                    {isFinished ? 'Poll Result' : 'Who will win?'}
+                </h3>
+                <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                     Total Votes: {votes.totalVotes.toLocaleString()}
                 </div>
             </div>
@@ -59,24 +63,24 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch }) 
                 {/* Team A Button */}
                 <button
                     onClick={() => handleVote('teamA')}
-                    disabled={!!userVote || isCasting}
+                    disabled={showResults || isCasting}
                     className={`relative flex-1 rounded-xl border transition-all duration-300 overflow-hidden ${userVote === 'teamA'
-                        ? 'border-blue-500 bg-blue-500/5'
-                        : userVote
-                            ? 'border-slate-100 dark:border-white/5 bg-transparent'
+                        ? 'border-blue-400/50 bg-blue-500/5'
+                        : showResults
+                            ? 'border-slate-100 dark:border-white/5 bg-transparent opacity-80'
                             : 'border-slate-200 dark:border-white/10 hover:border-blue-400 active:scale-95'
                         }`}
                 >
-                    {userVote && (
+                    {showResults && (
                         <div
-                            className="absolute bottom-0 left-0 h-1 bg-blue-500/30 transition-all duration-1000"
+                            className="absolute bottom-0 left-0 h-1 bg-blue-500/20 transition-all duration-1000"
                             style={{ width: `${aPercent}%` }}
                         />
                     )}
                     <div className="relative z-10 flex items-center justify-center h-full px-2">
-                        <span className={`text-sm font-black uppercase tracking-widest ${userVote === 'teamA' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'
+                        <span className={`text-sm font-semibold uppercase tracking-widest ${userVote === 'teamA' ? 'text-blue-500/80 dark:text-blue-400/80' : 'text-slate-600 dark:text-slate-400'
                             }`}>
-                            {getTeamLabel(teamAName, teamABatch)} {userVote && `: ${aPercent}%`}
+                            {getTeamLabel(teamAName, teamABatch)} {showResults && `: ${aPercent}%`}
                         </span>
                     </div>
                 </button>
@@ -84,24 +88,24 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch }) 
                 {/* Team B Button */}
                 <button
                     onClick={() => handleVote('teamB')}
-                    disabled={!!userVote || isCasting}
+                    disabled={showResults || isCasting}
                     className={`relative flex-1 rounded-xl border transition-all duration-300 overflow-hidden ${userVote === 'teamB'
-                        ? 'border-blue-500 bg-blue-500/5'
-                        : userVote
-                            ? 'border-slate-100 dark:border-white/5 bg-transparent'
+                        ? 'border-blue-400/50 bg-blue-500/5'
+                        : showResults
+                            ? 'border-slate-100 dark:border-white/5 bg-transparent opacity-80'
                             : 'border-slate-200 dark:border-white/10 hover:border-blue-400 active:scale-95'
                         }`}
                 >
-                    {userVote && (
+                    {showResults && (
                         <div
-                            className="absolute bottom-0 left-0 h-1 bg-blue-500/30 transition-all duration-1000"
+                            className="absolute bottom-0 left-0 h-1 bg-blue-500/20 transition-all duration-1000"
                             style={{ width: `${bPercent}%` }}
                         />
                     )}
                     <div className="relative z-10 flex items-center justify-center h-full px-2">
-                        <span className={`text-sm font-black uppercase tracking-widest ${userVote === 'teamB' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400'
+                        <span className={`text-sm font-semibold uppercase tracking-widest ${userVote === 'teamB' ? 'text-blue-500/80 dark:text-blue-400/80' : 'text-slate-600 dark:text-slate-400'
                             }`}>
-                            {getTeamLabel(teamBName, teamBBatch)} {userVote && `: ${bPercent}%`}
+                            {getTeamLabel(teamBName, teamBBatch)} {showResults && `: ${bPercent}%`}
                         </span>
                     </div>
                 </button>

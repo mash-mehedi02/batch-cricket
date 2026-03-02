@@ -15,7 +15,7 @@ export const schoolConfig = {
 
   // App Branding
   appName: 'BatchCrick',
-  appFullName: 'BatchCrick - Professional Cricket Platform',
+  appFullName: 'BatchCrick',
 
   // Slogan & Tagline
   slogan: 'Hearts of the local cricket',

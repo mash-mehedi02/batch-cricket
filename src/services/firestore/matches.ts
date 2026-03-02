@@ -565,6 +565,89 @@ export const matchService = {
   },
 
   /**
+   * Auto-fill downstream tournament matches with winner/loser data
+   * Called when a match is finalized (status = 'finished')
+   */
+  async autoFillDownstreamMatches(
+    tournamentId: string,
+    sourceMatchNo: string,
+    winnerId: string,
+    winnerName: string,
+    loserId?: string,
+    loserName?: string
+  ): Promise<void> {
+    if (!tournamentId || !sourceMatchNo || !winnerId) return;
+
+    try {
+      console.log(`[MatchService] Auto-filling downstream matches for ${sourceMatchNo}...`);
+
+      // Get all upcoming matches in the same tournament
+      const q = query(
+        matchesRef,
+        where('tournamentId', '==', tournamentId),
+        where('status', '==', 'upcoming')
+      );
+
+      const snapshot = await getDocs(q);
+      const updates: Promise<void>[] = [];
+
+      // Patterns to look for in team placeholders
+      const winnerPattern = `Winner ${sourceMatchNo}`.toLowerCase();
+      const loserPattern = `Loser ${sourceMatchNo}`.toLowerCase();
+
+      snapshot.docs.forEach(docSnap => {
+        const matchData = docSnap.data() as Match;
+        const updatesForMatch: Record<string, any> = {};
+        let needsUpdate = false;
+
+        // Helper to check and update team slot
+        const checkSlot = (
+          teamKey: 'teamA' | 'teamB',
+          nameKey: 'teamAName' | 'teamBName',
+          idKey: 'teamAId' | 'teamBId',
+          squadIdKey: 'teamASquadId' | 'teamBSquadId',
+          pattern: string,
+          newId: string,
+          newName: string
+        ) => {
+          const currentName = String(matchData[nameKey] || '').toLowerCase();
+          if (currentName === pattern || currentName.includes(pattern)) {
+            updatesForMatch[teamKey] = newId as any;
+            updatesForMatch[idKey] = newId as any;
+            updatesForMatch[squadIdKey] = newId as any;
+            updatesForMatch[nameKey] = newName;
+            needsUpdate = true;
+          }
+        };
+
+        // Check Team A for winner/loser slots
+        checkSlot('teamA', 'teamAName', 'teamAId', 'teamASquadId', winnerPattern, winnerId, winnerName);
+        if (loserId && loserName) {
+          checkSlot('teamA', 'teamAName', 'teamAId', 'teamASquadId', loserPattern, loserId, loserName);
+        }
+
+        // Check Team B for winner/loser slots
+        checkSlot('teamB', 'teamBName', 'teamBId', 'teamBSquadId', winnerPattern, winnerId, winnerName);
+        if (loserId && loserName) {
+          checkSlot('teamB', 'teamBName', 'teamBId', 'teamBSquadId', loserPattern, loserId, loserName);
+        }
+
+        if (needsUpdate) {
+          console.log(`[MatchService] Auto-filling match ${matchData.matchNo || docSnap.id} with resolved teams`, updatesForMatch);
+          updates.push(updateDoc(docSnap.ref, updatesForMatch));
+        }
+      });
+
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        console.log(`[MatchService] Successfully auto-filled ${updates.length} downstream matches.`);
+      }
+    } catch (error) {
+      console.error('[MatchService] autoFillDownstreamMatches failed:', error);
+    }
+  },
+
+  /**
    * Initialize Super Over innings without deleting original data
    */
   async setupSuperOver(matchId: string, inningId: string): Promise<void> {

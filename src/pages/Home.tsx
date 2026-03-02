@@ -346,13 +346,13 @@ export default function Home() {
       {/* MATCH GRID */}
       <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 min-h-[50vh]">
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5">
             {[1, 2, 3].map((i) => <MatchCardSkeleton key={i} />)}
           </div>
         ) : (
           <div className="w-full">
             {/* Standard Tab Content Rendering */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 px-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5 px-1">
               {(() => {
                 const matches = activeTab === 'featured' ? featuredMatches :
                   activeTab === 'live' ? liveMatches :

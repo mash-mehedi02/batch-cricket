@@ -193,30 +193,32 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                     </div>
                                 )}
                             </div>
-                            <span className="text-[13px] sm:text-[15px] font-semibold text-slate-800 dark:text-white truncate uppercase tracking-tighter">{teamAName}</span>
+                            <span className="text-[12px] sm:text-[13px] font-semibold text-slate-800 dark:text-white truncate uppercase tracking-tighter">{teamAName}</span>
                         </div>
 
                         {/* Center VS - Rounded V Shape Trapezoid */}
-                        <div className="relative z-20" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>
-                            <div className="bg-white dark:bg-slate-800 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
-                                style={{
-                                    WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
-                                    WebkitMaskSize: '100% 100%',
-                                    maskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
-                                    maskSize: '100% 100%'
-                                }}>
-                                <img
-                                    src={vsIcon}
-                                    alt="VS"
-                                    className="w-[90%] h-[90%] object-contain"
-                                    style={{ filter: 'brightness(0) saturate(100%) invert(50%) sepia(90%) saturate(4000%) hue-rotate(10deg) brightness(100%) contrast(110%)' }}
-                                />
+                        <div className="shrink-0 flex items-center justify-center px-1 sm:px-3 z-10">
+                            <div className="relative z-20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]">
+                                <div className="bg-white dark:bg-slate-700 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
+                                    style={{
+                                        WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
+                                        WebkitMaskSize: '100% 100%',
+                                        maskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
+                                        maskSize: '100% 100%'
+                                    }}>
+                                    <img
+                                        src={vsIcon}
+                                        alt="VS"
+                                        className="w-[90%] h-[90%] object-contain"
+                                        style={{ filter: 'brightness(0) saturate(100%) invert(50%) sepia(90%) saturate(4000%) hue-rotate(10deg) brightness(100%) contrast(110%)' }}
+                                    />
+                                </div>
                             </div>
                         </div>
 
                         {/* Team B - Right Professional Pod */}
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 justify-end">
-                            <span className="text-[13px] sm:text-[15px] font-semibold text-slate-800 dark:text-white truncate uppercase tracking-tighter text-right">{teamBName}</span>
+                            <span className="text-[12px] sm:text-[13px] font-semibold text-slate-800 dark:text-white truncate uppercase tracking-tighter text-right">{teamBName}</span>
                             <div className="h-12 sm:h-14 w-14 sm:w-18 bg-slate-200 dark:bg-slate-800/50 rounded-l-full flex items-center justify-center shrink-0 border-y border-l border-slate-300 dark:border-white/10 shadow-sm relative pl-1">
                                 <div className="absolute inset-0 bg-gradient-to-l from-white/20 to-transparent rounded-l-full pointer-events-none" />
                                 {teamBLogo ? (
@@ -277,7 +279,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                 {/* Middle: Team Showdown with Scores */}
                 <div className="flex-1 flex items-center justify-between w-full relative overflow-hidden py-4">
                     {/* Team A Pod */}
-                    <div className="flex items-center gap-5 flex-1 min-w-0">
+                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                         <div className="h-12 sm:h-14 w-12 sm:w-16 bg-slate-200 dark:bg-slate-800/50 rounded-r-full flex items-center justify-center shrink-0 border-y border-r border-slate-300 dark:border-white/10 shadow-sm relative pr-1">
                             {teamALogo ? (
                                 <img src={teamALogo} alt={teamAName} className="w-10 h-10 sm:w-12 sm:h-12 object-contain relative z-10 transition-transform group-hover:scale-110" />
@@ -318,7 +320,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     </div>
 
                     {/* Center: VS Icon (Always) + LIVE Badge if active */}
-                    <div className="shrink-0 flex flex-col items-center justify-center px-1 gap-1">
+                    <div className="shrink-0 flex flex-col items-center justify-center px-1 sm:px-3 gap-1 z-10 mx-[-4px] sm:mx-0">
                         {isLive && (
                             <div className="bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20 shadow-sm animate-in fade-in zoom-in duration-300">
                                 <div className="w-1 h-1 bg-red-600 dark:bg-red-500 rounded-full animate-pulse" />
@@ -326,8 +328,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                             </div>
                         )}
                         {!isLive && (
-                            <div className="relative z-20" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>
-                                <div className="bg-white dark:bg-slate-800 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
+                            <div className="relative z-20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]">
+                                <div className="bg-white dark:bg-slate-700 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
                                     style={{
                                         WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
                                         WebkitMaskSize: '100% 100%',
@@ -346,7 +348,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     </div>
 
                     {/* Team B Pod */}
-                    <div className="flex items-center gap-5 flex-1 min-w-0 justify-end">
+                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 justify-end">
                         <div className="flex flex-col items-end min-w-0 text-right">
                             <span className="text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 uppercase truncate leading-tight">
                                 {teamBName}

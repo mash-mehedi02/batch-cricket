@@ -42,7 +42,7 @@ export interface PotmResult {
 
 /**
  * Calculate Player of the Match score based on deterministic rules:
- * POTM_SCORE = (Runs * 1.2) + (SR * 0.3) + (Wickets * 25) + (EconomyBonus) + (MatchImpactBonus)
+ * POTM_SCORE = (Runs * 1) + (Wickets * 15) + (EconomyBonus) + (MatchImpactBonus)
  */
 export function calculatePlayerScore(stats: PlayerMatchStats) {
   const {
@@ -56,11 +56,11 @@ export function calculatePlayerScore(stats: PlayerMatchStats) {
     matchTurningOvers = 0
   } = stats
 
-  // 1. Batting Impact
-  const battingImpact = (runs * 1.2) + (strikeRate * 0.3) + (runs >= 50 ? 10 : 0) + (runs >= 100 ? 20 : 0)
+  // 1. Batting Impact (Runs * 1)
+  const battingImpact = (runs * 1) + (strikeRate * 0.1) + (runs >= 50 ? 10 : 0) + (runs >= 100 ? 20 : 0)
 
-  // 2. Bowling Impact
-  let bowlingImpact = (wickets * 25) + (wickets >= 3 ? 10 : 0) + (wickets >= 5 ? 20 : 0)
+  // 2. Bowling Impact (Wickets * 15)
+  let bowlingImpact = (wickets * 15) + (wickets >= 3 ? 10 : 0) + (wickets >= 5 ? 20 : 0)
   if (ballsBowled >= 6) {
     if (economy <= 4.0) bowlingImpact += 15
     else if (economy <= 6.0) bowlingImpact += 10
