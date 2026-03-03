@@ -10,20 +10,6 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Native OneSignal Initialization (Bulletproof)
-        try {
-            com.onesignal.OneSignal.initWithContext(this, "76d0d60c-60ce-4e15-adf7-21166ae3522a");
-
-            // Set global tags for production analytics
-            com.onesignal.OneSignal.getUser().addTag("platform", "android");
-            com.onesignal.OneSignal.getUser().addTag("all_matches", "active");
-            com.onesignal.OneSignal.getUser().addTag("app_version", "1.0.2");
-
-            // DO NOT request permission here anymore.
-            // It will be requested from JS when user clicks notification bell.
-        } catch (Exception e) {
-            android.util.Log.e("OneSignal", "Init Error: " + e.getMessage());
-        }
 
         // Enable edge-to-edge display with transparent status bar
         setTransparentStatusBar();
