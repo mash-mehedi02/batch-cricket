@@ -1,6 +1,5 @@
 import { getToken, onMessage, Messaging } from 'firebase/messaging'
-import { httpsCallable } from 'firebase/functions'
-import { messaging, functions } from '../config/firebase'
+import { messaging } from '../config/firebase'
 import toast from 'react-hot-toast'
 
 export type NotificationType = 'all' | 'wickets' | 'reminders'
@@ -14,9 +13,9 @@ interface MatchNotificationSettings {
 const STORAGE_KEY = 'batchcrick_notifications'
 const TOURNAMENT_STORAGE_KEY = 'batchcrick_tournament_notifications'
 
-// Cloud Functions
-const subscribeToTopicFn = httpsCallable<{ token: string; topic: string }, { success: boolean }>(functions, 'subscribeToTopic')
-const unsubscribeFromTopicFn = httpsCallable<{ token: string; topic: string }, { success: boolean }>(functions, 'unsubscribeFromTopic')
+// Use absolute production URL for the FCM API proxy
+const FCM_SUBSCRIBE_URL = 'https://batchcrick.vercel.app/api/fcm-subscribe'
+const FCM_SEND_URL = 'https://batchcrick.vercel.app/api/fcm-send'
 
 class NotificationService {
     private messaging: Messaging | null = messaging
@@ -42,7 +41,7 @@ class NotificationService {
     }
 
     /**
-     * Request notification permission and get token
+     * Request notification permission and get FCM token
      */
     async requestPermission(): Promise<string | null> {
         if (!this.messaging) return null
@@ -54,82 +53,67 @@ class NotificationService {
                     vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
                 })
                 this.token = token
+                console.log('[FCM] Token obtained:', token.substring(0, 20) + '...')
                 return token
             } else {
-                console.warn('Notification permission denied')
+                console.warn('[FCM] Notification permission denied')
                 return null
             }
         } catch (error) {
-            console.error('Error requesting notification permission:', error)
+            console.error('[FCM] Error requesting notification permission:', error)
             return null
         }
     }
 
     /**
+     * Get current FCM token (request permission if needed)
+     */
+    async getToken(): Promise<string | null> {
+        if (this.token) return this.token
+        return this.requestPermission()
+    }
+
+    /**
      * Subscribe to match notifications
      */
-    async updateMatchSubscription(matchId: string, adminId: string, settings: MatchNotificationSettings) {
-        // Save preferences locally first to ensure UI consistency
+    async updateMatchSubscription(matchId: string, _adminId: string, settings: MatchNotificationSettings) {
         this.saveSettings(matchId, settings)
-
-        // Check if any notification is enabled
         const anyEnabled = settings.all || settings.wickets || settings.reminders
 
         if (!anyEnabled) {
-            // User is disabling all notifications, no need for token
-            const topicBase = `admin_${adminId}_match_${matchId}`
+            const topic = `match_${matchId}`
             if (this.token) {
-                await this.unsubscribe(`${topicBase}_reminders`)
-                await this.unsubscribe(`${topicBase}_wickets`)
+                await this.unsubscribe(topic)
             }
             toast.success('Match notifications disabled')
             return
         }
 
-        // User wants to enable notifications - ensure we have permission
         if (!this.token) {
             const token = await this.requestPermission()
             if (!token) {
-                // Permission denied - revert settings
                 this.saveSettings(matchId, { all: false, wickets: false, reminders: false })
                 toast.error('Please allow notifications in your browser settings')
                 return
             }
         }
 
-        const topicBase = `admin_${adminId}_match_${matchId}`
-
-        // Topics
-        const topicReminders = `${topicBase}_reminders`
-        const topicWickets = `${topicBase}_wickets`
-
-        // Reminders (Toss, Start, Result)
-        if (settings.reminders || settings.all) {
-            await this.subscribe(topicReminders)
-        } else {
-            await this.unsubscribe(topicReminders)
-        }
-
-        // Wickets
-        if (settings.wickets || settings.all) {
-            await this.subscribe(topicWickets)
-        } else {
-            await this.unsubscribe(topicWickets)
-        }
-
-        toast.success('Match notification settings updated')
+        // Subscribe to match topic
+        const topic = `match_${matchId}`
+        await this.subscribe(topic)
+        toast.success('Match notification settings updated! 🔔')
     }
 
     /**
      * Subscribe to tournament notifications
      */
-    async updateTournamentSubscription(tournamentId: string, adminId: string, enabled: boolean) {
+    async updateTournamentSubscription(tournamentId: string, _adminId: string, enabled: boolean) {
         if (!this.token) {
             const token = await this.requestPermission()
             if (!token) return
         }
 
-        const topic = `admin_${adminId}_tournament_${tournamentId}_updates`
+        const topic = `tournament_${tournamentId}`
 
         if (enabled) {
             await this.subscribe(topic)
@@ -137,31 +121,120 @@ class NotificationService {
             await this.unsubscribe(topic)
         }
 
-        // Save preferences locally
         const stored = localStorage.getItem(TOURNAMENT_STORAGE_KEY)
         const data = stored ? JSON.parse(stored) : {}
         data[tournamentId] = enabled
         localStorage.setItem(TOURNAMENT_STORAGE_KEY, JSON.stringify(data))
 
         this.notifyListeners(tournamentId, enabled)
-        toast.success(enabled ? 'Subscribed to tournament' : 'Unsubscribed from tournament')
+        toast.success(enabled ? 'Subscribed to tournament 🔔' : 'Unsubscribed from tournament')
+    }
+
+    /**
+     * Send FCM notification to a match topic (called from admin scoring page)
+     */
+    async sendToMatch(
+        matchId: string,
+        _adminId: string,
+        title: string,
+        message: string,
+        url?: string,
+        icon?: string,
+        _buttons?: any[],
+        _collapseId?: string,
+        tournamentId?: string
+    ): Promise<boolean> {
+        try {
+            const topic = `match_${matchId}`
+            const targetUrl = url || `https://batchcrick.vercel.app/match/${matchId}`
+
+            console.log(`[FCM] Sending notification to topic: ${topic}`)
+
+            const response = await fetch(FCM_SEND_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic: topic,
+                    title: title,
+                    message: message,
+                    url: targetUrl,
+                    icon: icon,
+                    data: {
+                        matchId: matchId,
+                        type: 'match_update',
+                    }
+                })
+            })
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                console.error('[FCM] Send failed:', data)
+                return false
+            }
+
+            console.log('[FCM] ✅ Notification sent:', data)
+
+            // Also send to tournament topic if available
+            if (tournamentId) {
+                fetch(FCM_SEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        topic: `tournament_${tournamentId}`,
+                        title: title,
+                        message: message,
+                        url: targetUrl,
+                        icon: icon,
+                        data: { matchId, type: 'match_update' }
+                    })
+                }).catch(err => console.warn('[FCM] Tournament notification failed:', err))
+            }
+
+            return true
+        } catch (error: any) {
+            console.error('[FCM] Notification send failed:', error?.message || error)
+            return false
+        }
     }
 
     private async subscribe(topic: string) {
         if (!this.token) return
         try {
-            await subscribeToTopicFn({ token: this.token, topic })
+            console.log(`[FCM] Subscribing to topic: ${topic}`)
+            const res = await fetch(FCM_SUBSCRIBE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: this.token,
+                    topic: topic,
+                    action: 'subscribe'
+                })
+            })
+            const data = await res.json()
+            if (!res.ok) console.error(`[FCM] Subscribe failed:`, data)
+            else console.log(`[FCM] ✅ Subscribed to ${topic}`)
         } catch (error) {
-            console.error(`Failed to subscribe to ${topic}`, error)
+            console.error(`[FCM] Failed to subscribe to ${topic}`, error)
         }
     }
 
     private async unsubscribe(topic: string) {
         if (!this.token) return
         try {
-            await unsubscribeFromTopicFn({ token: this.token, topic })
+            const res = await fetch(FCM_SUBSCRIBE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: this.token,
+                    topic: topic,
+                    action: 'unsubscribe'
+                })
+            })
+            const data = await res.json()
+            if (!res.ok) console.error(`[FCM] Unsubscribe failed:`, data)
         } catch (error) {
-            console.error(`Failed to unsubscribe from ${topic}`, error)
+            console.error(`[FCM] Failed to unsubscribe from ${topic}`, error)
         }
     }
 

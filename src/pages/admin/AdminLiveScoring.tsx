@@ -32,7 +32,7 @@ import { toast } from 'react-hot-toast';
 import { getMatchResultString, calculateMatchWinner } from '@/utils/matchWinner';
 import { calculatePotM } from '@/utils/potmCalculator';
 import * as commentaryService from '@/services/commentary/commentaryService';
-import { oneSignalService } from '@/services/oneSignalService';
+import { notificationService } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 
 const AdminLiveScoring = () => {
@@ -597,19 +597,16 @@ const AdminLiveScoring = () => {
             // Resolve Batting Team Logo
             const battingTeamLogo = match.currentBatting === 'teamA' ? (match as any).teamALogoUrl : (match as any).teamBLogoUrl;
 
-            await oneSignalService.sendToMatch(
+            await notificationService.sendToMatch(
                 matchId,
                 (match as any)?.adminId || (match as any)?.createdBy || 'admin',
                 title,
                 message,
                 undefined, // Default URL
                 eventIcon || battingTeamLogo,
-                [
-                    { id: 'open_match', text: 'Open Match', icon: 'ic_menu_view' },
-                    { id: 'turn_off', text: `Turn off for ${match.teamAName} vs ${match.teamBName}`, icon: 'ic_menu_close_clear_cancel' }
-                ],
-                `match_score_${matchId}`, // Persistent collapse ID for score updates
-                tournamentId ? `tournament_${tournamentId}` : undefined
+                undefined,
+                undefined,
+                tournamentId
             );
         } catch (err) {
             console.error("[AdminLiveScoring] Notification helper failed:", err);

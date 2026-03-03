@@ -6,7 +6,7 @@ import { playerService } from '@/services/firestore/players';
 import { squadService } from '@/services/firestore/squads';
 import { addManualCommentary } from '@/services/commentary/commentaryService';
 import { Timestamp } from 'firebase/firestore';
-import { oneSignalService } from '@/services/oneSignalService';
+import { notificationService } from '@/services/notificationService';
 import toast from 'react-hot-toast';
 
 interface MatchSetupModalProps {
@@ -252,7 +252,7 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
             if (currentBatting && match.status === 'live') {
                 const winnerName = winnerKey === 'teamA' ? match.teamAName : match.teamBName;
                 const tossDecisionText = decision === 'bat' ? 'bat' : 'bowl';
-                oneSignalService.sendToMatch(
+                notificationService.sendToMatch(
                     match.id,
                     match.adminId || 'admin',
                     "Toss Update 🎲",
