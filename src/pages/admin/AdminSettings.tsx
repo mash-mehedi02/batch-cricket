@@ -8,11 +8,12 @@ import { useAuthStore } from '@/store/authStore'
 import { checkIfAdmin } from '@/utils/createAdmin'
 import { debugAdminPermissions, forceRefreshAuthToken, printAdminDebugInfo } from '@/utils/debugAdmin'
 import toast from 'react-hot-toast'
-import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database, Lock, Key, Save, Timer, ToggleLeft, ToggleRight, Image, Calendar, Trophy } from 'lucide-react'
+import { Shield, CheckCircle, RefreshCw, Terminal, AlertTriangle, Copy, Database, Lock, Key, Save, Timer, ToggleLeft, ToggleRight, Image, Calendar, Trophy, Download, Smartphone } from 'lucide-react'
 import { auth, db } from '@/config/firebase'
 import { updatePassword, signOut } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { appUpdateService, APP_VERSION } from '@/services/appUpdateService'
 
 export default function AdminSettings() {
   const { user } = useAuthStore()
@@ -36,6 +37,14 @@ export default function AdminSettings() {
   const [cpDate, setCpDate] = useState('')
   const [cpSaving, setCpSaving] = useState(false)
   const [cpFetching, setCpFetching] = useState(true)
+
+  // App Update State
+  const [auVersion, setAuVersion] = useState('')
+  const [auUrl, setAuUrl] = useState('')
+  const [auNotes, setAuNotes] = useState('')
+  const [auForce, setAuForce] = useState(false)
+  const [auSaving, setAuSaving] = useState(false)
+  const [auFetching, setAuFetching] = useState(true)
 
   // Check if user is admin on load
   useEffect(() => {
@@ -82,6 +91,25 @@ export default function AdminSettings() {
       }
     }
     fetchCP()
+  }, [user])
+
+  // Fetch App Update Settings
+  useEffect(() => {
+    const fetchAU = async () => {
+      if (!user) return
+      try {
+        const info = await appUpdateService.getUpdateInfo()
+        setAuVersion(info.latestVersion || '')
+        setAuUrl(info.downloadUrl || '')
+        setAuNotes(info.releaseNotes || '')
+        setAuForce(!!info.isForceUpdate)
+      } catch (err) {
+        console.error('Failed to fetch update settings:', err)
+      } finally {
+        setAuFetching(false)
+      }
+    }
+    fetchAU()
   }, [user])
 
   const copyToClipboard = (text: string, label: string) => {
@@ -433,6 +461,118 @@ export default function AdminSettings() {
               >
                 <Save className="h-4 w-4" />
                 {cpSaving ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* App Update Settings - Super Admin only */}
+      {isSuperAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+            <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center">
+              <Smartphone className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-gray-900">App Update</h2>
+              <p className="text-xs text-gray-500">Manage in-app update prompts for users (Current: v{APP_VERSION})</p>
+            </div>
+          </div>
+
+          {auFetching ? (
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+                    <div className="h-10 w-full bg-gray-50 border border-gray-100 rounded-lg animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                    <Download className="inline h-3 w-3 mr-1" />Latest Version *
+                  </label>
+                  <input
+                    type="text"
+                    value={auVersion}
+                    onChange={(e) => setAuVersion(e.target.value)}
+                    placeholder="1.0.3"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-sm font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                    Download URL *
+                  </label>
+                  <input
+                    type="url"
+                    value={auUrl}
+                    onChange={(e) => setAuUrl(e.target.value)}
+                    placeholder="https://apkpure.com/your-app/..."
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-sm font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">
+                  Release Notes
+                </label>
+                <textarea
+                  value={auNotes}
+                  onChange={(e) => setAuNotes(e.target.value)}
+                  placeholder="Bug fixes and new features..."
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-sm font-medium resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <div>
+                  <span className="text-sm font-bold text-gray-700">Force Update</span>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Users cannot dismiss the update popup</p>
+                </div>
+                <button
+                  onClick={() => setAuForce(!auForce)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${auForce ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}
+                >
+                  {auForce ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />}
+                  {auForce ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (!auVersion.trim() || !auUrl.trim()) {
+                    toast.error('Version and Download URL are required')
+                    return
+                  }
+                  setAuSaving(true)
+                  try {
+                    await appUpdateService.saveUpdateInfo({
+                      latestVersion: auVersion.trim(),
+                      downloadUrl: auUrl.trim(),
+                      releaseNotes: auNotes.trim(),
+                      isForceUpdate: auForce,
+                    }, user?.uid || '')
+                    toast.success('App update settings saved!')
+                  } catch {
+                    toast.error('Failed to save update settings')
+                  } finally {
+                    setAuSaving(false)
+                  }
+                }}
+                disabled={auSaving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 transition-all text-sm shadow-md disabled:opacity-50 active:scale-95"
+              >
+                <Save className="h-4 w-4" />
+                {auSaving ? 'Saving...' : 'Save Update Settings'}
               </button>
             </div>
           )}

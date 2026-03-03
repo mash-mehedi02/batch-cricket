@@ -45,6 +45,7 @@ import AuthLoadingOverlay from './components/common/AuthLoadingOverlay'
 import PageTransition from './components/common/PageTransition'
 import { useAuthStore } from './store/authStore'
 import { AnimatePresence } from 'framer-motion'
+import AppUpdatePopup from './components/AppUpdatePopup'
 
 
 function LayoutWrapper() {
@@ -86,6 +87,7 @@ function App() {
       <NativeAppWrapper />
       <ScrollToTop />
       <AuthLoadingOverlay isVisible={isAuthProcessing} />
+      <AppUpdatePopup />
       <AnimatePresence mode="wait">
         <Routes>
           {/* Login Route - Redirect to Home with popup trigger */}

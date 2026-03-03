@@ -644,22 +644,6 @@ const OverviewTab = memo(({ tournament, matches, squads, players, inningsMap, se
         <TournamentPointsTable embedded tournamentId={tournament.id} matches={matches} inningsMap={inningsMap} />
       </section>
 
-      {/* 5.5 Playoff Bracket Preview (Added here to Overview) */}
-      {tournament && (tournament as any).config?.knockout?.custom?.matches?.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-5 px-2">
-            <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Playoff Bracket</h2>
-          </div>
-          <div className="bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 rounded-[2.5rem] p-2 overflow-hidden shadow-sm">
-            <PlayoffBracket
-              tournament={tournament}
-              squads={squads}
-              matches={matches}
-            />
-          </div>
-        </section>
-      )}
-
       {/* 6. Team Squads - Now below Points Table */}
       <section>
         <div className="flex items-center justify-between mb-4">

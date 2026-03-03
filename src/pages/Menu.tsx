@@ -1,5 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
@@ -15,10 +15,12 @@ import {
     Bell,
     ShieldCheck,
     Users,
+    Download,
 } from 'lucide-react';
 import { useLanguageStore } from '@/store/languageStore';
 import schoolConfig from '@/config/school';
 import { useTranslation } from '@/hooks/useTranslation';
+import { appUpdateService, APP_VERSION } from '@/services/appUpdateService';
 
 const CricketIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -40,6 +42,16 @@ export default function MenuPage() {
     const [vibration, setVibration] = useState(() => localStorage.getItem('match_vibration') === 'true');
     const [sound, setSound] = useState(() => localStorage.getItem('match_sound') === 'true');
     const [imageError, setImageError] = useState(false);
+    const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [updateUrl, setUpdateUrl] = useState('');
+
+    // Check for app updates
+    useEffect(() => {
+        appUpdateService.isUpdateAvailable().then(({ available, info }) => {
+            setUpdateAvailable(available);
+            if (info.downloadUrl) setUpdateUrl(info.downloadUrl);
+        }).catch(() => { });
+    }, []);
 
     const toggleVibration = () => {
         const newVal = !vibration;
@@ -328,6 +340,31 @@ export default function MenuPage() {
                     </button>
 
 
+                    {/* App Update */}
+                    <button
+                        onClick={() => {
+                            if (updateAvailable && updateUrl) {
+                                window.open(updateUrl, '_blank');
+                            } else {
+                                toast.success('You are on the latest version! ✅');
+                            }
+                        }}
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className={`w-8 h-8 flex items-center justify-center ${updateAvailable ? 'text-red-500' : 'text-emerald-500'}`}>
+                                <Download size={22} />
+                            </div>
+                            <div className="text-left">
+                                <span className="font-semibold text-[15px] block">App Update</span>
+                                <span className={`text-[10px] font-bold uppercase tracking-tighter ${updateAvailable ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {updateAvailable ? '🔴 Update Available' : '✅ Latest Version'}
+                                </span>
+                            </div>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-400" />
+                    </button>
+
                     {/* Terms & Privacy Policy */}
                     <Link
                         to="/terms"
@@ -348,7 +385,7 @@ export default function MenuPage() {
                 <div className="p-10 flex flex-col items-center gap-2 opacity-30 select-none">
                     <img src={schoolConfig.batchLogo} className="w-8 h-8 grayscale contrast-125 mb-1" alt="" />
                     <span className="text-[10px] font-black uppercase tracking-[0.3em]">{schoolConfig.appName}</span>
-                    <span className="text-[9px] font-bold italic tracking-wider">v2.1.5-beta</span>
+                    <span className="text-[9px] font-bold italic tracking-wider">v{APP_VERSION}</span>
                 </div>
             </div>
 
