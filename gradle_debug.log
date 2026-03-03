@@ -1,0 +1,136 @@
+﻿
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:mergeReleaseJniLibFolders
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preReleaseBuild UP-TO-DATE
+> Task :capacitor-android:mergeReleaseJniLibFolders
+> Task :capacitor-android:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-app:preBuild UP-TO-DATE
+> Task :capacitor-app:preReleaseBuild UP-TO-DATE
+> Task :capacitor-android:copyReleaseJniLibsProjectOnly
+> Task :capacitor-app:mergeReleaseJniLibFolders
+> Task :capacitor-app:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preReleaseBuild UP-TO-DATE
+> Task :capacitor-app:copyReleaseJniLibsProjectOnly
+> Task :capacitor-cordova-android-plugins:mergeReleaseJniLibFolders
+> Task :capacitor-cordova-android-plugins:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-haptics:preBuild UP-TO-DATE
+> Task :capacitor-haptics:preReleaseBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly
+> Task :capacitor-haptics:mergeReleaseJniLibFolders
+> Task :capacitor-haptics:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-splash-screen:preBuild UP-TO-DATE
+> Task :capacitor-splash-screen:preReleaseBuild UP-TO-DATE
+> Task :capacitor-haptics:copyReleaseJniLibsProjectOnly
+> Task :capacitor-splash-screen:mergeReleaseJniLibFolders
+> Task :capacitor-splash-screen:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-status-bar:preBuild UP-TO-DATE
+> Task :capacitor-status-bar:preReleaseBuild UP-TO-DATE
+> Task :capacitor-splash-screen:copyReleaseJniLibsProjectOnly
+> Task :capacitor-status-bar:mergeReleaseJniLibFolders
+> Task :capacitor-status-bar:mergeReleaseNativeLibs NO-SOURCE
+> Task :codetrix-studio-capacitor-google-auth:preBuild UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:preReleaseBuild UP-TO-DATE
+> Task :capacitor-status-bar:copyReleaseJniLibsProjectOnly
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs NO-SOURCE
+> Task :codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly
+> Task :capacitor-android:generateReleaseResValues
+> Task :app:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:stripReleaseDebugSymbols NO-SOURCE
+> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :capacitor-android:generateReleaseResources
+> Task :capacitor-android:packageReleaseResources
+> Task :capacitor-android:processReleaseNavigationResources
+> Task :capacitor-app:generateReleaseResValues
+> Task :capacitor-android:javaPreCompileRelease
+> Task :capacitor-app:generateReleaseResources
+> Task :capacitor-android:parseReleaseLocalResources
+> Task :capacitor-app:packageReleaseResources
+> Task :capacitor-app:processReleaseNavigationResources
+> Task :capacitor-android:generateReleaseRFile
+> Task :capacitor-app:javaPreCompileRelease
+> Task :capacitor-app:parseReleaseLocalResources
+> Task :capacitor-haptics:generateReleaseResValues
+
+> Task :capacitor-android:compileReleaseJavaWithJavac
+
+> Task :capacitor-haptics:generateReleaseResources
+> Task :capacitor-app:generateReleaseRFile
+> Task :capacitor-haptics:packageReleaseResources
+> Task :capacitor-haptics:processReleaseNavigationResources
+> Task :capacitor-haptics:parseReleaseLocalResources
+> Task :capacitor-splash-screen:generateReleaseResValues
+> Task :capacitor-haptics:javaPreCompileRelease
+> Task :capacitor-splash-screen:generateReleaseResources
+> Task :capacitor-haptics:generateReleaseRFile
+> Task :capacitor-splash-screen:packageReleaseResources
+> Task :capacitor-splash-screen:processReleaseNavigationResources
+> Task :capacitor-status-bar:generateReleaseResValues
+> Task :capacitor-splash-screen:javaPreCompileRelease
+> Task :capacitor-splash-screen:parseReleaseLocalResources
+> Task :capacitor-status-bar:generateReleaseResources
+> Task :capacitor-splash-screen:generateReleaseRFile
+> Task :capacitor-status-bar:packageReleaseResources
+> Task :capacitor-status-bar:processReleaseNavigationResources
+> Task :capacitor-status-bar:parseReleaseLocalResources
+> Task :capacitor-status-bar:javaPreCompileRelease
+> Task :codetrix-studio-capacitor-google-auth:generateReleaseResValues
+> Task :codetrix-studio-capacitor-google-auth:generateReleaseResources
+> Task :capacitor-status-bar:generateReleaseRFile
+> Task :capacitor-android:bundleLibCompileToJarRelease
+> Task :codetrix-studio-capacitor-google-auth:packageReleaseResources
+> Task :capacitor-app:compileReleaseJavaWithJavac
+> Task :capacitor-app:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :capacitor-app:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :capacitor-haptics:compileReleaseJavaWithJavac
+> Task :capacitor-haptics:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :capacitor-haptics:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :capacitor-splash-screen:compileReleaseJavaWithJavac
+> Task :capacitor-splash-screen:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :capacitor-splash-screen:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :capacitor-status-bar:compileReleaseJavaWithJavac
+> Task :capacitor-status-bar:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :capacitor-status-bar:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:processReleaseNavigationResources
+> Task :capacitor-android:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:javaPreCompileRelease
+> Task :capacitor-cordova-android-plugins:generateReleaseResValues
+> Task :capacitor-android:exportReleaseConsumerProguardFiles
+> Task :capacitor-cordova-android-plugins:generateReleaseResources
+> Task :codetrix-studio-capacitor-google-auth:parseReleaseLocalResources
+> Task :capacitor-cordova-android-plugins:packageReleaseResources
+> Task :capacitor-cordova-android-plugins:processReleaseNavigationResources
+> Task :capacitor-cordova-android-plugins:parseReleaseLocalResources
+> Task :capacitor-cordova-android-plugins:javaPreCompileRelease
+> Task :codetrix-studio-capacitor-google-auth:generateReleaseRFile
+> Task :app:checkReleaseDuplicateClasses
+> Task :codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :app:javaPreCompileRelease
+> Task :capacitor-android:writeReleaseAarMetadata
+> Task :capacitor-app:writeReleaseAarMetadata
+> Task :capacitor-cordova-android-plugins:writeReleaseAarMetadata
+> Task :capacitor-cordova-android-plugins:generateReleaseRFile
+> Task :capacitor-haptics:writeReleaseAarMetadata
+> Task :capacitor-splash-screen:writeReleaseAarMetadata
+> Task :capacitor-cordova-android-plugins:compileReleaseJavaWithJavac FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/Mehedi%20Hasan/OneDrive/Desktop/Android%20app/School-Cricket-Live/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+91 actionable tasks: 80 executed, 11 up-to-date

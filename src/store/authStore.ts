@@ -384,12 +384,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     } catch (error: any) {
       console.error("[AuthStore] Process Login Error:", error);
-      // Only show error toast if it's not a temporary permission issue during sign-in
-      if (!error.message?.includes('insufficient permissions')) {
-        toast.error(`Login Process Error: ${error.message}`);
+      // Don't throw — Google Auth already succeeded. 
+      // Set a basic user state so the user isn't stuck in a broken state.
+      const fallbackUser = {
+        uid: user.uid,
+        email: user.email || null,
+        displayName: user.displayName || null,
+        photoURL: user.photoURL || null,
+        role: 'viewer' as const,
+      };
+      set({ user: fallbackUser as User, loading: false });
+
+      if (error.message?.includes('insufficient permissions') || error.code === 'permission-denied') {
+        console.warn("[AuthStore] Firestore permissions issue - user logged in with basic profile");
+      } else {
+        toast.error(`Profile sync issue: ${error.message}`);
       }
-      set({ loading: false });
-      throw error;
+      return false;
     } finally {
       processingLogins.delete(user.uid);
       set({ isProcessing: false });

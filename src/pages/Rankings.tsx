@@ -6,10 +6,9 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate } from '
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { Tournament } from '@/types'
-import { UserCircle, Trophy, Filter, RefreshCw, SwatchBook, Swords, Target, LayoutGrid, ChevronDown } from 'lucide-react'
+import { UserCircle, Trophy, Filter, SwatchBook, Swords, Target, LayoutGrid, ChevronDown } from 'lucide-react'
 import { calculateFantasyPoints, calculateBattingPoints, calculateBowlingPoints } from '@/utils/statsCalculator'
-import { useAuthStore } from '@/store/authStore'
-import { toast } from 'react-hot-toast'
+
 import { tournamentService } from '@/services/firestore/tournaments'
 import RankingsSkeleton from '@/components/skeletons/RankingsSkeleton'
 
@@ -22,9 +21,9 @@ export default function Rankings() {
     const [rankMode, setRankMode] = useState<'overall' | 'batting' | 'bowling'>('overall')
     const [selectedSquadId, setSelectedSquadId] = useState<string>('all')
     const [selectedTournamentId, setSelectedTournamentId] = useState<string>('all')
-    const [isSyncing, setIsSyncing] = useState(false)
+
     const [showFilters, setShowFilters] = useState(false)
-    const { user } = useAuthStore()
+
 
     const modesOrder: ('overall' | 'batting' | 'bowling')[] = ['overall', 'batting', 'bowling'];
     const currentModeIndex = modesOrder.indexOf(rankMode);
@@ -58,20 +57,7 @@ export default function Rankings() {
         }
     }
 
-    const handleSync = async () => {
-        if (isSyncing) return
-        try {
-            setIsSyncing(true)
-            const result = await playerService.bulkSyncAllPlayers()
-            toast.success(`Success! Synced ${result.success}/${result.total} players.`)
-            await loadData() // Reload rankings after sync
-        } catch (error) {
-            console.error('Sync failed:', error)
-            toast.error('Sync failed. Please try again.')
-        } finally {
-            setIsSyncing(false)
-        }
-    }
+
 
     useEffect(() => {
         // Subscribe to players for instant ranking updates
@@ -213,18 +199,6 @@ export default function Rankings() {
                         </button>
                     </div>
 
-                    {(user?.role === 'admin' || user?.role === 'super_admin') && (
-                        <div className="mb-6 flex justify-end">
-                            <button
-                                onClick={handleSync}
-                                disabled={isSyncing}
-                                className={`flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg transition-all font-black text-[9px] uppercase tracking-widest border border-slate-200 dark:border-white/5 hover:border-emerald-200 ${isSyncing ? 'opacity-50' : ''}`}
-                            >
-                                <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-                                {isSyncing ? 'Syncing...' : 'Sync Data'}
-                            </button>
-                        </div>
-                    )}
 
                     <AnimatePresence>
                         {showFilters && (

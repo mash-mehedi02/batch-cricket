@@ -1,0 +1,1756 @@
+﻿Initialized native services in: C:\Users\Mehedi Hasan\.gradle\native
+Initialized jansi services in: C:\Users\Mehedi Hasan\.gradle\native
+Found daemon DaemonInfo{pid=19696, address=[243eb5fb-d196-4412-b8b5-4c7fcb4c6a7d port:14146, addresses:[/127.0.0.1]], state=Idle, lastBusy=1772550456740, context=DefaultDaemonContext[uid=c57ed73b-2c7c-4261-9c03-5a55e237974a,javaHome=C:\Program Files\AdoptOpenJDK\jdk-17,javaVersion=17,javaVendor=Oracle Corporation,daemonRegistryDir=C:\Users\Mehedi Hasan\.gradle\daemon,pid=19696,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx1536m,-Dfile.encoding=UTF-8,-Duser.country=US,-Duser.language=en,-Duser.variant]} however its context does not match the desired criteria.
+At least one daemon option is different.
+Wanted: DaemonRequestContext{jvmCriteria=C:\Program Files\AdoptOpenJDK\jdk-17 (no JDK specified, using current Java home), daemonOpts=[-Xmx1536m, -Dfile.encoding=windows-1252, -Duser.country=US, -Duser.language=en, -Duser.variant], applyInstrumentationAgent=true, nativeServicesMode=ENABLED, priority=NORMAL}
+Actual: DefaultDaemonContext[uid=c57ed73b-2c7c-4261-9c03-5a55e237974a,javaHome=C:\Program Files\AdoptOpenJDK\jdk-17,javaVersion=17,javaVendor=Oracle Corporation,daemonRegistryDir=C:\Users\Mehedi Hasan\.gradle\daemon,pid=19696,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx1536m,-Dfile.encoding=UTF-8,-Duser.country=US,-Duser.language=en,-Duser.variant]
+
+  Looking for a different daemon...
+Removing 0 daemon stop events from registry
+Previous Daemon (17132) stopped at Wed Mar 04 00:08:01 BDT 2026 other compatible daemons were started and after being idle for 0 minutes and not recently used
+Starting a Gradle Daemon, 1 busy and 1 incompatible and 1 stopped Daemons could not be reused, use --status for details
+Starting process 'Gradle build daemon'. Working directory: C:\Users\Mehedi Hasan\.gradle\daemon\8.14.3 Command: C:\Program Files\AdoptOpenJDK\jdk-17\bin\java.exe --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED -Xmx1536m -Dfile.encoding=windows-1252 -Duser.country=US -Duser.language=en -Duser.variant -cp C:\Users\Mehedi Hasan\.gradle\wrapper\dists\gradle-8.14.3-all\10utluxaxniiv4wxiphsi49nj\gradle-8.14.3\lib\gradle-daemon-main-8.14.3.jar -javaagent:C:\Users\Mehedi Hasan\.gradle\wrapper\dists\gradle-8.14.3-all\10utluxaxniiv4wxiphsi49nj\gradle-8.14.3\lib\agents\gradle-instrumentation-agent-8.14.3.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.14.3
+Successfully started process 'Gradle build daemon'
+An attempt to start the daemon took 15.949 secs.
+The client will now receive all logging from the daemon (pid: 14268). The daemon log file: C:\Users\Mehedi Hasan\.gradle\daemon\8.14.3\daemon-14268.out.log
+Starting build in new daemon [memory: 1.5 GiB]
+Using 8 worker leases.
+Received JVM installation metadata from 'C:\Program Files\AdoptOpenJDK\jdk-17': {JAVA_HOME=C:\Program Files\AdoptOpenJDK\jdk-17, JAVA_VERSION=17.0.12, JAVA_VENDOR=Oracle Corporation, RUNTIME_NAME=Java(TM) SE Runtime Environment, RUNTIME_VERSION=17.0.12+8-LTS-286, VM_NAME=Java HotSpot(TM) 64-Bit Server VM, VM_VERSION=17.0.12+8-LTS-286, VM_VENDOR=Oracle Corporation, OS_ARCH=amd64}
+Watching the file system is configured to be enabled if available
+Now considering [C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android] as hierarchies to watch
+File system watching is active
+Starting Build
+Settings evaluated using settings file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\settings.gradle'.
+Projects loaded. Root project using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\build.gradle'.
+Included projects: [root project 'android', project ':app', project ':capacitor-android', project ':capacitor-app', project ':capacitor-cordova-android-plugins', project ':capacitor-haptics', project ':capacitor-splash-screen', project ':capacitor-status-bar', project ':codetrix-studio-capacitor-google-auth']
+
+> Configure project :
+Evaluating root project 'android' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\build.gradle'.
+
+> Configure project :app
+Evaluating project ':app' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\build.gradle'.
+Using default execution profile
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-android
+Evaluating project ':capacitor-android' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\build.gradle'.
+Using default execution profile
+
+> Configure project :capacitor-app
+Evaluating project ':capacitor-app' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\build.gradle'.
+Using default execution profile
+
+> Configure project :capacitor-cordova-android-plugins
+Evaluating project ':capacitor-cordova-android-plugins' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\build.gradle'.
+Using default execution profile
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-haptics
+Evaluating project ':capacitor-haptics' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\build.gradle'.
+Using default execution profile
+
+> Configure project :capacitor-splash-screen
+Evaluating project ':capacitor-splash-screen' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\build.gradle'.
+Using default execution profile
+
+> Configure project :capacitor-status-bar
+Evaluating project ':capacitor-status-bar' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\build.gradle'.
+Using default execution profile
+
+> Configure project :codetrix-studio-capacitor-google-auth
+Evaluating project ':codetrix-studio-capacitor-google-auth' using build file 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\build.gradle'.
+Using default execution profile
+All projects evaluated.
+Task name matched 'assembleRelease'
+Selected primary task 'assembleRelease' from project :
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+Tasks to be executed: [task ':app:preBuild', task ':app:preReleaseBuild', task ':app:mergeReleaseJniLibFolders', task ':capacitor-android:preBuild', task ':capacitor-android:preReleaseBuild', task ':capacitor-android:mergeReleaseJniLibFolders', task ':capacitor-android:mergeReleaseNativeLibs', task ':capacitor-android:copyReleaseJniLibsProjectOnly', task ':capacitor-app:preBuild', task ':capacitor-app:preReleaseBuild', task ':capacitor-app:mergeReleaseJniLibFolders', task ':capacitor-app:mergeReleaseNativeLibs', task ':capacitor-app:copyReleaseJniLibsProjectOnly', task ':capacitor-cordova-android-plugins:preBuild', task ':capacitor-cordova-android-plugins:preReleaseBuild', task ':capacitor-cordova-android-plugins:mergeReleaseJniLibFolders', task ':capacitor-cordova-android-plugins:mergeReleaseNativeLibs', task ':capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly', task ':capacitor-haptics:preBuild', task ':capacitor-haptics:preReleaseBuild', task ':capacitor-haptics:mergeReleaseJniLibFolders', task ':capacitor-haptics:mergeReleaseNativeLibs', task ':capacitor-haptics:copyReleaseJniLibsProjectOnly', task ':capacitor-splash-screen:preBuild', task ':capacitor-splash-screen:preReleaseBuild', task ':capacitor-splash-screen:mergeReleaseJniLibFolders', task ':capacitor-splash-screen:mergeReleaseNativeLibs', task ':capacitor-splash-screen:copyReleaseJniLibsProjectOnly', task ':capacitor-status-bar:preBuild', task ':capacitor-status-bar:preReleaseBuild', task ':capacitor-status-bar:mergeReleaseJniLibFolders', task ':capacitor-status-bar:mergeReleaseNativeLibs', task ':capacitor-status-bar:copyReleaseJniLibsProjectOnly', task ':codetrix-studio-capacitor-google-auth:preBuild', task ':codetrix-studio-capacitor-google-auth:preReleaseBuild', task ':codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders', task ':codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs', task ':codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly', task ':app:mergeReleaseNativeLibs', task ':app:stripReleaseDebugSymbols', task ':app:extractReleaseNativeSymbolTables', task ':app:mergeReleaseNativeDebugMetadata', task ':capacitor-android:generateReleaseResValues', task ':capacitor-android:generateReleaseResources', task ':capacitor-android:packageReleaseResources', task ':capacitor-android:processReleaseNavigationResources', task ':capacitor-android:parseReleaseLocalResources', task ':capacitor-android:generateReleaseRFile', task ':capacitor-android:javaPreCompileRelease', task ':capacitor-android:compileReleaseJavaWithJavac', task ':capacitor-android:bundleLibCompileToJarRelease', task ':capacitor-app:generateReleaseResValues', task ':capacitor-app:generateReleaseResources', task ':capacitor-app:packageReleaseResources', task ':capacitor-app:processReleaseNavigationResources', task ':capacitor-app:parseReleaseLocalResources', task ':capacitor-app:generateReleaseRFile', task ':capacitor-app:javaPreCompileRelease', task ':capacitor-app:compileReleaseJavaWithJavac', task ':capacitor-app:mergeReleaseGeneratedProguardFiles', task ':capacitor-app:exportReleaseConsumerProguardFiles', task ':capacitor-haptics:generateReleaseResValues', task ':capacitor-haptics:generateReleaseResources', task ':capacitor-haptics:packageReleaseResources', task ':capacitor-haptics:processReleaseNavigationResources', task ':capacitor-haptics:parseReleaseLocalResources', task ':capacitor-haptics:generateReleaseRFile', task ':capacitor-haptics:javaPreCompileRelease', task ':capacitor-haptics:compileReleaseJavaWithJavac', task ':capacitor-haptics:mergeReleaseGeneratedProguardFiles', task ':capacitor-haptics:exportReleaseConsumerProguardFiles', task ':capacitor-splash-screen:generateReleaseResValues', task ':capacitor-splash-screen:generateReleaseResources', task ':capacitor-splash-screen:packageReleaseResources', task ':capacitor-splash-screen:processReleaseNavigationResources', task ':capacitor-splash-screen:parseReleaseLocalResources', task ':capacitor-splash-screen:generateReleaseRFile', task ':capacitor-splash-screen:javaPreCompileRelease', task ':capacitor-splash-screen:compileReleaseJavaWithJavac', task ':capacitor-splash-screen:mergeReleaseGeneratedProguardFiles', task ':capacitor-splash-screen:exportReleaseConsumerProguardFiles', task ':capacitor-status-bar:generateReleaseResValues', task ':capacitor-status-bar:generateReleaseResources', task ':capacitor-status-bar:packageReleaseResources', task ':capacitor-status-bar:processReleaseNavigationResources', task ':capacitor-status-bar:parseReleaseLocalResources', task ':capacitor-status-bar:generateReleaseRFile', task ':capacitor-status-bar:javaPreCompileRelease', task ':capacitor-status-bar:compileReleaseJavaWithJavac', task ':capacitor-status-bar:mergeReleaseGeneratedProguardFiles', task ':capacitor-status-bar:exportReleaseConsumerProguardFiles', task ':codetrix-studio-capacitor-google-auth:generateReleaseResValues', task ':codetrix-studio-capacitor-google-auth:generateReleaseResources', task ':codetrix-studio-capacitor-google-auth:packageReleaseResources', task ':codetrix-studio-capacitor-google-auth:processReleaseNavigationResources', task ':codetrix-studio-capacitor-google-auth:parseReleaseLocalResources', task ':codetrix-studio-capacitor-google-auth:generateReleaseRFile', task ':codetrix-studio-capacitor-google-auth:javaPreCompileRelease', task ':codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac', task ':codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles', task ':codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles', task ':capacitor-android:mergeReleaseGeneratedProguardFiles', task ':capacitor-android:exportReleaseConsumerProguardFiles', task ':capacitor-cordova-android-plugins:generateReleaseResValues', task ':capacitor-cordova-android-plugins:generateReleaseResources', task ':capacitor-cordova-android-plugins:packageReleaseResources', task ':capacitor-cordova-android-plugins:processReleaseNavigationResources', task ':capacitor-cordova-android-plugins:parseReleaseLocalResources', task ':capacitor-cordova-android-plugins:generateReleaseRFile', task ':capacitor-cordova-android-plugins:javaPreCompileRelease', task ':capacitor-cordova-android-plugins:compileReleaseJavaWithJavac', task ':capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles', task ':capacitor-cordova-android-plugins:exportReleaseConsumerProguardFiles', task ':app:checkReleaseDuplicateClasses', task ':app:javaPreCompileRelease', task ':capacitor-android:writeReleaseAarMetadata', task ':capacitor-app:writeReleaseAarMetadata', task ':capacitor-cordova-android-plugins:writeReleaseAarMetadata', task ':capacitor-haptics:writeReleaseAarMetadata', task ':capacitor-splash-screen:writeReleaseAarMetadata', task ':capacitor-status-bar:writeReleaseAarMetadata', task ':codetrix-studio-capacitor-google-auth:writeReleaseAarMetadata', task ':app:checkReleaseAarMetadata', task ':app:processReleaseNavigationResources', task ':app:compileReleaseNavigationResources', task ':app:generateReleaseResValues', task ':app:processReleaseGoogleServices', task ':app:mapReleaseSourceSetPaths', task ':app:generateReleaseResources', task ':app:mergeReleaseResources', task ':app:packageReleaseResources', task ':app:parseReleaseLocalResources', task ':app:createReleaseCompatibleScreenManifests', task ':app:extractDeepLinksRelease', task ':capacitor-android:extractDeepLinksRelease', task ':capacitor-android:processReleaseManifest', task ':capacitor-app:extractDeepLinksRelease', task ':capacitor-app:processReleaseManifest', task ':capacitor-cordova-android-plugins:extractDeepLinksRelease', task ':capacitor-cordova-android-plugins:processReleaseManifest', task ':capacitor-haptics:extractDeepLinksRelease', task ':capacitor-haptics:processReleaseManifest', task ':capacitor-splash-screen:extractDeepLinksRelease', task ':capacitor-splash-screen:processReleaseManifest', task ':capacitor-status-bar:extractDeepLinksRelease', task ':capacitor-status-bar:processReleaseManifest', task ':codetrix-studio-capacitor-google-auth:extractDeepLinksRelease', task ':codetrix-studio-capacitor-google-auth:processReleaseManifest', task ':app:processReleaseMainManifest', task ':app:processReleaseManifest', task ':app:processReleaseManifestForPackage', task ':app:processReleaseResources', task ':capacitor-app:bundleLibCompileToJarRelease', task ':capacitor-cordova-android-plugins:bundleLibCompileToJarRelease', task ':capacitor-haptics:bundleLibCompileToJarRelease', task ':capacitor-splash-screen:bundleLibCompileToJarRelease', task ':capacitor-status-bar:bundleLibCompileToJarRelease', task ':codetrix-studio-capacitor-google-auth:bundleLibCompileToJarRelease', task ':app:compileReleaseJavaWithJavac', task ':capacitor-android:prepareReleaseArtProfile', task ':capacitor-app:prepareReleaseArtProfile', task ':capacitor-cordova-android-plugins:prepareReleaseArtProfile', task ':capacitor-haptics:prepareReleaseArtProfile', task ':capacitor-splash-screen:prepareReleaseArtProfile', task ':capacitor-status-bar:prepareReleaseArtProfile', task ':codetrix-studio-capacitor-google-auth:prepareReleaseArtProfile', task ':app:mergeReleaseArtProfile', task ':capacitor-android:bundleLibRuntimeToJarRelease', task ':capacitor-app:bundleLibRuntimeToJarRelease', task ':capacitor-cordova-android-plugins:bundleLibRuntimeToJarRelease', task ':capacitor-haptics:bundleLibRuntimeToJarRelease', task ':capacitor-splash-screen:bundleLibRuntimeToJarRelease', task ':capacitor-status-bar:bundleLibRuntimeToJarRelease', task ':codetrix-studio-capacitor-google-auth:bundleLibRuntimeToJarRelease', task ':app:expandReleaseArtProfileWildcards', task ':app:extractProguardFiles', task ':app:mergeReleaseGeneratedProguardFiles', task ':app:processReleaseJavaRes', task ':capacitor-android:processReleaseJavaRes', task ':capacitor-app:processReleaseJavaRes', task ':capacitor-cordova-android-plugins:processReleaseJavaRes', task ':capacitor-haptics:processReleaseJavaRes', task ':capacitor-splash-screen:processReleaseJavaRes', task ':capacitor-status-bar:processReleaseJavaRes', task ':codetrix-studio-capacitor-google-auth:processReleaseJavaRes', task ':app:mergeReleaseJavaResource', task ':app:mergeReleaseStartupProfile', task ':app:minifyReleaseWithR8', task ':app:compileReleaseArtProfile', task ':app:mergeReleaseShaders', task ':app:compileReleaseShaders', task ':app:generateReleaseAssets', task ':capacitor-android:mergeReleaseShaders', task ':capacitor-android:compileReleaseShaders', task ':capacitor-android:generateReleaseAssets', task ':capacitor-android:mergeReleaseAssets', task ':capacitor-app:mergeReleaseShaders', task ':capacitor-app:compileReleaseShaders', task ':capacitor-app:generateReleaseAssets', task ':capacitor-app:mergeReleaseAssets', task ':capacitor-cordova-android-plugins:mergeReleaseShaders', task ':capacitor-cordova-android-plugins:compileReleaseShaders', task ':capacitor-cordova-android-plugins:generateReleaseAssets', task ':capacitor-cordova-android-plugins:mergeReleaseAssets', task ':capacitor-haptics:mergeReleaseShaders', task ':capacitor-haptics:compileReleaseShaders', task ':capacitor-haptics:generateReleaseAssets', task ':capacitor-haptics:mergeReleaseAssets', task ':capacitor-splash-screen:mergeReleaseShaders', task ':capacitor-splash-screen:compileReleaseShaders', task ':capacitor-splash-screen:generateReleaseAssets', task ':capacitor-splash-screen:mergeReleaseAssets', task ':capacitor-status-bar:mergeReleaseShaders', task ':capacitor-status-bar:compileReleaseShaders', task ':capacitor-status-bar:generateReleaseAssets', task ':capacitor-status-bar:mergeReleaseAssets', task ':codetrix-studio-capacitor-google-auth:mergeReleaseShaders', task ':codetrix-studio-capacitor-google-auth:compileReleaseShaders', task ':codetrix-studio-capacitor-google-auth:generateReleaseAssets', task ':codetrix-studio-capacitor-google-auth:mergeReleaseAssets', task ':app:mergeReleaseAssets', task ':app:compressReleaseAssets', task ':app:extractReleaseVersionControlInfo', task ':capacitor-android:createFullJarRelease', task ':capacitor-android:extractProguardFiles', task ':capacitor-android:generateReleaseLintModel', task ':capacitor-android:prepareLintJarForPublish', task ':capacitor-app:createFullJarRelease', task ':capacitor-app:extractProguardFiles', task ':capacitor-app:generateReleaseLintModel', task ':capacitor-app:prepareLintJarForPublish', task ':capacitor-cordova-android-plugins:createFullJarRelease', task ':capacitor-cordova-android-plugins:extractProguardFiles', task ':capacitor-cordova-android-plugins:generateReleaseLintModel', task ':capacitor-cordova-android-plugins:prepareLintJarForPublish', task ':capacitor-haptics:createFullJarRelease', task ':capacitor-haptics:extractProguardFiles', task ':capacitor-haptics:generateReleaseLintModel', task ':capacitor-haptics:prepareLintJarForPublish', task ':capacitor-splash-screen:createFullJarRelease', task ':capacitor-splash-screen:extractProguardFiles', task ':capacitor-splash-screen:generateReleaseLintModel', task ':capacitor-splash-screen:prepareLintJarForPublish', task ':capacitor-status-bar:createFullJarRelease', task ':capacitor-status-bar:extractProguardFiles', task ':capacitor-status-bar:generateReleaseLintModel', task ':capacitor-status-bar:prepareLintJarForPublish', task ':codetrix-studio-capacitor-google-auth:createFullJarRelease', task ':codetrix-studio-capacitor-google-auth:extractProguardFiles', task ':codetrix-studio-capacitor-google-auth:generateReleaseLintModel', task ':codetrix-studio-capacitor-google-auth:prepareLintJarForPublish', task ':app:generateReleaseLintVitalReportModel', task ':capacitor-app:checkReleaseAarMetadata', task ':capacitor-app:stripReleaseDebugSymbols', task ':capacitor-app:copyReleaseJniLibsProjectAndLocalJars', task ':capacitor-app:extractDeepLinksForAarRelease', task ':capacitor-app:extractReleaseAnnotations', task ':capacitor-app:mergeReleaseConsumerProguardFiles', task ':capacitor-app:mergeReleaseJavaResource', task ':capacitor-app:syncReleaseLibJars', task ':capacitor-app:bundleReleaseLocalLintAar', task ':capacitor-haptics:checkReleaseAarMetadata', task ':capacitor-haptics:stripReleaseDebugSymbols', task ':capacitor-haptics:copyReleaseJniLibsProjectAndLocalJars', task ':capacitor-haptics:extractDeepLinksForAarRelease', task ':capacitor-haptics:extractReleaseAnnotations', task ':capacitor-haptics:mergeReleaseConsumerProguardFiles', task ':capacitor-haptics:mergeReleaseJavaResource', task ':capacitor-haptics:syncReleaseLibJars', task ':capacitor-haptics:bundleReleaseLocalLintAar', task ':capacitor-splash-screen:checkReleaseAarMetadata', task ':capacitor-splash-screen:stripReleaseDebugSymbols', task ':capacitor-splash-screen:copyReleaseJniLibsProjectAndLocalJars', task ':capacitor-splash-screen:extractDeepLinksForAarRelease', task ':capacitor-splash-screen:extractReleaseAnnotations', task ':capacitor-splash-screen:mergeReleaseConsumerProguardFiles', task ':capacitor-splash-screen:mergeReleaseJavaResource', task ':capacitor-splash-screen:syncReleaseLibJars', task ':capacitor-splash-screen:bundleReleaseLocalLintAar', task ':capacitor-status-bar:checkReleaseAarMetadata', task ':capacitor-status-bar:stripReleaseDebugSymbols', task ':capacitor-status-bar:copyReleaseJniLibsProjectAndLocalJars', task ':capacitor-status-bar:extractDeepLinksForAarRelease', task ':capacitor-status-bar:extractReleaseAnnotations', task ':capacitor-status-bar:mergeReleaseConsumerProguardFiles', task ':capacitor-status-bar:mergeReleaseJavaResource', task ':capacitor-status-bar:syncReleaseLibJars', task ':capacitor-status-bar:bundleReleaseLocalLintAar', task ':codetrix-studio-capacitor-google-auth:checkReleaseAarMetadata', task ':codetrix-studio-capacitor-google-auth:stripReleaseDebugSymbols', task ':codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectAndLocalJars', task ':codetrix-studio-capacitor-google-auth:extractDeepLinksForAarRelease', task ':codetrix-studio-capacitor-google-auth:extractReleaseAnnotations', task ':codetrix-studio-capacitor-google-auth:mergeReleaseConsumerProguardFiles', task ':codetrix-studio-capacitor-google-auth:mergeReleaseJavaResource', task ':codetrix-studio-capacitor-google-auth:syncReleaseLibJars', task ':codetrix-studio-capacitor-google-auth:bundleReleaseLocalLintAar', task ':capacitor-android:checkReleaseAarMetadata', task ':capacitor-android:stripReleaseDebugSymbols', task ':capacitor-android:copyReleaseJniLibsProjectAndLocalJars', task ':capacitor-android:extractDeepLinksForAarRelease', task ':capacitor-android:extractReleaseAnnotations', task ':capacitor-android:mergeReleaseConsumerProguardFiles', task ':capacitor-android:mergeReleaseJavaResource', task ':capacitor-android:syncReleaseLibJars', task ':capacitor-android:bundleReleaseLocalLintAar', task ':capacitor-cordova-android-plugins:checkReleaseAarMetadata', task ':capacitor-cordova-android-plugins:stripReleaseDebugSymbols', task ':capacitor-cordova-android-plugins:copyReleaseJniLibsProjectAndLocalJars', task ':capacitor-cordova-android-plugins:extractDeepLinksForAarRelease', task ':capacitor-cordova-android-plugins:extractReleaseAnnotations', task ':capacitor-cordova-android-plugins:mergeReleaseConsumerProguardFiles', task ':capacitor-cordova-android-plugins:mergeReleaseJavaResource', task ':capacitor-cordova-android-plugins:syncReleaseLibJars', task ':capacitor-cordova-android-plugins:bundleReleaseLocalLintAar', task ':capacitor-android:lintVitalAnalyzeRelease', task ':capacitor-android:writeReleaseLintModelMetadata', task ':capacitor-app:lintVitalAnalyzeRelease', task ':capacitor-app:writeReleaseLintModelMetadata', task ':capacitor-cordova-android-plugins:lintVitalAnalyzeRelease', task ':capacitor-cordova-android-plugins:writeReleaseLintModelMetadata', task ':capacitor-haptics:lintVitalAnalyzeRelease', task ':capacitor-haptics:writeReleaseLintModelMetadata', task ':capacitor-splash-screen:lintVitalAnalyzeRelease', task ':capacitor-splash-screen:writeReleaseLintModelMetadata', task ':capacitor-status-bar:lintVitalAnalyzeRelease', task ':capacitor-status-bar:writeReleaseLintModelMetadata', task ':codetrix-studio-capacitor-google-auth:lintVitalAnalyzeRelease', task ':codetrix-studio-capacitor-google-auth:writeReleaseLintModelMetadata', task ':app:lintVitalAnalyzeRelease', task ':capacitor-android:generateReleaseLintVitalModel', task ':capacitor-app:generateReleaseLintVitalModel', task ':capacitor-cordova-android-plugins:generateReleaseLintVitalModel', task ':capacitor-haptics:generateReleaseLintVitalModel', task ':capacitor-splash-screen:generateReleaseLintVitalModel', task ':capacitor-status-bar:generateReleaseLintVitalModel', task ':codetrix-studio-capacitor-google-auth:generateReleaseLintVitalModel', task ':app:lintVitalReportRelease', task ':app:lintVitalRelease', task ':app:convertShrunkResourcesToBinaryRelease', task ':app:optimizeReleaseResources', task ':app:collectReleaseDependencies', task ':app:sdkReleaseDependencyData', task ':app:validateSigningRelease', task ':app:writeReleaseAppMetadata', task ':app:writeReleaseSigningConfigVersions', task ':app:packageRelease', task ':app:createReleaseApkListingFileRedirect', task ':app:assembleRelease', task ':capacitor-android:bundleReleaseAar', task ':capacitor-android:mapReleaseSourceSetPaths', task ':capacitor-android:mergeReleaseResources', task ':capacitor-android:verifyReleaseResources', task ':capacitor-android:assembleRelease', task ':capacitor-app:bundleReleaseAar', task ':capacitor-android:compileReleaseLibraryResources', task ':capacitor-app:mapReleaseSourceSetPaths', task ':capacitor-app:mergeReleaseResources', task ':capacitor-app:verifyReleaseResources', task ':capacitor-app:assembleRelease', task ':capacitor-cordova-android-plugins:bundleReleaseAar', task ':capacitor-cordova-android-plugins:mapReleaseSourceSetPaths', task ':capacitor-cordova-android-plugins:mergeReleaseResources', task ':capacitor-cordova-android-plugins:verifyReleaseResources', task ':capacitor-cordova-android-plugins:assembleRelease', task ':capacitor-haptics:bundleReleaseAar', task ':capacitor-haptics:mapReleaseSourceSetPaths', task ':capacitor-haptics:mergeReleaseResources', task ':capacitor-haptics:verifyReleaseResources', task ':capacitor-haptics:assembleRelease', task ':capacitor-splash-screen:bundleReleaseAar', task ':capacitor-splash-screen:mapReleaseSourceSetPaths', task ':capacitor-splash-screen:mergeReleaseResources', task ':capacitor-splash-screen:verifyReleaseResources', task ':capacitor-splash-screen:assembleRelease', task ':capacitor-status-bar:bundleReleaseAar', task ':capacitor-status-bar:mapReleaseSourceSetPaths', task ':capacitor-status-bar:mergeReleaseResources', task ':capacitor-status-bar:verifyReleaseResources', task ':capacitor-status-bar:assembleRelease', task ':codetrix-studio-capacitor-google-auth:bundleReleaseAar', task ':codetrix-studio-capacitor-google-auth:mapReleaseSourceSetPaths', task ':codetrix-studio-capacitor-google-auth:mergeReleaseResources', task ':codetrix-studio-capacitor-google-auth:verifyReleaseResources', task ':codetrix-studio-capacitor-google-auth:assembleRelease']
+Tasks that were excluded: []
+work action Parameters of FilterShrinkerRulesTransform (Thread[Execution worker Thread 3,5,main]) started.
+work action Parameters of ExtractAarTransform (Thread[included builds,5,main]) started.
+work action Parameters of ExtractAarTransform (Thread[Execution worker Thread 3,5,main]) started.
+work action Parameters of ExtractAarTransform (Thread[Execution worker Thread 3,5,main]) started.
+work action Parameters of ExtractAarTransform (Thread[Execution worker Thread 3,5,main]) started.
+work action Parameters of ExtractAarTransform (Thread[Execution worker Thread 3,5,main]) started.
+work action Parameters of ExtractAarTransform (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :app:preBuild (Thread[Execution worker Thread 3,5,main]) started.
+:app:preBuild (Thread[included builds,5,main]) started.
+
+> Task :app:preBuild UP-TO-DATE
+Skipping task ':app:preBuild' as it has no actions.
+Resolve mutations for :app:preReleaseBuild (Thread[included builds,5,main]) started.
+:app:preReleaseBuild (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :app:preReleaseBuild UP-TO-DATE
+Skipping task ':app:preReleaseBuild' as it has no actions.
+Resolve mutations for :app:mergeReleaseJniLibFolders (Thread[included builds,5,main]) started.
+:app:mergeReleaseJniLibFolders (Thread[included builds,5,main]) started.
+
+> Task :app:mergeReleaseJniLibFolders
+Invalidating in-memory cache of C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\.gradle\buildOutputCleanup\outputFiles.bin
+Caching disabled for task ':app:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':app:mergeReleaseJniLibFolders' as it is up-to-date.
+
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+Resolve mutations for :capacitor-android:preBuild (Thread[included builds,5,main]) started.
+:capacitor-android:preBuild (Thread[included builds,5,main]) started.
+
+> Task :capacitor-android:preBuild UP-TO-DATE
+Skipping task ':capacitor-android:preBuild' as it has no actions.
+Resolve mutations for :capacitor-android:preReleaseBuild (Thread[included builds,5,main]) started.
+:capacitor-android:preReleaseBuild (Thread[included builds,5,main]) started.
+
+> Task :capacitor-android:preReleaseBuild UP-TO-DATE
+Skipping task ':capacitor-android:preReleaseBuild' as it has no actions.
+Resolve mutations for :capacitor-android:mergeReleaseJniLibFolders (Thread[included builds,5,main]) started.
+:capacitor-android:mergeReleaseJniLibFolders (Thread[included builds,5,main]) started.
+
+> Task :capacitor-android:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':capacitor-android:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-android:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :capacitor-android:mergeReleaseNativeLibs (Thread[included builds,5,main]) started.
+:capacitor-android:mergeReleaseNativeLibs (Thread[included builds,5,main]) started.
+
+> Task :capacitor-android:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':capacitor-android:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-android:copyReleaseJniLibsProjectOnly (Thread[included builds,5,main]) started.
+:capacitor-android:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':capacitor-android:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-android:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :capacitor-android) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :capacitor-app:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-app:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-app:preBuild UP-TO-DATE
+Skipping task ':capacitor-app:preBuild' as it has no actions.
+Resolve mutations for :capacitor-app:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-app:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-app:preReleaseBuild UP-TO-DATE
+Skipping task ':capacitor-app:preReleaseBuild' as it has no actions.
+Resolve mutations for :capacitor-app:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-app:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-app:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':capacitor-app:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-app:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :capacitor-app:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-app:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-app:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':capacitor-app:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-app:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-app:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-app:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':capacitor-app:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-app:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :capacitor-app) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-cordova-android-plugins:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+Skipping task ':capacitor-cordova-android-plugins:preBuild' as it has no actions.
+Resolve mutations for :capacitor-cordova-android-plugins:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-cordova-android-plugins:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:preReleaseBuild UP-TO-DATE
+Skipping task ':capacitor-cordova-android-plugins:preReleaseBuild' as it has no actions.
+Resolve mutations for :capacitor-cordova-android-plugins:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-cordova-android-plugins:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-cordova-android-plugins:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :capacitor-cordova-android-plugins:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-cordova-android-plugins:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':capacitor-cordova-android-plugins:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :capacitor-haptics:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-haptics:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-haptics:preBuild UP-TO-DATE
+Skipping task ':capacitor-haptics:preBuild' as it has no actions.
+Resolve mutations for :capacitor-haptics:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-haptics:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-haptics:preReleaseBuild UP-TO-DATE
+Skipping task ':capacitor-haptics:preReleaseBuild' as it has no actions.
+Resolve mutations for :capacitor-haptics:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-haptics:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-haptics:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-haptics:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-haptics:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-haptics:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':capacitor-haptics:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-haptics:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-haptics:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-haptics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-haptics:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :capacitor-haptics) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-splash-screen:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-splash-screen:preBuild UP-TO-DATE
+Skipping task ':capacitor-splash-screen:preBuild' as it has no actions.
+Resolve mutations for :capacitor-splash-screen:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-splash-screen:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-splash-screen:preReleaseBuild UP-TO-DATE
+Skipping task ':capacitor-splash-screen:preReleaseBuild' as it has no actions.
+Resolve mutations for :capacitor-splash-screen:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-splash-screen:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-splash-screen:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-splash-screen:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-splash-screen:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-splash-screen:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':capacitor-splash-screen:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-splash-screen:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-splash-screen:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-splash-screen:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-splash-screen:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :capacitor-splash-screen) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :capacitor-status-bar:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:preBuild UP-TO-DATE
+Skipping task ':capacitor-status-bar:preBuild' as it has no actions.
+Resolve mutations for :capacitor-status-bar:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:preReleaseBuild UP-TO-DATE
+Skipping task ':capacitor-status-bar:preReleaseBuild' as it has no actions.
+Resolve mutations for :capacitor-status-bar:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-status-bar:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:mergeReleaseNativeLibs (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':capacitor-status-bar:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-status-bar:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-status-bar:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :capacitor-status-bar) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+:codetrix-studio-capacitor-google-auth:preBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:preBuild UP-TO-DATE
+Skipping task ':codetrix-studio-capacitor-google-auth:preBuild' as it has no actions.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+:codetrix-studio-capacitor-google-auth:preReleaseBuild (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:preReleaseBuild UP-TO-DATE
+Skipping task ':codetrix-studio-capacitor-google-auth:preReleaseBuild' as it has no actions.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders (Thread[Execution worker Thread 4,5,main]) started.
+:codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders' as it is up-to-date.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs NO-SOURCE
+Skipping task ':codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly' as it is up-to-date.
+work action resolve jni (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :app:mergeReleaseNativeLibs (Thread[Execution worker Thread 5,5,main]) started.
+:app:mergeReleaseNativeLibs (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :app:mergeReleaseNativeLibs
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Skipping task ':app:mergeReleaseNativeLibs' as it has no source files and no previous output files.
+
+> Task :app:mergeReleaseNativeLibs NO-SOURCE
+Resolve mutations for :app:stripReleaseDebugSymbols (Thread[Execution worker Thread 5,5,main]) started.
+:app:stripReleaseDebugSymbols (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :app:stripReleaseDebugSymbols NO-SOURCE
+Skipping task ':app:stripReleaseDebugSymbols' as it has no source files and no previous output files.
+Resolve mutations for :app:extractReleaseNativeSymbolTables (Thread[Execution worker Thread 5,5,main]) started.
+:app:extractReleaseNativeSymbolTables (Thread[Execution worker,5,main]) started.
+
+> Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+Skipping task ':app:extractReleaseNativeSymbolTables' as it has no source files and no previous output files.
+Resolve mutations for :app:mergeReleaseNativeDebugMetadata (Thread[Execution worker,5,main]) started.
+:app:mergeReleaseNativeDebugMetadata (Thread[Execution worker,5,main]) started.
+
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+Skipping task ':app:mergeReleaseNativeDebugMetadata' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-android:generateReleaseResValues (Thread[Execution worker,5,main]) started.
+:capacitor-android:generateReleaseResValues (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-android:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':capacitor-android:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :capacitor-android:generateReleaseResources (Thread[Execution worker,5,main]) started.
+:capacitor-android:generateReleaseResources (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-android:generateReleaseResources UP-TO-DATE
+Invalidating in-memory cache of C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\.gradle\8.14.3\fileHashes\fileHashes.bin
+Invalidating in-memory cache of C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\.gradle\8.14.3\fileHashes\resourceHashesCache.bin
+Caching disabled for task ':capacitor-android:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :capacitor-android:packageReleaseResources (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:packageReleaseResources (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-android:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :capacitor-android) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-android:processReleaseNavigationResources (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:processReleaseNavigationResources (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':capacitor-android:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :capacitor-android) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-android:parseReleaseLocalResources (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:parseReleaseLocalResources (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':capacitor-android:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :capacitor-android:generateReleaseRFile (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:generateReleaseRFile (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':capacitor-android:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :capacitor-android) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-android:javaPreCompileRelease (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:javaPreCompileRelease (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':capacitor-android:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-android:compileReleaseJavaWithJavac (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:compileReleaseJavaWithJavac (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:compileReleaseJavaWithJavac UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+Custom actions are attached to task ':capacitor-android:compileReleaseJavaWithJavac'.
+Caching disabled for task ':capacitor-android:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:compileReleaseJavaWithJavac' as it is up-to-date.
+Resolve mutations for :capacitor-android:bundleLibCompileToJarRelease (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:bundleLibCompileToJarRelease (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':capacitor-android:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-android:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :capacitor-android) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :capacitor-app:generateReleaseResValues (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:generateReleaseResValues (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':capacitor-app:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :capacitor-app:generateReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:generateReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-app:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :capacitor-app:packageReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:packageReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-app:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :capacitor-app) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-app:processReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:processReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':capacitor-app:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :capacitor-app) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-app:parseReleaseLocalResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:parseReleaseLocalResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':capacitor-app:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :capacitor-app:generateReleaseRFile (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:generateReleaseRFile (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':capacitor-app:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :capacitor-app) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-app:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-app:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-app:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':capacitor-app:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-app:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-app:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-app:compileReleaseJavaWithJavac UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+Custom actions are attached to task ':capacitor-app:compileReleaseJavaWithJavac'.
+Caching disabled for task ':capacitor-app:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:compileReleaseJavaWithJavac' as it is up-to-date.
+Resolve mutations for :capacitor-app:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-app:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-app:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-app:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-app:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :capacitor-app:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-app:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-app:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-app:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-app:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :capacitor-app) (Thread[Execution worker Thread 2,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-haptics:generateReleaseResValues (Thread[Execution worker,5,main]) started.
+:capacitor-haptics:generateReleaseResValues (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-haptics:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:generateReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:generateReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:packageReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:packageReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :capacitor-haptics) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-haptics:processReleaseNavigationResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:processReleaseNavigationResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :capacitor-haptics) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-haptics:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :capacitor-haptics) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-haptics:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:compileReleaseJavaWithJavac UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+Custom actions are attached to task ':capacitor-haptics:compileReleaseJavaWithJavac'.
+Caching disabled for task ':capacitor-haptics:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:compileReleaseJavaWithJavac' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-haptics:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :capacitor-haptics:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-haptics:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-haptics:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-haptics:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :capacitor-haptics) (Thread[Execution worker Thread 2,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:generateReleaseResValues (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-splash-screen:generateReleaseResValues (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-splash-screen:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:generateReleaseResources (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-splash-screen:generateReleaseResources (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-splash-screen:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:packageReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-splash-screen:packageReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :capacitor-splash-screen) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:processReleaseNavigationResources (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:processReleaseNavigationResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :capacitor-splash-screen) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:parseReleaseLocalResources (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:parseReleaseLocalResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:generateReleaseRFile (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:generateReleaseRFile (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :capacitor-splash-screen) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:javaPreCompileRelease (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:javaPreCompileRelease (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:compileReleaseJavaWithJavac (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:compileReleaseJavaWithJavac (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:compileReleaseJavaWithJavac UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+Custom actions are attached to task ':capacitor-splash-screen:compileReleaseJavaWithJavac'.
+Caching disabled for task ':capacitor-splash-screen:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:compileReleaseJavaWithJavac' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-splash-screen:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :capacitor-splash-screen:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-splash-screen:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-splash-screen:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-splash-screen:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :capacitor-splash-screen) (Thread[Execution worker Thread 7,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-status-bar:generateReleaseResValues (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-status-bar:generateReleaseResValues (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-status-bar:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:generateReleaseResources (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-status-bar:generateReleaseResources (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-status-bar:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:packageReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-status-bar:packageReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-status-bar:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :capacitor-status-bar) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-status-bar:processReleaseNavigationResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-status-bar:processReleaseNavigationResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-status-bar:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :capacitor-status-bar) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-status-bar:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-status-bar:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-status-bar:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-status-bar:generateReleaseRFile (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :capacitor-status-bar) (Thread[Execution worker Thread 4,5,main]) started.
+Resolve mutations for :capacitor-status-bar:javaPreCompileRelease (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:javaPreCompileRelease (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:compileReleaseJavaWithJavac (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:compileReleaseJavaWithJavac (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:compileReleaseJavaWithJavac UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+Custom actions are attached to task ':capacitor-status-bar:compileReleaseJavaWithJavac'.
+Caching disabled for task ':capacitor-status-bar:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:compileReleaseJavaWithJavac' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 4,5,main]) started.
+:capacitor-status-bar:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 4,5,main]) started.
+
+> Task :capacitor-status-bar:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-status-bar:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :capacitor-status-bar:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 3,5,main]) started.
+:capacitor-status-bar:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 3,5,main]) started.
+
+> Task :capacitor-status-bar:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-status-bar:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :capacitor-status-bar) (Thread[Execution worker Thread 3,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 3,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:generateReleaseResValues (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:generateReleaseResValues (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:generateReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:generateReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:packageReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:packageReleaseResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:processReleaseNavigationResources (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:processReleaseNavigationResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:parseReleaseLocalResources (Thread[Execution worker Thread 5,5,main]) started.
+:codetrix-studio-capacitor-google-auth:parseReleaseLocalResources (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:javaPreCompileRelease (Thread[Execution worker Thread 5,5,main]) started.
+:codetrix-studio-capacitor-google-auth:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac (Thread[Execution worker Thread 5,5,main]) started.
+:codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+Custom actions are attached to task ':codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac'.
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac' as it is up-to-date.
+
+> Task :codetrix-studio-capacitor-google-auth:compileReleaseJavaWithJavac UP-TO-DATE
+Resolve mutations for :codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 5,5,main]) started.
+:codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':codetrix-studio-capacitor-google-auth:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 5,5,main]) started.
+:codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles (Thread[Execution worker,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':codetrix-studio-capacitor-google-auth:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 5,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-android:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-android:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-android:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-android:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-android:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :capacitor-android:exportReleaseConsumerProguardFiles (Thread[Execution worker,5,main]) started.
+:capacitor-android:exportReleaseConsumerProguardFiles (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-android:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-android:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-android:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :capacitor-android) (Thread[Execution worker Thread 5,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:generateReleaseResValues (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-cordova-android-plugins:generateReleaseResValues (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :capacitor-cordova-android-plugins:generateReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-cordova-android-plugins:generateReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :capacitor-cordova-android-plugins:packageReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-cordova-android-plugins:packageReleaseResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:packageReleaseResources' as it is up-to-date.
+work action resolve packageReleaseResources (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:processReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-cordova-android-plugins:processReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:processReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:processReleaseNavigationResources' as it is up-to-date.
+work action resolve release (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:parseReleaseLocalResources (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-cordova-android-plugins:parseReleaseLocalResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :capacitor-cordova-android-plugins:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-cordova-android-plugins:generateReleaseRFile (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:generateReleaseRFile UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:generateReleaseRFile' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:generateReleaseRFile' as it is up-to-date.
+work action resolve package-aware-r.txt (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-cordova-android-plugins:javaPreCompileRelease (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-cordova-android-plugins:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-cordova-android-plugins:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:compileReleaseJavaWithJavac NO-SOURCE
+Skipping task ':capacitor-cordova-android-plugins:compileReleaseJavaWithJavac' as it has no source files and no previous output files.
+Resolve mutations for :capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-cordova-android-plugins:mergeReleaseGeneratedProguardFiles' as it is up-to-date.
+Resolve mutations for :capacitor-cordova-android-plugins:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+:capacitor-cordova-android-plugins:exportReleaseConsumerProguardFiles (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:exportReleaseConsumerProguardFiles UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:exportReleaseConsumerProguardFiles' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-cordova-android-plugins:exportReleaseConsumerProguardFiles' as it is up-to-date.
+work action resolve exportReleaseConsumerProguardFiles (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 2,5,main]) started.
+FilterShrinkerRulesTransform (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :app:checkReleaseDuplicateClasses (Thread[Execution worker Thread 6,5,main]) started.
+:app:checkReleaseDuplicateClasses (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :app:checkReleaseDuplicateClasses UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Caching disabled for task ':app:checkReleaseDuplicateClasses' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:checkReleaseDuplicateClasses' as it is up-to-date.
+Resolve mutations for :app:javaPreCompileRelease (Thread[Execution worker Thread 6,5,main]) started.
+:app:javaPreCompileRelease (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :app:javaPreCompileRelease UP-TO-DATE
+Caching disabled for task ':app:javaPreCompileRelease' because:
+  Build cache is disabled
+Skipping task ':app:javaPreCompileRelease' as it is up-to-date.
+Resolve mutations for :capacitor-android:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-android:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-android:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':capacitor-android:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-android:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :capacitor-android) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-app:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-app:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-app:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':capacitor-app:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-app:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :capacitor-app) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-cordova-android-plugins:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-cordova-android-plugins:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-haptics:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-haptics:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-haptics:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-haptics:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :capacitor-haptics) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-splash-screen:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-splash-screen:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-splash-screen:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :capacitor-splash-screen) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :capacitor-status-bar:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:capacitor-status-bar:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :capacitor-status-bar:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':capacitor-status-bar:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :capacitor-status-bar) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:codetrix-studio-capacitor-google-auth:writeReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:writeReleaseAarMetadata UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:writeReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':codetrix-studio-capacitor-google-auth:writeReleaseAarMetadata' as it is up-to-date.
+work action resolve aar-metadata.properties (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :app:checkReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+:app:checkReleaseAarMetadata (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :app:checkReleaseAarMetadata UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Caching disabled for task ':app:checkReleaseAarMetadata' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:checkReleaseAarMetadata' as it is up-to-date.
+Resolve mutations for :app:processReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+:app:processReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :app:processReleaseNavigationResources UP-TO-DATE
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Caching disabled for task ':app:processReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':app:processReleaseNavigationResources' as it is up-to-date.
+Resolve mutations for :app:compileReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+:app:compileReleaseNavigationResources (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :app:compileReleaseNavigationResources UP-TO-DATE
+Caching disabled for task ':app:compileReleaseNavigationResources' because:
+  Build cache is disabled
+Skipping task ':app:compileReleaseNavigationResources' as it is up-to-date.
+Resolve mutations for :app:generateReleaseResValues (Thread[Execution worker Thread 7,5,main]) started.
+:app:generateReleaseResValues (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:generateReleaseResValues UP-TO-DATE
+Caching disabled for task ':app:generateReleaseResValues' because:
+  Build cache is disabled
+Skipping task ':app:generateReleaseResValues' as it is up-to-date.
+Resolve mutations for :app:processReleaseGoogleServices (Thread[Execution worker Thread 7,5,main]) started.
+:app:processReleaseGoogleServices (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:processReleaseGoogleServices UP-TO-DATE
+Caching disabled for task ':app:processReleaseGoogleServices' because:
+  Build cache is disabled
+Skipping task ':app:processReleaseGoogleServices' as it is up-to-date.
+Resolve mutations for :app:mapReleaseSourceSetPaths (Thread[Execution worker Thread 7,5,main]) started.
+:app:mapReleaseSourceSetPaths (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:mapReleaseSourceSetPaths
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Caching disabled for task ':app:mapReleaseSourceSetPaths' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:mapReleaseSourceSetPaths' as it is up-to-date.
+
+> Task :app:mapReleaseSourceSetPaths UP-TO-DATE
+Resolve mutations for :app:generateReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+:app:generateReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:generateReleaseResources UP-TO-DATE
+Caching disabled for task ':app:generateReleaseResources' because:
+  Build cache is disabled
+Skipping task ':app:generateReleaseResources' as it is up-to-date.
+Resolve mutations for :app:mergeReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+:app:mergeReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:mergeReleaseResources
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Caching disabled for task ':app:mergeReleaseResources' because:
+  Build cache is disabled
+Skipping task ':app:mergeReleaseResources' as it is up-to-date.
+
+> Task :app:mergeReleaseResources UP-TO-DATE
+Resolve mutations for :app:packageReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+:app:packageReleaseResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:packageReleaseResources UP-TO-DATE
+Caching disabled for task ':app:packageReleaseResources' because:
+  Build cache is disabled
+Skipping task ':app:packageReleaseResources' as it is up-to-date.
+Resolve mutations for :app:parseReleaseLocalResources (Thread[Execution worker Thread 7,5,main]) started.
+:app:parseReleaseLocalResources (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:parseReleaseLocalResources UP-TO-DATE
+Caching disabled for task ':app:parseReleaseLocalResources' because:
+  Build cache is disabled
+Skipping task ':app:parseReleaseLocalResources' as it is up-to-date.
+Resolve mutations for :app:createReleaseCompatibleScreenManifests (Thread[Execution worker Thread 7,5,main]) started.
+:app:createReleaseCompatibleScreenManifests (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:createReleaseCompatibleScreenManifests UP-TO-DATE
+Caching disabled for task ':app:createReleaseCompatibleScreenManifests' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':app:createReleaseCompatibleScreenManifests' as it is up-to-date.
+Resolve mutations for :app:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+:app:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :app:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':app:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':app:extractDeepLinksRelease' as it is up-to-date.
+Resolve mutations for :capacitor-android:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-android:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-android:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':capacitor-android:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :capacitor-android) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-android:processReleaseManifest (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-android:processReleaseManifest (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-android:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':capacitor-android:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':capacitor-android:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :capacitor-android) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-app:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-app:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-app:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':capacitor-app:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :capacitor-app) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-app:processReleaseManifest (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-app:processReleaseManifest (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-app:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':capacitor-app:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':capacitor-app:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :capacitor-app) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-cordova-android-plugins:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:processReleaseManifest (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-cordova-android-plugins:processReleaseManifest (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':capacitor-cordova-android-plugins:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :capacitor-cordova-android-plugins) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-haptics:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+:capacitor-haptics:extractDeepLinksRelease (Thread[Execution worker Thread 7,5,main]) started.
+
+> Task :capacitor-haptics:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :capacitor-haptics) (Thread[Execution worker Thread 7,5,main]) started.
+Resolve mutations for :capacitor-haptics:processReleaseManifest (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-haptics:processReleaseManifest (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-haptics:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':capacitor-haptics:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :capacitor-haptics) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:extractDeepLinksRelease (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-splash-screen:extractDeepLinksRelease (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-splash-screen:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :capacitor-splash-screen) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:processReleaseManifest (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-splash-screen:processReleaseManifest (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-splash-screen:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':capacitor-splash-screen:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :capacitor-splash-screen) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :capacitor-status-bar:extractDeepLinksRelease (Thread[Execution worker Thread 5,5,main]) started.
+:capacitor-status-bar:extractDeepLinksRelease (Thread[Execution worker Thread 5,5,main]) started.
+
+> Task :capacitor-status-bar:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :capacitor-status-bar) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :capacitor-status-bar:processReleaseManifest (Thread[Execution worker,5,main]) started.
+:capacitor-status-bar:processReleaseManifest (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-status-bar:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':capacitor-status-bar:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :capacitor-status-bar) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:extractDeepLinksRelease (Thread[Execution worker,5,main]) started.
+:codetrix-studio-capacitor-google-auth:extractDeepLinksRelease (Thread[Execution worker,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:extractDeepLinksRelease UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:extractDeepLinksRelease' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:extractDeepLinksRelease' as it is up-to-date.
+work action resolve navigation.json (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 5,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:processReleaseManifest (Thread[Execution worker Thread 2,5,main]) started.
+:codetrix-studio-capacitor-google-auth:processReleaseManifest (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':codetrix-studio-capacitor-google-auth:processReleaseManifest' as it is up-to-date.
+work action resolve AndroidManifest.xml (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :app:processReleaseMainManifest (Thread[Execution worker,5,main]) started.
+:app:processReleaseMainManifest (Thread[Execution worker,5,main]) started.
+
+> Task :app:processReleaseMainManifest
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Caching disabled for task ':app:processReleaseMainManifest' because:
+  Build cache is disabled
+Skipping task ':app:processReleaseMainManifest' as it is up-to-date.
+
+> Task :app:processReleaseMainManifest UP-TO-DATE
+Resolve mutations for :app:processReleaseManifest (Thread[Execution worker,5,main]) started.
+:app:processReleaseManifest (Thread[Execution worker,5,main]) started.
+
+> Task :app:processReleaseManifest UP-TO-DATE
+Caching disabled for task ':app:processReleaseManifest' because:
+  Build cache is disabled
+Skipping task ':app:processReleaseManifest' as it is up-to-date.
+Resolve mutations for :app:processReleaseManifestForPackage (Thread[Execution worker,5,main]) started.
+:app:processReleaseManifestForPackage (Thread[Execution worker,5,main]) started.
+
+> Task :app:processReleaseManifestForPackage UP-TO-DATE
+Custom actions are attached to task ':app:processReleaseManifestForPackage'.
+Caching disabled for task ':app:processReleaseManifestForPackage' because:
+  Build cache is disabled
+Skipping task ':app:processReleaseManifestForPackage' as it is up-to-date.
+Resolve mutations for :app:processReleaseResources (Thread[Execution worker,5,main]) started.
+:app:processReleaseResources (Thread[Execution worker,5,main]) started.
+
+> Task :app:processReleaseResources
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\app\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\haptics\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\splash-screen\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\status-bar\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@codetrix-studio\capacitor-google-auth\android\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\node_modules\@capacitor\android\capacitor\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\capacitor-cordova-android-plugins\src\main\libs', not found
+Registered task dependencies: app:releaseCompileClasspath
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: org.jetbrains.kotlin:kotlin-stdlib
+Skipping misunderstood TO dep string: project :capacitor-android
+Skipping misunderstood TO dep string: project :capacitor-cordova-android-plugins
+Skipping misunderstood TO dep string: project :capacitor-app
+Skipping misunderstood TO dep string: project :capacitor-haptics
+Skipping misunderstood TO dep string: project :capacitor-splash-screen
+Skipping misunderstood TO dep string: project :capacitor-status-bar
+Skipping misunderstood TO dep string: project :codetrix-studio-capacitor-google-auth
+Starting dependency analysis
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+Caching disabled for task ':app:processReleaseResources' because:
+  Build cache is disabled
+Skipping task ':app:processReleaseResources' as it is up-to-date.
+
+> Task :app:processReleaseResources UP-TO-DATE
+Resolve mutations for :capacitor-app:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+:capacitor-app:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-app:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':capacitor-app:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-app:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :capacitor-app) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :capacitor-cordova-android-plugins:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+:capacitor-cordova-android-plugins:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-cordova-android-plugins:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':capacitor-cordova-android-plugins:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-cordova-android-plugins:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :capacitor-cordova-android-plugins) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :capacitor-haptics:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+:capacitor-haptics:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-haptics:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':capacitor-haptics:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-haptics:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :capacitor-haptics) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :capacitor-splash-screen:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+:capacitor-splash-screen:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-splash-screen:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':capacitor-splash-screen:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-splash-screen:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :capacitor-splash-screen) (Thread[Execution worker,5,main]) started.
+Resolve mutations for :capacitor-status-bar:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+:capacitor-status-bar:bundleLibCompileToJarRelease (Thread[Execution worker,5,main]) started.
+
+> Task :capacitor-status-bar:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':capacitor-status-bar:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':capacitor-status-bar:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :capacitor-status-bar) (Thread[Execution worker Thread 6,5,main]) started.
+Resolve mutations for :codetrix-studio-capacitor-google-auth:bundleLibCompileToJarRelease (Thread[Execution worker Thread 6,5,main]) started.
+:codetrix-studio-capacitor-google-auth:bundleLibCompileToJarRelease (Thread[Execution worker Thread 6,5,main]) started.
+
+> Task :codetrix-studio-capacitor-google-auth:bundleLibCompileToJarRelease UP-TO-DATE
+Caching disabled for task ':codetrix-studio-capacitor-google-auth:bundleLibCompileToJarRelease' because:
+  Build cache is disabled
+  Simple merging task
+Skipping task ':codetrix-studio-capacitor-google-auth:bundleLibCompileToJarRelease' as it is up-to-date.
+work action resolve classes.jar (project :codetrix-studio-capacitor-google-auth) (Thread[Execution worker Thread 2,5,main]) started.
+Resolve mutations for :app:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+:app:compileReleaseJavaWithJavac (Thread[Execution worker Thread 2,5,main]) started.
+
+> Task :app:compileReleaseJavaWithJavac
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+Custom actions are attached to task ':app:compileReleaseJavaWithJavac'.
+Caching disabled for task ':app:compileReleaseJavaWithJavac' because:
+  Build cache is disabled
+Task ':app:compileReleaseJavaWithJavac' is not up-to-date because:
+  Task has failed previously.
+The input changes require a full rebuild for incremental task ':app:compileReleaseJavaWithJavac'.
+Compilation mode: in-process compilation
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\libs', not found
+Full recompilation is required because no incremental change information is available. This is usually caused by clean builds or changing compiler arguments.
+Compiling with toolchain 'C:\Program Files\AdoptOpenJDK\jdk-17'.
+file or directory 'C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android\app\src\release\java', not found
+Compiling with JDK Java compiler API.
+
+> Task :app:compileReleaseJavaWithJavac FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/Mehedi%20Hasan/OneDrive/Desktop/Android%20app/School-Cricket-Live/android/build/reports/problems/problems-report.html
+.\gradlew : 
+At line:1 char:31
++ ...  "android"; .\gradlew assembleRelease --stacktrace --info 2>&1 | Out- ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileReleaseJavaWithJavac'.
+> Java compilation initialization error
+    error: invalid source release: 21
+
+* Try:
+> Run with --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileReleaseJavaWithJavac'.
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecut
+er.java:130)
+	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:293)
+	at 
+org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:128)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskEx
+ecuter.java:41)
+	at 
+org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.j
+ava:51)
+	at 
+org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGrap
+h.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGrap
+h.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(Defaul
+tTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExec
+utionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExec
+utionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: java.lang.IllegalArgumentException: error: invalid source release: 21
+	at jdk.compiler/com.sun.tools.javac.main.Arguments.error(Arguments.java:905)
+	at jdk.compiler/com.sun.tools.javac.main.Arguments.doProcessArgs(Arguments.java:383)
+	at jdk.compiler/com.sun.tools.javac.main.Arguments.processArgs(Arguments.java:347)
+	at jdk.compiler/com.sun.tools.javac.main.Arguments.init(Arguments.java:246)
+	at jdk.compiler/com.sun.tools.javac.api.JavacTool.getTask(JavacTool.java:191)
+	at org.gradle.api.internal.tasks.compile.JdkTools$DefaultIncrementalAwareCompiler.getTask(JdkTools.java:99)
+	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.createCompileTask(JdkJavaCompiler.java:113)
+	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:76)
+	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
+	at 
+org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
+	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.execute(NormalizingJavaCompiler.java:52)
+	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.execute(NormalizingJavaCompiler.java:38)
+	at org.gradle.api.internal.tasks.compile.AnnotationProcessorDiscoveringCompiler.execute(AnnotationProcessorDiscovering
+Compiler.java:52)
+	at org.gradle.api.internal.tasks.compile.AnnotationProcessorDiscoveringCompiler.execute(AnnotationProcessorDiscovering
+Compiler.java:38)
+	at org.gradle.api.internal.tasks.compile.ModuleApplicationNameWritingCompiler.execute(ModuleApplicationNameWritingComp
+iler.java:46)
+	at org.gradle.api.internal.tasks.compile.ModuleApplicationNameWritingCompiler.execute(ModuleApplicationNameWritingComp
+iler.java:36)
+	at org.gradle.jvm.toolchain.internal.DefaultToolchainJavaCompiler.execute(DefaultToolchainJavaCompiler.java:57)
+	at org.gradle.api.tasks.compile.JavaCompile.lambda$createToolchainCompiler$3(JavaCompile.java:206)
+	at org.gradle.api.internal.tasks.compile.CleaningJavaCompiler.execute(CleaningJavaCompiler.java:53)
+	at org.gradle.api.internal.tasks.compile.incremental.IncrementalCompilerFactory.lambda$createRebuildAllCompiler$0(Incr
+ementalCompilerFactory.java:55)
+	at org.gradle.api.internal.tasks.compile.incremental.SelectiveCompiler.execute(SelectiveCompiler.java:70)
+	at org.gradle.api.internal.tasks.compile.incremental.SelectiveCompiler.execute(SelectiveCompiler.java:44)
+	at org.gradle.api.internal.tasks.compile.incremental.IncrementalResultStoringCompiler.execute(IncrementalResultStoring
+Compiler.java:66)
+	at org.gradle.api.internal.tasks.compile.incremental.IncrementalResultStoringCompiler.execute(IncrementalResultStoring
+Compiler.java:52)
+	at org.gradle.api.internal.tasks.compile.CompileJavaBuildOperationReportingCompiler$1.call(CompileJavaBuildOperationRe
+portingCompiler.java:64)
+	at org.gradle.api.internal.tasks.compile.CompileJavaBuildOperationReportingCompiler$1.call(CompileJavaBuildOperationRe
+portingCompiler.java:48)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.compile.CompileJavaBuildOperationReportingCompiler.execute(CompileJavaBuildOperationR
+eportingCompiler.java:48)
+	at org.gradle.api.tasks.compile.JavaCompile.performCompilation(JavaCompile.java:224)
+	at org.gradle.api.tasks.compile.JavaCompile.performIncrementalCompilation(JavaCompile.java:165)
+	at org.gradle.api.tasks.compile.JavaCompile.compile(JavaCompile.java:150)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
+	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.doExecute(IncrementalTaskAction.java:45)
+	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:51)
+	at org.gradle.api.internal.project.taskfactory.IncrementalTaskAction.execute(IncrementalTaskAction.java:26)
+	at org.gradle.api.internal.project.taskfactory.StandardTaskAction.execute(StandardTaskAction.java:29)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:244)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:229)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:212)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:195)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:162)
+	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:105)
+	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:59)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:56)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:56)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
+	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
+	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:50)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:28)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:61)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:26)
+	at 
+org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
+	at 
+org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:75)
+	at org.gradle.internal.Either$Right.fold(Either.java:175)
+	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:73)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:48)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:46)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:35)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishe
+dStep.java:37)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishe
+dStep.java:27)
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingSta
+teStep.java:49)
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingSta
+teStep.java:27)
+	at 
+org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
+	at 
+org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecu
+tionStep.java:64)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecu
+tionStep.java:43)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.
+java:125)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:61)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedS
+tep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationF
+iringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep
+.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep
+.java:39)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
+	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:64)
+	at 
+org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskEx
+ecuter.java:41)
+	at 
+org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.j
+ava:51)
+	at 
+org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperati
+onRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGrap
+h.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGrap
+h.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(Defaul
+tTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExec
+utionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExec
+utionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+131 actionable tasks: 1 executed, 130 up-to-date
+Watched directory hierarchies: [C:\Users\Mehedi Hasan\OneDrive\Desktop\Android app\School-Cricket-Live\android]
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+
+
+BUILD FAILED in 4m 58s

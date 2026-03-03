@@ -3,10 +3,6 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { useAuthStore } from './store/authStore'
-import { oneSignalService } from './services/oneSignalService'
-
-// Initialize OneSignal
-oneSignalService.init()
 
 // Initialize Capacitor Google Auth if on native
 import { Capacitor } from '@capacitor/core'
