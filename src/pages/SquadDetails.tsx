@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/authStore'
 import { followService } from '@/services/firestore/followService'
 import { useSearchParams } from 'react-router-dom'
 import { Bell, Check, Trophy, Medal, ChevronRight, Share2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 
 type Tab = 'squad' | 'matches' | 'achievement'
@@ -45,6 +46,12 @@ export default function SquadDetails() {
       return
     }
     if (!id) return
+
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    if (isAdmin) {
+      toast.error("Admins cannot follow squads.");
+      return;
+    }
 
     if (isFollowing) {
       await followService.unfollow('squad', id)

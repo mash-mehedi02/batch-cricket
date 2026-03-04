@@ -22,6 +22,7 @@ export interface AdminUser {
     managedSchools: string[]; // List of school names this admin can manage
     organizationName: string;
     isActive: boolean;
+    phone: string;
     createdAt: any;
     lastLogin?: any;
     updatedAt?: any;
@@ -143,7 +144,7 @@ export const adminService = {
     },
 
     // Account Creation
-    async createAdminAccount(data: { name: string; email: string; password: string; role: 'admin' | 'super_admin' }) {
+    async createAdminAccount(data: { name: string; email: string; password: string; role: 'admin' | 'super_admin'; phone: string }) {
         const { initializeApp, deleteApp } = await import('firebase/app');
         const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
 
@@ -167,6 +168,7 @@ export const adminService = {
                 role: data.role,
                 managedSchools: [],
                 isActive: true,
+                phone: data.phone || '',
                 organizationName: 'BatchCrick',
                 pwd: data.password, // Save for Super Admin reference
                 createdAt: serverTimestamp(),
@@ -178,6 +180,7 @@ export const adminService = {
                 uid,
                 email: normalizedEmail,
                 role: data.role,
+                phone: data.phone || '',
                 createdAt: serverTimestamp(),
                 lastLogin: serverTimestamp()
             });

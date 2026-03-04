@@ -1882,7 +1882,6 @@ export default function MatchLive() {
               </button>
               <NotificationBell
                 matchId={matchId}
-                adminId={match?.adminId || ''}
                 matchTitle={`${teamAName} vs ${teamBName}`}
                 tournamentId={match?.tournamentId}
                 color="text-slate-400 hover:text-emerald-400 hover:bg-white/10"

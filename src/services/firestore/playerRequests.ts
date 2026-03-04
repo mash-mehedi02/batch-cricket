@@ -20,7 +20,8 @@ import { PlayerRole, BattingStyle, BowlingStyle } from '@/types'
 export interface PlayerRegistrationRequest {
     id?: string
     uid: string
-    email: string
+    email: string;
+    phone: string;
     name: string
     school: string
     squadId: string
@@ -57,6 +58,7 @@ export const playerRequestService = {
 
         const requestData = {
             ...data,
+            phone: data.phone || '',
             status: 'pending' as const,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -230,6 +232,7 @@ export const playerRequestService = {
                 ? request.email!.replace(/(..)(.*)(@.*)/, '$1****$3')
                 : '********',
             batch: request.batch || request.school || '',
+            phone: request.phone || '',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             createdBy: auth.currentUser.uid,
@@ -256,10 +259,19 @@ export const playerRequestService = {
             role: 'player',
             playerId: playerId,
             isRegisteredPlayer: true,
+            phone: request.phone || '',
             updatedAt: serverTimestamp()
         })
 
-        // 4. Update Request Status
+        // 4. Create Player Secret for identity persistence
+        const secretRef = doc(db, 'player_secrets', playerId)
+        await setDoc(secretRef, {
+            email: (request.email || '').toLowerCase().trim(),
+            playerId: playerId,
+            uid: request.uid
+        })
+
+        // 5. Update Request Status
         const requestRef = doc(db, 'player_requests', requestId)
         await updateDoc(requestRef, {
             status: 'approved',

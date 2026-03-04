@@ -99,6 +99,7 @@ export default function EditProfilePage() {
                             role: (data.role as PlayerRole) || prev.role,
                             battingStyle: (data.battingStyle as BattingStyle) || prev.battingStyle,
                             bowlingStyle: (data.bowlingStyle as BowlingStyle) || prev.bowlingStyle,
+                            school: data.school || data.batch || prev.school,
                             socialLinks: (data.socialLinks as SocialLink[]) || prev.socialLinks,
                             photoURL: data.photoUrl || prev.photoURL
                         }));
@@ -128,6 +129,7 @@ export default function EditProfilePage() {
         battingStyle: (user?.playerProfile?.battingStyle as BattingStyle) || 'right-handed',
         bowlingStyle: (user?.playerProfile?.bowlingStyle as BowlingStyle) || 'right-arm-medium',
         dateOfBirth: user?.playerProfile?.dateOfBirth || '',
+        school: user?.playerProfile?.school || user?.playerProfile?.batch || '',
         socialLinks: (user?.playerProfile?.socialLinks as SocialLink[]) || []
     });
 
@@ -223,6 +225,7 @@ export default function EditProfilePage() {
                 bowlingStyle: form.bowlingStyle,
                 dateOfBirth: form.dateOfBirth || '',
                 photoUrl: form.photoURL || '',
+                school: form.school?.trim() || '',
                 socialLinks: form.socialLinks,
                 isRegisteredPlayer: user.playerProfile?.isRegisteredPlayer || false,
             };
@@ -247,6 +250,8 @@ export default function EditProfilePage() {
                     bowlingStyle: form.bowlingStyle,
                     dateOfBirth: form.dateOfBirth || null,
                     photoUrl: form.photoURL || null,
+                    school: form.school?.trim() || null,
+                    batch: form.school?.trim() || null,
                     socialLinks: form.socialLinks,
                     updatedAt: serverTimestamp()
                 }).catch(err => console.warn('Player sync failed:', err));
@@ -453,6 +458,18 @@ export default function EditProfilePage() {
                         />
                     </div>
 
+                    {/* Batch / School */}
+                    <div>
+                        <label className={labelClass}>Batch / School</label>
+                        <input
+                            type="text"
+                            value={form.school}
+                            onChange={(e) => setForm(prev => ({ ...prev, school: e.target.value }))}
+                            placeholder="e.g. Batch 2006 or School Name"
+                            className={inputClass}
+                        />
+                    </div>
+
                     {/* Bio */}
                     <div>
                         <label className={labelClass}>Bio</label>
@@ -465,7 +482,7 @@ export default function EditProfilePage() {
                     </div>
 
                     {/* Player Specific Fields (Only for Approved Players/Admins) */}
-                    {(user.role === 'player' || user.role === 'admin' || user.role === 'super_admin') && (
+                    {(user.role === 'player' || user.isRegisteredPlayer || user.role === 'admin' || user.role === 'super_admin') && (
                         <>
                             {/* Playing Role */}
                             <div>

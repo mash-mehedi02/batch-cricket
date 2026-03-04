@@ -1,5 +1,6 @@
 import { getToken, onMessage, Messaging } from 'firebase/messaging'
 import { messaging } from '../config/firebase'
+import { Capacitor } from '@capacitor/core'
 import toast from 'react-hot-toast'
 
 export type NotificationType = 'all' | 'wickets' | 'reminders'
@@ -44,24 +45,69 @@ class NotificationService {
      * Request notification permission and get FCM token
      */
     async requestPermission(): Promise<string | null> {
-        if (!this.messaging) return null
+        // Handle Native Platform (Android/iOS)
+        if (Capacitor.isNativePlatform()) {
+            try {
+                // Use dynamic import so it doesn't break web if not installed correctly
+                const { PushNotifications } = await import('@capacitor/push-notifications');
+                let perm = await PushNotifications.checkPermissions();
+
+                if (perm.receive === 'prompt') {
+                    perm = await PushNotifications.requestPermissions();
+                }
+
+                if (perm.receive !== 'granted') {
+                    console.warn('[FCM] Native notification permission denied');
+                    return null;
+                }
+
+                // Register with Apple/Google to receive a token
+                await PushNotifications.register();
+
+                // The actual token is received via the 'registration' listener
+                // We'll return a promise that resolves when the listener fires
+                return new Promise((resolve) => {
+                    const regListener = PushNotifications.addListener('registration', (token) => {
+                        this.token = token.value;
+                        console.log('[FCM] Native Token obtained:', token.value.substring(0, 20) + '...');
+                        regListener.remove();
+                        resolve(token.value);
+                    });
+
+                    const errListener = PushNotifications.addListener('registrationError', (err) => {
+                        console.error('[FCM] Native Registration error:', err);
+                        errListener.remove();
+                        resolve(null);
+                    });
+
+                    // Set a timeout in case listeners don't fire
+                    setTimeout(() => resolve(this.token), 10000);
+                });
+            } catch (error) {
+                console.error('[FCM] Error in native notification setup:', error);
+                // Fallback to web logic if plugin fails
+            }
+        }
+
+        // Web/Browser Logic
+        if (!this.messaging) return null;
 
         try {
-            const permission = await Notification.requestPermission()
+            const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 const token = await getToken(this.messaging, {
-                    vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
-                })
-                this.token = token
-                console.log('[FCM] Token obtained:', token.substring(0, 20) + '...')
-                return token
+                    vapidKey: 'BK-cF82hQXHEq99VRHFqfJGcO1oQLiifIK_9RZbwkKTdlsg9ixWIB28cjrZAiR03gQGhhQtF_A77UUUmfBU_CWM'
+                });
+                this.token = token;
+                console.log('[FCM] Web Token obtained:', token.substring(0, 20) + '...');
+                return token;
             } else {
-                console.warn('[FCM] Notification permission denied')
-                return null
+                console.warn('[FCM] Web Notification permission denied');
+                return null;
             }
         } catch (error) {
-            console.error('[FCM] Error requesting notification permission:', error)
-            return null
+            console.error('[FCM] Error requesting web notification permission:', error);
+            return null;
         }
     }
 
@@ -76,7 +122,7 @@ class NotificationService {
     /**
      * Subscribe to match notifications
      */
-    async updateMatchSubscription(matchId: string, _adminId: string, settings: MatchNotificationSettings) {
+    async updateMatchSubscription(matchId: string, settings: MatchNotificationSettings) {
         this.saveSettings(matchId, settings)
         const anyEnabled = settings.all || settings.wickets || settings.reminders
 
@@ -107,7 +153,7 @@ class NotificationService {
     /**
      * Subscribe to tournament notifications
      */
-    async updateTournamentSubscription(tournamentId: string, _adminId: string, enabled: boolean) {
+    async updateTournamentSubscription(tournamentId: string, enabled: boolean) {
         if (!this.token) {
             const token = await this.requestPermission()
             if (!token) return
@@ -135,7 +181,6 @@ class NotificationService {
      */
     async sendToMatch(
         matchId: string,
-        _adminId: string,
         title: string,
         message: string,
         url?: string,

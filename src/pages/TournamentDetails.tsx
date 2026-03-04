@@ -22,7 +22,7 @@ import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 import MatchCard from '@/components/match/MatchCard'
 import { memo } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { oneSignalService } from '@/services/oneSignalService'
+import { notificationService } from '@/services/notificationService'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { db } from '@/config/firebase'
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
@@ -76,14 +76,20 @@ export default function TournamentDetails() {
 
     if (!tournamentId) return
 
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    if (isAdmin) {
+      toast.error("Admins cannot follow tournaments.");
+      return;
+    }
+
     if (isFollowing) {
       await followService.unfollow('tournament', tournamentId)
       // Unsubscribe from notifications
-      oneSignalService.unsubscribeFromTournament(tournamentId, tournamentData?.createdBy || 'admin')
+      notificationService.updateTournamentSubscription(tournamentId, false)
     } else {
       await followService.follow('tournament', tournamentId)
       // Subscribe to notifications
-      oneSignalService.subscribeToTournament(tournamentId, tournamentData?.createdBy || 'admin')
+      notificationService.updateTournamentSubscription(tournamentId, true)
     }
   }
 

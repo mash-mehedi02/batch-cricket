@@ -70,8 +70,6 @@ function App() {
   useEffect(() => {
     // Hide the native splash immediately so our custom React splash can show
     NativeSplash.hide().catch(() => { });
-
-    // OneSignal is already initialized in main.tsx — no need to init again here
   }, []);
 
   const handleSplashFinish = () => {

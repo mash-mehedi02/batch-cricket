@@ -1,11 +1,7 @@
 import * as functions from 'firebase-functions'
 import * as admin from 'firebase-admin'
-import * as https from 'https'
 
 const db = admin.firestore()
-
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY;
 
 /**
  * Notification Trigger: Match Status Updates (Start, Result, Toss, Innings Changes)
@@ -26,12 +22,12 @@ export const onMatchUpdate = functions.firestore
         if (!before.tossWinner && after.tossWinner) {
             const winnerName = after.tossWinner === 'teamA' ? teamAName : teamBName
             const decision = after.electedTo || (after as any).tossDecision || 'bat'
-            await sendOneSignalNotification(tag, 'Toss Update 🎲', `${winnerName} won the toss and chose to ${decision}`, matchId);
+            await sendFcmNotification(tag, 'Toss Update 🎲', `${winnerName} won the toss and chose to ${decision}`, matchId);
         }
 
         // 2. Match Start
         if (before.status !== 'live' && after.status === 'live') {
-            await sendOneSignalNotification(tag, 'Match Started 🏏', `${matchTitle} is now LIVE!`, matchId);
+            await sendFcmNotification(tag, 'Match Started 🏏', `${matchTitle} is now LIVE!`, matchId);
         }
 
         // 3. Innings Break
@@ -40,19 +36,19 @@ export const onMatchUpdate = functions.firestore
             const inningsWickets = after.innings1Wickets || 0;
             const inningsOvers = after.innings1Overs || '0.0';
             const battingTeam = after.currentBatting === 'teamA' ? teamAName : teamBName;
-            await sendOneSignalNotification(tag, 'Innings Break ☕', `${battingTeam} finished with ${inningsScore}/${inningsWickets} (${inningsOvers} ov)`, matchId);
+            await sendFcmNotification(tag, 'Innings Break ☕', `${battingTeam} finished with ${inningsScore}/${inningsWickets} (${inningsOvers} ov)`, matchId);
         }
 
         // 4. Second Innings Start
         if (before.matchPhase !== 'SecondInnings' && after.matchPhase === 'SecondInnings' || (before.matchPhase === 'InningsBreak' && after.matchPhase === 'SecondInnings')) {
             const target = after.target || 0;
-            await sendOneSignalNotification(tag, 'Second Innings Started ⚡', `Target: ${target} runs in ${after.oversLimit || 20} overs.`, matchId);
+            await sendFcmNotification(tag, 'Second Innings Started ⚡', `Target: ${target} runs in ${after.oversLimit || 20} overs.`, matchId);
         }
 
         // 5. Match Result
         if (before.status !== 'finished' && after.status === 'finished') {
             const resultText = after.resultSummary || 'Match Completed!';
-            await sendOneSignalNotification(tag, 'Match Result 🏆', resultText, matchId);
+            await sendFcmNotification(tag, 'Match Result 🏆', resultText, matchId);
         }
     })
 
@@ -76,7 +72,7 @@ export const onBallCreated = functions.firestore
             const wicketType = ball.wicket?.type || ball.wicketType || 'out'
             const score = `${ball.runsHistory?.totalRuns || match.innings1Score || 'Score'} / ${ball.runsHistory?.totalWickets || match.innings1Wickets || 'W'}`
 
-            await sendOneSignalNotification(tag, 'Wicket! 🔴', `${batterName} is OUT (${wicketType})! Current Score: ${score}`, matchId);
+            await sendFcmNotification(tag, 'Wicket! 🔴', `${batterName} is OUT (${wicketType})! Current Score: ${score}`, matchId);
         }
 
         // 3. Milestone Notifications (50/100)
@@ -92,9 +88,9 @@ export const onBallCreated = functions.firestore
                     const ballRuns = ball.runs || 0;
 
                     if (currentRuns >= 100 && currentRuns - ballRuns < 100) {
-                        await sendOneSignalNotification(tag, 'CENTURY! 💯🏏', `${stats.batsmanName} scored a MASSIVE 100! 🌟`, matchId);
+                        await sendFcmNotification(tag, 'CENTURY! 💯🏏', `${stats.batsmanName} scored a MASSIVE 100! 🌟`, matchId);
                     } else if (currentRuns >= 50 && currentRuns - ballRuns < 50) {
-                        await sendOneSignalNotification(tag, 'Milestone! 🏏✨', `${stats.batsmanName} reached 50 runs! 🔥`, matchId);
+                        await sendFcmNotification(tag, 'Milestone! 🏏✨', `${stats.batsmanName} reached 50 runs! 🔥`, matchId);
                     }
                 }
             }
@@ -104,67 +100,45 @@ export const onBallCreated = functions.firestore
     })
 
 /**
- * OneSignal Helper Function using native HTTPS module
+ * FCM Helper Function using Firebase Admin SDK
  */
-function sendOneSignalNotification(tag: string, title: string, body: string, matchId: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-        if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
-            console.warn("OneSignal credentials missing, skipping notification");
-            return resolve(false);
-        }
-
-        const data = JSON.stringify({
-            app_id: ONESIGNAL_APP_ID,
-            filters: [
-                { field: "tag", key: tag, relation: "=", value: "subscribed" },
-                { operator: "OR" },
-                { field: "tag", key: "all_matches", relation: "=", value: "active" }
-            ],
-            headings: { en: title },
-            contents: { en: body },
-            android_accent_color: "0D9488",
-            small_icon: "ic_stat_onesignal_default",
-            large_icon: "https://batchcrick.vercel.app/logo.png",
-            url: `https://batchcrick.vercel.app/match/${matchId}`,
-            android_visibility: 1,
-            priority: 10,
-            // android_channel_id: "match_alerts", // Removed to avoid 400 error if not created in OneSignal dashboard
-            collapse_id: tag,
-            thread_id: tag
-        });
-
-        const options = {
-            hostname: 'onesignal.com',
-            port: 443,
-            path: '/api/v1/notifications',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=utf-8',
-                'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`,
-                'Content-Length': Buffer.byteLength(data)
+async function sendFcmNotification(topic: string, title: string, body: string, matchId: string): Promise<any> {
+    try {
+        const message = {
+            notification: {
+                title: title,
+                body: body
+            },
+            topic: topic,
+            data: {
+                matchId: matchId,
+                click_action: `https://batchcrick.vercel.app/match/${matchId}`
+            },
+            android: {
+                priority: 'high' as const,
+                notification: {
+                    icon: 'ic_notification',
+                    color: '#0D9488',
+                    sound: 'default'
+                }
+            },
+            webpush: {
+                headers: {
+                    Urgency: 'high'
+                },
+                notification: {
+                    icon: '/logo.png',
+                    badge: '/logo.png',
+                    click_action: `https://batchcrick.vercel.app/match/${matchId}`
+                }
             }
         };
 
-        const req = https.request(options, (res) => {
-            let resData = '';
-            res.on('data', (chunk) => { resData += chunk; });
-            res.on('end', () => {
-                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-                    console.log(`Successfully sent OneSignal notification: ${title}`);
-                    resolve(true);
-                } else {
-                    console.error(`OneSignal API error (${res.statusCode}): ${resData}`);
-                    resolve(false);
-                }
-            });
-        });
-
-        req.on('error', (e) => {
-            console.error("Error calling OneSignal API:", e);
-            reject(e);
-        });
-
-        req.write(data);
-        req.end();
-    });
+        const response = await admin.messaging().send(message);
+        console.log(`Successfully sent FCM message to ${topic}:`, response);
+        return true;
+    } catch (error) {
+        console.error(`Error sending FCM message to ${topic}:`, error);
+        return false;
+    }
 }

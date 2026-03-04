@@ -223,8 +223,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let emailMatchPlayer: any = null;
       let emailMatchPlayerId: string | null = null;
 
-      // --- STEP 1: IDENTITY LOOKUP (STRICT EMAIL MAPPING) ---
+      // --- STEP 1: ADMIN DISCOVERY (BY EMAIL) ---
+      // PRIORITY: Admins can't be players (for UI/Action strictness)
+      let isAdmin = false;
       if (user.email) {
+        const emailLower = user.email.toLowerCase().trim();
+        console.log("[AuthStore] Checking for Admin rights for:", emailLower);
+
+        // HARDCODED SUPER ADMIN FALLBACK (Safety net for the primary account)
+        const { SUPER_ADMIN_EMAIL } = await import('@/services/firestore/admins');
+        if (emailLower === SUPER_ADMIN_EMAIL.toLowerCase()) {
+          console.log("[AuthStore] Hardcoded Super Admin detected.");
+          userRole = 'super_admin';
+          isAdmin = true;
+        } else {
+          const adminQ = query(collection(db, 'admins'), where('email', '==', emailLower), limit(1));
+          const adminSnap = await getDocs(adminQ);
+
+          if (!adminSnap.empty) {
+            const adminData = adminSnap.docs[0].data();
+            if (adminData.isActive) {
+              console.log("[AuthStore] Admin email match found! Granting privileges.");
+              userRole = adminData.role || 'admin';
+              isAdmin = true;
+
+              // Sync UID if needed
+              if (adminData.uid !== user.uid) {
+                console.log("[AuthStore] Syncing Admin UID from", adminData.uid, "to", user.uid);
+                await setDoc(doc(db, 'admins', user.uid), {
+                  ...adminData,
+                  uid: user.uid,
+                  updatedAt: serverTimestamp()
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // --- STEP 2: PLAYER IDENTITY LOOKUP (STRICT EMAIL MAPPING) ---
+      // ONLY if not an admin
+      if (user.email && !isAdmin) {
         const emailLower = user.email.toLowerCase().trim();
         console.log("[AuthStore] Querying player_secrets for:", emailLower);
         const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
@@ -260,33 +299,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               console.warn("[AuthStore] SECURITY: Player is owned by another UID. Skipping link.");
             }
           }
-        }
-      }
+        } else {
+          // FALLBACK 1: Search players collection directly for matching email (Legacy or Admin-Created)
+          console.log("[AuthStore] No secret match, searching players collection directly for:", emailLower);
+          const pQ = query(collection(db, 'players'), where('email', '==', emailLower), limit(1));
+          const pSnap = await getDocs(pQ);
 
-      // --- STEP 1.5: ADMIN DISCOVERY (BY EMAIL) ---
-      if (user.email) {
-        const emailLower = user.email.toLowerCase().trim();
-        console.log("[AuthStore] Checking for Admin rights for:", emailLower);
-        const adminQ = query(collection(db, 'admins'), where('email', '==', emailLower), limit(1));
-        const adminSnap = await getDocs(adminQ);
+          if (!pSnap.empty) {
+            const playerData = pSnap.docs[0].data();
+            const pId = pSnap.docs[0].id;
 
-        if (!adminSnap.empty) {
-          const adminData = adminSnap.docs[0].data();
-          if (adminData.isActive) {
-            console.log("[AuthStore] Admin email match found! Granting privileges.");
-            userRole = adminData.role || 'admin';
+            if (!playerData.ownerUid || playerData.ownerUid === user.uid) {
+              emailMatchPlayer = playerData;
+              emailMatchPlayerId = pId;
 
-            // If the UID in the admin record is different, we need to sync it
-            if (adminData.uid !== user.uid) {
-              console.log("[AuthStore] Syncing Admin UID from", adminData.uid, "to", user.uid);
-              // We create/update the record with the current UID
-              await setDoc(doc(db, 'admins', user.uid), {
-                ...adminData,
+              // AUTO-UPGRADE: Create the secret entry to future-proof this account
+              console.log("[AuthStore] Legacy/Admin-Created match found. Upgrading identity...");
+              await setDoc(doc(db, 'player_secrets', pId), {
+                email: emailLower,
+                playerId: pId,
                 uid: user.uid,
-                updatedAt: serverTimestamp()
-              });
-              // Note: We don't delete the old one here to be safe, 
-              // but the new one will be used for rules via request.auth.uid
+                upgradedAt: serverTimestamp()
+              }).catch(e => console.warn("Identity upgrade failed:", e));
+
+              // Claim it if unclaimed
+              if (!playerData.ownerUid) {
+                console.log("[AuthStore] Attempting to claim legacy player profile:", pId);
+                await updateDoc(doc(db, 'players', pId), {
+                  claimed: true,
+                  ownerUid: user.uid,
+                  lastVerifiedAt: serverTimestamp(),
+                  updatedAt: serverTimestamp()
+                });
+                console.log("[AuthStore] Profile claim successful.");
+                toast.success('Player profile linked!', { icon: '🔗' });
+              }
+
+              if (userRole === 'viewer') userRole = 'player';
+            }
+          } else if (userSnap.exists() && userSnap.data().playerId) {
+            // FALLBACK 2: No secret match found, but user document already has a playerId.
+            const existingPlayerId = userSnap.data().playerId;
+            console.log("[AuthStore] No email match, checking existing document playerId:", existingPlayerId);
+            const playerSnap = await getDoc(doc(db, 'players', existingPlayerId));
+
+            if (playerSnap.exists()) {
+              const playerData = playerSnap.data();
+              if (playerData.ownerUid === user.uid) {
+                console.log("[AuthStore] Ownership verified for existing playerId.");
+                emailMatchPlayer = playerData;
+                emailMatchPlayerId = existingPlayerId;
+                if (userRole === 'viewer') userRole = 'player';
+
+                // Also upgrade this to secrets for faster future lookup
+                await setDoc(doc(db, 'player_secrets', existingPlayerId), {
+                  email: emailLower,
+                  playerId: existingPlayerId,
+                  uid: user.uid,
+                  upgradedAt: serverTimestamp()
+                }).catch(() => { });
+              }
             }
           }
         }
@@ -310,10 +382,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         finalUserData = { ...userSnap.data(), ...finalUserData };
       }
 
-      // --- STEP 3: FORCE IDENTITY OVERWRITE ---
+      // --- STEP 4: FORCE IDENTITY OVERWRITE ---
       // If we have a valid email match, NOTHING in the old record matters.
       // We overwrite everything related to player identity.
-      if (emailMatchPlayer) {
+      if (emailMatchPlayer && !isAdmin) {
         console.log("[AuthStore] Overwriting profile with identity from:", emailMatchPlayerId);
         finalUserData.isRegisteredPlayer = true;
         finalUserData.playerId = emailMatchPlayerId;
@@ -334,14 +406,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           bowlingStyle: emailMatchPlayer.bowlingStyle
         };
       } else {
-        // NO MATCH: Revoke all player permissions and clear IDs
-        console.log("[AuthStore] No email match. Cleaning up player identity.");
+        // NO MATCH OR IS ADMIN: Revoke all player permissions and clear IDs
+        console.log("[AuthStore] Cleaning up player identity (Admin or No Match).");
         finalUserData.isRegisteredPlayer = false;
         finalUserData.playerId = null;
         finalUserData.linkedPlayerId = null;
-        if (finalUserData.playerProfile) {
-          finalUserData.playerProfile.isRegisteredPlayer = false;
-        }
+        finalUserData.playerProfile = null; // Clear profile for admins
 
         if (finalUserData.role === 'player') finalUserData.role = 'viewer';
       }
@@ -538,7 +608,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 const emailLower = firebaseUser.email.toLowerCase().trim();
                 const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
                 const secretsSnap = await getDocs(q);
-                const verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
+                let verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
+
+                // FALLBACK: If no secret found, check players collection directly (Legacy/Admin-created)
+                if (!verifiedPlayerId) {
+                  const pQ = query(collection(db, 'players'), where('email', '==', emailLower), limit(1));
+                  const pSnap = await getDocs(pQ);
+                  if (!pSnap.empty) {
+                    const playerData = pSnap.docs[0].data();
+                    if (playerData.ownerUid === firebaseUser.uid || !playerData.ownerUid) {
+                      verifiedPlayerId = pSnap.docs[0].id;
+                    }
+                  }
+                }
 
                 // IDENTITY CHECK: If admin changed the email or unlinked the player
                 // we force a LOGOUT to ensure security and prevent ghost access.

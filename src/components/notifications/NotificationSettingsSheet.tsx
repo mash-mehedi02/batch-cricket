@@ -2,28 +2,31 @@ import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
-import { oneSignalService } from '../../services/oneSignalService'
+import { notificationService } from '../../services/notificationService'
+import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 
 interface Props {
     isOpen: boolean
     onClose: () => void
     matchId: string
-    adminId: string
     matchTitle?: string
     tournamentId?: string
 }
 
-const STORAGE_KEY = 'batchcrick_onesignal_notifications'
+const STORAGE_KEY = 'batchcrick_notifications'
+const TOURNAMENT_STORAGE_KEY = 'batchcrick_tournament_notifications'
 
 export const NotificationSettingsSheet: React.FC<Props> = ({
     isOpen,
     onClose,
     matchId,
-    adminId,
     matchTitle = "Match",
     tournamentId
 }) => {
+    const { user } = useAuthStore()
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+
     const [settings, setSettings] = useState({
         enabled: false,
         tournament: false
@@ -37,20 +40,34 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     }, [isOpen, matchId, tournamentId])
 
     const loadSettings = () => {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
+        const matchStored = localStorage.getItem(STORAGE_KEY)
+        const tournamentStored = localStorage.getItem(TOURNAMENT_STORAGE_KEY)
+
+        let matchEnabled = false
+        if (matchStored) {
             try {
-                const data = JSON.parse(stored)
-                const matchEnabled = data.matches?.[matchId] || false
-                const tournamentEnabled = tournamentId ? (data.tournaments?.[tournamentId] || false) : false
-                setSettings({
-                    enabled: matchEnabled,
-                    tournament: tournamentEnabled
-                })
+                const data = JSON.parse(matchStored)
+                const matchSettings = data[matchId]
+                matchEnabled = matchSettings?.all || matchSettings?.wickets || matchSettings?.reminders || false
             } catch {
-                setSettings({ enabled: false, tournament: false })
+                matchEnabled = false
             }
         }
+
+        let tournamentEnabled = false
+        if (tournamentStored && tournamentId) {
+            try {
+                const data = JSON.parse(tournamentStored)
+                tournamentEnabled = data[tournamentId] || false
+            } catch {
+                tournamentEnabled = false
+            }
+        }
+
+        setSettings({
+            enabled: matchEnabled,
+            tournament: tournamentEnabled
+        })
     }
 
     const saveSettings = (matchEnabled: boolean, tournamentEnabled: boolean) => {
@@ -76,50 +93,30 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     }
 
     const handleToggleMatch = async () => {
+        if (isAdmin) {
+            toast.error("Admins cannot subscribe to match notifications")
+            return
+        }
         console.log('[NotificationSettingsSheet] Toggling match:', matchId, 'Current state:', settings.enabled);
         setLoading(true)
         try {
             const newValue = !settings.enabled
 
-            if (newValue) {
-                // Enable notifications
-                const subscribed = await oneSignalService.isSubscribed()
-                console.log('[NotificationSettingsSheet] isSubscribed:', subscribed);
+            // notificationService handles permission internally
+            await notificationService.updateMatchSubscription(matchId, {
+                all: newValue,
+                wickets: newValue,
+                reminders: newValue
+            })
 
-                if (!subscribed) {
-                    const permitted = await oneSignalService.requestPermission()
-                    console.log('[NotificationSettingsSheet] Permission granted:', permitted);
+            // Verify if it actually updated (permission might have been denied)
+            const updatedMatchSettings = notificationService.getSettings(matchId)
+            const isActuallyEnabled = updatedMatchSettings.all || updatedMatchSettings.wickets || updatedMatchSettings.reminders
 
-                    if (!permitted) {
-                        toast.error('Notification permission denied or blocked')
-                        setLoading(false)
-                        return
-                    }
-                }
-
-                console.log('[NotificationSettingsSheet] Subscribing to match...');
-                await oneSignalService.subscribeToMatch(matchId)
-                toast.success('Match notifications enabled')
-            } else {
-                // Disable notifications
-                console.log('[NotificationSettingsSheet] Unsubscribing from match...');
-                await oneSignalService.unsubscribeFromMatch(matchId)
-                toast.success('Match notifications disabled')
-            }
-
-            setSettings(prev => ({ ...prev, enabled: newValue }))
-            saveSettings(newValue, settings.tournament)
+            setSettings(prev => ({ ...prev, enabled: isActuallyEnabled }))
         } catch (error: any) {
             console.error('[NotificationSettingsSheet] Failed to toggle match notifications:', error)
-
-            const errMsg = error?.message || '';
-            if (errMsg.includes('AbortError') || errMsg.includes('Registration failed')) {
-                toast.error('Push Registration Failed. Please disable Ad-blockers or check your connection.', { duration: 5000 })
-            } else {
-                toast.error('Failed to update notifications')
-            }
-
-            // Revert UI state on error
+            toast.error('Failed to update notifications')
             loadSettings()
         } finally {
             setLoading(false)
@@ -127,35 +124,21 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     }
 
     const handleToggleTournament = async () => {
+        if (isAdmin) {
+            toast.error("Admins cannot subscribe to tournament notifications")
+            return
+        }
         if (!tournamentId) return
         console.log('[NotificationSettingsSheet] Toggling tournament:', tournamentId, 'Current state:', settings.tournament);
 
         setLoading(true)
         try {
             const newValue = !settings.tournament
+            await notificationService.updateTournamentSubscription(tournamentId, newValue)
 
-            if (newValue) {
-                const subscribed = await oneSignalService.isSubscribed()
-                if (!subscribed) {
-                    const permitted = await oneSignalService.requestPermission()
-                    if (!permitted) {
-                        toast.error('Notification permission denied or blocked')
-                        setLoading(false)
-                        return
-                    }
-                }
-
-                console.log('[NotificationSettingsSheet] Subscribing to tournament...');
-                await oneSignalService.subscribeToTournament(tournamentId, adminId)
-                toast.success('Tournament notifications enabled')
-            } else {
-                console.log('[NotificationSettingsSheet] Unsubscribing from tournament...');
-                await oneSignalService.unsubscribeFromTournament(tournamentId, adminId)
-                toast.success('Tournament notifications disabled')
-            }
-
-            setSettings(prev => ({ ...prev, tournament: newValue }))
-            saveSettings(settings.enabled, newValue)
+            // Verify if it actually updated
+            const isActuallyEnabled = notificationService.getTournamentSettings(tournamentId)
+            setSettings(prev => ({ ...prev, tournament: isActuallyEnabled }))
         } catch (error) {
             console.error('[NotificationSettingsSheet] Failed to toggle tournament notifications:', error)
             toast.error('Failed to update notifications')

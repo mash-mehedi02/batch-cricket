@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { voteService } from '@/services/firestore/voteService';
+import { useAuthStore } from '@/store/authStore';
 
 const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, isFinished }) => {
+    const { user } = useAuthStore();
     const [votes, setVotes] = useState({ teamAVotes: 0, teamBVotes: 0, totalVotes: 0 });
     const [userVote, setUserVote] = useState(null);
     const [isCasting, setIsCasting] = useState(false);
+
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
     useEffect(() => {
         if (!matchId) return;
@@ -22,7 +26,7 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, is
     }, [matchId]);
 
     const handleVote = async (team) => {
-        if (userVote || isCasting || isFinished) return;
+        if (userVote || isCasting || isFinished || isAdmin) return;
 
         setIsCasting(true);
         const success = await voteService.castVote(matchId, team);

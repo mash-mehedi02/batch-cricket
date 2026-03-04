@@ -35,7 +35,7 @@ if (typeof window !== 'undefined') {
     originalError.apply(console, args)
   }
 
-  // Catch unhandled rejections from SDKs (like OneSignal or Firebase)
+  // Catch unhandled rejections from SDKs (like Firebase)
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason?.toString() || ''
     if (

@@ -599,7 +599,6 @@ const AdminLiveScoring = () => {
 
             await notificationService.sendToMatch(
                 matchId,
-                (match as any)?.adminId || (match as any)?.createdBy || 'admin',
                 title,
                 message,
                 undefined, // Default URL

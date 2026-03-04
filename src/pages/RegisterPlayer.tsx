@@ -17,7 +17,8 @@ import {
     School,
     Trophy,
     ChevronRight,
-    Loader2
+    Loader2,
+    Smartphone
 } from 'lucide-react';
 
 export default function RegisterPlayerPage() {
@@ -34,6 +35,7 @@ export default function RegisterPlayerPage() {
     const [form, setForm] = useState({
         name: user?.displayName || '',
         school: '',
+        phone: '',
         squadId: '',
         role: 'batsman' as PlayerRole,
         battingStyle: 'right-handed' as BattingStyle,
@@ -102,6 +104,16 @@ export default function RegisterPlayerPage() {
             return;
         }
 
+        if (!form.phone.trim()) {
+            toast.error('Please enter your phone number');
+            return;
+        }
+
+        if (form.phone.trim().length < 10) {
+            toast.error('Please enter a valid phone number');
+            return;
+        }
+
         const selectedSquad = squads.find(s => s.id === form.squadId);
         if (!selectedSquad) return;
 
@@ -110,6 +122,7 @@ export default function RegisterPlayerPage() {
             await playerRequestService.submitRequest({
                 uid: user.uid,
                 email: user.email,
+                phone: form.phone,
                 name: form.name,
                 school: form.school,
                 batch: form.school,
@@ -308,6 +321,21 @@ export default function RegisterPlayerPage() {
                                     value={form.school}
                                     onChange={e => setForm({ ...form, school: e.target.value })}
                                     placeholder="e.g. Batch 2006"
+                                    className="bg-transparent flex-1 outline-none text-sm font-bold placeholder:text-slate-300"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="relative">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block italic">Phone Number</label>
+                            <div className="flex items-center gap-3 px-4 py-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 focus-within:border-blue-500/50 transition-all shadow-sm">
+                                <Smartphone size={18} className="text-slate-400" />
+                                <input
+                                    type="tel"
+                                    value={form.phone}
+                                    onChange={e => setForm({ ...form, phone: e.target.value })}
+                                    placeholder="e.g. 01700000000"
                                     className="bg-transparent flex-1 outline-none text-sm font-bold placeholder:text-slate-300"
                                     required
                                 />

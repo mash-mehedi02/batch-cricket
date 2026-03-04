@@ -53,6 +53,7 @@ export default function AdminUsers() {
     const [inviteName, setInviteName] = useState('')
     const [inviteEmail, setInviteEmail] = useState('')
     const [invitePassword, setInvitePassword] = useState('')
+    const [invitePhone, setInvitePhone] = useState('')
     const [inviteRole, setInviteRole] = useState<'admin' | 'super_admin'>('admin')
     const [isInviting, setIsInviting] = useState(false)
     const [isSquadLinking, setIsSquadLinking] = useState(false)
@@ -310,8 +311,8 @@ export default function AdminUsers() {
 
     const handleCreateAdmin = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!inviteEmail || !invitePassword || !inviteName) {
-            toast.error('All fields are required')
+        if (!inviteEmail || !invitePassword || !inviteName || !invitePhone) {
+            toast.error('All fields including phone number are required')
             return
         }
 
@@ -322,6 +323,7 @@ export default function AdminUsers() {
                 name: inviteName,
                 email: inviteEmail,
                 password: invitePassword,
+                phone: invitePhone,
                 role: inviteRole
             })
 
@@ -334,6 +336,7 @@ export default function AdminUsers() {
             setInviteName('')
             setInviteEmail('')
             setInvitePassword('')
+            setInvitePhone('')
             loadData() // Refresh the list
         } catch (error: any) {
             console.error('Account creation failed:', error)
@@ -651,6 +654,14 @@ export default function AdminUsers() {
                                                     <span className="text-xs font-bold truncate">{admin.email}</span>
                                                 </div>
                                                 <div className="flex items-start gap-3 text-slate-600">
+                                                    <Smartphone className="w-4 h-4 mt-0.5" />
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Phone Number</span>
+                                                        <span className="text-xs font-bold text-slate-700">{admin.phone || 'Not Provided'}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-start gap-3 text-slate-600">
                                                     <Lock className="w-4 h-4 mt-0.5" />
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Admin ID</span>
@@ -941,7 +952,14 @@ export default function AdminUsers() {
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{request.name}</h4>
-                                                        <p className="text-[10px] font-bold text-slate-400 mt-1">{request.email}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <p className="text-[10px] font-bold text-slate-400">{request.email}</p>
+                                                            <span className="text-[10px] text-slate-300">•</span>
+                                                            <p className="text-[10px] font-bold text-blue-500 flex items-center gap-1">
+                                                                <Smartphone size={10} />
+                                                                {request.phone || 'No Phone'}
+                                                            </p>
+                                                        </div>
                                                         <div className="flex flex-wrap gap-2 mt-2">
                                                             <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase rounded">{request.role}</span>
                                                             <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] font-black uppercase rounded">{request.batch}</span>

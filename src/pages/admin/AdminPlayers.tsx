@@ -446,20 +446,32 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
 
             {/* Email Field - Admin Only, Mandatory on Create */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <User size={16} className="text-teal-600" />
                 Player Email (Private)
               </label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => {
-                  setFormData({ ...formData, email: e.target.value });
-                  if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
-                }}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.email || duplicateEmailError ? 'border-red-500 bg-red-50/10' : 'border-gray-300'}`}
-                placeholder="Enter player's personal email"
-              />
-              {emailChecking && <p className="text-xs text-blue-500 mt-1 animate-pulse">Checking email availability...</p>}
+              <div className="relative">
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                  }}
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition shadow-sm ${errors.email || duplicateEmailError ? 'border-red-500 bg-red-50/10' : 'border-gray-300'}`}
+                  placeholder="Enter player's personal email (Gmail preferred)"
+                />
+              </div>
+
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <p className="text-[11px] text-blue-700 font-medium leading-relaxed">
+                  <span className="font-bold underline">SECURITY NOTICE:</span> This email is used to SECURELY LINK the player's profile to their Google account.
+                  When the user logs in with this email, they will automatically receive full access to their profile.
+                </p>
+              </div>
+
+              {emailChecking && <p className="text-xs text-blue-500 mt-1 animate-pulse font-bold">Checking email availability...</p>}
+
               {(errors.email || duplicateEmailError) && (
                 <p className="text-red-500 text-sm mt-1 font-bold flex items-center gap-1">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -468,15 +480,14 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                   {errors.email || duplicateEmailError}
                 </p>
               )}
+
               {mode === 'edit' && formData.claimed && (
-                <p className="text-xs text-amber-600 mt-1 font-bold">
-                  ⚠️ Profile claimed. Changing this email will reset the claim and the player will need to re-claim.
-                </p>
-              )}
-              {mode === 'edit' && !formData.claimed && (
-                <p className="text-xs text-blue-600 mt-1">
-                  ℹ️ Profile not yet claimed. This email will be used for verification.
-                </p>
+                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-[11px] text-amber-800 font-bold flex items-center gap-2">
+                    <Zap size={14} className="fill-amber-500" />
+                    CRITICAL: Changing this email will PERMANENTLY UNLINK the current user and reset the profile claim.
+                  </p>
+                </div>
               )}
             </div>
 

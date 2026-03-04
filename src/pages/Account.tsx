@@ -11,11 +11,13 @@ import {
     LogOut,
     ArrowLeft,
     Trophy,
-    Users
+    Users,
+    Clock
 } from 'lucide-react';
 import { useState } from 'react';
 import { tournamentService } from '@/services/firestore/tournaments';
 import { squadService } from '@/services/firestore/squads';
+import { playerRequestService, PlayerRegistrationRequest } from '@/services/firestore/playerRequests';
 import { Tournament, Squad } from '@/types';
 
 
@@ -26,6 +28,7 @@ export default function AccountPage() {
 
     const [followedTournaments, setFollowedTournaments] = useState<Tournament[]>([]);
     const [followedSquads, setFollowedSquads] = useState<Squad[]>([]);
+    const [registrationRequest, setRegistrationRequest] = useState<PlayerRegistrationRequest | null>(null);
     const [isFetchingFollows, setIsFetchingFollows] = useState(false);
     const [imageError, setImageError] = useState(false);
 
@@ -53,6 +56,17 @@ export default function AccountPage() {
                 }
             };
             fetchFollows();
+
+            // Fetch registration status
+            const fetchRegistrationStatus = async () => {
+                try {
+                    const req = await playerRequestService.getUserRequest(user.uid);
+                    setRegistrationRequest(req);
+                } catch (err) {
+                    console.error('Error fetching registration status:', err);
+                }
+            };
+            fetchRegistrationStatus();
         }
     }, [user]);
 
@@ -193,8 +207,22 @@ export default function AccountPage() {
                     )}
 
 
-                    {/* Register as Player */}
-                    {!user.isRegisteredPlayer && user.role !== 'admin' && user.role !== 'super_admin' && (
+                    {/* Register as Player Logic */}
+                    {registrationRequest?.status === 'pending' ? (
+                        <div
+                            className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 flex items-center justify-center">
+                                    <Clock size={20} />
+                                </div>
+                                <span className="font-semibold text-[15px]">Registration Pending</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500/10 px-2 py-1 rounded-lg">Under Review</span>
+                            </div>
+                        </div>
+                    ) : !user.isRegisteredPlayer && user.role !== 'admin' && user.role !== 'super_admin' && (
                         <button
                             onClick={() => navigate('/register-player')}
                             className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}

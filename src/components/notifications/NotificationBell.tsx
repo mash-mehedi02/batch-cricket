@@ -4,17 +4,16 @@ import { NotificationSettingsSheet } from './NotificationSettingsSheet'
 
 interface Props {
     matchId: string
-    adminId: string
     matchTitle?: string
     tournamentId?: string
     color?: string
 }
 
-const STORAGE_KEY = 'batchcrick_onesignal_notifications'
+const STORAGE_KEY = 'batchcrick_notifications'
+const TOURNAMENT_STORAGE_KEY = 'batchcrick_tournament_notifications'
 
 export const NotificationBell: React.FC<Props> = ({
     matchId,
-    adminId,
     matchTitle,
     tournamentId,
     color = "text-gray-700"
@@ -23,18 +22,31 @@ export const NotificationBell: React.FC<Props> = ({
     const [isActive, setIsActive] = useState(false)
 
     const checkStatus = () => {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
+        const matchStored = localStorage.getItem(STORAGE_KEY)
+        const tournamentStored = localStorage.getItem(TOURNAMENT_STORAGE_KEY)
+
+        let matchEnabled = false
+        if (matchStored) {
             try {
-                const data = JSON.parse(stored)
-                const matchEnabled = data.matches?.[matchId] || false
-                setIsActive(matchEnabled)
+                const data = JSON.parse(matchStored)
+                const matchSettings = data[matchId]
+                matchEnabled = matchSettings?.all || matchSettings?.wickets || matchSettings?.reminders || false
             } catch {
-                setIsActive(false)
+                matchEnabled = false
             }
-        } else {
-            setIsActive(false)
         }
+
+        let tournamentEnabled = false
+        if (tournamentStored && tournamentId) {
+            try {
+                const data = JSON.parse(tournamentStored)
+                tournamentEnabled = data[tournamentId] || false
+            } catch {
+                tournamentEnabled = false
+            }
+        }
+
+        setIsActive(matchEnabled || tournamentEnabled)
     }
 
     useEffect(() => {
@@ -81,7 +93,6 @@ export const NotificationBell: React.FC<Props> = ({
                     checkStatus() // Refresh status on close
                 }}
                 matchId={matchId}
-                adminId={adminId}
                 matchTitle={matchTitle}
                 tournamentId={tournamentId}
             />

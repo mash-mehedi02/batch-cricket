@@ -20,7 +20,7 @@ import { Squad } from '@/types'
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, googleLogin, login, signup, resetPassword, loading } = useAuthStore()
+  const { user, googleLogin, login, signup, resetPassword, loading, isProcessing } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [isPendingApproval, setIsPendingApproval] = useState(false)
@@ -52,7 +52,8 @@ export default function Login() {
 
   // Check login status and profile completeness
   useEffect(() => {
-    if (user && !loading && !isLoading) {
+    if (user && !loading && !isLoading && !isProcessing) {
+      console.log("[Login] User detected and processing complete. Role:", user.role);
       const isAdmin = user.role === 'admin' || user.role === 'super_admin';
       const forceSetup = params.get('setup') === 'true';
       const hasProfile = (user as any).playerProfile;
@@ -90,7 +91,7 @@ export default function Login() {
 
 
     }
-  }, [user, loading, navigate, location, isLoading, params.get('setup')])
+  }, [user, loading, isProcessing, navigate, location, isLoading, params.get('setup')])
 
   // Fetch Squads for Registration
   useEffect(() => {

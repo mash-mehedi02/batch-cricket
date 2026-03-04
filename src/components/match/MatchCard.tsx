@@ -167,7 +167,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     <div className="absolute top-1 right-1 z-30">
                         <NotificationBell
                             matchId={match.id}
-                            adminId={(match as any).adminId || 'default'}
                             tournamentId={match.tournamentId}
                         />
                     </div>
@@ -260,7 +259,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                 <div className="absolute top-1 right-1 z-30">
                     <NotificationBell
                         matchId={match.id}
-                        adminId={(match as any).adminId || 'default'}
                         tournamentId={match.tournamentId}
                     />
                 </div>
