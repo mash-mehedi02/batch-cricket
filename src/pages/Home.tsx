@@ -5,7 +5,7 @@
  * Optimized for performance (no heavy animations)
  */
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { onSnapshot, collection } from 'firebase/firestore'
@@ -155,55 +155,64 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] font-sans overflow-x-hidden">
-      {/* MODERN HERO SECTION - Adjusted Height for content */}
-      <div className={`relative bg-[#060b16] text-white flex flex-col pt-6 transition-all duration-500 min-h-[480px] sm:min-h-[520px] pb-16`}>
+      {/* MODERN HERO SECTION - Exactly 50vh to center the curve */}
+      <div className="relative bg-[#060b16] text-white flex flex-col pt-6 transition-all duration-500 h-[50vh] min-h-[450px] overflow-visible">
 
-        {/* STADIUM BACKGROUND OVERLAY - Optimized Height & Fade */}
-        <div className="absolute top-0 left-0 w-full h-[70%] z-0 overflow-hidden pointer-events-none">
-          <img
-            src={stadiumBg}
-            alt="Stadium Crowd"
-            className="w-full h-full object-cover object-top opacity-20 mix-blend-luminosity scale-110"
-          />
-          {/* Subtle Fade to Hero Background */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#060b16]" />
+        {/* CURVED BACKGROUND LAYER - This layer is clipped */}
+        <div
+          className="absolute inset-0 bg-[#060b16] z-0"
+          style={{
+            clipPath: 'ellipse(150% 100% at 50% 0%)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          }}
+        >
+          {/* STADIUM BACKGROUND OVERLAY - Optimized Height & Fade */}
+          <div className="absolute top-0 left-0 w-full h-[80%] z-0 overflow-hidden pointer-events-none">
+            <img
+              src={stadiumBg}
+              alt="Stadium Crowd"
+              className="w-full h-full object-cover object-top opacity-25 mix-blend-luminosity scale-110"
+            />
+            {/* Subtle Fade to Hero Background */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#060b16]" />
+          </div>
+
+          {/* CINEMATIC PREMIUM BACKGROUND - Layered Effects */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {/* Deep Mesh Gradients */}
+            <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-emerald-600/10 rounded-full blur-[140px] animate-pulse-slow"></div>
+            <div className="absolute top-[10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] animate-pulse-slow delay-700"></div>
+            <div className="absolute bottom-[-20%] left-[20%] w-[60%] h-[60%] bg-teal-600/10 rounded-full blur-[160px] animate-pulse-slow delay-1000"></div>
+
+            {/* Ambient Floating Lights / Particles */}
+            <motion.div
+              animate={{
+                y: [0, -30, 0],
+                x: [0, 20, 0],
+                opacity: [0.1, 0.3, 0.1]
+              }}
+              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-[20%] left-[15%] w-32 h-32 bg-teal-400/20 rounded-full blur-3xl"
+            />
+            <motion.div
+              animate={{
+                y: [0, 40, 0],
+                x: [0, -20, 0],
+                opacity: [0.05, 0.2, 0.05]
+              }}
+              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+              className="absolute bottom-[30%] right-[10%] w-48 h-48 bg-blue-500/10 rounded-full blur-3xl"
+            />
+
+            {/* Noise Texture Overlay for Premium Feel */}
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] contrast-150 brightness-150 mix-blend-overlay"></div>
+
+            {/* Subtle Grid / Pattern */}
+            <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:32px_32px] opacity-40"></div>
+          </div>
         </div>
 
-        {/* CINEMATIC PREMIUM BACKGROUND - Layered Effects */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* Deep Mesh Gradients */}
-          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-emerald-600/10 rounded-full blur-[140px] animate-pulse-slow"></div>
-          <div className="absolute top-[10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] animate-pulse-slow delay-700"></div>
-          <div className="absolute bottom-[-20%] left-[20%] w-[60%] h-[60%] bg-teal-600/10 rounded-full blur-[160px] animate-pulse-slow delay-1000"></div>
-
-          {/* Subtle Floating Lights / Particles */}
-          <motion.div
-            animate={{
-              y: [0, -30, 0],
-              x: [0, 20, 0],
-              opacity: [0.1, 0.3, 0.1]
-            }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-[20%] left-[15%] w-32 h-32 bg-teal-400/20 rounded-full blur-3xl"
-          />
-          <motion.div
-            animate={{
-              y: [0, 40, 0],
-              x: [0, -20, 0],
-              opacity: [0.05, 0.2, 0.05]
-            }}
-            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-            className="absolute bottom-[30%] right-[10%] w-48 h-48 bg-blue-500/10 rounded-full blur-3xl"
-          />
-
-          {/* Noise Texture Overlay for Premium Feel */}
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] contrast-150 brightness-150 mix-blend-overlay"></div>
-
-          {/* Subtle Grid / Pattern */}
-          <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:32px_32px] opacity-40"></div>
-        </div>
-
-        <div className="relative z-30 w-full max-w-7xl mx-auto px-4 sm:px-6 flex-1 flex flex-col">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 flex-1 flex flex-col">
 
           {/* Header */}
           <div className="flex flex-col items-center mb-4 shrink-0">
@@ -226,47 +235,23 @@ export default function Home() {
           </div>
         </div>
 
-        {/* SINGLE WAVE CURVE - Perfectly Aligned with Button Center */}
-        {/* SINGLE WAVE CURVE - Perfectly Aligned & Visible in Dark Mode */}
-        <div className="absolute bottom-0 left-0 w-full z-20 pointer-events-none">
-          <svg
-            viewBox="0 0 1440 120"
-            className="w-full h-[100px] block"
-            preserveAspectRatio="none"
-          >
-            <path
-              fill="currentColor"
-              className="text-white dark:text-[#0a1224] transition-colors duration-500"
-              d="M0,80 C480,80 480,40 720,40 C960,40 960,80 1440,80 V120 H0 Z"
-            ></path>
-            {/* Subtle Top Stroke for Wave in Dark Mode */}
-            <path
-              d="M0,80 C480,80 480,40 720,40 C960,40 960,80 1440,80"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              className="text-transparent dark:text-teal-500/20 transition-colors duration-500"
-            />
-          </svg>
-        </div>
-
-        {/* Premium Action Button - Enhanced with Glow & Gradient */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[-40px] z-30">
+        {/* Premium Action Button - Outside the clipped background to ensure full visibility */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-30">
           <button
             onClick={() => document.getElementById('match-sections')?.scrollIntoView({ behavior: 'smooth' })}
-            className="group relative bg-[#060b16] dark:bg-slate-900 text-white px-10 py-3 rounded-full font-black uppercase tracking-[0.2em] text-[11px] transition-all duration-500 hover:scale-110 active:scale-95 shadow-[0_15px_35px_-10px_rgba(0,0,0,0.6)] dark:shadow-[0_15px_35px_-10px_rgba(20,184,166,0.3)] whitespace-nowrap border-[4px] border-[#060b16] dark:border-slate-900 ring-2 ring-white/90 dark:ring-teal-500/50 overflow-hidden"
+            className="group relative bg-[#060b16] dark:bg-[#060b16] text-white px-7 py-2.5 sm:px-10 sm:py-3 rounded-full font-black uppercase tracking-[0.2em] text-[10px] sm:text-[11px] transition-all duration-500 hover:scale-110 active:scale-95 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.8)] whitespace-nowrap border-[2px] border-teal-500/30 ring-2 ring-white/10 overflow-hidden"
           >
             <span className="relative z-10">Let's Explore</span>
             {/* Animated Glow Effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-teal-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full" />
-            <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute inset-0 bg-gradient-to-br from-teal-500/20 to-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </button>
         </div>
 
       </div>
 
       {/* SQUADS SCROLL - Native Horizontal Scroll (No Marquee Lag) */}
-      <div className="py-6 bg-white dark:bg-[#050B18] overflow-hidden">
+      <div className="pt-6 sm:pt-8 pb-6 bg-white dark:bg-[#060b16] overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <p className="px-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Participating Teams</p>
 

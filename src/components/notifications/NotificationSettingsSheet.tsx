@@ -93,10 +93,6 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     }
 
     const handleToggleMatch = async () => {
-        if (isAdmin) {
-            toast.error("Admins cannot subscribe to match notifications")
-            return
-        }
         console.log('[NotificationSettingsSheet] Toggling match:', matchId, 'Current state:', settings.enabled);
         setLoading(true)
         try {
@@ -124,10 +120,6 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     }
 
     const handleToggleTournament = async () => {
-        if (isAdmin) {
-            toast.error("Admins cannot subscribe to tournament notifications")
-            return
-        }
         if (!tournamentId) return
         console.log('[NotificationSettingsSheet] Toggling tournament:', tournamentId, 'Current state:', settings.tournament);
 

@@ -21,6 +21,7 @@ import { useLanguageStore } from '@/store/languageStore';
 import schoolConfig from '@/config/school';
 import { useTranslation } from '@/hooks/useTranslation';
 import { appUpdateService, APP_VERSION } from '@/services/appUpdateService';
+import { ensureAbsoluteUrl } from '@/utils/url';
 
 const CricketIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -344,7 +345,7 @@ export default function MenuPage() {
                     <button
                         onClick={() => {
                             if (updateAvailable && updateUrl) {
-                                window.open(updateUrl, '_blank');
+                                window.open(ensureAbsoluteUrl(updateUrl), '_blank');
                             } else {
                                 toast.success('You are on the latest version! ✅');
                             }

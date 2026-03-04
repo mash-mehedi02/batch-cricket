@@ -16,6 +16,7 @@ import { Timestamp } from 'firebase/firestore'
 import { generateMatchNumber } from '@/utils/matchNumber'
 import toast from 'react-hot-toast'
 import { CalendarClock, Play, Eye, Edit2, Trash2, Filter, Search, Plus, MapPin, Calendar, Clock, Trophy, ArrowLeft, ArrowRight, Save, Shield, User, CheckCircle, Mic, AlertCircle, Check } from 'lucide-react'
+import { notificationService } from '@/services/notificationService'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { addManualCommentary } from '@/services/commentary/commentaryService'
@@ -674,6 +675,21 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         updatedAt: Timestamp.now(),
       } as any)
       toast.success('Toss updated successfully.')
+
+      if (formData.tossWinner) {
+        const winnerName = formData.tossWinner === 'teamA' ? teamAName : teamBName;
+        notificationService.sendToMatch(
+          id,
+          "Toss Update 🎲",
+          `${winnerName} won the toss and elected to ${formData.tossDecision} first!`,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          matchView?.tournamentId
+        );
+      }
+
       setIsEditingToss(false)
       setMatchView((prev) =>
         prev
@@ -724,6 +740,22 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       toast.error('Please login to set Playing XI.')
       return
     }
+    const countA = teamAPlayingXI.length;
+    const countB = teamBPlayingXI.length;
+
+    if (countA !== countB) {
+      toast.error(`Team Mismatch: ${countA} vs ${countB}. Both teams must have an equal number of players selected.`, {
+        icon: '⚠️',
+        duration: 4000
+      });
+      return;
+    }
+
+    if (countA === 0) {
+      toast.error('Please select at least one player for each team.');
+      return;
+    }
+
     setPreMatchSaving(true)
     try {
       await matchService.update(id, {
@@ -1062,6 +1094,17 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
         matchPhase: 'FirstInnings',
         updatedAt: Timestamp.now(),
       } as any)
+
+      notificationService.sendToMatch(
+        matchId,
+        "Match Started! 🏏",
+        `${matchData.teamAName} vs ${matchData.teamBName} is now LIVE! ${currentBatting === 'teamA' ? matchData.teamAName : matchData.teamBName} is batting first.`,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        matchData.tournamentId
+      );
 
       toast.success(`Match started! ${currentBatting === 'teamA' ? matchData.teamAName : matchData.teamBName} will bat first.`)
       // Navigate to scoring page
@@ -1642,13 +1685,21 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                   </div>
                 </div>
                 {isEditingXI ? (
-                  <button
-                    onClick={handleSavePlayingXI}
-                    disabled={preMatchSaving || !canEditPreMatch}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 transition shadow-sm"
-                  >
-                    {preMatchSaving ? 'Saving...' : <><Save size={16} /> Save Squads</>}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {teamAPlayingXI.length !== teamBPlayingXI.length && (
+                      <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs font-bold animate-in fade-in slide-in-from-right-2">
+                        <AlertCircle size={14} />
+                        <span>Mismatch: {teamAPlayingXI.length} vs {teamBPlayingXI.length}</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleSavePlayingXI}
+                      disabled={preMatchSaving || !canEditPreMatch || teamAPlayingXI.length !== teamBPlayingXI.length || teamAPlayingXI.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none transition shadow-sm"
+                    >
+                      {preMatchSaving ? 'Saving...' : <><Save size={16} /> Save Squads</>}
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => setIsEditingXI(true)}
@@ -1659,6 +1710,13 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                   </button>
                 )}
               </div>
+
+              {isEditingXI && teamAPlayingXI.length !== teamBPlayingXI.length && (
+                <div className="md:hidden px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-amber-800 text-xs font-bold">
+                  <AlertCircle size={14} />
+                  <span>Mismatch: {teamAPlayingXI.length} vs {teamBPlayingXI.length}</span>
+                </div>
+              )}
 
               {!canEditPreMatch && (
                 <div className="bg-amber-50 px-6 py-3 border-b border-amber-100 flex items-center gap-2 text-amber-800 text-sm font-medium">

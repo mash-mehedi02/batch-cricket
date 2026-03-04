@@ -848,6 +848,16 @@ const AdminLiveScoring = () => {
                             }
                         }
 
+                        // 2b. Bowler Milestones (5 Wickets)
+                        const currentBowlerStats = ballInnings?.bowlerStats?.find((s: any) => s.bowlerId === selectedBowler);
+                        if (currentBowlerStats) {
+                            const currentWkts = currentBowlerStats.wickets || 0;
+                            const isWicketThisBall = wicketData && wicketData.creditedToBowler;
+                            if (isWicketThisBall && currentWkts === 5) {
+                                await triggerLiveNotification(`FIVE-WICKET HAUL! 🖐️🏏\n${currentBowlerStats.bowlerName} has taken 5 wickets! What a performance! ✨`);
+                            }
+                        }
+
                         // 3. Boundary Notifications
                         if (batRuns === 6) {
                             await triggerLiveNotification(`MAXIMUM! 🚀 SIX Runs! 🔥\n${strikerObj?.name || 'Batter'} smashed it out of the park! 🌟`);
@@ -871,10 +881,10 @@ const AdminLiveScoring = () => {
                 ? wicketsAfter >= 2
                 : wicketsAfter >= (battingPlayingXI.length - 1);
 
-            if (isFinalBall || isFinalWicket) {
+            if (isFinalBall || (battingPlayingXI.length > 0 && isFinalWicket)) {
                 const teamName = match?.currentBatting === 'teamA' ? match?.teamAName : match?.teamBName;
-                const finishMsg = `Innings Finished! ☕\n${teamName} finished at ${result.inningsData?.totalRuns}/${result.inningsData?.totalWickets} (${result.inningsData?.overs} ov)`;
-                triggerLiveNotification(finishMsg);
+                const finishMsg = `Innings Finished! ☕\n${teamName} finished at ${result.inningsData?.totalRuns || 0}/${result.inningsData?.totalWickets || 0} (${result.inningsData?.overs || '0.0'} ov)`;
+                await triggerLiveNotification(finishMsg);
             }
 
             // Strike Rotation & State Logic
@@ -1486,8 +1496,8 @@ const AdminLiveScoring = () => {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
                         {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={handleStartSuperOver} disabled={processing} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ Super Over</button>}
                         {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={async () => { if (!matchId) return; if (!window.confirm('Finish as TIE?')) return; setProcessing(true); try { await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: null, resultSummary: 'Match Tied' }); toast.success('Tied!'); } catch (e: any) { toast.error(e.message); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '10px 20px', background: '#475569', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>🏆 Finish (Tied)</button>}
-                        {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && <button onClick={() => { if (confirm('Start 2nd Innings?')) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; const t = Number((match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('2nd Innings Started!'); } }} style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>▶ Start 2nd Innings</button>}
-                        {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && <button onClick={() => { if (confirm('Start SO 2nd Inn?')) { const cb = String(match.currentBatting || ''); const nb = cb.includes('teamA') ? 'teamB_super' : 'teamA_super'; const t = Number(currentInnings?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('SO 2nd Inn!'); } }} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ SO 2nd Inn</button>}
+                        {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && <button onClick={() => { if (confirm('Start 2nd Innings?')) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; const t = Number((match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); triggerLiveNotification(`2nd Innings Started! 🏏\n${nb === 'teamA' ? match.teamAName : match.teamBName} needs ${t} runs to win!`); toast.success('2nd Innings Started!'); } }} style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>▶ Start 2nd Innings</button>}
+                        {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && <button onClick={() => { if (confirm('Start SO 2nd Inn?')) { const cb = String(match.currentBatting || ''); const nb = cb.includes('teamA') ? 'teamB_super' : 'teamA_super'; const t = Number(currentInnings?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); triggerLiveNotification(`Super Over 2nd Innings! ⚡\nTarget: ${t} runs!`); toast.success('SO 2nd Inn!'); } }} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ SO 2nd Inn</button>}
                         {match.matchPhase?.toLowerCase() !== 'tied' && <button onClick={() => setFinalizeModalOpen(true)} style={{ padding: '10px 20px', background: '#1e293b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>Finalize</button>}
                         <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ padding: '10px 20px', background: '#fef2f2', color: '#dc2626', fontWeight: 800, borderRadius: '12px', border: '1px solid #fecaca', cursor: 'pointer', fontSize: '13px' }}><RotateCcw size={14} /> Undo</button>
                     </div>

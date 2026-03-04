@@ -14,17 +14,39 @@ interface MatchNotificationSettings {
 const STORAGE_KEY = 'batchcrick_notifications'
 const TOURNAMENT_STORAGE_KEY = 'batchcrick_tournament_notifications'
 
-// Use absolute production URL for the FCM API proxy
-const FCM_SUBSCRIBE_URL = 'https://batchcrick.vercel.app/api/fcm-subscribe'
-const FCM_SEND_URL = 'https://batchcrick.vercel.app/api/fcm-send'
+const IS_CAPACITOR = typeof (window as any).Capacitor !== 'undefined'
+const PRODUCTION_URL = 'https://batchcrick.vercel.app'
+
+// Use relative URLs for web to avoid CORS/Proxy issues, 
+// but absolute production URLs for native platforms.
+const FCM_SUBSCRIBE_URL = IS_CAPACITOR ? `${PRODUCTION_URL}/api/fcm-subscribe` : '/api/fcm-subscribe'
+const FCM_SEND_URL = IS_CAPACITOR ? `${PRODUCTION_URL}/api/fcm-send` : '/api/fcm-send'
 
 class NotificationService {
-    private messaging: Messaging | null = messaging
+    private messaging: Messaging | null = null
     private token: string | null = null
     private listeners: ((id: string, settings: any) => void)[] = []
 
     constructor() {
-        this.messaging = messaging
+        this.initMessaging()
+    }
+
+    private async initMessaging() {
+        if (typeof window === 'undefined') return
+        try {
+            const { messaging: firebaseMessaging } = await import('../config/firebase')
+            this.messaging = firebaseMessaging
+        } catch (error) {
+            console.warn('[NotificationService] Failed to init messaging:', error)
+        }
+    }
+
+    private async getMessagingInstance(): Promise<Messaging | null> {
+        if (this.messaging) return this.messaging;
+
+        // Retry initialization once if it was still in progress
+        await this.initMessaging();
+        return this.messaging;
     }
 
     /**
@@ -90,12 +112,13 @@ class NotificationService {
         }
 
         // Web/Browser Logic
-        if (!this.messaging) return null;
-
         try {
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
-                const token = await getToken(this.messaging, {
+                const msg = await this.getMessagingInstance();
+                if (!msg) return null;
+
+                const token = await getToken(msg, {
                     vapidKey: 'BK-cF82hQXHEq99VRHFqfJGcO1oQLiifIK_9RZbwkKTdlsg9ixWIB28cjrZAiR03gQGhhQtF_A77UUUmfBU_CWM'
                 });
                 this.token = token;
@@ -309,10 +332,35 @@ class NotificationService {
         this.notifyListeners(matchId, settings)
     }
 
-    // Handle foreground messages
+    async initForegroundMessages() {
+        if (typeof window === 'undefined' || Capacitor.isNativePlatform()) return
+
+        const msg = await this.getMessagingInstance();
+        if (!msg) return;
+
+        onMessage(msg, (payload) => {
+            console.log('[FCM] Foreground message received:', payload)
+            const { title, body } = payload.notification || {}
+            if (title && body) {
+                toast(body, {
+                    icon: '🏏',
+                    style: {
+                        borderRadius: '10px',
+                        background: '#333',
+                        color: '#fff',
+                    },
+                    duration: 4000
+                })
+            }
+        })
+    }
+
+    // Handle foreground messages (legacy support)
     onMessage(callback: (payload: any) => void) {
-        if (!this.messaging) return () => { }
-        return onMessage(this.messaging, callback)
+        this.getMessagingInstance().then(msg => {
+            if (msg) onMessage(msg, callback);
+        });
+        return () => { }; // Note: Cannot easily return unregister function from async
     }
 }
 

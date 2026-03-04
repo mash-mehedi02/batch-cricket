@@ -14,6 +14,7 @@ import { updatePassword, signOut } from 'firebase/auth'
 import { useNavigate } from 'react-router-dom'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { appUpdateService, APP_VERSION } from '@/services/appUpdateService'
+import { ensureAbsoluteUrl } from '@/utils/url'
 
 export default function AdminSettings() {
   const { user } = useAuthStore()
@@ -569,7 +570,7 @@ export default function AdminSettings() {
                     await appUpdateService.saveUpdateInfo({
                       enabled: auEnabled,
                       latestVersion: auVersion.trim(),
-                      downloadUrl: auUrl.trim(),
+                      downloadUrl: ensureAbsoluteUrl(auUrl.trim()),
                       releaseNotes: auNotes.trim(),
                       isForceUpdate: auForce,
                     }, user?.uid || '')

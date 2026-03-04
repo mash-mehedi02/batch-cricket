@@ -254,9 +254,13 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
                 const tossDecisionText = decision === 'bat' ? 'bat' : 'bowl';
                 notificationService.sendToMatch(
                     match.id,
-                    match.adminId || 'admin',
                     "Toss Update 🎲",
-                    `${winnerName} won the toss and elected to ${tossDecisionText} first!`
+                    `${winnerName} won the toss and elected to ${tossDecisionText} first!`,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    (match as any).tournamentId
                 );
             }
 
@@ -282,11 +286,16 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
         const countA = teamAPlayingXI.length;
         const countB = teamBPlayingXI.length;
 
-        if (countA > 0 && countB > 0 && countA !== countB) {
+        if (countA !== countB) {
             toast.error(
-                `Team Mismatch: ${countA} vs ${countB}. If both teams are selected, counts must be equal.`,
+                `Team Mismatch: ${countA} vs ${countB}. Both teams must have an equal number of players selected.`,
                 { icon: '⚠️', duration: 4000 }
             );
+            return;
+        }
+
+        if (countA === 0) {
+            toast.error("Please select at least one player for each team.");
             return;
         }
 
@@ -610,7 +619,7 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
                                         <span>Playing XI is locked and cannot be modified.</span>
                                     </div>
                                 )}
-                                {!isXILocked && teamAPlayingXI.length > 0 && teamBPlayingXI.length > 0 && teamAPlayingXI.length !== teamBPlayingXI.length && (
+                                {!isXILocked && teamAPlayingXI.length !== teamBPlayingXI.length && (
                                     <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-800 text-xs font-bold animate-in fade-in slide-in-from-bottom-2">
                                         <AlertTriangle size={16} />
                                         <span>Team counts mismatch: {teamAPlayingXI.length} vs {teamBPlayingXI.length}</span>
@@ -618,8 +627,8 @@ export default function MatchSetupModal({ match, onClose, onUpdate }: MatchSetup
                                 )}
                                 <button
                                     onClick={handleSaveXI}
-                                    disabled={loading || isXILocked || (teamAPlayingXI.length > 0 && teamBPlayingXI.length > 0 && teamAPlayingXI.length !== teamBPlayingXI.length)}
-                                    className={`w-full py-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${(isXILocked || (teamAPlayingXI.length > 0 && teamBPlayingXI.length > 0 && teamAPlayingXI.length !== teamBPlayingXI.length))
+                                    disabled={loading || isXILocked || teamAPlayingXI.length !== teamBPlayingXI.length || teamAPlayingXI.length === 0}
+                                    className={`w-full py-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${(isXILocked || teamAPlayingXI.length !== teamBPlayingXI.length || teamAPlayingXI.length === 0)
                                         ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                                         : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700 active:scale-95'
                                         }`}

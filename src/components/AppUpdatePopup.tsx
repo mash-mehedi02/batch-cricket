@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Rocket, Download } from 'lucide-react'
 import { appUpdateService, AppUpdateInfo, APP_VERSION } from '@/services/appUpdateService'
 import { Capacitor } from '@capacitor/core'
+import { ensureAbsoluteUrl } from '@/utils/url'
 
 export default function AppUpdatePopup() {
     const [show, setShow] = useState(false)
@@ -53,12 +54,14 @@ export default function AppUpdatePopup() {
     const handleUpdate = () => {
         if (!info?.downloadUrl) return
 
+        const absoluteUrl = ensureAbsoluteUrl(info.downloadUrl)
+
         // On native Android, open the URL in the system browser
         if (Capacitor.isNativePlatform()) {
             // Use browser plugin or window.open
-            window.open(info.downloadUrl, '_system')
+            window.open(absoluteUrl, '_system')
         } else {
-            window.open(info.downloadUrl, '_blank')
+            window.open(absoluteUrl, '_blank')
         }
     }
 
