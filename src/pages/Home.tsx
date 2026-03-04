@@ -5,12 +5,12 @@
  * Optimized for performance (no heavy animations)
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { matchService } from '@/services/firestore/matches'
+import { onSnapshot, collection } from 'firebase/firestore'
+import { db } from '@/config/firebase'
 import { squadService } from '@/services/firestore/squads'
-import { tournamentService } from '@/services/firestore/tournaments'
 import { Match, Squad } from '@/types'
 import MatchCardSkeleton from '@/components/skeletons/MatchCardSkeleton'
 import MatchCard from '@/components/match/MatchCard'
@@ -78,7 +78,7 @@ export default function Home() {
     setLoading(true)
 
     // Helper for match categorization and sorting
-    const processMatches = (allMatches: Match[], currentTournaments: Record<string, string>) => {
+    const processMatches = (allMatches: Match[]) => {
       const parseStartTs = (m: any): number => {
         const d0 = coerceToDate(m?.date)
         if (!d0) return 0
@@ -133,10 +133,7 @@ export default function Home() {
     // Using onSnapshot for "instant" load from cache
     const unsubscribeMatches = onSnapshot(collection(db, 'matches'), (snapshot) => {
       const allMatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
-
-      // We need the latest tMap, but state might be stale in this closure
-      // However, tournaments don't change often, and processMatches handles it
-      processMatches(allMatches, tournamentsMap)
+      processMatches(allMatches)
       setLoading(false)
     }, (error) => {
       console.error('Error listening to matches:', error)
@@ -147,7 +144,7 @@ export default function Home() {
       unsubscribeTournaments()
       unsubscribeMatches()
     }
-  }, [tournamentsMap]) // Re-run if tournaments map changes to ensure names are correct
+  }, []) // Run once on mount
 
   const [activeTab, setActiveTab] = useState<'featured' | 'live' | 'upcoming' | 'finished'>('featured')
 
