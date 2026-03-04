@@ -266,5 +266,17 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if true;
     }
+
+    // Login Activity Logs
+    match /login_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAuthenticated();
+    }
+
+    // Name Change Logs
+    match /name_changes/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAuthenticated();
+    }
   }
 }

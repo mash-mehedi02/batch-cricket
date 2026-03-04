@@ -165,14 +165,15 @@ export default function Login() {
     const timeout = setTimeout(() => {
       setIsLoading(false);
       console.warn("[Login] Google login timeout reached. User might be blocked by browser.");
-    }, 5000);
+    }, 8000); // Increased timeout slightly for slower mobile connections
 
     try {
       await googleLogin();
     } catch (error: any) {
-      clearTimeout(timeout);
       toast.error('Google Sign-In failed: ' + (error.message || 'Unknown error'))
       console.error(error)
+    } finally {
+      clearTimeout(timeout);
       setIsLoading(false)
     }
   }

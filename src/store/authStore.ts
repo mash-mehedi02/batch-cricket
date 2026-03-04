@@ -437,18 +437,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       console.log("[AuthStore] Identity Processing Complete. Final Role:", finalUserData.role);
 
-      // --- STEP 5: LOG LOGIN ACTIVITY ---
-      const connectivity = await fetchConnectivityInfo();
-      const loginLogRef = doc(collection(db, 'login_logs'));
-      await setDoc(loginLogRef, {
-        uid: user.uid,
-        email: user.email,
-        timestamp: serverTimestamp(),
-        ip: connectivity.ip,
-        location: `${connectivity.city}, ${connectivity.country}`,
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-      });
+      // --- STEP 5: LOG LOGIN ACTIVITY (non-blocking) ---
+      // This must NEVER crash the login flow
+      try {
+        const connectivity = await fetchConnectivityInfo();
+        const loginLogRef = doc(collection(db, 'login_logs'));
+        await setDoc(loginLogRef, {
+          uid: user.uid,
+          email: user.email,
+          timestamp: serverTimestamp(),
+          ip: connectivity.ip,
+          location: `${connectivity.city}, ${connectivity.country}`,
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+        });
+      } catch (logErr) {
+        console.warn('[AuthStore] Login log write failed (non-critical):', logErr);
+      }
 
       return isNewUser;
 
@@ -473,7 +478,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     } finally {
       processingLogins.delete(user.uid);
-      set({ isProcessing: false });
+      set({ isProcessing: false, loading: false });
     }
   },
 
