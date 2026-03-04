@@ -1,415 +1,247 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect, useMemo } from 'react'
+/**
+ * HeroCricketAnimation — GSAP-powered stump animation
+ * A cinematic hero stump with cricket elements rising from below.
+ * Zero lag, GPU-accelerated via GSAP.
+ */
 
-// 4 pose images — two for each player
-import batterReadySrc from '@/assets/hero-assets/batter-ready.png'
-import batterSixSrc from '@/assets/hero-assets/batter-six.png'
-import bowlerRunSrc from '@/assets/hero-assets/bowler-action.png'
-import bowlerReleaseSrc from '@/assets/hero-assets/bowler-release.png'
+import { useEffect, useRef } from 'react'
+import gsap from 'gsap'
 
-type Phase = 'bowler-run' | 'delivery' | 'hit-six' | 'celebration' | 'reset'
+import heroStump from '@/assets/hero-assets/hero-stump.png'
 
-const PHASE_DURATIONS: Record<Phase, number> = {
-    'bowler-run': 2000,
-    'delivery': 1100,
-    'hit-six': 1500,
-    'celebration': 1800,
-    'reset': 500,
-}
+// ====== SVG Cricket Icons (inline for zero loading) ======
+const BatIcon = () => (
+    <svg viewBox="0 0 48 100" fill="none" className="w-full h-full">
+        <rect x="20" y="0" width="8" height="45" rx="2" fill="url(#batHandle)" />
+        <rect x="12" y="42" width="24" height="52" rx="5" fill="url(#batBlade)" stroke="rgba(45,212,191,0.3)" strokeWidth="0.5" />
+        <line x1="24" y1="50" x2="24" y2="88" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+        <defs>
+            <linearGradient id="batHandle" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#8B6914" />
+                <stop offset="100%" stopColor="#A0792A" />
+            </linearGradient>
+            <linearGradient id="batBlade" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#C9A84C" />
+                <stop offset="50%" stopColor="#E8D08A" />
+                <stop offset="100%" stopColor="#C9A84C" />
+            </linearGradient>
+        </defs>
+    </svg>
+)
 
-const PHASE_ORDER: Phase[] = ['bowler-run', 'delivery', 'hit-six', 'celebration', 'reset']
+const BallIcon = () => (
+    <svg viewBox="0 0 40 40" fill="none" className="w-full h-full">
+        <circle cx="20" cy="20" r="18" fill="url(#ballGrad)" />
+        <path d="M8,15 Q20,22 32,15" stroke="#fff" strokeWidth="1.2" fill="none" opacity="0.5" />
+        <path d="M8,25 Q20,18 32,25" stroke="#fff" strokeWidth="1.2" fill="none" opacity="0.5" />
+        <circle cx="20" cy="20" r="18" stroke="rgba(45,212,191,0.2)" strokeWidth="0.5" fill="none" />
+        <defs>
+            <radialGradient id="ballGrad" cx="35%" cy="35%">
+                <stop offset="0%" stopColor="#E84040" />
+                <stop offset="80%" stopColor="#B22222" />
+                <stop offset="100%" stopColor="#8B1A1A" />
+            </radialGradient>
+        </defs>
+    </svg>
+)
 
-// ====== Canvas hook: completely clean black background ======
-function useTransparentImage(src: string, threshold = 40) {
-    const [dataUrl, setDataUrl] = useState<string | null>(null)
+const TrophyIcon = () => (
+    <svg viewBox="0 0 50 60" fill="none" className="w-full h-full">
+        <path d="M15,8 L15,28 C15,38 25,42 25,42 C25,42 35,38 35,28 L35,8 Z" fill="url(#trophyGrad)" stroke="rgba(212,168,45,0.4)" strokeWidth="0.5" />
+        <path d="M15,12 C10,12 5,16 6,22 C7,27 12,28 15,26" fill="url(#trophyGrad)" opacity="0.7" />
+        <path d="M35,12 C40,12 45,16 44,22 C43,27 38,28 35,26" fill="url(#trophyGrad)" opacity="0.7" />
+        <rect x="20" y="42" width="10" height="6" rx="1" fill="#C9A84C" />
+        <rect x="16" y="48" width="18" height="5" rx="2" fill="#D4A82D" stroke="rgba(255,255,255,0.15)" strokeWidth="0.3" />
+        <defs>
+            <linearGradient id="trophyGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#F0D76E" />
+                <stop offset="50%" stopColor="#D4A82D" />
+                <stop offset="100%" stopColor="#A0792A" />
+            </linearGradient>
+        </defs>
+    </svg>
+)
 
-    useEffect(() => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => {
-            const canvas = document.createElement('canvas')
-            canvas.width = img.width
-            canvas.height = img.height
-            const ctx = canvas.getContext('2d')
-            if (!ctx) return
-            ctx.drawImage(img, 0, 0)
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-            const data = imageData.data
+const HelmetIcon = () => (
+    <svg viewBox="0 0 50 45" fill="none" className="w-full h-full">
+        <ellipse cx="25" cy="22" rx="22" ry="18" fill="url(#helmetGrad)" />
+        <path d="M8,26 Q25,32 42,26 Q42,40 25,42 Q8,40 8,26Z" fill="#1a365d" stroke="rgba(45,212,191,0.2)" strokeWidth="0.5" />
+        <rect x="12" y="24" width="3" height="12" rx="1" fill="#555" opacity="0.6" />
+        <rect x="18" y="23" width="3" height="14" rx="1" fill="#555" opacity="0.6" />
+        <rect x="24" y="22" width="3" height="15" rx="1" fill="#555" opacity="0.6" />
+        <rect x="30" y="23" width="3" height="14" rx="1" fill="#555" opacity="0.6" />
+        <rect x="36" y="24" width="3" height="12" rx="1" fill="#555" opacity="0.6" />
+        <defs>
+            <linearGradient id="helmetGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2563EB" />
+                <stop offset="100%" stopColor="#1E40AF" />
+            </linearGradient>
+        </defs>
+    </svg>
+)
 
-            // Improved background removal algorithm
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i], g = data[i + 1], b = data[i + 2]
-                const maxBrightness = Math.max(r, g, b) // Best metric for neon colors
+const StarIcon = () => (
+    <svg viewBox="0 0 30 30" fill="none" className="w-full h-full">
+        <path d="M15,2 L18,11 L28,11 L20,17 L23,27 L15,21 L7,27 L10,17 L2,11 L12,11 Z" fill="#D4A82D" opacity="0.8" />
+    </svg>
+)
 
-                if (maxBrightness <= threshold) {
-                    // Hard cut off for background colors
-                    data[i + 3] = 0
-                } else if (maxBrightness < threshold + 40) {
-                    // Soft fade for the glow edges (quadratic easing for smooth blend)
-                    const ratio = (maxBrightness - threshold) / 40
-                    data[i + 3] = data[i + 3] * Math.pow(ratio, 1.5)
-                }
-            }
-
-            ctx.putImageData(imageData, 0, 0)
-            setDataUrl(canvas.toDataURL('image/png'))
-        }
-        img.src = src
-    }, [src, threshold])
-
-    return dataUrl
-}
-
-// ====== BATTER with pose crossfade ======
-const BatterAnimated = ({ phase }: { phase: Phase }) => {
-    const readyImg = batterReadySrc
-    const sixImg = batterSixSrc
-
-    const show = phase !== 'reset'
-    const isHitting = phase === 'hit-six' || phase === 'celebration'
-
-    return (
-        <motion.div
-            className="absolute z-20"
-            style={{ left: '8%', bottom: '0%', width: '55%' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: show ? 1 : 0 }}
-            transition={{ duration: 0.3 }}
-        >
-            {/* Ready stance — visible during bowler-run and delivery */}
-            <AnimatePresence mode="wait">
-                {!isHitting && (
-                    <motion.img
-                        key="batter-ready"
-                        src={readyImg}
-                        alt="Batter ready stance"
-                        className="w-full h-auto object-contain absolute inset-0"
-                        initial={{ opacity: 0 }}
-                        animate={{
-                            opacity: 1,
-                            filter: 'brightness(1.1) drop-shadow(0 0 15px rgba(45,212,191,0.2))',
-                        }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Kneeling six shot — visible during hit-six and celebration */}
-            <AnimatePresence mode="wait">
-                {isHitting && (
-                    <motion.img
-                        key="batter-six"
-                        src={sixImg}
-                        alt="Batter hitting six"
-                        className="w-full h-auto object-contain absolute inset-0"
-                        initial={{ opacity: 0 }}
-                        animate={{
-                            opacity: 1,
-                            filter: 'brightness(1.2) drop-shadow(0 0 25px rgba(45,212,191,0.4))',
-                            WebkitMaskImage: 'radial-gradient(circle at 85% 15%, transparent 0%, transparent 8%, black 15%)',
-                            maskImage: 'radial-gradient(circle at 85% 15%, transparent 0%, transparent 8%, black 15%)'
-                        }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Invisible spacer to maintain container size */}
-            <img
-                src={sixImg}
-                alt=""
-                className="w-full h-auto object-contain invisible"
-            />
-        </motion.div>
-    )
-}
-
-// ====== BOWLER with pose crossfade ======
-const BowlerAnimated = ({ phase }: { phase: Phase }) => {
-    const runImg = bowlerRunSrc
-    const releaseImg = bowlerReleaseSrc
-
-    const show = phase !== 'reset'
-    const isRunning = phase === 'bowler-run'
-    const hasDelivered = phase === 'delivery' || phase === 'hit-six' || phase === 'celebration'
-
-    return (
-        <motion.div
-            className="absolute z-15"
-            style={{ right: '5%', bottom: '5%', width: '32%' }}
-            initial={{ x: 60, opacity: 0 }}
-            animate={{
-                x: isRunning ? [60, 0] : 0,
-                opacity: show ? 0.9 : 0,
-            }}
-            transition={{
-                x: { duration: isRunning ? 2 : 0.1, ease: 'easeOut' },
-                opacity: { duration: 0.3 },
-            }}
-        >
-            {/* Running pose — visible during bowler-run */}
-            <AnimatePresence mode="wait">
-                {isRunning && (
-                    <motion.img
-                        key="bowler-run"
-                        src={runImg}
-                        alt="Bowler running"
-                        className="w-full h-auto object-contain absolute inset-0"
-                        initial={{ opacity: 0 }}
-                        animate={{
-                            opacity: 1,
-                            filter: 'brightness(1.1) drop-shadow(0 0 12px rgba(45,212,191,0.2))',
-                        }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Delivery stride — visible after delivery */}
-            <AnimatePresence mode="wait">
-                {hasDelivered && (
-                    <motion.img
-                        key="bowler-release"
-                        src={releaseImg}
-                        alt="Bowler delivery"
-                        className="w-full h-auto object-contain absolute inset-0"
-                        initial={{ opacity: 0 }}
-                        animate={{
-                            opacity: 1,
-                            filter: 'brightness(1.2) drop-shadow(0 0 15px rgba(45,212,191,0.3))',
-                        }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Invisible spacer */}
-            <img
-                src={runImg}
-                alt=""
-                className="w-full h-auto object-contain invisible"
-            />
-        </motion.div>
-    )
-}
-
-// ====== CRICKET BALL ======
-const CricketBall = ({ phase }: { phase: Phase }) => {
-    if (phase !== 'delivery' && phase !== 'hit-six' && phase !== 'celebration') return null
-
-    return (
-        <>
-            {/* The ball */}
-            <motion.div
-                className="absolute w-4 h-4 sm:w-5 sm:h-5 rounded-full z-30"
-                style={{
-                    backgroundColor: '#d4a82d',
-                    boxShadow: '0 0 16px 6px rgba(212,168,45,0.7), 0 0 40px 10px rgba(212,168,45,0.3)',
-                }}
-                animate={{
-                    // Delivery: bowler → batter
-                    // Hit-six: batter → flies off screen top-left
-                    // Celebration: already off screen
-                    left: phase === 'delivery'
-                        ? ['72%', '55%', '42%']
-                        : phase === 'hit-six'
-                            ? ['42%', '15%', '-20%']
-                            : '-20%',
-                    top: phase === 'delivery'
-                        ? ['32%', '48%', '58%']
-                        : phase === 'hit-six'
-                            ? ['58%', '10%', '-25%']
-                            : '-25%',
-                    scale: phase === 'hit-six' ? [1, 1.3, 0.4] : 1,
-                    opacity: phase === 'celebration' ? 0 : 1,
-                }}
-                transition={{
-                    duration: phase === 'delivery' ? 1 : phase === 'hit-six' ? 1.1 : 0.1,
-                    ease: phase === 'hit-six' ? [0.2, 0.8, 0.2, 1] : 'easeIn',
-                }}
-            />
-
-            {/* Golden trail arc for six */}
-            {phase === 'hit-six' && (
-                <motion.div
-                    className="absolute z-25 pointer-events-none"
-                    style={{ left: '0%', top: '-10%', width: '50%', height: '75%' }}
-                >
-                    <svg viewBox="0 0 200 200" className="w-full h-full" style={{ overflow: 'visible' }}>
-                        <defs>
-                            <filter id="trailGlow" x="-50%" y="-50%" width="200%" height="200%">
-                                <feGaussianBlur stdDeviation="3" result="b" />
-                                <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-                            </filter>
-                        </defs>
-                        <motion.path
-                            d="M190,195 Q130,90 15,5"
-                            stroke="#d4a82d"
-                            strokeWidth="3"
-                            fill="none"
-                            initial={{ pathLength: 0, opacity: 0 }}
-                            animate={{ pathLength: 1, opacity: [0, 0.9, 0.4] }}
-                            transition={{ duration: 1, ease: 'easeOut' }}
-                            filter="url(#trailGlow)"
-                        />
-                        {/* Sparkles along trail */}
-                        {[...Array(8)].map((_, i) => {
-                            const t = i / 7
-                            return (
-                                <motion.circle
-                                    key={i}
-                                    cx={190 - 175 * t}
-                                    cy={195 - 190 * t}
-                                    r={1.5 + Math.random() * 2}
-                                    fill={i % 2 === 0 ? '#d4a82d' : '#fff'}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: [0, 1, 0], scale: [0, 2, 0] }}
-                                    transition={{ duration: 0.5, delay: 0.1 * i }}
-                                    filter="url(#trailGlow)"
-                                />
-                            )
-                        })}
-                    </svg>
-                </motion.div>
-            )}
-        </>
-    )
-}
-
-// ====== CELEBRATION PARTICLES ======
-const CelebrationParticles = ({ phase }: { phase: Phase }) => {
-    const particles = useMemo(() =>
-        Array.from({ length: 24 }, (_, i) => ({
-            angle: (i * 360) / 24 + Math.random() * 15,
-            distance: 50 + Math.random() * 140,
-            size: 3 + Math.random() * 5,
-            delay: Math.random() * 0.5,
-            type: i % 4,
-        })), []
-    )
-
-    if (phase !== 'celebration') return null
-
-    return (
-        <div className="absolute inset-0 z-40 pointer-events-none">
-            {particles.map((p, i) => (
-                <motion.div
-                    key={i}
-                    className="absolute rounded-full"
-                    style={{
-                        left: '35%', top: '45%',
-                        width: p.size, height: p.size,
-                        backgroundColor: p.type === 0 ? '#d4a82d' : p.type === 2 ? '#fff' : '#2dd4bf',
-                        boxShadow: p.type === 0 ? '0 0 8px #d4a82d' : p.type === 2 ? '0 0 6px #fff' : '0 0 8px #2dd4bf',
-                    }}
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{
-                        x: Math.cos((p.angle * Math.PI) / 180) * p.distance,
-                        y: Math.sin((p.angle * Math.PI) / 180) * p.distance,
-                        opacity: [0, 1, 0],
-                        scale: [0, 1.5, 0],
-                    }}
-                    transition={{ duration: 1.3, delay: p.delay, ease: 'easeOut' }}
-                />
-            ))}
-        </div>
-    )
-}
-
-// ====== SIX TEXT ======
-const SixText = ({ phase }: { phase: Phase }) => {
-    if (phase !== 'celebration') return null
-
-    return (
-        <motion.div
-            className="absolute z-50 pointer-events-none"
-            style={{ left: '14%', top: '10%' }}
-            initial={{ opacity: 0, scale: 0.3 }}
-            animate={{ opacity: [0, 1, 1, 0], scale: [0.3, 1.3, 1.1, 0.8] }}
-            transition={{ duration: 1.5, ease: 'easeOut' }}
-        >
-            <span
-                className="text-5xl sm:text-6xl font-black italic tracking-tight"
-                style={{
-                    color: '#d4a82d',
-                    textShadow: '0 0 20px rgba(212,168,45,0.8), 0 0 60px rgba(212,168,45,0.4), 0 0 100px rgba(212,168,45,0.2)',
-                    WebkitTextStroke: '1px rgba(255,255,255,0.15)',
-                }}
-            >
-                SIX!
-            </span>
-        </motion.div>
-    )
-}
-
-// ====== AMBIENT PARTICLES ======
-const AmbientParticles = () => {
-    const particles = useMemo(() =>
-        Array.from({ length: 10 }, (_, i) => ({
-            left: 10 + Math.random() * 80,
-            top: 15 + Math.random() * 70,
-            size: 2 + Math.random() * 2.5,
-            duration: 5 + Math.random() * 4,
-            delay: Math.random() * 5,
-            isGold: Math.random() > 0.7,
-        })), []
-    )
-
-    return (
-        <>
-            {particles.map((p, i) => (
-                <motion.div
-                    key={i}
-                    className="absolute rounded-full pointer-events-none z-10"
-                    style={{
-                        left: `${p.left}%`, top: `${p.top}%`,
-                        width: p.size, height: p.size,
-                        backgroundColor: p.isGold ? '#d4a82d' : i % 3 === 0 ? '#fff' : '#2dd4bf',
-                        boxShadow: `0 0 6px ${p.isGold ? '#d4a82d' : '#2dd4bf'}`,
-                    }}
-                    animate={{ opacity: [0, 0.5, 0], y: [-5, -30] }}
-                    transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: 'easeInOut' }}
-                />
-            ))}
-        </>
-    )
-}
-
-// ====== MAIN ======
+// ====== MAIN COMPONENT ======
 const HeroCricketAnimation = () => {
-    const [phase, setPhase] = useState<Phase>('bowler-run')
+    const containerRef = useRef<HTMLDivElement>(null)
+    const stumpRef = useRef<HTMLImageElement>(null)
+    const glowRef = useRef<HTMLDivElement>(null)
+    const obstacleRefs = useRef<(HTMLDivElement | null)[]>([])
+    const particleRefs = useRef<(HTMLDivElement | null)[]>([])
 
     useEffect(() => {
-        let idx = 0
-        let t: ReturnType<typeof setTimeout>
-        const next = () => {
-            idx = (idx + 1) % PHASE_ORDER.length
-            setPhase(PHASE_ORDER[idx])
-            t = setTimeout(next, PHASE_DURATIONS[PHASE_ORDER[idx]])
-        }
-        t = setTimeout(next, PHASE_DURATIONS[PHASE_ORDER[0]])
-        return () => clearTimeout(t)
+        if (!containerRef.current) return
+
+        const ctx = gsap.context(() => {
+            // 1. Stump entrance — scale up with spring
+            gsap.fromTo(stumpRef.current,
+                { y: 40, opacity: 0, scale: 0.85 },
+                { y: 0, opacity: 1, scale: 1, duration: 1, ease: 'back.out(1.4)', delay: 0.2 }
+            )
+
+            // 2. Glow pulse — infinite subtle pulse
+            gsap.fromTo(glowRef.current,
+                { opacity: 0.3, scale: 0.9 },
+                { opacity: 0.6, scale: 1.1, duration: 2.5, ease: 'sine.inOut', repeat: -1, yoyo: true }
+            )
+
+            // 3. Obstacles rise up from below — staggered
+            const obstacles = obstacleRefs.current.filter(Boolean) as HTMLDivElement[]
+            obstacles.forEach((el, i) => {
+                // Initial position: fully below
+                gsap.set(el, { y: 80, opacity: 0, scale: 0.7 })
+
+                // Rise up with stagger
+                gsap.to(el, {
+                    y: 0, opacity: 1, scale: 1,
+                    duration: 0.8,
+                    ease: 'back.out(1.6)',
+                    delay: 0.6 + i * 0.15,
+                })
+
+                // Continuous gentle float after entrance
+                gsap.to(el, {
+                    y: -6 - Math.random() * 6,
+                    duration: 2.5 + Math.random() * 1.5,
+                    ease: 'sine.inOut',
+                    repeat: -1,
+                    yoyo: true,
+                    delay: 1.5 + i * 0.15,
+                })
+            })
+
+            // 4. Floating ambient particles
+            const particles = particleRefs.current.filter(Boolean) as HTMLDivElement[]
+            particles.forEach((el, i) => {
+                gsap.set(el, { opacity: 0, y: 20 })
+                gsap.to(el, {
+                    opacity: [0, 0.6, 0],
+                    y: -40 - Math.random() * 30,
+                    x: (Math.random() - 0.5) * 30,
+                    duration: 4 + Math.random() * 3,
+                    ease: 'sine.inOut',
+                    repeat: -1,
+                    delay: Math.random() * 4,
+                })
+            })
+
+        }, containerRef)
+
+        return () => ctx.revert()
     }, [])
 
+    // Obstacle configuration — positioned around the stump
+    const obstacles = [
+        { icon: <BatIcon />, size: 'w-8 h-16 sm:w-10 sm:h-20', pos: 'left-[5%] bottom-[8%]', rotate: '-15deg' },
+        { icon: <BallIcon />, size: 'w-8 h-8 sm:w-10 sm:h-10', pos: 'right-[8%] bottom-[12%]', rotate: '0deg' },
+        { icon: <TrophyIcon />, size: 'w-10 h-12 sm:w-12 sm:h-14', pos: 'left-[18%] bottom-[0%]', rotate: '5deg' },
+        { icon: <HelmetIcon />, size: 'w-9 h-8 sm:w-11 sm:h-10', pos: 'right-[18%] bottom-[2%]', rotate: '-8deg' },
+        { icon: <StarIcon />, size: 'w-5 h-5 sm:w-6 sm:h-6', pos: 'left-[35%] bottom-[28%]', rotate: '10deg' },
+        { icon: <StarIcon />, size: 'w-4 h-4 sm:w-5 sm:h-5', pos: 'right-[32%] bottom-[30%]', rotate: '-12deg' },
+    ]
+
+    // Ambient particles
+    const particlePositions = [
+        'left-[15%] bottom-[30%]',
+        'left-[30%] bottom-[45%]',
+        'right-[15%] bottom-[35%]',
+        'right-[30%] bottom-[50%]',
+        'left-[45%] bottom-[55%]',
+        'right-[45%] bottom-[40%]',
+        'left-[50%] bottom-[20%]',
+        'right-[50%] bottom-[25%]',
+    ]
+
     return (
-        <div className="relative w-full max-w-[440px] sm:max-w-lg md:max-w-xl mx-auto aspect-[16/10] overflow-visible">
-
-            <AmbientParticles />
-            <BatterAnimated phase={phase} />
-            <BowlerAnimated phase={phase} />
-            <CricketBall phase={phase} />
-            <CelebrationParticles phase={phase} />
-            <SixText phase={phase} />
-
-            {/* Subtle ground line */}
+        <div
+            ref={containerRef}
+            className="relative w-full max-w-[340px] sm:max-w-[380px] md:max-w-md mx-auto aspect-[4/5] overflow-visible"
+        >
+            {/* Glow behind stump */}
             <div
-                className="absolute bottom-[1%] left-[10%] right-[10%] h-[1px] z-5"
+                ref={glowRef}
+                className="absolute left-1/2 bottom-[15%] -translate-x-1/2 w-[70%] h-[60%] rounded-full pointer-events-none z-0"
                 style={{
-                    background: 'linear-gradient(90deg, transparent, rgba(45,212,191,0.15), rgba(45,212,191,0.2), rgba(45,212,191,0.15), transparent)',
+                    background: 'radial-gradient(ellipse at center, rgba(45,212,191,0.15) 0%, rgba(45,212,191,0.05) 40%, transparent 70%)',
+                    filter: 'blur(20px)',
+                }}
+            />
+
+            {/* Obstacles — rise from below */}
+            {obstacles.map((obs, i) => (
+                <div
+                    key={i}
+                    ref={el => { obstacleRefs.current[i] = el }}
+                    className={`absolute ${obs.pos} ${obs.size} z-10 pointer-events-none`}
+                    style={{
+                        transform: `rotate(${obs.rotate})`,
+                        filter: 'drop-shadow(0 0 8px rgba(45,212,191,0.15))',
+                    }}
+                >
+                    {obs.icon}
+                </div>
+            ))}
+
+            {/* Central Hero Stump */}
+            <img
+                ref={stumpRef}
+                src={heroStump}
+                alt="Cricket Stumps"
+                className="absolute left-1/2 bottom-[5%] -translate-x-1/2 w-[55%] sm:w-[50%] h-auto z-20 object-contain"
+                style={{
+                    filter: 'drop-shadow(0 0 25px rgba(45,212,191,0.25)) drop-shadow(0 8px 20px rgba(0,0,0,0.4))',
+                }}
+            />
+
+            {/* Ambient floating particles */}
+            {particlePositions.map((pos, i) => (
+                <div
+                    key={`p-${i}`}
+                    ref={el => { particleRefs.current[i] = el }}
+                    className={`absolute ${pos} z-30 pointer-events-none`}
+                >
+                    <div
+                        className="rounded-full"
+                        style={{
+                            width: 2 + Math.random() * 3,
+                            height: 2 + Math.random() * 3,
+                            backgroundColor: i % 3 === 0 ? '#d4a82d' : i % 3 === 1 ? '#2dd4bf' : '#fff',
+                            boxShadow: `0 0 6px ${i % 3 === 0 ? '#d4a82d' : '#2dd4bf'}`,
+                        }}
+                    />
+                </div>
+            ))}
+
+            {/* Ground line */}
+            <div
+                className="absolute bottom-[3%] left-[10%] right-[10%] h-[1px] z-5"
+                style={{
+                    background: 'linear-gradient(90deg, transparent, rgba(45,212,191,0.2), rgba(45,212,191,0.3), rgba(45,212,191,0.2), transparent)',
                 }}
             />
         </div>
