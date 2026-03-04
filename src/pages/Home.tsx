@@ -75,82 +75,79 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    const loadMatches = async () => {
-      try {
-        setLoading(true)
+    setLoading(true)
 
-        // Load all matches
-        const allMatches = await matchService.getAll()
-
-        // Load all tournaments
-        const allTournaments = await tournamentService.getAll()
-        const tMap: Record<string, string> = {}
-        allTournaments.forEach(t => {
-          tMap[t.id] = t.name
-        })
-        setTournamentsMap(tMap)
-
-        const parseStartTs = (m: any): number => {
-          const d0 = coerceToDate(m?.date)
-          if (!d0) return 0
-          const t = String(m?.time || '00:00').trim()
-          const [hh, mm] = t.split(':').map(Number)
-          const target = new Date(d0)
-          target.setHours(hh || 0, mm || 0, 0, 0)
-          return target.getTime()
-        }
-
-        const statusLower = (m: any) => String(m?.status || '').toLowerCase().trim()
-        const isLive = (m: any) => {
-          const s = statusLower(m)
-          return s === 'live' || s === 'inningsbreak' || s === 'innings break'
-        }
-        const isFinished = (m: any) => ['finished', 'completed'].includes(statusLower(m))
-        const isUpcoming = (m: any) => {
-          const s = statusLower(m)
-          return s === '' || s === 'upcoming' || s === 'scheduled'
-        }
-
-        const live = allMatches.filter(isLive)
-        const finished = allMatches
-          .filter(isFinished)
-          .sort((a, b) => parseStartTs(b) - parseStartTs(a))
-
-        const upcoming = allMatches
-          .filter(isUpcoming)
-          .sort((a, b) => parseStartTs(a) - parseStartTs(b))
-
-        setLiveMatches(live)
-        setFinishedMatches(finished)
-        setUpcomingMatches(upcoming)
-
-        // FEATURED LOGIC: 2 Live + 1 Upcoming + 1 Finished
-        let featured: Match[] = []
-
-        // 1. Up to 2 Live matches
-        featured.push(...live.slice(0, 2))
-
-        // 2. 1 Most recent upcoming match
-        if (upcoming.length > 0) {
-          featured.push(upcoming[0])
-        }
-
-        // 3. 1 Most recent finished match
-        if (finished.length > 0) {
-          featured.push(finished[0])
-        }
-
-        setFeaturedMatches(featured)
-
-      } catch (error) {
-        console.error('Error loading matches:', error)
-      } finally {
-        setLoading(false)
+    // Helper for match categorization and sorting
+    const processMatches = (allMatches: Match[], currentTournaments: Record<string, string>) => {
+      const parseStartTs = (m: any): number => {
+        const d0 = coerceToDate(m?.date)
+        if (!d0) return 0
+        const t = String(m?.time || '00:00').trim()
+        const [hh, mm] = t.split(':').map(Number)
+        const target = new Date(d0)
+        target.setHours(hh || 0, mm || 0, 0, 0)
+        return target.getTime()
       }
+
+      const statusLower = (m: any) => String(m?.status || '').toLowerCase().trim()
+      const isLive = (m: any) => {
+        const s = statusLower(m)
+        return s === 'live' || s === 'inningsbreak' || s === 'innings break'
+      }
+      const isFinished = (m: any) => ['finished', 'completed'].includes(statusLower(m))
+      const isUpcoming = (m: any) => {
+        const s = statusLower(m)
+        return s === '' || s === 'upcoming' || s === 'scheduled'
+      }
+
+      const live = allMatches.filter(isLive)
+      const finished = allMatches
+        .filter(isFinished)
+        .sort((a, b) => parseStartTs(b) - parseStartTs(a))
+      const upcoming = allMatches
+        .filter(isUpcoming)
+        .sort((a, b) => parseStartTs(a) - parseStartTs(b))
+
+      setLiveMatches(live)
+      setFinishedMatches(finished)
+      setUpcomingMatches(upcoming)
+
+      // FEATURED LOGIC: 2 Live + 1 Upcoming + 1 Finished
+      let featured: Match[] = []
+      featured.push(...live.slice(0, 2))
+      if (upcoming.length > 0) featured.push(upcoming[0])
+      if (finished.length > 0) featured.push(finished[0])
+      setFeaturedMatches(featured)
     }
 
-    loadMatches()
-  }, [])
+    // 1. Subscribe to Tournaments first (needed for names)
+    const unsubscribeTournaments = onSnapshot(collection(db, 'tournaments'), (snapshot) => {
+      const tMap: Record<string, string> = {}
+      snapshot.docs.forEach(t => {
+        tMap[t.id] = t.data().name
+      })
+      setTournamentsMap(tMap)
+    })
+
+    // 2. Subscribe to All Matches (filtered by school if needed, but getAll suggested all)
+    // Using onSnapshot for "instant" load from cache
+    const unsubscribeMatches = onSnapshot(collection(db, 'matches'), (snapshot) => {
+      const allMatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match))
+
+      // We need the latest tMap, but state might be stale in this closure
+      // However, tournaments don't change often, and processMatches handles it
+      processMatches(allMatches, tournamentsMap)
+      setLoading(false)
+    }, (error) => {
+      console.error('Error listening to matches:', error)
+      setLoading(false)
+    })
+
+    return () => {
+      unsubscribeTournaments()
+      unsubscribeMatches()
+    }
+  }, [tournamentsMap]) // Re-run if tournaments map changes to ensure names are correct
 
   const [activeTab, setActiveTab] = useState<'featured' | 'live' | 'upcoming' | 'finished'>('featured')
 

@@ -62,8 +62,8 @@ function useTransparentImage(src: string, threshold = 40) {
 
 // ====== BATTER with pose crossfade ======
 const BatterAnimated = ({ phase }: { phase: Phase }) => {
-    const readyImg = useTransparentImage(batterReadySrc)
-    const sixImg = useTransparentImage(batterSixSrc)
+    const readyImg = batterReadySrc
+    const sixImg = batterSixSrc
 
     const show = phase !== 'reset'
     const isHitting = phase === 'hit-six' || phase === 'celebration'
@@ -77,8 +77,8 @@ const BatterAnimated = ({ phase }: { phase: Phase }) => {
             transition={{ duration: 0.3 }}
         >
             {/* Ready stance — visible during bowler-run and delivery */}
-            <AnimatePresence>
-                {!isHitting && readyImg && (
+            <AnimatePresence mode="wait">
+                {!isHitting && (
                     <motion.img
                         key="batter-ready"
                         src={readyImg}
@@ -87,17 +87,17 @@ const BatterAnimated = ({ phase }: { phase: Phase }) => {
                         initial={{ opacity: 0 }}
                         animate={{
                             opacity: 1,
-                            filter: 'brightness(1) drop-shadow(0 0 20px rgba(45,212,191,0.3))',
+                            filter: 'brightness(1.1) drop-shadow(0 0 15px rgba(45,212,191,0.2))',
                         }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.25 }}
+                        transition={{ duration: 0.2 }}
                     />
                 )}
             </AnimatePresence>
 
             {/* Kneeling six shot — visible during hit-six and celebration */}
-            <AnimatePresence>
-                {isHitting && sixImg && (
+            <AnimatePresence mode="wait">
+                {isHitting && (
                     <motion.img
                         key="batter-six"
                         src={sixImg}
@@ -106,19 +106,19 @@ const BatterAnimated = ({ phase }: { phase: Phase }) => {
                         initial={{ opacity: 0 }}
                         animate={{
                             opacity: 1,
-                            filter: 'brightness(1.3) drop-shadow(0 0 30px rgba(45,212,191,0.6))',
+                            filter: 'brightness(1.2) drop-shadow(0 0 25px rgba(45,212,191,0.4))',
                             WebkitMaskImage: 'radial-gradient(circle at 85% 15%, transparent 0%, transparent 8%, black 15%)',
                             maskImage: 'radial-gradient(circle at 85% 15%, transparent 0%, transparent 8%, black 15%)'
                         }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.25 }}
+                        transition={{ duration: 0.2 }}
                     />
                 )}
             </AnimatePresence>
 
             {/* Invisible spacer to maintain container size */}
             <img
-                src={sixImg || readyImg || ''}
+                src={sixImg}
                 alt=""
                 className="w-full h-auto object-contain invisible"
             />
@@ -128,8 +128,8 @@ const BatterAnimated = ({ phase }: { phase: Phase }) => {
 
 // ====== BOWLER with pose crossfade ======
 const BowlerAnimated = ({ phase }: { phase: Phase }) => {
-    const runImg = useTransparentImage(bowlerRunSrc)
-    const releaseImg = useTransparentImage(bowlerReleaseSrc)
+    const runImg = bowlerRunSrc
+    const releaseImg = bowlerReleaseSrc
 
     const show = phase !== 'reset'
     const isRunning = phase === 'bowler-run'
@@ -150,8 +150,8 @@ const BowlerAnimated = ({ phase }: { phase: Phase }) => {
             }}
         >
             {/* Running pose — visible during bowler-run */}
-            <AnimatePresence>
-                {isRunning && runImg && (
+            <AnimatePresence mode="wait">
+                {isRunning && (
                     <motion.img
                         key="bowler-run"
                         src={runImg}
@@ -160,17 +160,17 @@ const BowlerAnimated = ({ phase }: { phase: Phase }) => {
                         initial={{ opacity: 0 }}
                         animate={{
                             opacity: 1,
-                            filter: 'brightness(1) drop-shadow(0 0 15px rgba(45,212,191,0.3))',
+                            filter: 'brightness(1.1) drop-shadow(0 0 12px rgba(45,212,191,0.2))',
                         }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.15 }}
                     />
                 )}
             </AnimatePresence>
 
             {/* Delivery stride — visible after delivery */}
-            <AnimatePresence>
-                {hasDelivered && releaseImg && (
+            <AnimatePresence mode="wait">
+                {hasDelivered && (
                     <motion.img
                         key="bowler-release"
                         src={releaseImg}
@@ -179,17 +179,17 @@ const BowlerAnimated = ({ phase }: { phase: Phase }) => {
                         initial={{ opacity: 0 }}
                         animate={{
                             opacity: 1,
-                            filter: 'brightness(1.2) drop-shadow(0 0 20px rgba(45,212,191,0.4))',
+                            filter: 'brightness(1.2) drop-shadow(0 0 15px rgba(45,212,191,0.3))',
                         }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.15 }}
                     />
                 )}
             </AnimatePresence>
 
             {/* Invisible spacer */}
             <img
-                src={runImg || releaseImg || ''}
+                src={runImg}
                 alt=""
                 className="w-full h-auto object-contain invisible"
             />

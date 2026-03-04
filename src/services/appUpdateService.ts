@@ -11,6 +11,7 @@ import { db } from '@/config/firebase'
 export const APP_VERSION = '1.0.2'
 
 export interface AppUpdateInfo {
+    enabled?: boolean // New: Toggle for the whole update system
     latestVersion: string
     downloadUrl: string
     releaseNotes: string
@@ -20,6 +21,7 @@ export interface AppUpdateInfo {
 }
 
 const DEFAULT_UPDATE_INFO: AppUpdateInfo = {
+    enabled: false,
     latestVersion: APP_VERSION,
     downloadUrl: '',
     releaseNotes: '',
@@ -69,6 +71,7 @@ class AppUpdateService {
      */
     async isUpdateAvailable(): Promise<{ available: boolean; info: AppUpdateInfo }> {
         const info = await this.getUpdateInfo()
+        if (info.enabled === false) return { available: false, info }
         const available = compareVersions(APP_VERSION, info.latestVersion) < 0
         return { available, info }
     }

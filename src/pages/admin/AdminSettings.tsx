@@ -39,6 +39,7 @@ export default function AdminSettings() {
   const [cpFetching, setCpFetching] = useState(true)
 
   // App Update State
+  const [auEnabled, setAuEnabled] = useState(false)
   const [auVersion, setAuVersion] = useState('')
   const [auUrl, setAuUrl] = useState('')
   const [auNotes, setAuNotes] = useState('')
@@ -99,6 +100,7 @@ export default function AdminSettings() {
       if (!user) return
       try {
         const info = await appUpdateService.getUpdateInfo()
+        setAuEnabled(!!info.enabled)
         setAuVersion(info.latestVersion || '')
         setAuUrl(info.downloadUrl || '')
         setAuNotes(info.releaseNotes || '')
@@ -478,6 +480,15 @@ export default function AdminSettings() {
               <h2 className="text-lg font-semibold text-gray-900">App Update</h2>
               <p className="text-xs text-gray-500">Manage in-app update prompts for users (Current: v{APP_VERSION})</p>
             </div>
+            {!auFetching && (
+              <button
+                onClick={() => setAuEnabled(!auEnabled)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${auEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
+              >
+                {auEnabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />}
+                {auEnabled ? 'ENABLED' : 'DISABLED'}
+              </button>
+            )}
           </div>
 
           {auFetching ? (
@@ -556,6 +567,7 @@ export default function AdminSettings() {
                   setAuSaving(true)
                   try {
                     await appUpdateService.saveUpdateInfo({
+                      enabled: auEnabled,
                       latestVersion: auVersion.trim(),
                       downloadUrl: auUrl.trim(),
                       releaseNotes: auNotes.trim(),

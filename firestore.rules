@@ -60,7 +60,7 @@ service cloud.firestore {
         request.auth.uid == adminId || 
         isSuperAdmin() || 
         (resource != null && request.auth.token.email != null && 
-         resource.data.email.lower() == request.auth.token.email.lower())
+         resource.data.email.toLower() == request.auth.token.email.toLower())
       );
       
       // Allow Super Admin to create any admin (including themselves)
@@ -75,7 +75,7 @@ service cloud.firestore {
 
     match /invited_admins/{email} {
       // Allow read for the person being invited (to check during login) or any Super Admin
-      allow read: if isAuthenticated() && (request.auth.token.email.lower() == email.lower() || isSuperAdmin());
+      allow read: if isAuthenticated() && (request.auth.token.email.toLower() == email.toLower() || isSuperAdmin());
       // Only Super Admin can invite/delete invites
       allow write: if isSuperAdmin();
     }
@@ -160,7 +160,7 @@ service cloud.firestore {
         isAdmin() || 
         (resource == null) ||
         (request.auth.token.email != null && resource.data.email != null && 
-         request.auth.token.email.lower() == resource.data.email.lower())
+         request.auth.token.email.toLower() == resource.data.email.toLower())
       );
       
       allow write: if isAdmin();
@@ -177,6 +177,12 @@ service cloud.firestore {
     match /settings/{id} {
       allow read: if true;
       allow write: if isAdmin() && (isOwner(resource.data) || request.resource.data.adminId == request.auth.uid);
+    }
+
+    // Global App Configuration (Public Read, Admin Write)
+    match /app_config/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /playerMatchStats/{statId} {
@@ -235,7 +241,7 @@ service cloud.firestore {
     }
 
     match /permitted_admins/{email} {
-      allow read: if isAuthenticated() && (isAnyAdmin() || request.auth.token.email.lower() == email.lower());
+      allow read: if isAuthenticated() && (isAdmin() || request.auth.token.email.toLower() == email.toLower());
       allow write: if isSuperAdmin();
     }
 
