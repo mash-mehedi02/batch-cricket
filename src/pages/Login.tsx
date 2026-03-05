@@ -12,6 +12,7 @@ import schoolConfig from '@/config/school'
 import { User, Shield, ChevronRight, Lock, Mail, Camera, X, Upload } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
+import { useTranslation } from '@/hooks/useTranslation'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import { squadService } from '@/services/firestore/squads'
 import { playerRequestService } from '@/services/firestore/playerRequests'
@@ -21,6 +22,7 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, googleLogin, login, signup, resetPassword, loading, isProcessing } = useAuthStore()
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [isPendingApproval, setIsPendingApproval] = useState(false)
@@ -375,6 +377,10 @@ export default function Login() {
                   >
                     {isLoading ? 'Verifying...' : 'Sign In'}
                   </button>
+
+                  <p className="mt-4 text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
+                    {t('admin_contact_request')}
+                  </p>
 
                   {/* Fallback to Google for Admins who use it */}
                   <div className="relative my-4">

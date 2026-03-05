@@ -359,7 +359,7 @@ export default function MenuPage() {
                             <div className="text-left">
                                 <span className="font-semibold text-[15px] block">App Update</span>
                                 <span className={`text-[10px] font-bold uppercase tracking-tighter ${updateAvailable ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {updateAvailable ? '🔴 Update Available' : '✅ Latest Version'}
+                                    {updateAvailable ? '🔴 Update Available' : '✅ Latest Version'} • v{APP_VERSION}
                                 </span>
                             </div>
                         </div>
@@ -375,7 +375,21 @@ export default function MenuPage() {
                             <div className="w-8 h-8 flex items-center justify-center text-teal-500">
                                 <ShieldCheck size={22} />
                             </div>
-                            <span className="font-semibold text-[15px]">{t('menu_terms_privacy')}</span>
+                            <span className="font-semibold text-[15px]">{t('menu_terms')}</span>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-400" />
+                    </Link>
+
+                    {/* Privacy Policy */}
+                    <Link
+                        to="/privacy"
+                        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 flex items-center justify-center text-teal-500">
+                                <ShieldCheck size={22} />
+                            </div>
+                            <span className="font-semibold text-[15px]">{t('menu_privacy_policy')}</span>
                         </div>
                         <ChevronRight size={18} className="text-slate-400" />
                     </Link>

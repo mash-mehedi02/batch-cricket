@@ -1,0 +1,204 @@
+﻿
+> Configure project :app
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Configure project :capacitor-cordova-android-plugins
+WARNING: Using flatDir should be avoided because it doesn't support any meta-data formats.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-android:preBuild UP-TO-DATE
+> Task :capacitor-android:preReleaseBuild UP-TO-DATE
+> Task :capacitor-android:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-android:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-android:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :capacitor-app:preBuild UP-TO-DATE
+> Task :capacitor-app:preReleaseBuild UP-TO-DATE
+> Task :capacitor-app:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-app:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-app:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:preReleaseBuild UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-cordova-android-plugins:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-cordova-android-plugins:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :capacitor-haptics:preBuild UP-TO-DATE
+> Task :capacitor-haptics:preReleaseBuild UP-TO-DATE
+> Task :capacitor-haptics:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-haptics:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-haptics:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :capacitor-push-notifications:preBuild UP-TO-DATE
+> Task :capacitor-push-notifications:preReleaseBuild UP-TO-DATE
+> Task :capacitor-push-notifications:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-push-notifications:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-push-notifications:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :capacitor-splash-screen:preBuild UP-TO-DATE
+> Task :capacitor-splash-screen:preReleaseBuild UP-TO-DATE
+> Task :capacitor-splash-screen:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-splash-screen:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-splash-screen:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :capacitor-status-bar:preBuild UP-TO-DATE
+> Task :capacitor-status-bar:preReleaseBuild UP-TO-DATE
+> Task :capacitor-status-bar:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :capacitor-status-bar:mergeReleaseNativeLibs NO-SOURCE
+> Task :capacitor-status-bar:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:preBuild UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:preReleaseBuild UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :codetrix-studio-capacitor-google-auth:mergeReleaseNativeLibs NO-SOURCE
+> Task :codetrix-studio-capacitor-google-auth:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeReleaseNativeLibs UP-TO-DATE
+> Task :app:stripReleaseDebugSymbols UP-TO-DATE
+> Task :app:extractReleaseNativeSymbolTables UP-TO-DATE
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :capacitor-android:generateReleaseResValues UP-TO-DATE
+> Task :capacitor-android:generateReleaseResources UP-TO-DATE
+> Task :capacitor-android:packageReleaseResources UP-TO-DATE
+> Task :capacitor-android:processReleaseNavigationResources UP-TO-DATE
+> Task :capacitor-android:parseReleaseLocalResources UP-TO-DATE
+> Task :capacitor-android:generateReleaseRFile UP-TO-DATE
+> Task :capacitor-android:javaPreCompileRelease UP-TO-DATE
+
+> Task :capacitor-android:compileReleaseJavaWithJavac
+./gradlew : 
+C:\Users\Mehedi Hasan\OneDr
+ive\Desktop\Android app\Sch
+ool-Cricket-Live\node_modul
+es\@capacitor\android\capac
+itor\src\main\java\com\getc
+apacitor\plugin\SystemBars.
+java:161: error: cannot 
+find symbol
+At line:1 char:13
++ cd android; ./gradlew 
+assembleRelease > 
+../gradle_build.log 2>&1
++             ~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecifi    ed: 
+(C:\Users\Mehe    di...not 
+find symb    ol:String) 
+[], Rem    oteException
+    + FullyQualifiedEr    
+rorId : NativeComm    
+andError
+ 
+        if 
+(Build.VERSION.SDK_INT >= B
+uild.VERSION_CODES.VANILLA_
+ICE_CREAM && 
+insetHandlingEnabled) {
+                           
+                           
+  ^
+  symbol:   variable 
+VANILLA_ICE_CREAM
+  location: class 
+VERSION_CODES
+C:\Users\Mehedi Hasan\OneDr
+ive\Desktop\Android app\Sch
+ool-Cricket-Live\node_modul
+es\@capacitor\android\capac
+itor\src\main\java\com\getc
+apacitor\plugin\SystemBars.
+java:172: error: cannot 
+find symbol
+        if 
+(Build.VERSION.SDK_INT >= B
+uild.VERSION_CODES.VANILLA_
+ICE_CREAM && 
+insetHandlingEnabled) {
+                           
+                           
+  ^
+  symbol:   variable 
+VANILLA_ICE_CREAM
+  location: class 
+VERSION_CODES
+Note: Some input files use 
+unchecked or unsafe 
+operations.
+Note: Recompile with 
+-Xlint:unchecked for 
+details.
+2 errors
+
+> Task :capacitor-android:compileReleaseJavaWithJavac FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/Mehedi%20Hasan/OneDrive/Desktop/Android%20app/School-Cricket-Live/android/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with 
+an exception.
+
+* What went wrong:
+Execution failed for task '
+:capacitor-android:compileR
+eleaseJavaWithJavac'.
+> Compilation failed; see 
+the compiler output below.
+  C:\Users\Mehedi Hasan\One
+Drive\Desktop\Android app\S
+chool-Cricket-Live\node_mod
+ules\@capacitor\android\cap
+acitor\src\main\java\com\ge
+tcapacitor\plugin\SystemBar
+s.java:161: error: cannot 
+find symbol
+          if 
+(Build.VERSION.SDK_INT >= B
+uild.VERSION_CODES.VANILLA_
+ICE_CREAM && 
+insetHandlingEnabled) {
+                           
+                           
+    ^
+    symbol:   variable 
+VANILLA_ICE_CREAM
+    location: class 
+VERSION_CODES
+  C:\Users\Mehedi Hasan\One
+Drive\Desktop\Android app\S
+chool-Cricket-Live\node_mod
+ules\@capacitor\android\cap
+acitor\src\main\java\com\ge
+tcapacitor\plugin\SystemBar
+s.java:172: error: cannot 
+find symbol
+          if 
+(Build.VERSION.SDK_INT >= B
+uild.VERSION_CODES.VANILLA_
+ICE_CREAM && 
+insetHandlingEnabled) {
+                           
+                           
+    ^
+    symbol:   variable 
+VANILLA_ICE_CREAM
+    location: class 
+VERSION_CODES
+  Note: Recompile with 
+-Xlint:unchecked for 
+details.
+  Note: Some input files 
+use unchecked or unsafe 
+operations.
+  2 errors
+
+* Try:
+> Check your code and 
+dependencies to fix the 
+compilation error(s)
+> Run with --scan to get 
+full insights.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 14s
+28 actionable tasks: 1 executed, 27 up-to-date

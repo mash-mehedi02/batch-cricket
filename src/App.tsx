@@ -7,6 +7,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Tournaments from './pages/Tournaments'
 import TermsPage from './pages/Terms';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import TournamentDetails from './pages/TournamentDetails'
 import Squads from './pages/Squads'
 import SquadDetails from './pages/SquadDetails'
@@ -101,6 +102,7 @@ function App() {
             <Route path="/tournaments/:tournamentId/points" element={<TournamentTabRedirect tab="points" />} />
             <Route path="/tournaments/:tournamentId/stats" element={<TournamentTabRedirect tab="stats" />} />
             <Route path="/terms" element={<PageTransition><TermsPage /></PageTransition>} />
+            <Route path="/privacy" element={<PageTransition><PrivacyPolicy /></PageTransition>} />
             <Route path="/squads" element={<PageTransition><Squads /></PageTransition>} />
             <Route path="/squads/:squadId" element={<PageTransition><SquadDetails /></PageTransition>} />
             <Route path="/players" element={<PageTransition><Players /></PageTransition>} />

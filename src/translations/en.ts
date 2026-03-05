@@ -24,7 +24,10 @@ export const en = {
     menu_go_premium_active: 'Premium version coming soon',
     premium_coming_soon: 'Premium version will be released very soon!',
     menu_report_problem: 'Report a Problem',
-    menu_terms_privacy: 'Terms & Privacy Policy',
+    admin_contact_request: 'Want to become an admin? Contact us at batchcrick@gmail.com',
+    menu_privacy_policy: 'Privacy Policy',
+    menu_terms: 'Terms of Service',
+    menu_terms_privacy: 'Terms & Privacy',
     menu_partner: 'Partner with us',
     menu_logout: 'Log Out',
 
