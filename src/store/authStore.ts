@@ -159,7 +159,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             console.log("[AuthStore] Native Login Cancelled.");
           } else {
             console.error('[AuthStore] Native Login Error:', nativeError);
-            toast.error(`Login Failed: ${nativeError.message || 'Check your connection'}`);
+            let errMsg = nativeError.message || 'Check your connection';
+            if (errMsg.includes('10') || errMsg.includes('DEVELOPER_ERROR')) {
+              errMsg = 'Developer Error (10): Ensure SHA-1 fingerprint is added in Firebase Console';
+            }
+            toast.error(`Login Failed: ${errMsg}`);
           }
           return false;
         }

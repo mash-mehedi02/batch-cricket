@@ -15,7 +15,6 @@ import {
     Unlock,
     Shield,
     Clock,
-    Check,
     Eye,
     EyeOff,
     Key,
@@ -61,6 +60,7 @@ export default function AdminUsers() {
     const [admins, setAdmins] = useState<AdminUser[]>([])
     const [allUsers, setAllUsers] = useState<User[]>([])
     const [squads, setSquads] = useState<Squad[]>([])
+    const [players, setPlayers] = useState<any[]>([]) // Add players state
     const [pendingRequests, setPendingRequests] = useState<PlayerRegistrationRequest[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -208,8 +208,12 @@ export default function AdminUsers() {
             const squadList = await squadService.getAll()
             setSquads(squadList)
 
-            // 4. Load Pending Requests (Filtered for Sub-admins)
-            let requests = []
+            // 4. Load Players (To filter them out of user list)
+            const playerList = await playerService.getAll()
+            setPlayers(playerList)
+
+            // 5. Load Pending Requests (Filtered for Sub-admins)
+            let requests: PlayerRegistrationRequest[] = []
             if (isSuperAdmin) {
                 requests = await playerRequestService.getPendingRequests()
             } else if (currentUser?.uid) {
@@ -327,7 +331,7 @@ export default function AdminUsers() {
                 role: inviteRole
             })
 
-            const message = result.promoted
+            const message = (result as any).promoted
                 ? `User ${inviteEmail} promoted! Note: They should use their PREVIOUS login method (Google/Old Password) to access the Admin Panel.`
                 : `Account created for ${inviteEmail}! They can login with their new password immediately.`;
 
@@ -431,6 +435,12 @@ export default function AdminUsers() {
     const filteredUsers = allUsers.filter(u => {
         // Exclude anyone who is an admin from the potential player/user list
         if (admins.some(a => a.uid === u.uid)) return false;
+
+        // Exclude anyone who has a pending request
+        if (pendingRequests.some(r => r.uid === u.uid)) return false;
+
+        // Exclude anyone who is already a player
+        if (players.some(p => p.ownerUid === u.uid || p.id === u.uid)) return false;
 
         return u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -979,6 +989,20 @@ export default function AdminUsers() {
                                                 </div>
 
                                                 <div className="flex gap-3 pt-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            const user = allUsers.find(u => u.uid === request.uid);
+                                                            if (user) {
+                                                                handleViewDetails(user);
+                                                            } else {
+                                                                toast.error('User profile not found');
+                                                            }
+                                                        }}
+                                                        className="px-4 py-3 bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                    >
+                                                        <Activity size={14} className="text-blue-500" />
+                                                        Activity
+                                                    </button>
                                                     <button
                                                         onClick={() => navigate('/admin/player-approvals')}
                                                         className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 hover:bg-blue-700 transition-all font-inter"

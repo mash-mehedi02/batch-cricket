@@ -228,14 +228,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     </div>
 
                     {/* Center: VS or LIVE Badge */}
-                    <div className="shrink-0 px-2">
+                    <div className="shrink-0 px-1">
                         {isLive ? (
                             <div className="bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-100 shadow-sm">
                                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
                                 <span className="text-[9px] font-black text-red-600 tracking-widest uppercase">Live</span>
                             </div>
                         ) : (
-                            <div className="relative shrink-0 flex items-center justify-center w-18 h-8">
+                            <div className="relative shrink-0 flex items-center justify-center w-10 h-5">
                                 {/* Rounded Trapezoid Background - Dark Mode Refined */}
                                 <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full drop-shadow-[0_2px_6px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_0_8px_rgba(30,41,59,0.5)] transition-all overflow-visible">
                                     <path
@@ -248,7 +248,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                                 <img
                                     src={vsIcon}
                                     alt="VS"
-                                    className="relative z-10 w-11 h-11 object-contain translate-y-[-0.5px] drop-shadow-[0_2px_8px_rgba(249,115,22,0.4)]"
+                                    className="relative z-10 w-8 h-8 object-contain translate-y-[-0.5px] drop-shadow-[0_2px_8px_rgba(249,115,22,0.4)]"
                                     style={{
                                         filter: 'invert(53%) sepia(93%) saturate(2855%) hue-rotate(346deg) brightness(101%) contrast(106%)'
                                     }}

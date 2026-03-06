@@ -89,6 +89,16 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
   const [filteredSchools, setFilteredSchools] = useState<string[]>([])
   const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false)
 
+  // Fetch existing schools for autocomplete
+  const fetchSchools = async () => {
+    try {
+      const schools = await tournamentService.getUniqueSchools()
+      setExistingSchools(schools)
+    } catch (error) {
+      console.error('Error fetching schools:', error)
+    }
+  }
+
   useEffect(() => {
     setActiveTab(mode);
     if (mode === 'list' || mode === 'dashboard') {
@@ -105,15 +115,6 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       loadMatches(id)
     }
 
-    // Fetch existing schools for autocomplete
-    const fetchSchools = async () => {
-      try {
-        const schools = await tournamentService.getUniqueSchools()
-        setExistingSchools(schools)
-      } catch (error) {
-        console.error('Error fetching schools:', error)
-      }
-    }
     fetchSchools()
   }, [id, mode, user])
 
@@ -589,6 +590,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
       setDeleteModalOpen(false)
       setItemToDelete(null)
       loadTournaments()
+      fetchSchools() // Update schools list
     } catch (error) {
       console.error('Error deleting tournament:', error)
       toast.error('Failed to delete tournament')
@@ -1662,7 +1664,8 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                         <div
                           key={idx}
                           className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm font-medium text-slate-700 border-b border-slate-50 last:border-0 flex items-center justify-between group"
-                          onClick={() => {
+                          onMouseDown={(e) => {
+                            e.preventDefault(); // Prevent blur when clicking
                             setFormData({ ...formData, school })
                             setShowSchoolSuggestions(false)
                           }}
