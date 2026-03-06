@@ -61,6 +61,7 @@ export const bn = {
     by_runs: 'রানে',
     match_drawn: 'ম্যাচ ড্র',
     match_tied: 'ম্যাচ টাই!',
+    friendly_match: 'ফ্রেন্ডলি ম্যাচ',
     player_of_match: 'ম্যাচ সেরা',
 
     // Status

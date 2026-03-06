@@ -47,6 +47,7 @@ import PageTransition from './components/common/PageTransition'
 import { useAuthStore } from './store/authStore'
 import { AnimatePresence } from 'framer-motion'
 import AppUpdatePopup from './components/AppUpdatePopup'
+import { useThemeListener } from './hooks/useThemeListener'
 
 
 function LayoutWrapper() {
@@ -65,6 +66,8 @@ function TournamentTabRedirect({ tab }: { tab: 'points' | 'stats' }) {
 
 
 function App() {
+  useThemeListener(); // Global theme listener for system preference
+
   const [showSplash, setShowSplash] = useState(true);
   const isAuthProcessing = useAuthStore(s => s.isProcessing);
 

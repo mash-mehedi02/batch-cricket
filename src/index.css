@@ -266,7 +266,11 @@
   }
 
   .animate-marquee {
-    animation: marquee 15s linear infinite;
+    animation: marquee 25s linear infinite;
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
   }
 
   .animate-float {

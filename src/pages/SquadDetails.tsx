@@ -15,7 +15,7 @@ import SquadDetailsSkeleton from '@/components/skeletons/SquadDetailsSkeleton'
 import { useAuthStore } from '@/store/authStore'
 import { followService } from '@/services/firestore/followService'
 import { useSearchParams } from 'react-router-dom'
-import { Bell, Check, Trophy, Medal, ChevronRight, Share2 } from 'lucide-react'
+import { Bell, Check, Trophy, Medal, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 
@@ -248,12 +248,6 @@ export default function SquadDetails() {
                 </button>
               )}
 
-              <button
-                onClick={() => { }} // Placeholder or integrate screenshot capture here
-                className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300"
-              >
-                <Share2 size={16} />
-              </button>
             </div>
 
           </div>

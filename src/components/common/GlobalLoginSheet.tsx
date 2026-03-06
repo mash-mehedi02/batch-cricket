@@ -89,12 +89,14 @@ export default function GlobalLoginSheet() {
                             <button
                                 onClick={async () => {
                                     try {
-                                        await googleLogin();
-                                        setIsOpen(false);
-                                        toast.success('Signed in successfully!');
+                                        const success = await googleLogin();
+                                        if (success) {
+                                            setIsOpen(false);
+                                            toast.success('Signed in successfully!');
+                                        }
+                                        // Error toast is handled inside googleLogin in authStore
                                     } catch (err) {
-
-                                        console.error(err);
+                                        console.error("[GlobalLoginSheet] Auth Error:", err);
                                         toast.error('Failed to sign in.');
                                     }
                                 }}

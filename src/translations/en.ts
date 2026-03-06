@@ -61,6 +61,7 @@ export const en = {
     by_runs: 'runs',
     match_drawn: 'Match Drawn',
     match_tied: 'Match Tied!',
+    friendly_match: 'Friendly Match',
     player_of_match: 'Player of the Match',
 
     // Status

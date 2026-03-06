@@ -23,7 +23,7 @@ const HeroCricketAnimation = () => {
             // 1. Image entrance — scale up from center with spring
             gsap.fromTo(stumpRef.current,
                 { y: 80, opacity: 0, scale: 0.6 },
-                { y: -20, opacity: 1, scale: 1, duration: 1.2, ease: 'back.out(1.4)', delay: 0.2 }
+                { y: 0, opacity: 1, scale: 1, duration: 1.2, ease: 'back.out(1.4)', delay: 0.2 }
             )
 
             // 2. Glow pulse — infinite subtle pulse
@@ -36,7 +36,7 @@ const HeroCricketAnimation = () => {
 
             // 4. Floating ambient particles
             const particles = particleRefs.current.filter(Boolean) as HTMLDivElement[]
-            particles.forEach((el, i) => {
+            particles.forEach((el) => {
                 gsap.fromTo(el,
                     { opacity: 0, y: 20 },
                     {
@@ -76,6 +76,7 @@ const HeroCricketAnimation = () => {
                         ease: 'power2.out',
                         delay: 0.5 + i * 0.15,
                         onComplete: () => {
+                            if (!el) return;
                             // Gentle float
                             gsap.to(el, {
                                 y: ty + 80 - Math.random() * 30,
@@ -90,7 +91,7 @@ const HeroCricketAnimation = () => {
                 )
             })
 
-        }, containerRef)
+        }, containerRef.current || undefined)
 
         return () => ctx.revert()
     }, [])
@@ -112,7 +113,7 @@ const HeroCricketAnimation = () => {
     return (
         <div
             ref={containerRef}
-            className="relative w-full max-w-[400px] sm:max-w-[500px] md:max-w-[650px] mx-auto aspect-[4/4] overflow-visible flex items-end justify-center pb-0"
+            className="relative w-full max-w-[280px] sm:max-w-[320px] md:max-w-[400px] mx-auto aspect-square overflow-visible flex items-end justify-center pb-0"
         >
             {/* Glow behind the main image */}
             <div
@@ -143,7 +144,7 @@ const HeroCricketAnimation = () => {
                 ref={stumpRef}
                 src={heroStump}
                 alt="Cricket Illustration"
-                className="relative w-full h-auto z-10 object-contain translate-y-[5%]"
+                className="relative w-[85%] h-auto z-10 object-contain translate-y-0"
                 style={{
                     filter: 'drop-shadow(0 0 35px rgba(45,212,191,0.25)) drop-shadow(0 15px 30px rgba(0,0,0,0.6))',
                 }}

@@ -1,6 +1,6 @@
 {
   "name": "batchcrick-bd",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Intelligent School Cricket Platform - ICC-compliant real-time scoring system",
   "scripts": {

@@ -22,6 +22,7 @@ import schoolConfig from '@/config/school';
 import { useTranslation } from '@/hooks/useTranslation';
 import { appUpdateService, APP_VERSION } from '@/services/appUpdateService';
 import { ensureAbsoluteUrl } from '@/utils/url';
+import ThemeSelectionSheet from '@/components/common/ThemeSelectionSheet';
 
 const CricketIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -37,7 +38,7 @@ const CricketIcon = ({ size = 20 }) => (
 export default function MenuPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
-    const { isDarkMode, toggleDarkMode } = useThemeStore();
+    const { isDarkMode, themePreference } = useThemeStore();
     const { language, setLanguage } = useLanguageStore();
     const { t } = useTranslation();
     const [vibration, setVibration] = useState(() => localStorage.getItem('match_vibration') === 'true');
@@ -45,6 +46,7 @@ export default function MenuPage() {
     const [imageError, setImageError] = useState(false);
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateUrl, setUpdateUrl] = useState('');
+    const [isThemeSheetOpen, setIsThemeSheetOpen] = useState(false);
 
     // Check for app updates
     useEffect(() => {
@@ -289,7 +291,7 @@ export default function MenuPage() {
 
                     {/* App Theme */}
                     <button
-                        onClick={toggleDarkMode}
+                        onClick={() => setIsThemeSheetOpen(true)}
                         className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isDarkMode ? 'text-slate-200 hover:bg-[#1e293b]' : 'text-slate-700 hover:bg-slate-50'}`}
                     >
                         <div className="flex items-center gap-4">
@@ -299,7 +301,9 @@ export default function MenuPage() {
                             <span className="font-semibold text-[15px]">{t('menu_app_theme')}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold opacity-40 uppercase">{isDarkMode ? t('theme_dark') : t('theme_light')}</span>
+                            <span className="text-xs font-bold opacity-40 uppercase">
+                                {themePreference === 'system' ? 'System' : (isDarkMode ? t('theme_dark') : t('theme_light'))}
+                            </span>
                             <ChevronRight size={18} className="text-slate-400" />
                         </div>
                     </button>
@@ -404,6 +408,11 @@ export default function MenuPage() {
                 </div>
             </div>
 
+            {/* Theme Selection Sheet */}
+            <ThemeSelectionSheet
+                isOpen={isThemeSheetOpen}
+                onClose={() => setIsThemeSheetOpen(false)}
+            />
         </div>
     );
 }

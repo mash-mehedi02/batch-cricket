@@ -124,15 +124,15 @@ export default function Schedule() {
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex px-4 overflow-x-auto scrollbar-hide">
-                        {(['upcoming', 'live', 'finished'] as const).map(tab => (
+                    <div className="flex px-4 border-b border-slate-100 dark:border-white/5">
+                        {tabsOrder.map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => {
                                     setActiveTab(tab)
                                     setSearchParams({ tab })
                                 }}
-                                className={`px-8 py-4 text-xs font-black uppercase tracking-widest relative transition-all whitespace-nowrap ${activeTab === tab ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
+                                className={`flex-1 py-4 text-[11px] font-black uppercase tracking-widest relative transition-all ${activeTab === tab ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
                                     }`}
                             >
                                 {tab}
@@ -148,7 +148,7 @@ export default function Schedule() {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-4 py-8">
+            <div className="max-w-4xl mx-auto overflow-hidden">
                 {loading ? (
                     <div className="space-y-12">
                         {[1, 2].map(g => (
@@ -204,35 +204,38 @@ export default function Schedule() {
                         }}
                         className="flex w-full"
                     >
-                        {[upcomingData, liveData, finishedData].map((tabData, idx) => (
-                            <div key={idx} className="w-full shrink-0">
-                                {tabData.dateKeys.length === 0 ? (
-                                    <div className="bg-white dark:bg-[#0f172a] rounded-3xl p-16 text-center border border-slate-200 dark:border-white/5 shadow-sm">
-                                        <div className="text-5xl mb-6">📅</div>
-                                        <h3 className="text-xl font-bold text-black dark:text-white mb-2 capitalize">No {['upcoming', 'live', 'finished'][idx]} matches found</h3>
-                                        <p className="text-slate-400 dark:text-slate-500 text-sm">Check other tabs for more matches.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-12 pr-1"> {/* Slightly pad to avoid horizontal snap issues */}
-                                        {tabData.dateKeys.map((dateKey: string) => (
-                                            <div key={dateKey} className="space-y-4">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20">
-                                                        {formatDateLabel(new Date(dateKey))}
+                        {tabsOrder.map((tab) => {
+                            const tabData = tab === 'upcoming' ? upcomingData : tab === 'live' ? liveData : finishedData;
+                            return (
+                                <div key={tab} className="w-full shrink-0 px-4 py-8">
+                                    {tabData.dateKeys.length === 0 ? (
+                                        <div className="bg-white dark:bg-[#0f172a] rounded-3xl p-16 text-center border border-slate-200 dark:border-white/5 shadow-sm">
+                                            <div className="text-5xl mb-6">📅</div>
+                                            <h3 className="text-xl font-bold text-black dark:text-white mb-2 capitalize">No {tab} matches found</h3>
+                                            <p className="text-slate-400 dark:text-slate-500 text-sm">Check other tabs for more matches.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-12">
+                                            {tabData.dateKeys.map((dateKey: string) => (
+                                                <div key={dateKey} className="space-y-6">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20">
+                                                            {formatDateLabel(new Date(dateKey))}
+                                                        </div>
+                                                        <div className="h-px bg-slate-200 dark:bg-white/5 flex-1"></div>
                                                     </div>
-                                                    <div className="h-px bg-slate-200 dark:bg-white/5 flex-1"></div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        {tabData.grouped[dateKey].map((m: Match) => (
+                                                            <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId || '']} />
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {tabData.grouped[dateKey].map((m: Match) => (
-                                                        <MatchCard key={m.id} match={m} squadsMap={squadsMap} tournamentName={tournamentsMap[m.tournamentId || '']} />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </motion.div>
                 )}
             </div>

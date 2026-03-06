@@ -921,10 +921,10 @@ export default function PlayerProfile() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 md:gap-6 text-slate-300 dark:text-slate-400 font-medium">
-                  {player.batch && (
+                  {player.school && (
                     <span className="flex items-center gap-1.5 md:gap-2.5 bg-white/5 dark:bg-white/[0.03] px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/5 animate-in slide-in-from-left-4 duration-500 delay-100">
-                      <span className="text-emerald-500 text-xs md:text-base">📚</span>
-                      <span className="text-[10px] md:text-sm whitespace-nowrap text-white">Batch {player.batch}</span>
+                      <span className="text-emerald-500 text-xs md:text-base">🏫</span>
+                      <span className="text-[10px] md:text-sm whitespace-nowrap text-white">{player.school}</span>
                     </span>
                   )}
                   {squadName && (
@@ -1467,7 +1467,16 @@ export default function PlayerProfile() {
                           </div>
                           <div className="flex py-5 border-b border-slate-50 items-center justify-between">
                             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Squad:</span>
-                            <span className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter">{squadName || 'N/A'}</span>
+                            {player.squadId ? (
+                              <Link
+                                to={`/squads/${player.squadId}`}
+                                className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter hover:underline"
+                              >
+                                {squadName || 'N/A'}
+                              </Link>
+                            ) : (
+                              <span className="text-sm font-bold text-emerald-600 uppercase italic tracking-tighter">{squadName || 'N/A'}</span>
+                            )}
                           </div>
                           <div className={clsx("flex border-b border-slate-50 items-center justify-between gap-4", isEditing ? "flex-col items-start py-2" : "py-5")}>
                             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest shrink-0">Address:</span>
@@ -1647,28 +1656,30 @@ export default function PlayerProfile() {
       </div>
 
       {/* Floating Toggle FAB (CREX Style) - HORIZONTAL BOTTOM RIGHT */}
-      < div className="hide-in-screenshot fixed bottom-20 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100" >
-        <button
-          onClick={() => setViewMode('batting')}
-          className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
-            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-105'
-            : 'hover:bg-white/5 opacity-50'
-            }`}
-          title="Batting Stats"
-        >
-          <img src={cricketBatIcon} alt="Batting" className="w-5 h-5 object-contain" />
-        </button>
-        <button
-          onClick={() => setViewMode('bowling')}
-          className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'bowling'
-            ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-105'
-            : 'hover:bg-white/5 opacity-50'
-            }`}
-          title="Bowling Stats"
-        >
-          <img src={cricketBallIcon} alt="Bowling" className="w-5 h-5 object-contain" />
-        </button>
-      </div >
+      {(activeTab === 'overview' || activeTab === 'matches') && (
+        <div className="hide-in-screenshot fixed bottom-20 right-6 z-[100] bg-slate-900/90 backdrop-blur-xl rounded-2xl p-0.5 shadow-2xl border border-white/10 flex flex-row items-center gap-0.5 animate-in fade-in slide-in-from-bottom-4 duration-700 scale-90 sm:scale-100">
+          <button
+            onClick={() => setViewMode('batting')}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'batting'
+              ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-105'
+              : 'hover:bg-white/5 opacity-50'
+              }`}
+            title="Batting Stats"
+          >
+            <img src={cricketBatIcon} alt="Batting" className="w-5 h-5 object-contain" />
+          </button>
+          <button
+            onClick={() => setViewMode('bowling')}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${viewMode === 'bowling'
+              ? 'bg-emerald-600 shadow-lg shadow-emerald-900/40 transform scale-105'
+              : 'hover:bg-white/5 opacity-50'
+              }`}
+            title="Bowling Stats"
+          >
+            <img src={cricketBallIcon} alt="Bowling" className="w-5 h-5 object-contain" />
+          </button>
+        </div>
+      )}
 
 
       {/* ShareModal removed */}

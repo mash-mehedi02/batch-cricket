@@ -23,6 +23,14 @@
           }
         },
         {
+          "client_id": "899272110972-gpf7ged6e3qmd0c69ecoljtv658jqt2s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.batchcrickbd",
+            "certificate_hash": "c53af4e5450eb30fc0616f5fa7a134b70768404e"
+          }
+        },
+        {
           "client_id": "899272110972-pjfti5ug438ubliit4ri5civ6nuhkftv.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -8,6 +8,7 @@ import { formatShortTeamName } from '@/utils/teamName'
 import { formatKnockoutTitle } from '@/utils/matchFormatters'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { useTranslation } from '@/hooks/useTranslation'
+import vsIcon from '@/assets/vs.png'
 
 interface MatchCardProps {
     match: Match
@@ -15,7 +16,7 @@ interface MatchCardProps {
     tournamentName?: string
 }
 
-import vsIcon from '@/assets/vs.png'
+
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName }) => {
     const { t, language } = useTranslation()
@@ -154,232 +155,132 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
     const resultText = getResultText()
     const matchDate = coerceToDate(match.date)
-    const dateStr = matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' }) : 'TBD'
+    const dateStr = matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' }) : 'TBD'
     const knockoutTitle = formatKnockoutTitle(match)
-    const displayHeader = knockoutTitle ? `${knockoutTitle} • ${tournamentName || fetchedTournamentName || 'Tournament'}` : (tournamentName || fetchedTournamentName || 'Tournament Series')
-
-    if (isUpcoming) {
-        return (
-            <Link to={`/match/${match.id}`} className="block group relative">
-                <div className="bg-white dark:bg-[#081020] rounded-2xl shadow-sm border border-slate-200/60 dark:border-white/[0.05] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.2)] hover:-translate-y-1 h-full flex flex-col relative group">
-                    {/* Subtle Glow Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                    <div className="absolute top-1 right-1 z-30">
-                        <NotificationBell
-                            matchId={match.id}
-                            tournamentId={match.tournamentId}
-                        />
-                    </div>
-                    <div className="pt-3 px-4 text-center">
-                        <h3 className="text-[14px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 tracking-tight leading-tight mb-0.5 pr-6 truncate">
-                            {displayHeader}
-                        </h3>
-                        <div className="h-[0.5px] border-t border-dashed border-slate-300 dark:border-white/10 w-[80%] mx-auto my-1.5" />
-                        <p className="text-[8px] sm:text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                            {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'F' + match.oversLimit} . ` : ''}{dateStr} - {formatTimeHMTo12h(match.time)}
-                        </p>
-                    </div>
-                    <div className="flex-1 flex items-center justify-between w-full relative overflow-hidden py-3">
-                        {/* Team A - Left Professional Pod */}
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                            <div className="h-12 sm:h-14 w-14 sm:w-18 bg-slate-200 dark:bg-slate-800/50 rounded-r-full flex items-center justify-center shrink-0 border-y border-r border-slate-300 dark:border-white/10 shadow-sm relative pr-1">
-                                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-r-full pointer-events-none" />
-                                {teamALogo ? (
-                                    <img src={teamALogo} alt={teamAName} className="w-10 h-10 sm:w-12 sm:h-12 object-contain relative z-10 transition-transform group-hover:scale-110" />
-                                ) : (
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-400 flex items-center justify-center text-white text-[12px] font-semibold uppercase relative z-10">
-                                        {teamAName.charAt(0)}
-                                    </div>
-                                )}
-                            </div>
-                            <span className="text-[12px] sm:text-[13px] font-semibold text-slate-800 dark:text-white truncate uppercase tracking-tighter">{teamAName}</span>
-                        </div>
-
-                        {/* Center VS - Rounded V Shape Trapezoid */}
-                        <div className="shrink-0 flex items-center justify-center px-1 sm:px-3 z-10">
-                            <div className="relative z-20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]">
-                                <div className="bg-white dark:bg-slate-700 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
-                                    style={{
-                                        WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
-                                        WebkitMaskSize: '100% 100%',
-                                        maskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
-                                        maskSize: '100% 100%'
-                                    }}>
-                                    <img
-                                        src={vsIcon}
-                                        alt="VS"
-                                        className="w-[90%] h-[90%] object-contain"
-                                        style={{ filter: 'brightness(0) saturate(100%) invert(50%) sepia(90%) saturate(4000%) hue-rotate(10deg) brightness(100%) contrast(110%)' }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Team B - Right Professional Pod */}
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 justify-end">
-                            <span className="text-[12px] sm:text-[13px] font-semibold text-slate-800 dark:text-white truncate uppercase tracking-tighter text-right">{teamBName}</span>
-                            <div className="h-12 sm:h-14 w-14 sm:w-18 bg-slate-200 dark:bg-slate-800/50 rounded-l-full flex items-center justify-center shrink-0 border-y border-l border-slate-300 dark:border-white/10 shadow-sm relative pl-1">
-                                <div className="absolute inset-0 bg-gradient-to-l from-white/20 to-transparent rounded-l-full pointer-events-none" />
-                                {teamBLogo ? (
-                                    <img src={teamBLogo} alt={teamBName} className="w-10 h-10 sm:w-12 sm:h-12 object-contain relative z-10 transition-transform group-hover:scale-110" />
-                                ) : (
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-400 flex items-center justify-center text-white text-[12px] font-semibold uppercase relative z-10">
-                                        {teamBName.charAt(0)}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="px-4 pb-2 text-center">
-                        <p className="text-[8px] sm:text-[9px] font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-widest">{match.venue || 'Venue TBD'}</p>
-                    </div>
-                    <div className="mt-auto bg-blue-50/50 dark:bg-blue-950/20 py-2.5 text-center border-t border-blue-100 dark:border-white/5 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-grid-slate-200/[0.05] [mask-image:linear-gradient(0deg,white,transparent)] dark:bg-grid-white/[0.02]" />
-                        <p className="relative z-10 text-[11px] sm:text-[12px] font-semibold text-blue-600 dark:text-blue-400 uppercase flex items-center justify-center gap-2 tracking-wider">
-                            <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                            {timeLeft === 'WAITING FOR START' ? (
-                                <span className="animate-pulse">WAITING FOR START</span>
-                            ) : (
-                                <>Starts In: <span className="tabular-nums font-semibold text-[13px] sm:text-[14px]">{timeLeft}</span></>
-                            )}
-                        </p>
-                    </div>
-                </div>
-            </Link>
-        )
+    const getDisplayHeader = () => {
+        const tName = tournamentName || fetchedTournamentName
+        if (knockoutTitle) return `${knockoutTitle} • ${tName || t('friendly_match')}`
+        return tName || t('friendly_match')
     }
+    const displayHeader = getDisplayHeader()
 
     return (
-        <Link to={`/match/${match.id}`} className="block group relative">
-            <div className="bg-white dark:bg-[#081020] rounded-2xl shadow-sm border border-slate-200/60 dark:border-white/[0.05] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.2)] hover:-translate-y-1 h-full flex flex-col relative">
-                {/* Subtle Glow Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+        <Link to={`/match/${match.id}`} className="block group relative h-full">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-sm border border-slate-200/60 dark:border-white/[0.05] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] hover:-translate-y-1 h-full flex flex-col relative">
+                {/* Subtle Hover Glow */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
 
-                {/* Notifications */}
-                <div className="absolute top-1 right-1 z-30">
-                    <NotificationBell
-                        matchId={match.id}
-                        tournamentId={match.tournamentId}
-                    />
-                </div>
+                {/* Notifications & Top Actions */}
+                {!isFinished && (
+                    <div className="absolute top-2 right-2 z-30">
+                        <NotificationBell matchId={match.id} tournamentId={match.tournamentId} />
+                    </div>
+                )}
 
-                {/* Header: Tournament Name */}
-                <div className="pt-3 px-4 text-center relative">
-                    <h3 className="text-[14px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 tracking-tight leading-tight mb-0.5 pr-6 truncate">
+                {/* Header: Tournament & Info */}
+                <div className="pt-4 px-4 text-center">
+                    <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight mb-2 pr-8 truncate">
                         {displayHeader}
                     </h3>
-                    <div className="h-[0.5px] border-t border-dashed border-slate-300 dark:border-white/10 w-[80%] mx-auto my-1.5" />
-                    <p className="text-[8px] sm:text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                        {match.oversLimit ? `${match.oversLimit === 50 ? 'ODI' : 'F' + match.oversLimit} . ` : ''}{dateStr} - {formatTimeHMTo12h(match.time)}
+
+                    {/* Dashed Separator */}
+                    <div className="border-t border-dashed border-slate-200 dark:border-white/10 my-2 w-[85%] mx-auto" />
+
+                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-2">
+                        {match.oversLimit ? <span>F{match.oversLimit}</span> : null}
+                        <span>.</span>
+                        <span>{dateStr}</span>
+                        <span>-</span>
+                        <span>{formatTimeHMTo12h(match.time)}</span>
                     </p>
                 </div>
 
-                {/* Middle: Team Showdown with Scores */}
-                <div className="flex-1 flex items-center justify-between w-full relative overflow-hidden py-4">
+                {/* Main Content: Teams & Scores */}
+                <div className="flex-1 flex items-center justify-between w-full px-4 py-4">
                     {/* Team A Pod */}
-                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                        <div className="h-12 sm:h-14 w-12 sm:w-16 bg-slate-200 dark:bg-slate-800/50 rounded-r-full flex items-center justify-center shrink-0 border-y border-r border-slate-300 dark:border-white/10 shadow-sm relative pr-1">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="h-12 w-12 bg-slate-50 dark:bg-slate-800/40 rounded-full flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden p-1.5">
                             {teamALogo ? (
-                                <img src={teamALogo} alt={teamAName} className="w-10 h-10 sm:w-12 sm:h-12 object-contain relative z-10 transition-transform group-hover:scale-110" />
+                                <img src={teamALogo} alt={teamAName} className="w-full h-full object-contain" />
                             ) : (
-                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-400 flex items-center justify-center text-white text-[12px] font-semibold uppercase relative z-10">
+                                <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase">
                                     {teamAName.charAt(0)}
                                 </div>
                             )}
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 uppercase truncate leading-tight">
+                            <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 uppercase truncate">
                                 {teamAName}
                             </span>
-                            <div className="flex flex-col items-baseline">
-                                {(match as any).isSuperOver && (
-                                    <div className="flex items-center gap-1 mb-0.5">
-                                        <span className="text-[20px] sm:text-[22px] font-semibold text-amber-600 dark:text-amber-500 tabular-nums leading-none">
-                                            {teamASuperInnings ? `${teamASuperInnings.totalRuns}/${teamASuperInnings.totalWickets}` : (match.score?.teamA_super ? `${match.score.teamA_super.runs}/${match.score.teamA_super.wickets}` : '0/0')}
+                            {!isUpcoming && (
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-[18px] font-black text-emerald-600 dark:text-emerald-500 tabular-nums">
+                                        {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
+                                    </span>
+                                    {teamAInnings?.overs && (
+                                        <span className="text-[9px] font-bold text-slate-400 tabular-nums lowercase">
+                                            ({teamAInnings.overs})
                                         </span>
-                                        <div className="flex flex-col">
-                                            <span className="text-[8px] font-medium text-slate-400 uppercase tracking-tighter leading-none">SO</span>
-                                            {teamASuperInnings?.overs && (
-                                                <span className="text-[8px] font-medium text-amber-600/60 leading-none">({teamASuperInnings.overs})</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                                <span className={((match as any).isSuperOver)
-                                    ? "text-[12px] sm:text-[13px] font-medium text-slate-400 tabular-nums leading-none"
-                                    : "text-[20px] sm:text-[22px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none drop-shadow-[0_2px_10px_rgba(16,185,129,0.3)]"}>
-                                    {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
-                                    {teamAInnings?.overs && !((match as any).isSuperOver) && (
-                                        <span className="text-[9px] font-medium text-slate-400 ml-1">({teamAInnings.overs})</span>
                                     )}
-                                </span>
-                            </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Center: VS Icon (Always) + LIVE Badge if active */}
-                    <div className="shrink-0 flex flex-col items-center justify-center px-1 sm:px-3 gap-1 z-10 mx-[-4px] sm:mx-0">
-                        {isLive && (
-                            <div className="bg-red-500/10 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-500/20 shadow-sm animate-in fade-in zoom-in duration-300">
-                                <div className="w-1 h-1 bg-red-600 dark:bg-red-500 rounded-full animate-pulse" />
-                                <span className="text-[8px] font-semibold text-red-600 dark:text-red-500 tracking-tighter">LIVE</span>
+                    {/* Center: VS or LIVE Badge */}
+                    <div className="shrink-0 px-2">
+                        {isLive ? (
+                            <div className="bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-100 shadow-sm">
+                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                <span className="text-[9px] font-black text-red-600 tracking-widest uppercase">Live</span>
                             </div>
-                        )}
-                        {!isLive && (
-                            <div className="relative z-20 drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_1px_4px_rgba(255,255,255,0.15)]">
-                                <div className="bg-white dark:bg-slate-700 w-11 h-7 sm:w-[52px] sm:h-8 flex items-center justify-center overflow-hidden"
-                                    style={{
-                                        WebkitMaskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
-                                        WebkitMaskSize: '100% 100%',
-                                        maskImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6,0 L94,0 C97.3,0 100,2.7 100,6 L86,52 C84.8,56.7 80.6,60 75.8,60 L24.2,60 C19.4,60 15.2,56.7 14,52 L0,6 C0,2.7 2.7,0 6,0 Z' fill='black'/%3E%3C/svg%3E")`,
-                                        maskSize: '100% 100%'
-                                    }}>
-                                    <img
-                                        src={vsIcon}
-                                        alt="VS"
-                                        className="w-[90%] h-[90%] object-contain"
-                                        style={{ filter: 'brightness(0) saturate(100%) invert(50%) sepia(90%) saturate(4000%) hue-rotate(10deg) brightness(100%) contrast(110%)' }}
+                        ) : (
+                            <div className="relative shrink-0 flex items-center justify-center w-18 h-8">
+                                {/* Rounded Trapezoid Background - Dark Mode Refined */}
+                                <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full drop-shadow-[0_2px_6px_rgba(0,0,0,0.15)] dark:drop-shadow-[0_0_8px_rgba(30,41,59,0.5)] transition-all overflow-visible">
+                                    <path
+                                        d="M 10 2 H 90 C 96 2 98 4 96 9 L 85 51 C 83 56 78 60 70 60 H 30 C 22 60 17 56 15 51 L 4 9 C 2 4 4 2 10 2 Z"
+                                        className="fill-slate-200 dark:fill-[#1e293b] stroke-slate-300 dark:stroke-white/10 stroke-1 transition-colors"
                                     />
-                                </div>
+                                </svg>
+
+                                {/* The VS Icon - Forced Deep Orange via SVG Filters */}
+                                <img
+                                    src={vsIcon}
+                                    alt="VS"
+                                    className="relative z-10 w-11 h-11 object-contain translate-y-[-0.5px] drop-shadow-[0_2px_8px_rgba(249,115,22,0.4)]"
+                                    style={{
+                                        filter: 'invert(53%) sepia(93%) saturate(2855%) hue-rotate(346deg) brightness(101%) contrast(106%)'
+                                    }}
+                                />
                             </div>
                         )}
                     </div>
 
                     {/* Team B Pod */}
-                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 justify-end">
-                        <div className="flex flex-col items-end min-w-0 text-right">
-                            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-slate-200 uppercase truncate leading-tight">
+                    <div className="flex items-center gap-3 flex-1 min-w-0 justify-end text-right">
+                        <div className="flex flex-col items-end min-w-0">
+                            <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 uppercase truncate">
                                 {teamBName}
                             </span>
-                            <div className="flex flex-col items-end">
-                                {(match as any).isSuperOver && (
-                                    <div className="flex items-center gap-1 mb-0.5">
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[8px] font-medium text-slate-400 uppercase tracking-tighter leading-none">SO</span>
-                                            {teamBSuperInnings?.overs && (
-                                                <span className="text-[8px] font-medium text-amber-600/60 leading-none">({teamBSuperInnings.overs})</span>
-                                            )}
-                                        </div>
-                                        <span className="text-[20px] sm:text-[22px] font-semibold text-amber-600 dark:text-amber-500 tabular-nums leading-none">
-                                            {teamBSuperInnings ? `${teamBSuperInnings.totalRuns}/${teamBSuperInnings.totalWickets}` : (match.score?.teamB_super ? `${match.score.teamB_super.runs}/${match.score.teamB_super.wickets}` : '0/0')}
+                            {!isUpcoming && (
+                                <div className="flex items-baseline gap-1 justify-end">
+                                    {teamBInnings?.overs && (
+                                        <span className="text-[9px] font-bold text-slate-400 tabular-nums lowercase">
+                                            ({teamBInnings.overs})
                                         </span>
-                                    </div>
-                                )}
-                                <span className={((match as any).isSuperOver)
-                                    ? "text-[12px] sm:text-[13px] font-medium text-slate-400 tabular-nums leading-none"
-                                    : "text-[20px] sm:text-[22px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums leading-none drop-shadow-[0_2px_10px_rgba(16,185,129,0.3)]"}>
-                                    {teamBInnings?.overs && !((match as any).isSuperOver) && (
-                                        <span className="text-[9px] font-medium text-slate-400 mr-1">({teamBInnings.overs})</span>
                                     )}
-                                    {teamBInnings ? `${teamBInnings.totalRuns}/${teamBInnings.totalWickets}` : '0/0'}
-                                </span>
-                            </div>
+                                    <span className="text-[18px] font-black text-emerald-600 dark:text-emerald-500 tabular-nums">
+                                        {teamBInnings ? `${teamBInnings.totalRuns}/${teamBInnings.totalWickets}` : '0/0'}
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                        <div className="h-12 sm:h-14 w-12 sm:w-16 bg-slate-200 dark:bg-slate-800/50 rounded-l-full flex items-center justify-center shrink-0 border-y border-l border-slate-300 dark:border-white/10 shadow-sm relative pl-1">
+                        <div className="h-12 w-12 bg-slate-50 dark:bg-slate-800/40 rounded-full flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden p-1.5">
                             {teamBLogo ? (
-                                <img src={teamBLogo} alt={teamBName} className="w-10 h-10 sm:w-12 sm:h-12 object-contain relative z-10 transition-transform group-hover:scale-110" />
+                                <img src={teamBLogo} alt={teamBName} className="w-full h-full object-contain" />
                             ) : (
-                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-400 flex items-center justify-center text-white text-[12px] font-semibold uppercase relative z-10">
+                                <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase">
                                     {teamBName.charAt(0)}
                                 </div>
                             )}
@@ -387,50 +288,35 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     </div>
                 </div>
 
-                {/* Venue */}
-                <div className="px-4 pb-2 text-center">
-                    <p className="text-[8px] sm:text-[9px] font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-widest">{match.venue || 'Venue TBD'}</p>
+                <div className="text-center pb-2">
+                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                        {match.venue || 'SMA Home Ground'}
+                    </p>
                 </div>
 
-                {/* Footer Section: Dynamic Status */}
-                <div className={`mt-auto py-2.5 text-center border-t relative overflow-hidden ${isUpcoming ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-100' :
-                    isLive ? 'bg-orange-50/80 dark:bg-orange-950/30 border-orange-200/50' :
-                        'bg-emerald-100/40 dark:bg-emerald-950/20 border-emerald-200/50'
-                    } dark:border-white/5`}>
-                    <div className="absolute inset-0 bg-grid-slate-200/[0.05] [mask-image:linear-gradient(0deg,white,transparent)] dark:bg-grid-white/[0.02]" />
-                    <p className={`relative z-10 text-[10px] sm:text-[11px] font-semibold uppercase px-4 truncate transition-colors tracking-wider flex items-center justify-center gap-2 ${isUpcoming ? 'text-blue-600 dark:text-blue-400' :
-                        isLive ? 'text-[#ff6b00] dark:text-[#ff6b00]' :
-                            'text-emerald-700 dark:text-emerald-500'
+                {/* Footer Status Bar - Compressed & Refined colors */}
+                <div className={`mt-auto py-1.5 px-4 text-center border-t border-slate-100 dark:border-white/5 transition-colors ${isUpcoming ? 'bg-blue-50/20 dark:bg-blue-500/5' :
+                    isLive ? 'bg-orange-50/40 dark:bg-orange-500/5' :
+                        'bg-emerald-50/30 dark:bg-emerald-500/5'
+                    }`}>
+                    <p className={`text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 ${isUpcoming ? 'text-blue-600' :
+                        isLive ? 'text-orange-600' :
+                            'text-emerald-700'
                         }`}>
                         {isUpcoming ? (
                             <>
-                                <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                {timeLeft === 'WAITING FOR START' ? (
-                                    <span className="animate-pulse">WAITING FOR START</span>
-                                ) : (
-                                    <>Starts In: <span className="tabular-nums font-semibold text-[12px] sm:text-[13px]">{timeLeft}</span></>
-                                )}
+                                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                                {timeLeft || 'Waiting for start'}
                             </>
                         ) : isLive ? (
-                            <span className="font-semibold flex items-center justify-center gap-1.5">
-                                <span className="flex h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
-                                {runsNeededText ? (
-                                    runsNeededText
-                                ) : (match as any).matchPhase === 'Tied' ? (
-                                    <span className="animate-pulse">⚡ Match Tied!</span>
-                                ) : (match as any).isSuperOver ? (
-                                    <>⚡ SUPER OVER</>
-                                ) : tossInfo ? (
-                                    <>
-                                        {tossInfo.winnerName} won the toss & choose to {tossInfo.decision === 'bat' ? 'bat' : 'bowl'}
-                                    </>
-                                ) : 'Innings Break'}
-                            </span>
+                            <>
+                                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                                {runsNeededText || (match as any).matchPhase === 'Tied' ? 'Match Tied!' : tossInfo ? `${tossInfo.winnerName} won the toss & choose to ${tossInfo.decision}` : 'Live Action'}
+                            </>
                         ) : (
-                            <span className="font-semibold flex items-center justify-center gap-1.5">
-                                <span className="text-[12px]">🏆</span>
-                                {resultText || 'Match Finished'}
-                            </span>
+                            <>
+                                🏆 {resultText || 'Match Finished'}
+                            </>
                         )}
                     </p>
                 </div>

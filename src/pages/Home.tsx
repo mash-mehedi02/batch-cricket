@@ -27,7 +27,7 @@ const HeroCricketSection = () => {
       <motion.h2
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-teal-400 font-bold tracking-[0.4em] uppercase text-[9px] sm:text-[11px] mb-3"
+        className="text-teal-400 font-bold tracking-[0.4em] uppercase text-[7px] sm:text-[9px] mb-1"
       >
         The Ultimate Platform
       </motion.h2>
@@ -35,7 +35,7 @@ const HeroCricketSection = () => {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.2 }}
-        className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tighter mb-2 leading-none"
+        className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter mb-1 leading-none"
       >
         <span className="italic">CRICKET</span> <span className="text-teal-400">LIVE</span>
       </motion.h1>
@@ -43,12 +43,12 @@ const HeroCricketSection = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="text-teal-400 font-extrabold tracking-[0.2em] text-[10px] sm:text-xs mx-auto mb-6 uppercase"
+        className="text-teal-400 font-extrabold tracking-[0.2em] text-[8px] sm:text-[10px] mx-auto mb-2 uppercase"
       >
         FASTEST SCORE • DEEP INSIGHTS
       </motion.p>
-      <div className="w-12 h-1 bg-teal-500 rounded-full mb-6 sm:mb-4 mx-auto" />
-      <div className="relative w-full max-w-[300px] sm:max-w-[320px] md:max-w-md flex items-center justify-center -mt-6 sm:-mt-10">
+      <div className="w-8 h-0.5 bg-teal-500 rounded-full mb-4 sm:mb-2 mx-auto" />
+      <div className="relative w-full max-w-[240px] sm:max-w-[260px] md:max-w-[300px] flex items-center justify-center -mt-6 sm:-mt-10">
         <HeroCricketAnimation />
       </div>
     </>
@@ -155,8 +155,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#060b16] font-sans overflow-x-hidden">
-      {/* MODERN HERO SECTION - Exactly 50vh to center the curve */}
-      <div className="relative bg-[#060b16] text-white flex flex-col pt-6 transition-all duration-500 h-[50vh] min-h-[450px] overflow-visible">
+      {/* MODERN HERO SECTION - Exactly 40vh to center the curve */}
+      <div className="relative bg-[#060b16] text-white flex flex-col pt-6 transition-all duration-500 h-[40vh] min-h-[380px] overflow-visible">
 
         {/* CURVED BACKGROUND LAYER - This layer is clipped */}
         <div
@@ -230,7 +230,7 @@ export default function Home() {
           </div>
 
           {/* Hero Content Grid - Pull content up */}
-          <div className="flex-1 flex flex-col items-center justify-start pt-2 sm:pt-4 text-center pb-2">
+          <div className="flex-1 flex flex-col items-center justify-end text-center pb-0">
             <HeroCricketSection />
           </div>
         </div>
@@ -256,8 +256,8 @@ export default function Home() {
           <p className="px-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Participating Teams</p>
 
           {squads.filter(s => s.logoUrl).length > 0 ? (
-            <div className="relative w-full overflow-hidden">
-              <div className="flex w-max animate-marquee hover:pause gap-8">
+            <div className="relative w-full overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+              <div className="flex w-max animate-marquee hover:pause gap-8 py-2">
                 {/* Auto-moving list of squads WITH logos */}
                 {(() => {
                   const filtered = squads.filter(s => s && s.name && s.logoUrl)
