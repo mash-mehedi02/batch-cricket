@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { voteService } from '@/services/firestore/voteService';
 import { useAuthStore } from '@/store/authStore';
+import { toast } from 'react-hot-toast';
 
 const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, isFinished }) => {
     const { user } = useAuthStore();
@@ -26,14 +27,22 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, is
     }, [matchId]);
 
     const handleVote = async (team) => {
-        if (userVote || isCasting || isFinished || isAdmin) return;
+        if (userVote || isCasting || isFinished) return;
 
         setIsCasting(true);
-        const success = await voteService.castVote(matchId, team);
-        if (success) {
-            setUserVote(team);
+        try {
+            const success = await voteService.castVote(matchId, team);
+            if (success) {
+                setUserVote(team);
+                toast.success('Vote recorded!');
+            } else {
+                toast.error('Failed to record vote. Try again later.');
+            }
+        } catch (err) {
+            toast.error('Connection error while voting.');
+        } finally {
+            setIsCasting(false);
         }
-        setIsCasting(false);
     };
 
     const showResults = userVote || isFinished;

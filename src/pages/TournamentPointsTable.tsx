@@ -108,11 +108,6 @@ export default function TournamentPointsTable({
     if (inningsMapProp) setInningsMap(inningsMapProp)
   }, [matchesProp, inningsMapProp])
 
-  useEffect(() => {
-    if (highlightMatch?.groupId) {
-      setActiveGroupId(highlightMatch.groupId)
-    }
-  }, [highlightMatch])
 
   useEffect(() => {
     const run = async () => {
@@ -422,6 +417,26 @@ export default function TournamentPointsTable({
 
     return { groups: groupsList, standingsByGroup: standingsData, confirmedQualifiedIds: hideQualification ? [] : Array.from(confirmedQualifiedIds) }
   }, [inningsMap, matches, squadIdByName, squadsById, tournament, tournamentId, filterSquadIds, hideQualification])
+
+  useEffect(() => {
+    if (highlightMatch) {
+      if (highlightMatch.groupId) {
+        setActiveGroupId(highlightMatch.groupId)
+      } else if (groups.length > 0) {
+        // Try to find group by team IDs
+        const aId = String(highlightMatch.teamAId || (highlightMatch as any).teamASquadId || '').trim()
+        const bId = String(highlightMatch.teamBId || (highlightMatch as any).teamBSquadId || '').trim()
+
+        const found = groups.find(g =>
+          (g.squadIds || []).includes(aId) ||
+          (g.squadIds || []).includes(bId)
+        )
+        if (found) {
+          setActiveGroupId(found.id)
+        }
+      }
+    }
+  }, [highlightMatch, groups])
 
   useEffect(() => {
     if (groups.length > 0 && !activeGroupId) setActiveGroupId(groups[0].id)

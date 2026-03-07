@@ -62,6 +62,8 @@ const CrexLiveSection = ({
   currentInnings,
   teamAInnings,
   teamBInnings,
+  teamASuperInnings,
+  teamBSuperInnings,
   teamASquad,
   teamBSquad,
   resultSummary,
@@ -125,7 +127,10 @@ const CrexLiveSection = ({
       return (Number(ovParts) * 6) + Number(bParts || 0);
     };
     const cBalls = parseOversToBalls(currentOvers);
-    const defInn = battingTeamSide === 'teamA' ? teamBInnings : teamAInnings;
+    const isSO = String(battingInningId).includes('super');
+    const defInn = isSO
+      ? (battingTeamSide === 'teamA' ? teamBSuperInnings : teamASuperInnings)
+      : (battingTeamSide === 'teamA' ? teamBInnings : teamAInnings);
     const stageScore = defInn?.oversProgress?.slice().reverse().find(p => (p.balls || parseOversToBalls(p.over)) <= cBalls);
 
     const prob = calculateWinProbability({
@@ -562,7 +567,7 @@ const CrexLiveSection = ({
               <div className="flex items-center justify-between relative z-10">
                 {/* Chasing Team (Left) */}
                 {(() => {
-                  const isTeamA = currentInnings?.inningId === 'teamA';
+                  const isTeamA = (currentInnings?.inningId || '').includes('teamA');
                   const squad = isTeamA ? teamASquad : teamBSquad;
                   const name = isTeamA ? teamAName : teamBName;
                   const logo = squad?.logoUrl;
@@ -616,10 +621,18 @@ const CrexLiveSection = ({
 
                 {/* Defending Team (Right) */}
                 {(() => {
-                  const isTeamA = currentInnings?.inningId === 'teamA';
-                  const defendingInning = isTeamA ? teamBInnings : teamAInnings;
-                  const defendingSquad = isTeamA ? teamBSquad : teamASquad;
-                  const defendingName = isTeamA ? teamBName : teamAName;
+                  const battingInningId = currentInnings?.inningId || (match && match.currentBatting) || 'teamA';
+                  const isSO = String(battingInningId).includes('super');
+                  const isBattingTeamA = battingInningId.includes('teamA');
+
+                  // In SO, compare against the other side's SO innings
+                  const defendingInning = isSO
+                    ? (isBattingTeamA ? teamBSuperInnings : teamASuperInnings)
+                    : (isBattingTeamA ? teamBInnings : teamAInnings);
+
+                  const defendingSide = isBattingTeamA ? 'teamB' : 'teamA';
+                  const defendingSquad = isBattingTeamA ? teamBSquad : teamASquad;
+                  const defendingName = isBattingTeamA ? teamBName : teamAName;
                   const defendingLogo = defendingSquad?.logoUrl;
 
                   // Helper to parse "2.4" -> 16 balls
@@ -669,7 +682,7 @@ const CrexLiveSection = ({
                           {formatShortTeamName(defendingName)}
                         </div>
                         <div className="text-xl font-semibold text-slate-900 dark:text-white tabular-nums">
-                          {stageSnapshot ? `${stageSnapshot.runs}-${stageSnapshot.wickets}` : (defenderProgress.length > 0 ? '—' : 'Sync...')}
+                          {stageSnapshot ? `${stageSnapshot.runs}-${stageSnapshot.wickets}` : '0-0'}
                         </div>
                       </div>
                     </div>

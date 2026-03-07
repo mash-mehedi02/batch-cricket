@@ -400,7 +400,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
               <button
                 key={tab.id}
                 onClick={() => setSelectedInning(tab.id)}
-                className={`flex-1 min-w-[120px] px-4 py-2 rounded-xl transition-all duration-200 border relative overflow-hidden
+                className={`flex-1 min-w-[150px] px-6 py-2.5 rounded-lg transition-all duration-200 border relative overflow-hidden
                   ${isActive
                     ? (isSuperTab
                       ? 'bg-amber-500 border-amber-400 text-white shadow-md'

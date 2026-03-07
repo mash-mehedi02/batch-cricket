@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -26,7 +27,8 @@ import {
     X,
     Flame,
     SunDim,
-    Stethoscope
+    Stethoscope,
+    AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { getMatchResultString, calculateMatchWinner } from '@/utils/matchWinner';
@@ -69,6 +71,12 @@ const AdminLiveScoring = () => {
     const [nextBatterModalOpen, setNextBatterModalOpen] = useState(false);
     const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
     const [undoModalOpen, setUndoModalOpen] = useState(false);
+    const [confirmModal, setConfirmModal] = useState<{ open: boolean, title: string, message: string, onConfirm: () => void, bengali?: string }>({
+        open: false,
+        title: '',
+        message: '',
+        onConfirm: () => { }
+    });
     const [sendMailChecked, setSendMailChecked] = useState(false);
 
     // Wicket Modal State
@@ -457,12 +465,28 @@ const AdminLiveScoring = () => {
         }
 
         // Determine which innings to undo. 
-        // Fallback to teamA if currentBatting is missing or empty.
-        let inningKv = match.currentBatting || 'teamA';
-        console.log(`[AdminLiveScoring] executeUndo triggered. matchId: ${matchId}, currentBatting: ${match.currentBatting || 'N/A'}`);
+        // SMARTER INNING DETECTION:
+        // Use currentBatting if it looks correct for the current phase, 
+        // otherwise derive from matchPhase + isSuperOver.
+        let inningKv = match.currentBatting || '';
+        const phase = String(match.matchPhase || '').toLowerCase();
+        const isSO = Boolean(match.isSuperOver);
 
-        if (!match.currentBatting) {
-            console.log("[AdminLiveScoring] currentBatting missing in match doc, defaulting to teamA for undo check.");
+        if (!inningKv) {
+            // Default based on phase
+            if (isSO) {
+                inningKv = phase === 'secondinnings' ? 'teamB_super' : 'teamA_super';
+            } else {
+                inningKv = phase === 'secondinnings' ? 'teamB' : 'teamA';
+            }
+            console.log(`[AdminLiveScoring] currentBatting missing, inferred ${inningKv} from phase: ${phase}`);
+        } else if (isSO && !inningKv.includes('super')) {
+            // CORRECTION: If we are in Super Over mode but currentBatting says teamA/teamB, 
+            // it's likely a state mismatch (like the one that corrupted the match).
+            // Fix it locally for the undo operation.
+            const oldKv = inningKv;
+            inningKv = `${inningKv}_super`;
+            console.log(`[AdminLiveScoring] ⚠️ Super Over active but currentBatting was ${oldKv}. Correcting to ${inningKv} for undo.`);
         }
 
         processingRef.current = true;
@@ -518,12 +542,35 @@ const AdminLiveScoring = () => {
 
             // 2b. Delete orphaned manual commentary (e.g. "New Batter") that happened after this ball
             if (ballToUndo.timestamp) {
-                const ts = ballToUndo.timestamp.toDate ? ballToUndo.timestamp.toDate() : new Date(ballToUndo.timestamp);
+                const ballTs = ballToUndo.timestamp;
+                const ts = (ballTs && typeof (ballTs as any).toDate === 'function') ? (ballTs as any).toDate() : new Date(ballTs as any);
                 await commentaryService.deleteOrphanedCommentaryAfter(matchId, ts);
             }
 
             // 3. Recalculate stats - This updates the innings document and some match fields
             await recalculateInnings(matchId, inningKv as any, { useTransaction: false });
+
+            const statusLower = String(match.status || '').toLowerCase();
+            const phaseLower = String(match.matchPhase || '').toLowerCase();
+
+            // Determine actual batting order
+            const tw = String(match.tossWinner || '').trim();
+            const decRaw = String((match as any).electedTo || (match as any).tossDecision || '').trim().toLowerCase();
+            let firstSide = 'teamA';
+
+            if (tw && decRaw) {
+                const tossSide = (tw === 'teamA' || tw === match.teamAId || tw === (match as any).teamASquadId) ? 'teamA' : 'teamB';
+                firstSide = decRaw.includes('bat') ? tossSide : (tossSide === 'teamA' ? 'teamB' : 'teamA');
+            }
+
+            const isSuperOverInningItem = inningKv?.includes('_super');
+            let isFirstInningsItem = false;
+
+            if (isSuperOverInningItem) {
+                isFirstInningsItem = phaseLower !== 'secondinnings';
+            } else {
+                isFirstInningsItem = inningKv === firstSide;
+            }
 
             // 4. Determine Match Document Reversion
             const updates: any = {
@@ -534,17 +581,33 @@ const AdminLiveScoring = () => {
                 updatedAt: Timestamp.now()
             };
 
-            const statusLower = String(match.status || '').toLowerCase();
-            const phaseLower = String(match.matchPhase || '').toLowerCase();
+            // NEW: If we just undid the last ball of the FIRST SO inning, ask to cancel SO
+            if (isSuperOverInningItem && isFirstInningsItem && balls.length === 1) {
+                setConfirmModal({
+                    open: true,
+                    title: 'Cancel Super Over?',
+                    message: 'This was the only ball in the Super Over. Return to Tied state?',
+                    bengali: 'সুপার ওভারে শুধু ১টি বলই ছিল। আপনি কি সুপার ওভার বাতিল করে মেইন ম্যাচের টাই (Tied) অবস্থায় ফিরে যেতে চান?',
+                    onConfirm: async () => {
+                        const finalUpdates = {
+                            ...updates,
+                            isSuperOver: false,
+                            matchPhase: 'Tied',
+                            status: 'live',
+                            target: null
+                        };
+                        await applyUndoUpdates(finalUpdates);
+                    }
+                });
+                return;
+            }
 
-            // IF match was finished or in break, or tied, or if we are back in Team A, bring it back to LIVE
-            const isTeamA = inningKv === 'teamA';
             const wasFinished = ['finished', 'inningsbreak', 'innings break', 'tied'].includes(statusLower) ||
                 ['finished', 'inningsbreak', 'tied'].includes(phaseLower);
 
-            if (wasFinished || isTeamA) {
+            if (wasFinished || isFirstInningsItem) {
                 updates.status = 'live';
-                updates.matchPhase = isTeamA ? 'FirstInnings' : 'SecondInnings';
+                updates.matchPhase = isFirstInningsItem ? 'FirstInnings' : 'SecondInnings';
 
                 // Clear results
                 updates.winnerId = null;
@@ -553,15 +616,9 @@ const AdminLiveScoring = () => {
                 updates.matchResult = null;
                 updates.matchResultText = null;
 
-                // Sync Player stats - remove from history if it was finished
-                if (statusLower === 'finished' || phaseLower === 'finished') {
-                    await matchService.removeMatchStatsFromPlayers(matchId).catch(err => {
-                        console.error("Failed to remove match stats from players:", err);
-                    });
-                }
-
-                // IF undoing from/back to Team A, clear the "finalized" first innings fields
-                if (isTeamA) {
+                // IF undoing from/back to the FIRST innings, clear the "finalized" first innings fields
+                // ONLY if it's not a super over (super overs don't reset the main match first innings score)
+                if (isFirstInningsItem && !isSuperOverInningItem) {
                     updates.innings1Score = 0;
                     updates.innings1Wickets = 0;
                     updates.innings1Overs = "0.0";
@@ -573,14 +630,32 @@ const AdminLiveScoring = () => {
                 updates.lastOverBowlerId = '';
             }
 
-            await matchService.update(matchId, updates);
-            toast.success("Last ball undone successfully");
-        } catch (err) {
-            console.error("Undo failed:", err);
-            toast.error("Failed to undo last ball");
+            await applyUndoUpdates(updates);
+        } catch (err: any) {
+            console.error("[AdminLiveScoring] Undo failed:", err);
+            toast.error("Undo failed: " + err.message);
         } finally {
             setProcessing(false);
             processingRef.current = false;
+        }
+    };
+
+    const applyUndoUpdates = async (updates: any) => {
+        try {
+            const statusLower = String(match?.status || '').toLowerCase();
+            const phaseLower = String(match?.matchPhase || '').toLowerCase();
+
+            if (statusLower === 'finished' || phaseLower === 'finished') {
+                await matchService.removeMatchStatsFromPlayers(matchId!).catch(err => {
+                    console.error("Failed to remove match stats from players:", err);
+                });
+            }
+
+            await matchService.update(matchId!, updates);
+            toast.success("Last ball undone");
+        } catch (err: any) {
+            console.error("[AdminLiveScoring] Failed to apply undo updates:", err);
+            toast.error("Failed to update match after undo");
         }
     };
 
@@ -1309,60 +1384,63 @@ const AdminLiveScoring = () => {
 
     const handleStartSuperOver = async () => {
         if (!matchId || !match) return;
-        if (!window.confirm("ARE YOU SURE? This will start a 1-over Super Over without deleting main match scores!")) return;
 
-        setProcessing(true);
-        processingRef.current = true;
-        try {
-            // 1. Determine Batting Order for Super Over
-            // ICC Rule: Team batting second in the match will bat first in the Super Over.
-            // When match is tied, currentBatting is the team that just finished the 2nd innings.
-            const battedSecond = match.currentBatting === 'teamB' ? 'teamB' : (match.currentBatting === 'teamA' ? 'teamA' : 'teamB');
-            const firstBatInSO = battedSecond;
-            const firstBatSOInningId = firstBatInSO === 'teamA' ? 'teamA_super' : 'teamB_super';
+        setConfirmModal({
+            open: true,
+            title: 'Start Super Over?',
+            message: 'ARE YOU SURE? This will start a 1-over Super Over without deleting main match scores!',
+            bengali: 'আপনি কি নিশ্চিত? এটি ১ ওভারের সুপার ওভার শুরু করবে এবং মেইন ম্যাচের স্কোর মুছবে না।',
+            onConfirm: async () => {
+                setProcessing(true);
+                processingRef.current = true;
+                try {
+                    // 1. Determine Batting Order for Super Over
+                    const currentCB = String(match.currentBatting || 'teamA');
+                    const firstBatInSO = currentCB.includes('teamB') ? 'teamA' : 'teamB';
+                    const firstBatSOInningId = firstBatInSO === 'teamA' ? 'teamA_super' : 'teamB_super';
 
-            console.log(`[SuperOver] Batted Second: ${battedSecond}, First to bat in SO: ${firstBatSOInningId}`);
+                    console.log(`[SuperOver] First to bat in SO: ${firstBatSOInningId}`);
 
-            // 2. Store stats if not already stored
-            const mainScore = match.isSuperOver ? match.mainMatchScore : {
-                teamA: { runs: inningsA?.totalRuns || 0, wickets: inningsA?.totalWickets || 0, overs: inningsA?.overs || "0.0" },
-                teamB: { runs: inningsB?.totalRuns || 0, wickets: inningsB?.totalWickets || 0, overs: inningsB?.overs || "0.0" }
-            };
+                    // 2. Store stats if not already stored
+                    const mainScore = match.isSuperOver ? match.mainMatchScore : {
+                        teamA: { runs: inningsA?.totalRuns || 0, wickets: inningsA?.totalWickets || 0, overs: inningsA?.overs || "0.0" },
+                        teamB: { runs: inningsB?.totalRuns || 0, wickets: inningsB?.totalWickets || 0, overs: inningsB?.overs || "0.0" }
+                    };
 
-            // 3. Setup New Innings for Super Over
-            await matchService.setupSuperOver(matchId, 'teamA_super');
-            await matchService.setupSuperOver(matchId, 'teamB_super');
+                    // 3. Setup New Innings for Super Over
+                    await matchService.setupSuperOver(matchId, 'teamA_super');
+                    await matchService.setupSuperOver(matchId, 'teamB_super');
 
-            // 4. Update Match Document
-            await matchService.update(matchId, {
-                status: 'live',
-                matchPhase: 'FirstInnings', // Re-use phase for SO 1st inn
-                oversLimit: 1,
-                isSuperOver: true,
-                superOverCount: (match.superOverCount || 0) + 1,
-                mainMatchScore: mainScore,
-                currentBatting: firstBatSOInningId,
-                currentStrikerId: '',
-                currentNonStrikerId: '',
-                currentBowlerId: '',
-                // DO NOT reset innings1Score/Wickets/Overs or target here,
-                // as they relate to the main match and are used for display/scorecard.
-                // The Super Over will manage its own score in the 'score' map and innings docs.
-                winnerId: null,
-                resultSummary: null
-            });
+                    // 4. Update Match Document
+                    await matchService.update(matchId, {
+                        status: 'live',
+                        matchPhase: 'FirstInnings',
+                        oversLimit: 1,
+                        isSuperOver: true,
+                        superOverCount: (match.superOverCount || 0) + 1,
+                        mainMatchScore: mainScore,
+                        currentBatting: firstBatSOInningId,
+                        currentStrikerId: '',
+                        currentNonStrikerId: '',
+                        currentBowlerId: '',
+                        winnerId: null,
+                        resultSummary: null
+                    });
 
-            if (matchId) {
-                triggerLiveNotification("SUPER OVER! ⚡\nA Super Over has been initiated! Get ready for the drama!");
+                    if (matchId) {
+                        triggerLiveNotification("SUPER OVER! ⚡\nA Super Over has been initiated! Get ready for the drama!");
+                    }
+                    toast.success("Super Over Started!");
+                    setFinalizeModalOpen(false);
+                } catch (err: any) {
+                    console.error(err);
+                    toast.error("Failed to start Super Over: " + err.message);
+                } finally {
+                    setProcessing(false);
+                    processingRef.current = false;
+                }
             }
-            toast.success("Super Over Started!");
-            setFinalizeModalOpen(false);
-        } catch (err: any) {
-            console.error(err);
-            toast.error("Failed to start Super Over: " + err.message);
-        } finally {
-            setProcessing(false);
-        }
+        });
     };
 
     const resultSummary = useMemo(() => {
@@ -1389,7 +1467,7 @@ const AdminLiveScoring = () => {
             : status;
 
         try {
-            await matchService.update(matchId, { matchPhase: targetStatus });
+            await matchService.update(matchId, { matchPhase: targetStatus as any });
 
             if (!isTogglingOff) {
                 const currentInn = match.currentBatting === 'teamB' ? inningsB : inningsA;
@@ -1417,6 +1495,7 @@ const AdminLiveScoring = () => {
     };
 
 
+
     if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}><Loader2 className="w-10 h-10 animate-spin text-teal-600" /></div>;
     if (!match) return <div style={{ padding: '40px', color: 'red', fontWeight: 700, textAlign: 'center' }}>Match not found</div>;
 
@@ -1436,11 +1515,47 @@ const AdminLiveScoring = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ width: '8px', height: '8px', background: '#4ade80', borderRadius: '50%', boxShadow: '0 0 8px #4ade80' }}></div>
-                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{match.matchPhase === 'Tied' ? 'TIED' : (match.status === 'live' ? 'LIVE SCORING' : match.status?.toUpperCase())}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{(match as any).matchPhase === 'Tied' ? 'TIED' : (match.status === 'live' ? 'LIVE SCORING' : match.status?.toUpperCase())}</span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         {(!currentInnings || (currentInnings.legalBalls || 0) === 0) && (
-                            <button onClick={() => { if (window.confirm(`Switch to ${match.currentBatting === 'teamA' ? match.teamBName : match.teamAName}?`)) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; matchService.update(matchId as string, { currentBatting: nb, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); toast.success('Switched!'); } }} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><SwitchCamera size={14} /></button>
+                            <button onClick={() => {
+                                if (matchId === 'QeSqTaWTqZuMcHh95jIy') {
+                                    setConfirmModal({
+                                        open: true,
+                                        title: 'Repair Match?',
+                                        message: 'This will move misplaced balls to Super Over and fix main match scores.',
+                                        bengali: 'এটি ভুল করে রেকর্ড হওয়া বলগুলো সুপার ওভারে সরিয়ে নেবে এবং মেইন ম্যাচের স্কোর ঠিক করে দেবে। আপনি কি নিশ্চিত?',
+                                        onConfirm: () => handleRepairCorruptedMatch()
+                                    });
+                                    return;
+                                }
+
+                                const isSO = Boolean(match.isSuperOver);
+                                const current = String(match.currentBatting || 'teamA');
+                                let nb = '';
+                                if (isSO) {
+                                    nb = current.includes('teamA') ? 'teamB_super' : 'teamA_super';
+                                } else {
+                                    nb = current === 'teamA' ? 'teamB' : 'teamA';
+                                }
+
+                                setConfirmModal({
+                                    open: true,
+                                    title: `Switch Team?`,
+                                    message: `Switch to ${nb.includes('teamA') ? match.teamAName : match.teamBName}?`,
+                                    bengali: `${nb.includes('teamA') ? match.teamAName : match.teamBName}-এর ব্যাটিং শুরু করতে চান?`,
+                                    onConfirm: () => {
+                                        matchService.update(matchId as string, {
+                                            currentBatting: nb,
+                                            currentStrikerId: '',
+                                            currentNonStrikerId: '',
+                                            currentBowlerId: ''
+                                        });
+                                        toast.success('Switched!');
+                                    }
+                                });
+                            }} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><SwitchCamera size={14} /></button>
                         )}
                         <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '8px' }}>{match.oversLimit} OVERS</span>
                     </div>
@@ -1464,6 +1579,7 @@ const AdminLiveScoring = () => {
                     </div>
                 )}
             </div>
+
 
             {isBreakOrTied ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
@@ -1495,11 +1611,82 @@ const AdminLiveScoring = () => {
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
                         {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={handleStartSuperOver} disabled={processing} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ Super Over</button>}
-                        {match.matchPhase?.toLowerCase() === 'tied' && <button onClick={async () => { if (!matchId) return; if (!window.confirm('Finish as TIE?')) return; setProcessing(true); try { await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: null, resultSummary: 'Match Tied' }); toast.success('Tied!'); } catch (e: any) { toast.error(e.message); } finally { setProcessing(false); } }} disabled={processing} style={{ padding: '10px 20px', background: '#475569', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>🏆 Finish (Tied)</button>}
-                        {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && <button onClick={() => { if (confirm('Start 2nd Innings?')) { const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA'; const t = Number((match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); triggerLiveNotification(`2nd Innings Started! 🏏\n${nb === 'teamA' ? match.teamAName : match.teamBName} needs ${t} runs to win!`); toast.success('2nd Innings Started!'); } }} style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>▶ Start 2nd Innings</button>}
-                        {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && <button onClick={() => { if (confirm('Start SO 2nd Inn?')) { const cb = String(match.currentBatting || ''); const nb = cb.includes('teamA') ? 'teamB_super' : 'teamA_super'; const t = Number(currentInnings?.totalRuns || 0) + 1; matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' }); triggerLiveNotification(`Super Over 2nd Innings! ⚡\nTarget: ${t} runs!`); toast.success('SO 2nd Inn!'); } }} style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>⚡ SO 2nd Inn</button>}
+                        {match.matchPhase?.toLowerCase() === 'tied' && (
+                            <button
+                                onClick={() => {
+                                    setConfirmModal({
+                                        open: true,
+                                        title: 'Finish as TIE?',
+                                        message: 'Are you sure you want to finish this match as a Tie?',
+                                        bengali: 'আপনি কি নিশ্চিত যে এই ম্যাচটি টাই (Tie) হিসেবে শেষ করতে চান?',
+                                        onConfirm: async () => {
+                                            if (!matchId) return;
+                                            setProcessing(true);
+                                            try {
+                                                await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: null, resultSummary: 'Match Tied' });
+                                                toast.success('Tied!');
+                                            } catch (e: any) {
+                                                toast.error(e.message);
+                                            } finally {
+                                                setProcessing(false);
+                                            }
+                                        }
+                                    });
+                                }}
+                                disabled={processing}
+                                style={{ padding: '10px 20px', background: '#475569', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                            >
+                                🏆 Finish (Tied)
+                            </button>
+                        )}
+                        {match.matchPhase?.toLowerCase() === 'inningsbreak' && !isSuper && (
+                            <button
+                                onClick={() => {
+                                    setConfirmModal({
+                                        open: true,
+                                        title: 'Start 2nd Innings?',
+                                        message: 'This will move the match to the second innings.',
+                                        bengali: 'আপনি কি ২য় ইনিংস শুরু করতে চান?',
+                                        onConfirm: () => {
+                                            const nb = match.currentBatting === 'teamA' ? 'teamB' : 'teamA';
+                                            const t = Number((match.currentBatting === 'teamA' ? inningsA : inningsB)?.totalRuns || 0) + 1;
+                                            matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' });
+                                            triggerLiveNotification(`2nd Innings Started! 🏏\n${nb === 'teamA' ? match.teamAName : match.teamBName} needs ${t} runs to win!`);
+                                            toast.success('2nd Innings Started!');
+                                        }
+                                    });
+                                }}
+                                style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                            >
+                                ▶ Start 2nd Innings
+                            </button>
+                        )}
+                        {isSuper && match.matchPhase?.toLowerCase() === 'inningsbreak' && (
+                            <button
+                                onClick={() => {
+                                    setConfirmModal({
+                                        open: true,
+                                        title: 'Start SO 2nd Inn?',
+                                        message: 'Start the second innings of the Super Over.',
+                                        bengali: 'সুপার ওভারের ২য় ইনিংস শুরু করতে চান?',
+                                        onConfirm: () => {
+                                            const cb = String(match.currentBatting || '');
+                                            const nb = cb.includes('teamA') ? 'teamB_super' : 'teamA_super';
+                                            const t = Number(currentInnings?.totalRuns || 0) + 1;
+                                            matchService.update(matchId!, { status: 'live', matchPhase: 'SecondInnings', currentBatting: nb, target: t, currentStrikerId: '', currentNonStrikerId: '', currentBowlerId: '' });
+                                            triggerLiveNotification(`Super Over 2nd Innings! ⚡\nTarget: ${t} runs!`);
+                                            toast.success('SO 2nd Inn!');
+                                        }
+                                    });
+                                }}
+                                style={{ padding: '10px 20px', background: '#f59e0b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                            >
+                                ⚡ SO 2nd Inn
+                            </button>
+                        )}
                         {match.matchPhase?.toLowerCase() !== 'tied' && <button onClick={() => setFinalizeModalOpen(true)} style={{ padding: '10px 20px', background: '#1e293b', color: '#fff', fontWeight: 800, borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '13px' }}>Finalize</button>}
                         <button onClick={() => setUndoModalOpen(true)} disabled={processing} style={{ padding: '10px 20px', background: '#fef2f2', color: '#dc2626', fontWeight: 800, borderRadius: '12px', border: '1px solid #fecaca', cursor: 'pointer', fontSize: '13px' }}><RotateCcw size={14} /> Undo</button>
+
                     </div>
                 </div>
             ) : match.status?.toLowerCase() === 'finished' ? (
@@ -1966,6 +2153,60 @@ const AdminLiveScoring = () => {
                     </div>
                 </div>
             )}
+            {/* CUSTOM CONFIRM MODAL */}
+            <AnimatePresence>
+                {confirmModal.open && (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+                            style={{ position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)' }}
+                        />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            style={{ position: 'relative', background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '360px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}
+                        >
+                            <div style={{ padding: '24px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <AlertCircle size={24} style={{ color: '#f59e0b' }} />
+                                    </div>
+                                    <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#1e293b', margin: 0 }}>{confirmModal.title}</h3>
+                                </div>
+                                <p style={{ fontSize: '14px', fontWeight: 600, color: '#475569', margin: '0 0 12px', lineHeight: 1.5 }}>
+                                    {confirmModal.message}
+                                </p>
+                                {confirmModal.bengali && (
+                                    <p style={{ fontSize: '13px', fontWeight: 700, color: '#0d9488', background: '#f0fdfa', padding: '12px', borderRadius: '12px', border: '1px solid #ccfbf1', margin: 0, lineHeight: 1.6 }}>
+                                        {confirmModal.bengali}
+                                    </p>
+                                )}
+                            </div>
+                            <div style={{ padding: '16px 24px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <button
+                                    onClick={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+                                    style={{ padding: '12px', borderRadius: '14px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 800, fontSize: '14px', cursor: 'pointer' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        confirmModal.onConfirm();
+                                        setConfirmModal(prev => ({ ...prev, open: false }));
+                                    }}
+                                    style={{ padding: '12px', borderRadius: '14px', border: 'none', background: '#0d9488', color: '#fff', fontWeight: 800, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13, 148, 136, 0.2)' }}
+                                >
+                                    Confirm
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

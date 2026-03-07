@@ -7,7 +7,7 @@ import { Timestamp } from 'firebase/firestore'
 
 // ==================== AUTH ====================
 
-export type UserRole = 'super_admin' | 'admin' | 'scorer' | 'player' | 'viewer'
+export type UserRole = 'super_admin' | 'admin' | 'scorer' | 'player' | 'viewer' | 'guest'
 
 export interface User {
   uid: string
@@ -19,6 +19,13 @@ export interface User {
   managedSchools?: string[] // For sub-admins
   createdAt: Timestamp
   lastLogin?: Timestamp
+  ip?: string
+  location?: string
+  deviceInfo?: {
+    userAgent: string
+    platform: string
+    deviceName?: string
+  }
   playerId?: string
   isRegisteredPlayer?: boolean
   linkedPlayerId?: string

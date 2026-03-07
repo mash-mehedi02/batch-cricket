@@ -846,23 +846,31 @@ export default function MatchLive() {
     const fSide = isAWinner ? (dec === 'bat' ? 'teamA' : 'teamB') : (dec === 'bat' ? 'teamB' : 'teamA');
 
     const isMainSecondInn = (match as any)?.matchPhase === 'SecondInnings' || (match as any)?.matchPhase === 'InningsBreak' || isFinishedMatch;
-    const isSO = (match as any)?.matchPhase === 'superover' || (match as any)?.isSuperOver;
-    const hasTarget = Number((match as any)?.target || (currentInnings as any)?.target || 0) > 0;
+    const isSO = (match as any)?.isSuperOver || (match as any)?.matchPhase === 'superover';
 
-    // In Super Over, we are in "second innings" mode if current is second SO innings
+    // In Super Over, we are in "second innings" mode ONLY if current is second SO innings
+    // And to be safe against undo glitches, check if the other SO innings has any balls/runs
+    const soFirstInn = fSide === 'teamA' ? teamBSuperInnings : teamASuperInnings;
+
+    // Target logic: only relevant if we are in a second innings phase
+    // For SO, hasTarget should ONLY look at the specific SO target, not the match-level target
+    const soTarget = Number((currentInnings as any)?.inningId?.includes('super') ? (currentInnings as any)?.target : 0);
+    const hasSOTarget = isSO && soTarget > 0;
+
+    // We are in second innings of SO if we are batting SO and the first SO team has already batted
     const isSOSec = isSO && currentInnings?.inningId?.includes('super') && (
-      (fSide === 'teamA' && currentInnings.inningId === 'teamA_super') ||
-      (fSide === 'teamB' && currentInnings.inningId === 'teamB_super')
+      match?.matchPhase === 'SecondInnings' ||
+      (soFirstInn && Number(soFirstInn?.legalBalls || 0) > 0) ||
+      hasSOTarget
     );
 
-    const isSecondInn = isMainSecondInn || isSOSec || (isSO && hasTarget);
+    const isSecondInn = (!isSO && isMainSecondInn) || (isSO && isSOSec);
 
     let targetVal = Number((currentInnings as any)?.target || 0);
 
     if (!targetVal && isSecondInn) {
       if (isSOSec || (isSO && !isMainSecondInn)) {
         // Target for SO 2nd comes from SO 1st
-        const soFirstInn = fSide === 'teamA' ? teamBSuperInnings : teamASuperInnings;
         if (soFirstInn && Number(soFirstInn.totalRuns || 0) > 0) {
           targetVal = Number(soFirstInn.totalRuns) + 1;
         }
@@ -875,13 +883,18 @@ export default function MatchLive() {
         const mScore1 = Number((match as any)?.score?.[fSide]?.runs || 0);
         targetVal = mTarget || (mInn1 > 0 ? mInn1 + 1 : (mScore1 > 0 ? mScore1 + 1 : 0));
 
-        if (!targetVal) {
+        if (!targetVal && !isSO) {
           const firstInn = fSide === 'teamA' ? teamAInnings : teamBInnings;
           if (firstInn && Number(firstInn.totalRuns || 0) > 0) {
             targetVal = Number(firstInn.totalRuns) + 1;
           }
         }
       }
+    }
+
+    // In a super over, if we aren't in the second innings, the target is definitely 0
+    if (isSO && !isSecondInn) {
+      targetVal = 0;
     }
 
     const runsDone = Number((currentInnings as any)?.totalRuns || 0);
@@ -1669,6 +1682,7 @@ export default function MatchLive() {
               teamBName={teamBName}
               teamABatch={teamASquad?.batch}
               teamBBatch={teamBSquad?.batch}
+              isFinished={isFinishedMatch}
             />
           </div>
 
@@ -1756,6 +1770,8 @@ export default function MatchLive() {
               teamBName={teamBName}
               teamAInnings={teamAInnings}
               teamBInnings={teamBInnings}
+              teamASuperInnings={teamASuperInnings}
+              teamBSuperInnings={teamBSuperInnings}
               firstSide={firstSide}
               secondSide={secondSide}
               resultSummary={isFinishedMatch ? (calculatedResultSummary || (match as any)?.resultSummary || null) : null}
@@ -1840,6 +1856,8 @@ export default function MatchLive() {
               teamBName={teamBName}
               teamAInnings={teamAInnings}
               teamBInnings={teamBInnings}
+              teamASuperInnings={teamASuperInnings}
+              teamBSuperInnings={teamBSuperInnings}
               teamASquad={teamASquad}
               teamBSquad={teamBSquad}
               firstSide={firstSide}

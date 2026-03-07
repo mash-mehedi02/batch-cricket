@@ -276,16 +276,35 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
 
 
     const isChasing = targetScore > 0;
-    const runsNeeded = isChasing ? Math.max(0, targetScore - runs) : (targetScore > 0 ? targetScore : 0);
-    const remainingBalls = Math.max(0, (matchOvers * 6) - totalLegals);
+
+    // Determine the side that is currently chasing or about to chase
+    const currentBattingSide = (match.currentBatting || 'teamA').replace('_super', '').replace('_super2', '') as 'teamA' | 'teamB';
+    const otherSide = currentBattingSide === 'teamA' ? 'teamB' : 'teamA';
+
+    // If we are in InningsBreak and target is set, the chasing side is the one who HASN'T batted yet
+    const chasingSide = (isSecondInnings && isInningsBreak) ? otherSide : currentBattingSide;
+
+    const chasingTeamName = chasingSide === 'teamB' ? teamBName : teamAName;
+    const chasingTeamSquad = chasingSide === 'teamB' ? teamBSquad : teamASquad;
+    const chasingTeamAbbr = formatShortTeamName(chasingTeamName, chasingTeamSquad?.batch);
+
+    // Only subtract runs if the current batting team IS the chasing team
+    const actualChasingRuns = (chasingSide === currentBattingSide && !isInningsBreak)
+        ? runs
+        : 0;
+
+    const actualChasingLegals = (chasingSide === currentBattingSide && !isInningsBreak)
+        ? totalLegals
+        : 0;
+
+    const runsNeeded = isChasing ? Math.max(0, targetScore - actualChasingRuns) : (targetScore > 0 ? targetScore : 0);
+    const remainingBalls = Math.max(0, (matchOvers * 6) - actualChasingLegals);
 
     const liveReqRunRate = (remainingBalls > 0 && targetScore > 0)
         ? (runsNeeded / remainingBalls) * 6
         : 0;
 
-    const displayRRR = isInningsBreak ? (targetScore / matchOvers) : liveReqRunRate;
-
-
+    const displayRRR = (isInningsBreak || actualChasingLegals === 0) ? (targetScore / matchOvers) : liveReqRunRate;
 
     return (
         <div className="relative">
@@ -456,8 +475,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                     <div className="px-4">
                         <span className="text-[11px] sm:text-[13px] font-semibold text-amber-700 dark:text-amber-500 uppercase tracking-tight inline-block">
                             {(() => {
-                                const chasingTeam = currentTeamAbbr;
-                                const text = `${chasingTeam} NEED ${runsNeeded} RUNS IN ${remainingBalls} BALLS`;
+                                const text = `${chasingTeamAbbr} NEED ${runsNeeded} RUNS IN ${remainingBalls} BALLS`;
                                 return text;
                             })()}
                         </span>

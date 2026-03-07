@@ -47,14 +47,44 @@ export function calculateMatchWinner(
       return { winner: 'Match Tied', winMargin: '(After Super Over)', isTied: true }
     }
 
-    const winnerSide = soARuns > soBRuns ? 'teamA' : 'teamB'
-    const winnerName = winnerSide === 'teamA' ? teamAName : teamBName
-    const runDiff = Math.abs(soARuns - soBRuns)
+    const soWinnerSide = soARuns > soBRuns ? 'teamA' : 'teamB'
+    const soWinnerName = soWinnerSide === 'teamA' ? teamAName : teamBName
+    const soWinnerInnings = soWinnerSide === 'teamA' ? teamASuperInnings : teamBSuperInnings
 
-    return {
-      winner: winnerName,
-      winMargin: `won Super Over by ${runDiff} run${runDiff !== 1 ? 's' : ''}`,
-      isTied: false
+    // Determine who batted first in Super Over
+    // Standard: Reverse of main match, but more robust to check targets
+    let soBattedFirst: 'teamA' | 'teamB' | null = null
+    if (teamASuperInnings?.target && teamASuperInnings.target > 0) soBattedFirst = 'teamB'
+    else if (teamBSuperInnings?.target && teamBSuperInnings.target > 0) soBattedFirst = 'teamA'
+
+    if (!soBattedFirst) {
+      // Fallback: If no targets set yet, use reverse of main match if possible
+      let mainBattedFirst: 'teamA' | 'teamB' | null = null
+      if (teamAInnings.target && teamAInnings.target > 0) mainBattedFirst = 'teamB'
+      else if (teamBInnings.target && teamBInnings.target > 0) mainBattedFirst = 'teamA'
+
+      if (mainBattedFirst) soBattedFirst = mainBattedFirst === 'teamA' ? 'teamB' : 'teamA'
+    }
+
+    // Last fallback
+    if (!soBattedFirst) soBattedFirst = 'teamB'
+
+    const isChase = soWinnerSide !== soBattedFirst
+
+    if (isChase) {
+      const wktsLeft = Math.max(0, 2 - (soWinnerInnings?.totalWickets || 0))
+      return {
+        winner: soWinnerName,
+        winMargin: `won Super Over by ${wktsLeft} wicket${wktsLeft !== 1 ? 's' : ''}`,
+        isTied: false
+      }
+    } else {
+      const runDiff = Math.abs(soARuns - soBRuns)
+      return {
+        winner: soWinnerName,
+        winMargin: `won Super Over by ${runDiff} run${runDiff !== 1 ? 's' : ''}`,
+        isTied: false
+      }
     }
   }
 
@@ -62,7 +92,7 @@ export function calculateMatchWinner(
     return { winner: 'Match Tied', winMargin: '', isTied: true }
   }
 
-  // Determine who batted first
+  // Determine who batted first in Main Match
   let battedFirst: 'teamA' | 'teamB' | null = null
 
   // Method 1: Check target

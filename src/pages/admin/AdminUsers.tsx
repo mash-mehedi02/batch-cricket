@@ -23,7 +23,8 @@ import {
     MapPin,
     Globe,
     History,
-    ExternalLink
+    ExternalLink,
+    ChevronRight
 } from 'lucide-react'
 import { adminService, AdminUser } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
@@ -43,7 +44,7 @@ export default function AdminUsers() {
     const { user: currentUser, loading: authLoading } = useAuthStore()
     const isSuperAdmin = currentUser?.role === 'super_admin'
 
-    const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'requests'>('admins')
+    const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'requests' | 'guests'>('admins')
     const [showInviteModal, setShowInviteModal] = useState(false)
     const [showSquadModal, setShowSquadModal] = useState(false)
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -433,14 +434,25 @@ export default function AdminUsers() {
     )
 
     const filteredUsers = allUsers.filter(u => {
-        // Exclude anyone who is an admin from the potential player/user list
+        // Exclude anyone who is an admin
         if (admins.some(a => a.uid === u.uid)) return false;
 
-        // Exclude anyone who has a pending request
-        if (pendingRequests.some(r => r.uid === u.uid)) return false;
+        // ONLY verified players for the 'users' tab
+        const isVerifiedPlayer = (u.role === 'player') || (u.linkedPlayerId || u.playerId) || players.some(p => p.ownerUid === u.uid || p.id === u.uid);
+        if (!isVerifiedPlayer) return false;
 
-        // Exclude anyone who is already a player
-        if (players.some(p => p.ownerUid === u.uid || p.id === u.uid)) return false;
+        return u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            u.uid.toLowerCase().includes(searchTerm.toLowerCase())
+    })
+
+    const filteredGuests = allUsers.filter(u => {
+        // Exclude anyone who is an admin
+        if (admins.some(a => a.uid === u.uid)) return false;
+
+        // GUESTS are those who are NOT verified players
+        const isVerifiedPlayer = (u.role === 'player') || (u.linkedPlayerId || u.playerId) || players.some(p => p.ownerUid === u.uid || p.id === u.uid);
+        if (isVerifiedPlayer) return false;
 
         return u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -452,8 +464,8 @@ export default function AdminUsers() {
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Access Control & Users</h1>
-                    <p className="text-slate-500 mt-2 font-medium">Manage administrators and oversee registered users.</p>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase italic underline decoration-blue-500 decoration-4 underline-offset-8">Access Control & Users</h1>
+                    <p className="text-slate-500 mt-4 font-bold text-[10px] sm:text-xs uppercase tracking-widest">Manage administrators and oversee registered users.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
@@ -467,38 +479,48 @@ export default function AdminUsers() {
                         </button>
                     )}
 
-                    <div className="flex bg-slate-200/50 p-1.5 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-1 bg-slate-200/50 p-1 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar">
                         <button
                             onClick={() => setActiveTab('admins')}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'admins'
-                                ? 'bg-white text-blue-600 shadow-xl'
+                            className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'admins'
+                                ? 'bg-white text-blue-600 shadow-lg'
                                 : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
-                            <Shield className="w-4 h-4" />
+                            <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             Admins
                         </button>
                         <button
                             onClick={() => setActiveTab('users')}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'users'
-                                ? 'bg-white text-blue-600 shadow-xl'
+                            className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'users'
+                                ? 'bg-white text-blue-600 shadow-lg'
                                 : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
-                            <UserCheck className="w-4 h-4" />
+                            <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             Users
                         </button>
                         <button
-                            onClick={() => setActiveTab('requests')}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all relative ${activeTab === 'requests'
-                                ? 'bg-white text-blue-600 shadow-xl'
+                            onClick={() => setActiveTab('guests')}
+                            className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'guests'
+                                ? 'bg-white text-blue-600 shadow-lg'
                                 : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
-                            <Clock className="w-4 h-4" />
+                            <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            Guests
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('requests')}
+                            className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all relative whitespace-nowrap ${activeTab === 'requests'
+                                ? 'bg-white text-blue-600 shadow-lg'
+                                : 'text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             Requests
                             {pendingRequests.length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-bounce">
+                                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-lg animate-pulse">
                                     {pendingRequests.length}
                                 </span>
                             )}
@@ -508,33 +530,33 @@ export default function AdminUsers() {
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><Shield className="w-6 h-6" /></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white p-3 sm:p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 bg-blue-50 text-blue-600 rounded-2xl"><Shield className="w-5 h-5 sm:w-6 sm:h-6" /></div>
                     <div>
-                        <div className="text-2xl font-black text-slate-900">{admins.length}</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Admins</div>
+                        <div className="text-xl sm:text-2xl font-black text-slate-900">{admins.length}</div>
+                        <div className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">Total Admins</div>
                     </div>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><UserCheck className="w-6 h-6" /></div>
+                <div className="bg-white p-3 sm:p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><UserCheck className="w-5 h-5 sm:w-6 sm:h-6" /></div>
                     <div>
-                        <div className="text-2xl font-black text-slate-900">{allUsers.length}</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registered Users</div>
+                        <div className="text-xl sm:text-2xl font-black text-slate-900">{allUsers.length}</div>
+                        <div className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">Registered Users</div>
                     </div>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Lock className="w-6 h-6" /></div>
+                <div className="bg-white p-3 sm:p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Lock className="w-5 h-5 sm:w-6 sm:h-6" /></div>
                     <div>
-                        <div className="text-2xl font-black text-slate-900">{admins.filter(a => a.role === 'super_admin').length}</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Super Admins</div>
+                        <div className="text-xl sm:text-2xl font-black text-slate-900">{admins.filter(a => a.role === 'super_admin').length}</div>
+                        <div className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">Super Admins</div>
                     </div>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><CheckCircle2 className="w-6 h-6" /></div>
+                <div className="bg-white p-3 sm:p-5 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+                    <div className="p-2 sm:p-3 bg-amber-50 text-amber-600 rounded-2xl"><CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /></div>
                     <div>
-                        <div className="text-2xl font-black text-slate-900">{admins.filter(a => a.isActive).length}</div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Seats</div>
+                        <div className="text-xl sm:text-2xl font-black text-slate-900">{admins.filter(a => a.isActive).length}</div>
+                        <div className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">Active Seats</div>
                     </div>
                 </div>
             </div>
@@ -850,85 +872,94 @@ export default function AdminUsers() {
                                 </table>
                             </div>
 
-                            {/* Mobile Card View */}
-                            <div className="lg:hidden space-y-4 p-4">
-                                {allUsers.filter(u =>
-                                    (u.displayName || u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-                                ).length > 0 ? (
-                                    allUsers.filter(u =>
-                                        (u.displayName || u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-                                    ).map((user) => (
-                                        <div key={user.uid} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm active:scale-[0.98] transition-all">
-                                            <div className="flex items-start gap-4 mb-4">
-                                                <PlayerAvatar
-                                                    photoUrl={user.photoURL || user.playerProfile?.photoUrl}
-                                                    name={user.displayName || user.email}
-                                                    size="lg"
-                                                    className="shadow-md ring-2 ring-slate-50"
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-black text-slate-900 truncate uppercase tracking-tight">{user.displayName || 'No Name'}</h4>
-                                                    <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">{user.email}</p>
-                                                    <div className="flex items-center gap-2 mt-2">
-                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${user.role === 'super_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                            {user.role}
-                                                        </span>
-                                                        {(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer) ? (
-                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">Verified</span>
-                                                        ) : (
-                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Awaiting Setup</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100/50">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Squad Status</span>
-                                                        <span className="text-[10px] font-bold text-slate-700">
-                                                            {(user.linkedPlayerId || user.playerId) ? (
-                                                                squads.find(s => s.playerIds?.includes((user.linkedPlayerId || user.playerId)!))?.name || 'In Squad'
-                                                            ) : 'Not Assigned'}
-                                                        </span>
-                                                    </div>
-                                                    {(user.linkedPlayerId || user.playerId) && (
+                        </>
+                    ) : activeTab === 'guests' ? (
+                        <>
+                            {/* Desktop Table */}
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50/50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">User</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Signed In</th>
+                                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredGuests.length > 0 ? (
+                                            filteredGuests.map((guest) => (
+                                                <tr key={guest.uid} className="hover:bg-slate-50/30 transition-all group">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <PlayerAvatar
+                                                                photoUrl={guest.photoURL}
+                                                                name={guest.displayName || guest.email}
+                                                                size="sm"
+                                                                className="ring-2 ring-slate-50 shadow-inner"
+                                                            />
+                                                            <div>
+                                                                <div className="text-slate-900 font-bold text-sm">
+                                                                    {guest.displayName || guest.email.split('@')[0]}
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400 font-medium">{guest.email}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                                                            <Clock size={12} className="text-blue-500" />
+                                                            {guest.lastLogin?.seconds ? new Date(guest.lastLogin.seconds * 1000).toLocaleString() : 'N/A'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
                                                         <button
-                                                            onClick={() => navigate(`/admin/players/${user.linkedPlayerId || user.playerId}/edit`)}
-                                                            className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 shadow-sm active:scale-90 transition-all"
-                                                            title="Edit Profile"
+                                                            onClick={() => handleViewDetails(guest)}
+                                                            className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-lg hover:bg-blue-600 hover:text-white transition-all active:scale-95"
                                                         >
-                                                            <ExternalLink size={14} />
+                                                            Details
                                                         </button>
-                                                    )}
-                                                </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={4} className="py-32 text-center">
+                                                    <Search className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+                                                    <h3 className="text-slate-900 font-bold text-xl">No guests found</h3>
+                                                    <p className="text-slate-400 font-medium">Try adjusting your search filters.</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleViewDetails(user)}
-                                                        className="flex-1 py-3 bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                                    >
-                                                        <Activity size={14} className="text-blue-500" />
-                                                        Activity
-                                                    </button>
-                                                    <button
-                                                        disabled={!(user.playerProfile?.isRegisteredPlayer || user.isRegisteredPlayer)}
-                                                        onClick={() => {
-                                                            setSelectedUser(user);
-                                                            setShowSquadModal(true);
-                                                        }}
-                                                        className="flex-1 py-3 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-30"
-                                                    >
-                                                        Invite
-                                                    </button>
-                                                </div>
+                            {/* Mobile Card View */}
+                            <div className="lg:hidden space-y-3 p-4">
+                                {filteredGuests.length > 0 ? (
+                                    filteredGuests.map((guest) => (
+                                        <div
+                                            key={guest.uid}
+                                            onClick={() => handleViewDetails(guest)}
+                                            className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm active:scale-[0.98] transition-all flex items-center gap-4"
+                                        >
+                                            <PlayerAvatar
+                                                photoUrl={guest.photoURL}
+                                                name={guest.displayName || guest.email}
+                                                size="md"
+                                                className="shadow-sm ring-2 ring-slate-50"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-black text-slate-900 truncate uppercase tracking-tight text-sm">{guest.displayName || guest.email.split('@')[0]}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 truncate">{guest.email}</p>
                                             </div>
+                                            <ChevronRight size={16} className="text-slate-300" />
                                         </div>
                                     ))
                                 ) : (
                                     <div className="py-20 text-center">
                                         <Search className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No users found</p>
+                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No guests found</p>
                                     </div>
                                 )}
                             </div>
@@ -1305,7 +1336,45 @@ export default function AdminUsers() {
                                     {/* Login History */}
                                     <div>
                                         <div className="flex items-center gap-3 mb-5 sm:mb-6">
-                                            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl"><Smartphone size={18} className="sm:w-5 sm:h-5" /></div>
+                                            <div className="p-2 sm:p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><ShieldCheck size={18} className="sm:w-5 sm:h-5" /></div>
+                                            <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Device & Access</h4>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                                                <div className="p-2 bg-white rounded-xl shadow-sm"><Globe size={18} className="text-blue-500" /></div>
+                                                <div>
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Last IP / Location</div>
+                                                    <div className="text-xs font-bold text-slate-800">{selectedDetailUser.ip || 'Unknown'}</div>
+                                                    <div className="text-[10px] text-slate-500 font-medium">{selectedDetailUser.location || 'Unknown Location'}</div>
+                                                </div>
+                                            </div>
+                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                                                <div className="p-2 bg-white rounded-xl shadow-sm"><Smartphone size={18} className="text-indigo-500" /></div>
+                                                <div>
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Device / Platform</div>
+                                                    <div className="text-xs font-bold text-slate-800">{selectedDetailUser.deviceInfo?.platform || 'Unknown'}</div>
+                                                    <div className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]" title={selectedDetailUser.deviceInfo?.userAgent}>
+                                                        {selectedDetailUser.deviceInfo?.userAgent?.split(')')[1]?.trim() || 'Generic Browser'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center gap-4 sm:col-span-2">
+                                                <div className="p-2 bg-white rounded-xl shadow-sm"><Clock size={18} className="text-blue-600" /></div>
+                                                <div>
+                                                    <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Last Active Date & Time</div>
+                                                    <div className="text-sm font-black text-blue-900">
+                                                        {selectedDetailUser.lastLogin?.seconds
+                                                            ? new Date(selectedDetailUser.lastLogin.seconds * 1000).toLocaleString(undefined, {
+                                                                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                            })
+                                                            : 'No login record recorded'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                                            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl"><History size={18} className="sm:w-5 sm:h-5" /></div>
                                             <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Recent Activity</h4>
                                         </div>
                                         <div className="space-y-3 sm:space-y-4">

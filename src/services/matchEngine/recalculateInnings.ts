@@ -901,7 +901,7 @@ export async function recalculateInnings(
         }
       }
 
-      target = firstBatScore > 0 ? firstBatScore + 1 : (Number(matchData.target) || null)
+      target = firstBatScore > 0 ? firstBatScore + 1 : (isSuperOverInning ? null : (Number(matchData.target) || null))
 
       if (target && target > 1) {
         remainingRuns = target - totalRuns
@@ -1142,9 +1142,21 @@ export async function recalculateInnings(
           matchUpdate.matchPhase = 'SecondInnings'
         } else if (isMatchInBreak) {
           // Only automatically set 'inningsbreak' if we haven't started second innings or finished
-          if (currentPhase !== 'SecondInnings' && currentStatus !== 'finished') {
+          // OR if we literally just finished the first innings
+          // FIX: For Super Overs, if we finish the first innings, we should ALWAYS go to InningsBreak, 
+          // even if the phase was still 'Tied' from the main match.
+          const isTiedPhase = currentPhase === 'Tied';
+          const shouldGotoBreak = (currentPhase !== 'SecondInnings' && !isTiedPhase && currentStatus !== 'finished') ||
+            (currentPhase === 'SecondInnings' && legalBalls >= maxBalls) ||
+            (String(inningId).includes('super') && legalBalls >= maxBalls);
+
+          if (shouldGotoBreak) {
             matchUpdate.status = 'inningsbreak'
             matchUpdate.matchPhase = 'InningsBreak'
+          } else if (currentPhase === 'SecondInnings' || isTiedPhase) {
+            // Undoing an innings break switch (but avoid doing this if we just finished an inning in SO)
+            matchUpdate.status = 'live'
+            matchUpdate.matchPhase = 'FirstInnings'
           }
         } else {
           // Reverting to live state
@@ -1224,14 +1236,35 @@ export async function recalculateInnings(
         matchUpdate.status = 'live'
         matchUpdate.matchPhase = 'SecondInnings'
       } else if (isMatchInBreak) {
-        if (currentPhase !== 'SecondInnings' && currentStatus !== 'finished') {
+        // Only automatically set 'inningsbreak' if we haven't started second innings or finished
+        // OR if we literally just finished the first innings
+        // FIX: For Super Overs, if we finish the first innings, we should ALWAYS go to InningsBreak, 
+        // even if the phase was still 'Tied' from the main match.
+        const isTiedPhase = currentPhase === 'Tied';
+        const shouldGotoBreak = (currentPhase !== 'SecondInnings' && !isTiedPhase && currentStatus !== 'finished') ||
+          (currentPhase === 'SecondInnings' && legalBalls >= maxBalls) ||
+          (String(inningId).includes('super') && legalBalls >= maxBalls);
+
+        if (shouldGotoBreak) {
           matchUpdate.status = 'inningsbreak'
           matchUpdate.matchPhase = 'InningsBreak'
+        } else if (currentPhase === 'SecondInnings' || isTiedPhase) {
+          // Undoing an innings break switch (but avoid doing this if we just finished an inning in SO)
+          matchUpdate.status = 'live'
+          matchUpdate.matchPhase = 'FirstInnings'
         }
       } else {
         // Reverting to live state
         matchUpdate.status = 'live'
         matchUpdate.matchPhase = isCalculatingSecondSide ? 'SecondInnings' : 'FirstInnings'
+      }
+
+      // 8. FINAL MATCH DOCUMENT UPDATE SYNC - Ensure target is explicitly null if SO 1st innings
+      if (String(inningId).includes('super')) {
+        const isSecondSideSO = String(inningId) === 'teamB_super' || (matchData.target && Number(matchData.target) > 0);
+        if (!isSecondSideSO) {
+          matchUpdate.target = null;
+        }
       }
 
       await updateDoc(doc(db, MATCHES_COLLECTION, matchId), matchUpdate)

@@ -54,7 +54,9 @@ interface AuthState {
   updatePlayerProfile: (uid: string, data: any) => Promise<void>
   logout: () => Promise<void>
   initialize: () => void
+  syncSessionMetadata: (user: any) => Promise<void>
   isProcessing: boolean
+  hasUpdatedMetadata: boolean
 }
 
 
@@ -62,6 +64,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
   isProcessing: false,
+  hasUpdatedMetadata: false,
 
   // Legacy Login
   login: async (email: string, password: string): Promise<boolean> => {
@@ -200,6 +203,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   // Centralized Login Processing - Returns true if it's a new account
+  syncSessionMetadata: async (firebaseUser: any) => {
+    if (get().hasUpdatedMetadata || !firebaseUser?.uid) return;
+
+    // Flag immediately to prevent multiple concurrent calls
+    set({ hasUpdatedMetadata: true });
+
+    try {
+      console.log("[AuthStore] Syncing Session Metadata...");
+      const connectivity = await fetchConnectivityInfo();
+      const metadata: any = {
+        lastLogin: serverTimestamp(),
+        ip: connectivity.ip,
+        location: `${connectivity.city}, ${connectivity.country}`,
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          platform: (navigator as any).userAgentData?.platform || navigator.platform,
+        }
+      };
+
+      await updateDoc(doc(db, 'users', firebaseUser.uid), metadata);
+      console.log("[AuthStore] Session Metadata Synced.");
+    } catch (err) {
+      console.warn("[AuthStore] Session Metadata Sync Failed (likely expected if offline):", err);
+      // We don't reset flag, we only try once per session to avoid noise
+    }
+  },
+
   processLogin: async (user: any): Promise<boolean> => {
     if (processingLogins.has(user.uid)) {
       console.log("[AuthStore] Login already in process for:", user.uid);
@@ -214,11 +244,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
 
-      let userRole: any = 'viewer';
+      let userRole: any = 'guest';
       if (userSnap.exists()) {
         const storedRole = userSnap.data().role;
-        // Keep special roles, otherwise default to viewer for identity check
-        if (storedRole === 'admin' || storedRole === 'super_admin') {
+        // Keep special roles, otherwise default to guest for identity check
+        if (storedRole === 'admin' || storedRole === 'super_admin' || storedRole === 'player' || storedRole === 'scorer') {
           userRole = storedRole;
         }
       }
@@ -379,6 +409,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         lastLogin: serverTimestamp(),
       };
 
+      // --- STEP 2.1: CAPTURE METADATA ---
+      finalUserData.ip = 'unknown';
+      finalUserData.location = 'unknown';
+      finalUserData.deviceInfo = {
+        userAgent: navigator.userAgent,
+        platform: (navigator as any).userAgentData?.platform || navigator.platform,
+      };
+
+      try {
+        const connectivity = await fetchConnectivityInfo();
+        if (connectivity.ip !== 'unknown') {
+          finalUserData.ip = connectivity.ip;
+          finalUserData.location = `${connectivity.city}, ${connectivity.country}`;
+        }
+      } catch (metaErr) {
+        console.warn("[AuthStore] Metadata fetch failed, using defaults:", metaErr);
+      }
+
       if (isNewUser) {
         finalUserData.createdAt = serverTimestamp();
       } else {
@@ -417,12 +465,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         finalUserData.linkedPlayerId = null;
         finalUserData.playerProfile = null; // Clear profile for admins
 
-        if (finalUserData.role === 'player') finalUserData.role = 'viewer';
+        if (finalUserData.role === 'player') finalUserData.role = 'guest';
       }
 
       // --- STEP 4: SAVE TO FIRESTORE ---
       console.log("[AuthStore] Finalizing User Document update...");
       if (isNewUser) {
+        // Ensure guest role for real new users
+        if (!isAdmin && !emailMatchPlayer) {
+          finalUserData.role = 'guest';
+        }
         await setDoc(userRef, finalUserData);
         console.log("[AuthStore] User document created.");
       } else {
@@ -470,7 +522,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email: user.email || null,
         displayName: user.displayName || null,
         photoURL: user.photoURL || null,
-        role: 'viewer' as const,
+        role: 'guest' as const,
       };
       set({ user: fallbackUser as User, loading: false });
 
@@ -610,6 +662,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (docSnap.exists()) {
             const data = docSnap.data() as User;
             console.log("[AuthStore] REAL-TIME Update: User Role =", data.role);
+
+            // SYNC METADATA ONCE PER SESSION (For all users)
+            get().syncSessionMetadata(firebaseUser);
 
             // If user is a player, we always verify identity sync to catch admin changes
             if (data.isRegisteredPlayer && firebaseUser.email) {
