@@ -20,7 +20,8 @@ import cricketBallIcon from '@/assets/cricket-ball.png'
 import { useAuthStore } from '@/store/authStore'
 import { verifyPlayerAccess, handleGoogleRedirectResult, finalizeClaim } from '@/services/firestore/playerClaim'
 import toast from 'react-hot-toast'
-import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload, Check } from 'lucide-react'
+import GSAPImageViewer from '@/components/common/GSAPImageViewer'
+import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload, Check, ZoomIn } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
@@ -150,6 +151,8 @@ export default function PlayerProfile() {
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
   const [isEditing, setIsEditing] = useState(false)
   const [screenshotImage, setScreenshotImage] = useState('')
+  const [viewerImage, setViewerImage] = useState<string | null>(null)
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
   const pageRef = useRef<HTMLDivElement>(null)
 
   // Long-press screenshot sharing removed
@@ -871,7 +874,16 @@ export default function PlayerProfile() {
             {/* Removed action buttons from header */}
 
             <div className="flex flex-row items-center gap-4 md:gap-8">
-              <div className="relative group shrink-0">
+              <div
+                className="relative group shrink-0 cursor-zoom-in"
+                onClick={() => {
+                  const photo = player.photoUrl || (player as any).photo;
+                  if (photo) {
+                    setViewerImage(photo)
+                    setIsViewerOpen(true)
+                  }
+                }}
+              >
                 <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-teal-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
                 <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-52 md:h-52 rounded-full bg-slate-900 flex items-center justify-center overflow-hidden border-2 md:border-4 border-slate-950 relative z-10 shadow-[0_0_25px_rgba(16,185,129,0.25)] md:shadow-[0_0_50px_rgba(16,185,129,0.3)] group-hover:shadow-[0_0_70px_rgba(16,185,129,0.5)] transition-all duration-700">
                   <PlayerAvatar
@@ -880,6 +892,9 @@ export default function PlayerProfile() {
                     size="xl"
                     className="w-full h-full border-none shadow-none bg-transparent"
                   />
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <ZoomIn className="text-white w-8 h-8 opacity-50" />
+                  </div>
                 </div>
                 {/* Outer Pulse */}
                 <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping opacity-20 pointer-events-none"></div>
@@ -1683,6 +1698,12 @@ export default function PlayerProfile() {
 
 
       {/* ShareModal removed */}
+      <GSAPImageViewer
+        src={viewerImage || ''}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        alt={player.name}
+      />
     </div >
   )
 }

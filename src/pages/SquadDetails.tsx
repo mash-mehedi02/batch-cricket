@@ -17,6 +17,7 @@ import { followService } from '@/services/firestore/followService'
 import { useSearchParams } from 'react-router-dom'
 import { Bell, Check, Trophy, Medal, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
+import GSAPImageViewer from '@/components/common/GSAPImageViewer'
 
 
 type Tab = 'squad' | 'matches' | 'achievement'
@@ -32,6 +33,8 @@ export default function SquadDetails() {
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [loadingAchievements, setLoadingAchievements] = useState(false)
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({})
+  const [viewerImage, setViewerImage] = useState<string | null>(null)
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
   const pageRef = useRef<HTMLDivElement>(null)
   // Removed screenshot and share states
 
@@ -198,13 +201,21 @@ export default function SquadDetails() {
     >
       <PageHeader title={squad.name} subtitle={`Batch ${squad.batch || squad.year}`} />
 
-      <div className="relative h-[20vh] md:h-[30vh] overflow-hidden bg-slate-100 dark:bg-slate-900">
+      <div
+        className="relative h-[22vh] md:h-[35vh] overflow-hidden bg-slate-100 dark:bg-slate-900 cursor-zoom-in group/banner"
+        onClick={() => {
+          if (squad.bannerUrl) {
+            setViewerImage(squad.bannerUrl)
+            setIsViewerOpen(true)
+          }
+        }}
+      >
         {squad.bannerUrl && !brokenImages[squad.bannerUrl] ? (
-          <img src={squad.bannerUrl} onError={() => handleImgError(squad.bannerUrl || '')} alt={squad.name} className="w-full h-full object-cover" />
+          <img src={squad.bannerUrl} onError={() => handleImgError(squad.bannerUrl || '')} alt={squad.name} className="w-full h-full object-cover group-hover/banner:scale-105 transition-transform duration-700" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-slate-200 dark:from-slate-800 via-emerald-50 dark:via-emerald-900/10 to-slate-100 dark:to-slate-900" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-[#050B18] via-white/50 dark:via-[#050B18]/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white/60 dark:from-[#050B18]/90 via-transparent to-transparent pointer-events-none" />
       </div>
 
       {/* Sticky Header Section */}
@@ -212,7 +223,15 @@ export default function SquadDetails() {
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4 mb-3">
             {/* Compact Logo */}
-            <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl border-2 border-white dark:border-slate-800 shadow-lg overflow-hidden flex items-center justify-center shrink-0 relative">
+            <div
+              className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl border-2 border-white dark:border-slate-800 shadow-lg overflow-hidden flex items-center justify-center shrink-0 relative cursor-zoom-in hover:scale-105 transition-transform duration-300"
+              onClick={() => {
+                if (squad.logoUrl) {
+                  setViewerImage(squad.logoUrl)
+                  setIsViewerOpen(true)
+                }
+              }}
+            >
               {squad.logoUrl && !brokenImages[squad.logoUrl] ? (
                 <img src={squad.logoUrl} onError={() => handleImgError(squad.logoUrl || '')} alt={squad.name} className="w-full h-full object-contain p-1" />
               ) : (
@@ -227,10 +246,15 @@ export default function SquadDetails() {
               <h1 className="text-lg md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1 truncate">
                 {squad.name}
               </h1>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
                   Batch {safeRender(squad.batch || squad.year)}
                 </span>
+                {squad.school && (
+                  <span className="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                    {squad.school}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -493,6 +517,12 @@ export default function SquadDetails() {
         </div>
       </div>
       {/* ShareModal removed */}
+      <GSAPImageViewer
+        src={viewerImage || ''}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        alt={squad.name}
+      />
     </div>
   )
 }

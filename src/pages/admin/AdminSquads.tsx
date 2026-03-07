@@ -40,6 +40,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
     captainId: '',
     wicketKeeperId: '',
     logoUrl: '',
+    bannerUrl: '',
+    school: '',
   })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -121,6 +123,8 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
           captainId: data.captainId || '',
           wicketKeeperId: data.wicketKeeperId || '',
           logoUrl: (data as any).logoUrl || '',
+          bannerUrl: (data as any).bannerUrl || '',
+          school: data.school || '',
         })
       }
       setLoading(false)
@@ -147,6 +151,27 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
     } catch (error: any) {
       console.error('Upload error:', error)
       toast.error(error.message || 'Failed to upload logo', { id: uploadToast })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    const uploadToast = toast.loading('Uploading cover...')
+
+    try {
+      const url = await uploadImage(file, (progress) => {
+        console.log(`Upload progress: ${progress}%`)
+      })
+      setFormData({ ...formData, bannerUrl: url })
+      toast.success('Cover uploaded successfully!', { id: uploadToast })
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      toast.error(error.message || 'Failed to upload cover', { id: uploadToast })
     } finally {
       setUploading(false)
     }
@@ -229,8 +254,19 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
         console.log('[AdminSquads] Syncing player documents with squadId...')
         const batchTag = String(formData.batch).trim()
 
-        // 1. Set squadId for all selected players
-        const addPromises = validatedFormData.playerIds.map(pid =>
+        // Filter to only sync players that exist in our loaded list
+        // This prevents "No document to update" errors for stale/deleted IDs
+        const existingPlayerIds = players.map(p => p.id)
+        const validPlayerIdsToSync = validatedFormData.playerIds.filter(pid =>
+          existingPlayerIds.includes(pid)
+        )
+
+        if (validPlayerIdsToSync.length !== validatedFormData.playerIds.length) {
+          console.warn('[AdminSquads] Some player IDs were filtered out as they do not exist in the current player list.')
+        }
+
+        // 1. Set squadId for all valid selected players
+        const addPromises = validPlayerIdsToSync.map(pid =>
           playerService.update(pid, {
             squadId: finalId,
             batch: batchTag
@@ -363,6 +399,17 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">School Name</label>
+              <input
+                type="text"
+                value={formData.school}
+                onChange={(e) => setFormData({ ...formData, school: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                placeholder="e.g., Ideal School & College"
+              />
+            </div>
+
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Squad Logo</label>
               <div className="flex gap-4">
@@ -392,6 +439,41 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
                 <div className="mt-2 flex items-center gap-4 p-2 bg-slate-50 rounded-lg border border-slate-100 w-fit">
                   <img src={formData.logoUrl} alt="Preview" className="w-12 h-12 rounded-full object-contain bg-white shadow-sm" />
                   <span className="text-xs text-slate-500 uppercase font-bold pr-2">Preview</span>
+                </div>
+              )}
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Squad Cover</label>
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={formData.bannerUrl}
+                  onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  placeholder="https://example.com/cover.png"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBannerUpload}
+                  disabled={uploading}
+                  className="hidden"
+                  id="banner-upload"
+                />
+                <label
+                  htmlFor="banner-upload"
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg cursor-pointer hover:bg-slate-200 transition text-sm font-medium flex items-center"
+                >
+                  {uploading ? 'Uploading...' : 'Upload File'}
+                </label>
+              </div>
+              {formData.bannerUrl && (
+                <div className="mt-2 flex flex-col gap-2 p-3 bg-slate-50 rounded-lg border border-slate-100 w-full max-w-md">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-500 uppercase font-bold pr-2">Preview</span>
+                  </div>
+                  <img src={formData.bannerUrl} alt="Cover Preview" className="w-full h-32 object-cover rounded-lg shadow-sm bg-white" />
                 </div>
               )}
             </div>

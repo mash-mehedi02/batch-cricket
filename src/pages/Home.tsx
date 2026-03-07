@@ -163,52 +163,27 @@ export default function Home() {
           className="absolute inset-0 bg-[#060b16] z-0"
           style={{
             clipPath: 'ellipse(150% 100% at 50% 0%)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
           }}
         >
           {/* STADIUM BACKGROUND OVERLAY - Optimized Height & Fade */}
-          <div className="absolute top-0 left-0 w-full h-[80%] z-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-[80%] z-0 overflow-hidden pointer-events-none [will-change:opacity]">
             <img
               src={stadiumBg}
               alt="Stadium Crowd"
-              className="w-full h-full object-cover object-top opacity-25 mix-blend-luminosity scale-110"
+              className="w-full h-full object-cover object-top opacity-20 mix-blend-luminosity scale-110"
             />
             {/* Subtle Fade to Hero Background */}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#060b16]" />
           </div>
 
-          {/* CINEMATIC PREMIUM BACKGROUND - Layered Effects */}
+          {/* CINEMATIC PREMIUM BACKGROUND - Simplified for performance */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {/* Deep Mesh Gradients */}
-            <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-emerald-600/10 rounded-full blur-[140px] animate-pulse-slow"></div>
-            <div className="absolute top-[10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] animate-pulse-slow delay-700"></div>
-            <div className="absolute bottom-[-20%] left-[20%] w-[60%] h-[60%] bg-teal-600/10 rounded-full blur-[160px] animate-pulse-slow delay-1000"></div>
+            {/* Mesh Gradients with will-change */}
+            <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-emerald-600/5 rounded-full blur-[120px] [will-change:opacity]"></div>
+            <div className="absolute top-[10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/5 rounded-full blur-[120px] [will-change:opacity]"></div>
 
-            {/* Ambient Floating Lights / Particles */}
-            <motion.div
-              animate={{
-                y: [0, -30, 0],
-                x: [0, 20, 0],
-                opacity: [0.1, 0.3, 0.1]
-              }}
-              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-[20%] left-[15%] w-32 h-32 bg-teal-400/20 rounded-full blur-3xl"
-            />
-            <motion.div
-              animate={{
-                y: [0, 40, 0],
-                x: [0, -20, 0],
-                opacity: [0.05, 0.2, 0.05]
-              }}
-              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-              className="absolute bottom-[30%] right-[10%] w-48 h-48 bg-blue-500/10 rounded-full blur-3xl"
-            />
-
-            {/* Noise Texture Overlay for Premium Feel */}
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] contrast-150 brightness-150 mix-blend-overlay"></div>
-
-            {/* Subtle Grid / Pattern */}
-            <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:32px_32px] opacity-40"></div>
+            {/* Subtle Grid / Pattern - Simplified */}
+            <div className="absolute inset-0 bg-[radial-gradient(#ffffff02_1px,transparent_1px)] [background-size:40px_40px] opacity-30"></div>
           </div>
         </div>
 

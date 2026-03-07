@@ -23,18 +23,16 @@ const HeroCricketAnimation = () => {
             // 1. Image entrance — scale up from center with spring
             gsap.fromTo(stumpRef.current,
                 { y: 80, opacity: 0, scale: 0.6 },
-                { y: 0, opacity: 1, scale: 1, duration: 1.2, ease: 'back.out(1.4)', delay: 0.2 }
+                { y: 0, opacity: 1, scale: 1, duration: 1.2, ease: 'back.out(1.4)', delay: 0.2, force3D: true }
             )
 
-            // 2. Glow pulse — infinite subtle pulse
+            // 2. Glow pulse — simplified with opacity only
             gsap.fromTo(glowRef.current,
-                { opacity: 0.3, scale: 0.9 },
-                { opacity: 0.6, scale: 1.1, duration: 2.5, ease: 'sine.inOut', repeat: -1, yoyo: true }
+                { opacity: 0.3 },
+                { opacity: 0.5, duration: 2.5, ease: 'sine.inOut', repeat: -1, yoyo: true, force3D: true }
             )
 
-            // 3. Image is completely static as requested by user. No floating animation.
-
-            // 4. Floating ambient particles
+            // 3. Floating ambient particles - optimized
             const particles = particleRefs.current.filter(Boolean) as HTMLDivElement[]
             particles.forEach((el) => {
                 gsap.fromTo(el,
@@ -48,43 +46,42 @@ const HeroCricketAnimation = () => {
                         repeat: -1,
                         yoyo: true,
                         delay: Math.random() * 2,
+                        force3D: true
                     }
                 )
             })
 
-            // 5. Small abstract obstacles floating out from behind the image
+            // 4. Small abstract obstacles - reduced and simplified
             const obstacles = obstacleRefs.current.filter(Boolean) as HTMLDivElement[]
             obstacles.forEach((el, i) => {
                 const angle = 180 + (i * (180 / (obstacles.length - 1)))
                 const variance = (Math.random() - 0.5) * 40
                 const finalAngle = angle + variance
 
-                const distance = 100 + Math.random() * 100
+                const distance = 80 + Math.random() * 80
                 const tx = Math.cos((finalAngle * Math.PI) / 180) * distance
                 const ty = Math.sin((finalAngle * Math.PI) / 180) * distance
 
-                // Drift outward gently
                 gsap.fromTo(el,
-                    { x: 0, y: 150, scale: 0, opacity: 0, rotation: 0 },
+                    { x: 0, y: 150, scale: 0, opacity: 0 },
                     {
                         x: tx,
-                        y: ty + 100,
-                        scale: 0.5 + Math.random() * 0.8,
-                        opacity: 0.8,
-                        rotation: (Math.random() - 0.5) * 360,
-                        duration: 3 + Math.random() * 2,
+                        y: ty + 80,
+                        scale: 0.5 + Math.random() * 0.5,
+                        opacity: 0.7,
+                        duration: 2.5 + Math.random() * 1.5,
                         ease: 'power2.out',
-                        delay: 0.5 + i * 0.15,
+                        delay: 0.3 + i * 0.1,
+                        force3D: true,
                         onComplete: () => {
                             if (!el) return;
-                            // Gentle float
                             gsap.to(el, {
-                                y: ty + 80 - Math.random() * 30,
-                                rotation: '+=45',
+                                y: ty + 70 - Math.random() * 20,
                                 duration: 3 + Math.random() * 2,
                                 ease: 'sine.inOut',
                                 repeat: -1,
-                                yoyo: true
+                                yoyo: true,
+                                force3D: true
                             })
                         }
                     }
@@ -96,18 +93,13 @@ const HeroCricketAnimation = () => {
         return () => ctx.revert()
     }, [])
 
-    // Ambient particles
+    // Ambient particles - reduced count
     const particlePositions = [
-        'left-[15%] bottom-[30%]',
-        'left-[35%] bottom-[45%]',
-        'right-[15%] bottom-[35%]',
-        'right-[35%] bottom-[50%]',
-        'left-[45%] bottom-[60%]',
-        'right-[45%] bottom-[40%]',
-        'left-[50%] top-[20%]',
-        'right-[50%] top-[25%]',
-        'left-[25%] top-[15%]',
-        'right-[25%] top-[20%]',
+        'left-[25%] bottom-[35%]',
+        'right-[25%] bottom-[40%]',
+        'left-[45%] bottom-[55%]',
+        'right-[45%] bottom-[45%]',
+        'left-[50%] top-[25%]',
     ]
 
     return (
@@ -115,25 +107,23 @@ const HeroCricketAnimation = () => {
             ref={containerRef}
             className="relative w-full max-w-[280px] sm:max-w-[320px] md:max-w-[400px] mx-auto aspect-square overflow-visible flex items-end justify-center pb-0"
         >
-            {/* Glow behind the main image */}
+            {/* Glow behind the main image - removed expensive filters */}
             <div
                 ref={glowRef}
                 className="absolute left-1/2 bottom-[15%] -translate-x-1/2 w-[70%] h-[50%] rounded-full pointer-events-none z-0"
                 style={{
-                    background: 'radial-gradient(ellipse at center, rgba(45,212,191,0.25) 0%, rgba(45,212,191,0.05) 50%, transparent 70%)',
-                    filter: 'blur(30px)',
+                    background: 'radial-gradient(ellipse at center, rgba(45,212,191,0.2) 0%, transparent 70%)',
                 }}
             />
 
-            {/* Final Sparkle Polish - Dense, micro-sized, and extra bright particles */}
-            {Array.from({ length: 64 }).map((_, i) => (
+            {/* Reduced and simplified sparkle particles */}
+            {Array.from({ length: 24 }).map((_, i) => (
                 <div
                     key={`obs-${i}`}
                     ref={el => { obstacleRefs.current[i] = el }}
-                    className={`absolute left-1/2 bottom-[40%] -translate-x-1/2 w-[0.5px] h-[0.5px] sm:w-[1px] sm:h-[1px] z-0 pointer-events-none ${i % 3 === 0 ? 'rounded-full' : i % 3 === 1 ? 'rounded-sm' : 'rounded-none rotate-45'} ${i % 4 === 0 ? 'bg-teal-300' : i % 4 === 1 ? 'bg-yellow-200' : i % 4 === 2 ? 'bg-white' : 'bg-emerald-300'}`}
+                    className={`absolute left-1/2 bottom-[40%] -translate-x-1/2 w-[1px] h-[1px] z-0 pointer-events-none rounded-full ${i % 3 === 0 ? 'bg-teal-400' : i % 3 === 1 ? 'bg-yellow-200' : 'bg-white'}`}
                     style={{
-                        filter: `drop-shadow(0 0 3px ${i % 4 === 0 ? 'rgba(94,234,212,0.8)' : i % 4 === 1 ? 'rgba(254,240,138,0.8)' : 'rgba(255,255,255,0.8)'}) brightness(1.5)`,
-                        opacity: 0.5 + Math.random() * 0.5
+                        opacity: 0.6
                     }}
                 >
                 </div>
