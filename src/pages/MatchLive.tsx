@@ -1709,6 +1709,7 @@ export default function MatchLive() {
                       String(resolveMatchSideRef(match as any, 'B') || '')
                     ].filter(Boolean)}
                     highlightMatch={match as any}
+                    initialGroupId={(match as any)?.groupId}
                   />
                 </div>
               </div>
@@ -1819,6 +1820,7 @@ export default function MatchLive() {
               tournament={tournament}
               matches={tournamentMatches}
               squads={Array.from(squadsById.values())}
+              initialGroupId={(match as any)?.groupId}
             />
           </div>
         ) : null

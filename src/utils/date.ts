@@ -132,4 +132,15 @@ export function bdDateTimeToUtcDate(dateYMD: string, timeHM = '00:00'): Date | n
   return isValidDate(out) ? out : null
 }
 
+// Combine date and time (HH:mm) into a single numeric timestamp for sorting
+export function getMatchTimestamp(date: any, time: string = '00:00'): number {
+  const d0 = coerceToDate(date)
+  if (!d0) return 0
+  const t = String(time || '00:00').trim()
+  const [hh, mm] = t.split(':').map(Number)
+  const target = new Date(d0)
+  target.setHours(hh || 0, mm || 0, 0, 0)
+  return target.getTime()
+}
+
 

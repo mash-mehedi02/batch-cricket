@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
@@ -7,7 +7,7 @@ import { Match } from '@/types'
 import { formatShortTeamName } from '@/utils/teamName'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { X } from 'lucide-react'
+
 
 function formatRole(player: any): string {
   const role = String(player.role || '').toLowerCase()
@@ -39,7 +39,6 @@ function formatRole(player: any): string {
 
 export default function MatchPlayingXI({ compact = false, match: initialMatch }: { compact?: boolean, match?: Match }) {
   const { matchId } = useParams<{ matchId: string }>()
-  const navigate = useNavigate()
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const [match, setMatch] = useState<Match | null>(initialMatch || null)
@@ -179,11 +178,26 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
   // Batting Order logic
   const { firstSide, secondSide } = (() => {
     if (!match) return { firstSide: 'A' as const, secondSide: 'B' as const }
+
     const tw = String((match as any).tossWinner || '').trim()
+    const twid = tw.toLowerCase()
     const decRaw = String((match as any).electedTo || (match as any).tossDecision || '').trim().toLowerCase()
+
     if (!tw || !decRaw) return { firstSide: 'A' as const, secondSide: 'B' as const }
 
-    const tossSide = (tw === 'teamA' || tw === (match as any).teamAId || tw === (match as any).teamASquadId) ? 'A' : 'B'
+    // Robust side detection (matching MatchLiveHero)
+    const aId = String(match.teamAId || (match as any).teamASquadId || '').trim().toLowerCase()
+    const bId = String(match.teamBId || (match as any).teamBSquadId || '').trim().toLowerCase()
+    const aName = (match.teamAName || '').trim().toLowerCase()
+    const bName = (match.teamBName || '').trim().toLowerCase()
+
+    let tossSide: 'A' | 'B' = 'A'
+    if (twid === 'teama' || (aId && twid === aId) || aName === twid || (aName.includes(twid) && twid.length > 3)) {
+      tossSide = 'A'
+    } else if (twid === 'teamb' || (bId && twid === bId) || bName === twid || (bName.includes(twid) && twid.length > 3)) {
+      tossSide = 'B'
+    }
+
     const battedFirst = decRaw.includes('bat') ? tossSide : (tossSide === 'A' ? 'B' : 'A')
     return {
       firstSide: battedFirst as 'A' | 'B',
@@ -191,13 +205,28 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
     }
   })()
 
-  // Default selection to first batting team once match loads
+  const prevTossRef = useRef<string | null>(null)
+
+  // Default selection to first batting team once match loads or toss update
   useEffect(() => {
-    if (match && !didDefaultTeam.current) {
-      setSelectedTeam(firstSide)
-      didDefaultTeam.current = true
+    if (match) {
+      const currentTossKey = `${match.tossWinner}_${match.electedTo}`
+      const tossChanged = prevTossRef.current !== null && prevTossRef.current !== currentTossKey
+
+      // Auto-switch if:
+      // 1. It's the first time we're setting a default
+      // 2. The toss information just changed (live update)
+      if (!didDefaultTeam.current || tossChanged) {
+        setSelectedTeam(firstSide)
+        didDefaultTeam.current = true
+      }
+
+      // Update ref to track toss changes
+      if (match.tossWinner && match.electedTo) {
+        prevTossRef.current = currentTossKey
+      }
     }
-  }, [match, firstSide])
+  }, [match?.id, firstSide])
 
   if (loading) {
     return (
@@ -245,36 +274,58 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
 
   const renderPlayerCard = (player: any, isCaptain: boolean, isKeeper: boolean) => {
     const roleDisplay = formatRole(player)
+    const isSpecial = isCaptain || isKeeper || player.status === 'IN' || player.status === 'OUT'
+
     return (
-      <div key={player.id} className="relative py-2 leading-tight">
-        <div className="flex items-center gap-3">
-          <div className="relative shrink-0">
+      <div
+        key={player.id}
+        className={`relative p-3 rounded-2xl border transition-all duration-300 hover:shadow-md hover:border-blue-500/30 group ${isSpecial
+          ? 'bg-gradient-to-br from-white to-slate-50/50 dark:from-white/5 dark:to-white/[0.02] border-slate-200 dark:border-white/10'
+          : 'bg-white dark:bg-white/[0.03] border-slate-100 dark:border-white/5'
+          }`}
+      >
+        {/* Subtle accent border for special players */}
+        {isSpecial && (
+          <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-r-full ${player.status === 'IN' ? 'bg-emerald-500' :
+            player.status === 'OUT' ? 'bg-rose-500' :
+              'bg-[#b08b47]'
+            }`} />
+        )}
+
+        <div className="flex items-center gap-4">
+          <div className="relative shrink-0 transition-transform group-hover:scale-105 duration-300">
             <PlayerAvatar
               photoUrl={player.photoUrl || (player as any).photo}
               name={player.name}
               size="lg"
             />
+            {/* Corner Rank or Number placeholder if needed, otherwise just the avatar */}
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <PlayerLink playerId={player.id} playerName={player.name} className={`font-semibold ${isCaptain || isKeeper ? 'text-[#b08b47]' : 'text-slate-900'} truncate text-[14px] sm:text-[15px] hover:text-blue-600 transition-colors leading-tight`} />
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <PlayerLink
+                playerId={player.id}
+                playerName={player.name}
+                className={`font-bold tracking-tight ${isCaptain || isKeeper ? 'text-[#b08b47]' : 'text-slate-900 dark:text-slate-100'
+                  } truncate text-[15px] group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-none`}
+              />
               {(isCaptain || isKeeper) && (
-                <span className="text-[11px] font-bold text-[#b08b47] lowercase">
-                  {isCaptain && isKeeper ? '(c & wk)' : isCaptain ? '(c)' : '(wk)'}
+                <span className="text-[10px] font-black text-[#b08b47] uppercase tracking-wider bg-[#b08b47]/10 px-1.5 py-0.5 rounded-md">
+                  {isCaptain && isKeeper ? 'C & WK' : isCaptain ? 'CAPTAIN' : 'WK'}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="text-[12px] text-slate-500 font-medium truncate tracking-tight">{roleDisplay}</div>
+            <div className="flex items-center gap-2">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest truncate">{roleDisplay}</div>
               {player.status === 'IN' && (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#10b981] flex items-center gap-0.5">
-                  IN <span className="text-[12px]">▲</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                  IN <span className="text-[10px]">▲</span>
                 </span>
               )}
               {player.status === 'OUT' && (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#f43f5e] flex items-center gap-0.5">
-                  OUT <span className="text-[12px]">▼</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                  OUT <span className="text-[10px]">▼</span>
                 </span>
               )}
             </div>
@@ -286,15 +337,6 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
 
   return (
     <div className={`${compact ? 'bg-transparent text-slate-900 dark:text-white pb-0' : 'min-h-screen bg-slate-50 dark:bg-[#060b16] text-slate-900 dark:text-white pb-20'}`}>
-      {/* Premium Header */}
-      {!compact && (
-        <div className="bg-[#0f172a] border-b border-white/5 sticky top-0 z-50 px-4 sm:px-8 py-6 shadow-sm shadow-black/20">
-          <div className="max-w-5xl mx-auto">
-            <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-white">Playing XI</h1>
-            <p className="text-[10px] sm:text-xs text-slate-500 font-medium uppercase tracking-[0.2em] mt-1">Match Day Squad Details</p>
-          </div>
-        </div>
-      )}
 
       {/* Team Tabs */}
       <div className={`${compact ? 'bg-slate-50 dark:bg-[#060b16] border-b border-slate-100 dark:border-white/5' : 'max-w-5xl mx-auto pt-8 px-3 sm:px-8'}`}>

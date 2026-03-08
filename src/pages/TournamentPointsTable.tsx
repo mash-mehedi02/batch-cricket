@@ -76,6 +76,7 @@ export default function TournamentPointsTable({
   forcedDark,
   tournament: tournamentProp,
   squads: squadsProp,
+  initialGroupId,
 }: {
   embedded?: boolean
   tournamentId?: string
@@ -87,6 +88,7 @@ export default function TournamentPointsTable({
   forcedDark?: boolean
   tournament?: Tournament | null
   squads?: any[]
+  initialGroupId?: string
 } = {}) {
   const params = useParams<{ tournamentId: string }>()
   const tournamentId = tournamentIdProp || params.tournamentId
@@ -100,7 +102,8 @@ export default function TournamentPointsTable({
   })
   const [squadIdByName, setSquadIdByName] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(!tournamentProp && !matchesProp)
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(initialGroupId || null)
+  const [hasAutoSelectedGroup, setHasAutoSelectedGroup] = useState(!!initialGroupId)
 
   // Sync props
   useEffect(() => {
@@ -419,9 +422,10 @@ export default function TournamentPointsTable({
   }, [inningsMap, matches, squadIdByName, squadsById, tournament, tournamentId, filterSquadIds, hideQualification])
 
   useEffect(() => {
-    if (highlightMatch) {
+    if (highlightMatch && !hasAutoSelectedGroup) {
       if (highlightMatch.groupId) {
         setActiveGroupId(highlightMatch.groupId)
+        setHasAutoSelectedGroup(true)
       } else if (groups.length > 0) {
         // Try to find group by team IDs
         const aId = String(highlightMatch.teamAId || (highlightMatch as any).teamASquadId || '').trim()
@@ -433,10 +437,11 @@ export default function TournamentPointsTable({
         )
         if (found) {
           setActiveGroupId(found.id)
+          setHasAutoSelectedGroup(true)
         }
       }
     }
-  }, [highlightMatch, groups])
+  }, [highlightMatch, groups, hasAutoSelectedGroup])
 
   useEffect(() => {
     if (groups.length > 0 && !activeGroupId) setActiveGroupId(groups[0].id)

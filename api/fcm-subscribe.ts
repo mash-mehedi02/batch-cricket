@@ -20,9 +20,16 @@ async function getAccessToken(): Promise<string | null> {
         const sa = JSON.parse(serviceAccountJson);
         const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
         const now = Math.floor(Date.now() / 1000);
+
+        // Scope needs to be broad enough for IID API topic management via Bearer token
+        const scope = [
+            'https://www.googleapis.com/auth/firebase.messaging',
+            'https://www.googleapis.com/auth/cloud-platform'
+        ].join(' ');
+
         const payload = Buffer.from(JSON.stringify({
             iss: sa.client_email,
-            scope: 'https://www.googleapis.com/auth/firebase.messaging',
+            scope: scope,
             aud: sa.token_uri,
             exp: now + 3600,
             iat: now
@@ -41,6 +48,9 @@ async function getAccessToken(): Promise<string | null> {
         });
 
         const tokenData = await tokenRes.json();
+        if (!tokenData.access_token) {
+            console.error('[FCM Subscribe] No access token in response:', tokenData);
+        }
         return tokenData.access_token || null;
     } catch (err: any) {
         console.error('[FCM Subscribe] Token generation failed:', err?.message);
@@ -76,11 +86,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Use the IID (Instance ID) API v1 for topic management
         const iidUrl = `https://iid.googleapis.com/iid/v1:batch${subscribeAction === 'subscribe' ? 'Add' : 'Remove'}`;
 
+        const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+        const sa = JSON.parse(serviceAccountJson || '{}'); // Parse again to get project_id
+        const projectId = sa.project_id || 'sma-cricket-league';
+        console.log(`[FCM ${subscribeAction}] Using project: ${projectId}`);
+        console.log(`[FCM ${subscribeAction}] Token starts with: ${token.substring(0, 10)}...`);
+
         const iidRes = await fetch(iidUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
+                'x-goog-user-project': projectId // Sometimes required for certain APIs
             },
             body: JSON.stringify({
                 to: `/topics/${topic}`,
@@ -89,15 +106,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         const iidData = await iidRes.json();
-        console.log(`[FCM ${subscribeAction}] Response:`, JSON.stringify(iidData));
+        console.log(`[FCM ${subscribeAction}] Google API Status: ${iidRes.status}`);
 
         if (!iidRes.ok) {
-            return res.status(iidRes.status).json({ error: `${subscribeAction} failed`, details: iidData });
+            console.error(`[FCM ${subscribeAction}] Google API Error (${iidRes.status}):`, JSON.stringify(iidData));
+            return res.status(iidRes.status).json({
+                error: `${subscribeAction} failed`,
+                status: iidRes.status,
+                details: iidData,
+                projectId: projectId
+            });
         }
 
         return res.status(200).json({ success: true, action: subscribeAction, topic });
     } catch (err: any) {
-        console.error(`[FCM ${subscribeAction}] Error:`, err?.message);
+        console.error(`[FCM ${subscribeAction}] Unexpected Error:`, err?.message);
         return res.status(500).json({ error: err.message });
     }
 }

@@ -335,29 +335,64 @@ export default function SquadDetails() {
             {activeTab === 'squad' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  {players.map(p => (
-                    <Link key={p.id} to={`/players/${p.id}`} className="flex items-center gap-2 sm:gap-4 bg-slate-50/50 dark:bg-slate-900/40 p-2 sm:p-3 rounded-2xl border border-slate-100 dark:border-white/5 hover:bg-white dark:hover:bg-slate-800 hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-all hover:shadow-md group relative">
-                      <PlayerAvatar photoUrl={p.photoUrl || (p as any).photo} name={p.name} size="sm" className="shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 truncate text-[10px] sm:text-base">
-                            {p.name}
-                          </span>
-                          {squad.captainId === p.id && (
-                            <span className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
-                              (C)
+                  {players.map(p => {
+                    const isCaptain = squad.captainId === p.id;
+                    const isKeeper = squad.wicketKeeperId === p.id;
+                    const isSpecial = isCaptain || isKeeper;
+
+                    return (
+                      <Link
+                        key={p.id}
+                        to={`/players/${p.id}`}
+                        className={`flex items-center gap-3 sm:gap-4 p-2.5 sm:p-4 rounded-2xl border transition-all duration-300 hover:shadow-lg group relative overflow-hidden ${isSpecial
+                          ? 'bg-gradient-to-br from-white to-slate-50/50 dark:from-white/5 dark:to-white/[0.02] border-slate-200 dark:border-white/10 hover:border-amber-500/30'
+                          : 'bg-white dark:bg-white/[0.03] border-slate-100 dark:border-white/5 hover:border-emerald-500/30'
+                          }`}
+                      >
+                        {/* Subtle accent border for special players */}
+                        {isSpecial && (
+                          <div className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-amber-500" />
+                        )}
+
+                        <PlayerAvatar
+                          photoUrl={p.photoUrl || (p as any).photo}
+                          name={p.name}
+                          size="md"
+                          className="shrink-0 transition-transform group-hover:scale-110 duration-500"
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                            <span className={`font-bold tracking-tight truncate text-xs sm:text-[15px] transition-colors leading-none ${isSpecial
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-slate-900 dark:text-slate-100 group-hover:text-emerald-500 dark:group-hover:text-emerald-400'
+                              }`}>
+                              {p.name}
                             </span>
-                          )}
-                          {squad.wicketKeeperId === p.id && (
-                            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0">
-                              WK
-                            </span>
-                          )}
+                            {isCaptain && (
+                              <span className="bg-amber-500 text-white text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase shrink-0 shadow-sm">
+                                CAPTAIN
+                              </span>
+                            )}
+                            {isKeeper && (
+                              <span className="bg-blue-500 text-white text-[7px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase shrink-0 shadow-sm">
+                                WK
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[8px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest truncate">
+                            {p.role}
+                          </div>
                         </div>
-                        <div className="text-[7px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{p.role}</div>
-                      </div>
-                    </Link>
-                  ))}
+
+                        <div className="shrink-0 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 translate-x-4 transition-all duration-300">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center">
+                            <ChevronRight size={14} className="text-slate-400 dark:text-slate-300" />
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}

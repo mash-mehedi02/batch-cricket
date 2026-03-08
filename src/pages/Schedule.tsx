@@ -7,7 +7,7 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { Match, Squad } from '@/types'
 import MatchCard from '@/components/match/MatchCard'
 import MatchCardSkeleton from '@/components/skeletons/MatchCardSkeleton'
-import { coerceToDate, formatDateLabel } from '@/utils/date'
+import { coerceToDate, formatDateLabel, getMatchTimestamp } from '@/utils/date'
 
 export default function Schedule() {
     const [searchParams, setSearchParams] = useSearchParams()
@@ -77,9 +77,9 @@ export default function Schedule() {
 
         // Sort
         filtered.sort((a, b) => {
-            const da = coerceToDate(a.date)?.getTime() || 0
-            const db = coerceToDate(b.date)?.getTime() || 0
-            return tab === 'finished' ? db - da : da - db
+            const tA = getMatchTimestamp(a.date, a.time)
+            const tB = getMatchTimestamp(b.date, b.time)
+            return tab === 'finished' ? tB - tA : tA - tB
         })
 
         // Group by date

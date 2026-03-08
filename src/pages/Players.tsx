@@ -170,8 +170,7 @@ export default function Players() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-8">
             {filteredPlayers.map((player) => {
               const hasPhoto = !!(player.photoUrl || (player as any).photo)
-              const squad = squads.find((s: Squad) => s.id === player.squadId)
-              const squadName = squad ? squad.name : 'Unassigned'
+              const squadName = player.squadId ? (squads[player.squadId] || 'Unassigned') : 'Unassigned'
               // Translate Role
               let roleText = t('all_rounder')
               if (player.role === 'wicket-keeper') roleText = t('wicket_keeper')

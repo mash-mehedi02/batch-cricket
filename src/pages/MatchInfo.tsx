@@ -10,18 +10,15 @@ import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { Match, Tournament } from '@/types'
 import { formatShortTeamName } from '@/utils/teamName'
-import { coerceToDate, formatTimeLabel, formatTimeHMTo12h } from '@/utils/date'
-import { Calendar, MapPin, ChevronRight, ChevronDown, Info, Zap, Hash } from 'lucide-react'
-import MatchPlayingXI from './MatchPlayingXI'
+import { coerceToDate } from '@/utils/date'
+import { ChevronRight, ChevronDown, Info } from 'lucide-react'
 
 interface MatchInfoProps {
     compact?: boolean
-    onSwitchTab?: (tab: string) => void
-    onOpenPlayingXI?: () => void
     match?: Match
 }
 
-export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingXI, match: initialMatch }: MatchInfoProps) {
+export default function MatchInfo({ compact = false, match: initialMatch }: MatchInfoProps) {
     const { matchId } = useParams<{ matchId: string }>()
     const navigate = useNavigate()
     const [match, setMatch] = useState<Match | null>(initialMatch || null)
@@ -334,17 +331,6 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
     const teamAName = match.teamAName || teamASquad?.name || (match as any).teamA || 'Team A'
     const teamBName = match.teamBName || teamBSquad?.name || (match as any).teamB || 'Team B'
 
-    // Handle date
-    const matchDate = coerceToDate((match as any).date)
-    const rawTime = String((match as any).time || '').trim()
-    const timeText = rawTime
-        ? (rawTime.match(/^\d{1,2}:\d{2}$/) ? formatTimeHMTo12h(rawTime) : rawTime)
-        : (matchDate ? formatTimeLabel(matchDate) : '')
-
-    const hasAnyXI = (match.teamAPlayingXI?.length || 0) > 0 || (match.teamBPlayingXI?.length || 0) > 0
-    const xiTitle = hasAnyXI ? 'Playing XI' : 'Squad'
-
-
 
     const tossMessage = (match.tossWinner || (match as any).tossWinner) ? (() => {
         const m2 = match as any;
@@ -372,7 +358,7 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
             {/* 2. Brand/Series Card */}
             <div
                 className={`bg-white dark:bg-[#0f172a] p-4 shadow-sm flex items-center justify-between group cursor-pointer transition-colors ${compact ? 'rounded-none border-x-0 border-y border-slate-100 dark:border-white/5' : 'rounded-2xl border border-slate-200 dark:border-white/5 hover:border-blue-500/30'}`}
-                onClick={() => navigate(tournament?.id ? `/tournaments/${tournament.id}` : '/tournaments')}
+                onClick={() => navigate(tournament?.id ? `/tournaments/${tournament.id}?tab=points${(match as any)?.groupId ? `&groupId=${(match as any).groupId}` : ''}` : '/tournaments')}
             >
                 <div className="space-y-1">
                     <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.1em]">
@@ -390,94 +376,6 @@ export default function MatchInfo({ compact = false, onSwitchTab, onOpenPlayingX
                 </div>
             </div>
 
-            {/* 3. Match Metadata */}
-            <div className={`bg-white dark:bg-[#0f172a] p-4 shadow-sm space-y-4 ${compact ? 'rounded-none border-x-0 border-b border-slate-100 dark:border-white/5' : 'rounded-2xl border border-slate-200 dark:border-white/5'}`}>
-                <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400 font-semibold">
-                    <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-white/[0.03] flex items-center justify-center border border-slate-200 dark:border-white/5">
-                        <Calendar className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-                    </div>
-                    <span>{matchDate ? matchDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Dhaka' }) : 'TBA'} • {timeText}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4 text-sm text-slate-600 dark:text-slate-400 font-semibold group cursor-pointer">
-                    <div className="flex items-center gap-4">
-                        <div className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-white/[0.03] flex items-center justify-center border border-slate-200 dark:border-white/5">
-                            <MapPin className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-                        </div>
-                        <span className="text-blue-600 dark:text-blue-400 group-hover:underline">{match.venue || 'SMA Home Ground'}</span>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
-                </div>
-                {/* Match Stage, Overs & Number */}
-                <div className="flex items-center gap-6 pt-2 border-t border-slate-100 dark:border-white/5 overflow-x-auto no-scrollbar">
-                    {/* Stage */}
-                    <div className="flex items-center gap-3 text-sm font-semibold shrink-0">
-                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                            <Info className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Stage</span>
-                            <span className="text-blue-600 dark:text-blue-400 font-semibold text-[13px] tracking-tight uppercase whitespace-nowrap">
-                                {(match as any).stage === 'knockout'
-                                    ? String((match as any).round || '').replace('_', ' ')
-                                    : (match as any).matchNo ? `Match ${(match as any).matchNo}` : (match as any).groupName ? `${(match as any).groupName} Group` : (match as any).stage || 'Match'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Overs */}
-                    <div className="flex items-center gap-3 text-sm font-semibold pl-6 border-l border-slate-100 dark:border-white/5 shrink-0">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                            <Zap className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Format</span>
-                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-base tracking-tight uppercase">
-                                {match.oversLimit || 20} Overs
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Match No */}
-                    {(match as any).matchNo && (
-                        <div className="flex items-center gap-3 text-sm font-semibold pl-6 border-l border-slate-100 dark:border-white/5 shrink-0">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                                <Hash className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Match</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-base tracking-tight uppercase">
-                                    {(match as any).matchNo}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* 4. Squad / Playing XI Section */}
-            <div className="space-y-3">
-                <h3 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 px-1 uppercase tracking-wide">{xiTitle}</h3>
-                <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm divide-y divide-slate-100 dark:divide-white/5 overflow-hidden">
-                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => onOpenPlayingXI?.()}>
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
-                                {teamASquad?.logoUrl ? <img src={teamASquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-semibold text-slate-400 dark:text-white/10">{teamAName[0]}</span>}
-                            </div>
-                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-tight">{formatShortTeamName(teamAName)}</span>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                    <div className="flex items-center justify-between p-4 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors" onClick={() => onOpenPlayingXI?.()}>
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-[#060b16] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden flex items-center justify-center p-1.5">
-                                {teamBSquad?.logoUrl ? <img src={teamBSquad.logoUrl} className="w-full h-full object-contain" /> : <span className="text-sm font-semibold text-slate-400 dark:text-white/10">{teamBName[0]}</span>}
-                            </div>
-                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-tight">{formatShortTeamName(teamBName)}</span>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-600 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                </div>
-            </div>
 
             {/* 6. Team Form */}
             <div className="space-y-3 pt-2">

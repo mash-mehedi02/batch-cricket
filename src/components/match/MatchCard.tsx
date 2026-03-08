@@ -66,10 +66,15 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
             const diff = targetDate.getTime() - Date.now()
             if (diff <= 0) { setTimeLeft('WAITING FOR START'); return }
             const totalSecs = Math.floor(diff / 1000)
-            const h = Math.floor(totalSecs / 3600)
+            const d = Math.floor(totalSecs / 86400)
+            const h = Math.floor((totalSecs % 86400) / 3600)
             const m = Math.floor((totalSecs % 3600) / 60)
             const s = totalSecs % 60
-            setTimeLeft(`${String(h).padStart(2, '0')}h:${String(m).padStart(2, '0')}m:${String(s).padStart(2, '0')}s`)
+
+            let timeStr = "";
+            if (d > 0) timeStr += `${d}D : `;
+            timeStr += `${String(h).padStart(2, '0')}H : ${String(m).padStart(2, '0')}M : ${String(s).padStart(2, '0')}S`;
+            setTimeLeft(timeStr);
         }
         updateCountdown(); const timer = setInterval(updateCountdown, 1000)
         return () => clearInterval(timer)
@@ -122,34 +127,57 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
     })()
 
     const getResultText = () => {
-        if (!isFinished) return null
         if ((match as any).resultSummary) return (match as any).resultSummary
         if (!teamAInnings || !teamBInnings) return t('completed')
 
         const aR = teamAInnings.totalRuns || 0, bR = teamBInnings.totalRuns || 0
         const aW = teamAInnings.totalWickets || 0, bW = teamBInnings.totalWickets || 0
 
-        if (aR === bR) return t('match_tied')
-
-        // Determine who batted first
-        const battedFirst = match.tossWinner === 'teamA'
+        // Determine Main Match Batting Order
+        const mainBattedFirst = match.tossWinner === 'teamA'
             ? (match.electedTo === 'bat' ? 'teamA' : 'teamB')
             : (match.electedTo === 'bat' ? 'teamB' : 'teamA');
+        const mainBattedSecond = mainBattedFirst === 'teamA' ? 'teamB' : 'teamA';
 
-        if (aR > bR) {
-            // Team A won
-            if (battedFirst === 'teamA') {
-                return `${teamAName} ${t('won_by')} ${aR - bR} ${t('by_runs')}`
+        // Handle Super Over Result
+        if (aR === bR && teamASuperInnings && teamBSuperInnings) {
+            const soA = teamASuperInnings.totalRuns || 0
+            const soB = teamBSuperInnings.totalRuns || 0
+            const soAW = teamASuperInnings.totalWickets || 0
+            const soBW = teamBSuperInnings.totalWickets || 0
+
+            // In SO, the team that batted second in main match typically bats first
+            const soBattedFirst = mainBattedSecond;
+
+            if (soA === soB) return t('match_tied') + ' (Super Over)'
+
+            const winnerSide = soA > soB ? 'teamA' : 'teamB';
+            const winnerName = winnerSide === 'teamA' ? teamAName : teamBName;
+
+            if (winnerSide === soBattedFirst) {
+                // Team batting first in SO won -> Wins by RUNS
+                const margin = Math.abs(soA - soB);
+                return `${winnerName} ${t('won_by')} ${margin} ${t('by_runs')} (Super Over)`
             } else {
-                return `${teamAName} ${t('won_by')} ${10 - aW} ${t('by_wickets')}`
+                // Team batting second in SO won -> Wins by WICKETS
+                const winnerWickets = winnerSide === 'teamA' ? soAW : soBW;
+                const margin = 2 - winnerWickets; // Super Over limit is usually 2 wickets
+                return `${winnerName} ${t('won_by')} ${margin} ${t('by_wickets')} (Super Over)`
             }
+        }
+
+        if (aR === bR) return t('match_tied')
+
+        const winnerSide = aR > bR ? 'teamA' : 'teamB';
+        const winnerName = winnerSide === 'teamA' ? teamAName : teamBName;
+
+        if (winnerSide === mainBattedFirst) {
+            // Batting first won -> Wins by RUNS
+            return `${winnerName} ${t('won_by')} ${Math.abs(aR - bR)} ${t('by_runs')}`
         } else {
-            // Team B won
-            if (battedFirst === 'teamB') {
-                return `${teamBName} ${t('won_by')} ${bR - aR} ${t('by_runs')}`
-            } else {
-                return `${teamBName} ${t('won_by')} ${10 - bW} ${t('by_wickets')}`
-            }
+            // Batting second won -> Wins by WICKETS
+            const winnerWickets = winnerSide === 'teamA' ? aW : bW;
+            return `${winnerName} ${t('won_by')} ${10 - winnerWickets} ${t('by_wickets')}`
         }
     }
 
@@ -179,14 +207,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
 
                 {/* Header: Tournament & Info */}
                 <div className="pt-4 px-4 text-center">
-                    <h3 className="text-[12px] sm:text-[14px] font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight mb-2 pr-8 truncate">
+                    <h3 className="text-[12px] sm:text-[14px] font-medium text-slate-800 dark:text-slate-100 tracking-tight leading-tight mb-2 pr-8 truncate">
                         {displayHeader}
                     </h3>
 
                     {/* Dashed Separator */}
                     <div className="border-t border-dashed border-slate-200 dark:border-white/10 my-2 w-[85%] mx-auto" />
 
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-2">
+                    <p className="text-[9px] font-normal text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-2">
                         {match.oversLimit ? <span>F{match.oversLimit}</span> : null}
                         <span>.</span>
                         <span>{dateStr}</span>
@@ -198,29 +226,46 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                 {/* Main Content: Teams & Scores */}
                 <div className="flex-1 flex items-center justify-between w-full px-4 py-4">
                     {/* Team A Pod */}
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="h-12 w-12 bg-slate-50 dark:bg-slate-800/40 rounded-full flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden p-1.5">
-                            {teamALogo ? (
-                                <img src={teamALogo} alt={teamAName} className="w-full h-full object-contain" />
-                            ) : (
-                                <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase">
-                                    {teamAName.charAt(0)}
-                                </div>
-                            )}
+                    <div className="flex items-center gap-3 flex-1 min-w-0 relative">
+                        {/* Decorative Tail Background (Team A) - Balanced Length */}
+                        <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-14 h-14 bg-gradient-to-r from-indigo-500/20 via-purple-500/10 to-transparent dark:from-indigo-500/30 dark:via-purple-500/15 dark:to-transparent rounded-r-full border-y border-r border-indigo-200/50 dark:border-indigo-500/20 pointer-events-none shadow-[0_2px_8px_rgba(99,102,241,0.1)]" />
+
+                        <div className="relative shrink-0 flex items-center z-10 -ml-3.5">
+                            {/* Logo Wrapper (No Circle BG, just shadow for premium feel) */}
+                            <div className="h-12 w-12 flex items-center justify-center shrink-0 transition-transform group-hover:scale-115 duration-500 drop-shadow-[0_4px_6px_rgba(0,0,0,0.15)]">
+                                {teamALogo ? (
+                                    <img src={teamALogo} alt={teamAName} className="w-full h-full object-contain" />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] font-medium uppercase shadow-sm">
+                                        {teamAName.charAt(0)}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex flex-col min-w-0">
-                            <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 uppercase truncate">
+                        <div className="flex flex-col min-w-0 z-10">
+                            <span className="text-[12px] font-medium text-slate-700 dark:text-slate-200 uppercase truncate">
                                 {teamAName}
                             </span>
                             {!isUpcoming && (
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-[18px] font-black text-emerald-600 dark:text-emerald-500 tabular-nums">
-                                        {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
-                                    </span>
-                                    {teamAInnings?.overs && (
-                                        <span className="text-[9px] font-bold text-slate-400 tabular-nums lowercase">
-                                            ({teamAInnings.overs})
+                                <div className="flex flex-col items-start gap-0.5">
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-[18px] font-semibold text-emerald-600 dark:text-emerald-500 tabular-nums">
+                                            {teamAInnings ? `${teamAInnings.totalRuns}/${teamAInnings.totalWickets}` : '0/0'}
                                         </span>
+                                        {teamAInnings?.overs && (
+                                            <span className="text-[9px] font-normal text-slate-400 tabular-nums lowercase">
+                                                ({teamAInnings.overs})
+                                            </span>
+                                        )}
+                                    </div>
+                                    {teamASuperInnings && teamBSuperInnings && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 dark:bg-amber-500/20 rounded-md border border-amber-500/20">
+                                            <span className="text-[8px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-tighter">SO</span>
+                                            <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
+                                                {teamASuperInnings.totalRuns}/{teamASuperInnings.totalWickets}
+                                            </span>
+                                            <span className="text-[7px] font-normal text-slate-400 tabular-nums lowercase">({teamASuperInnings.overs})</span>
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -232,7 +277,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                         {isLive ? (
                             <div className="bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-100 shadow-sm">
                                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                <span className="text-[9px] font-black text-red-600 tracking-widest uppercase">Live</span>
+                                <span className="text-[9px] font-semibold text-red-600 tracking-widest uppercase">Live</span>
                             </div>
                         ) : (
                             <div className="relative shrink-0 flex items-center justify-center w-10 h-5">
@@ -258,55 +303,73 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                     </div>
 
                     {/* Team B Pod */}
-                    <div className="flex items-center gap-3 flex-1 min-w-0 justify-end text-right">
-                        <div className="flex flex-col items-end min-w-0">
-                            <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 uppercase truncate">
+                    <div className="flex items-center gap-3 flex-1 min-w-0 justify-end text-right relative">
+                        <div className="flex flex-col items-end min-w-0 z-10">
+                            <span className="text-[12px] font-medium text-slate-700 dark:text-slate-200 uppercase truncate">
                                 {teamBName}
                             </span>
                             {!isUpcoming && (
-                                <div className="flex items-baseline gap-1 justify-end">
-                                    {teamBInnings?.overs && (
-                                        <span className="text-[9px] font-bold text-slate-400 tabular-nums lowercase">
-                                            ({teamBInnings.overs})
+                                <div className="flex flex-col items-end gap-0.5 min-w-0">
+                                    <div className="flex items-baseline gap-1 justify-end">
+                                        {teamBInnings?.overs && (
+                                            <span className="text-[9px] font-normal text-slate-400 tabular-nums lowercase">
+                                                ({teamBInnings.overs})
+                                            </span>
+                                        )}
+                                        <span className="text-[18px] font-semibold text-emerald-600 dark:text-emerald-500 tabular-nums">
+                                            {teamBInnings ? `${teamBInnings.totalRuns}/${teamBInnings.totalWickets}` : '0/0'}
                                         </span>
+                                    </div>
+                                    {teamASuperInnings && teamBSuperInnings && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 dark:bg-amber-500/20 rounded-md border border-amber-500/20">
+                                            <span className="text-[7px] font-normal text-slate-400 tabular-nums lowercase">({teamBSuperInnings.overs})</span>
+                                            <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 tabular-nums">
+                                                {teamBSuperInnings.totalRuns}/{teamBSuperInnings.totalWickets}
+                                            </span>
+                                            <span className="text-[8px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-tighter">SO</span>
+                                        </div>
                                     )}
-                                    <span className="text-[18px] font-black text-emerald-600 dark:text-emerald-500 tabular-nums">
-                                        {teamBInnings ? `${teamBInnings.totalRuns}/${teamBInnings.totalWickets}` : '0/0'}
-                                    </span>
                                 </div>
                             )}
                         </div>
-                        <div className="h-12 w-12 bg-slate-50 dark:bg-slate-800/40 rounded-full flex items-center justify-center shrink-0 border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden p-1.5">
-                            {teamBLogo ? (
-                                <img src={teamBLogo} alt={teamBName} className="w-full h-full object-contain" />
-                            ) : (
-                                <div className="w-full h-full rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] font-bold uppercase">
-                                    {teamBName.charAt(0)}
-                                </div>
-                            )}
+
+                        {/* Decorative Tail Background (Team B) - Balanced Length */}
+                        <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-14 h-14 bg-gradient-to-l from-indigo-500/20 via-purple-500/10 to-transparent dark:from-indigo-500/30 dark:via-purple-500/15 dark:to-transparent rounded-l-full border-y border-l border-indigo-200/50 dark:border-indigo-500/20 pointer-events-none shadow-[0_2px_8px_rgba(99,102,241,0.1)]" />
+
+                        <div className="relative shrink-0 flex items-center z-10 -mr-3.5">
+                            {/* Logo Wrapper (No Circle BG) */}
+                            <div className="h-12 w-12 flex items-center justify-center shrink-0 transition-transform group-hover:scale-115 duration-500 drop-shadow-[0_4px_6px_rgba(0,0,0,0.15)]">
+                                {teamBLogo ? (
+                                    <img src={teamBLogo} alt={teamBName} className="w-full h-full object-contain" />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[10px] font-medium uppercase shadow-sm">
+                                        {teamBName.charAt(0)}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="text-center pb-2">
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    <p className="text-[9px] font-normal text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                         {match.venue || 'SMA Home Ground'}
                     </p>
                 </div>
 
                 {/* Footer Status Bar - Compressed & Refined colors */}
-                <div className={`mt-auto py-1.5 px-4 text-center border-t border-slate-100 dark:border-white/5 transition-colors ${isUpcoming ? 'bg-blue-50/20 dark:bg-blue-500/5' :
+                <div className={`mt-auto py-3 px-4 text-center border-t border-slate-100 dark:border-white/5 transition-colors ${isUpcoming ? 'bg-gradient-to-r from-blue-600/10 via-blue-500/5 to-blue-600/10 dark:from-blue-500/15 dark:via-blue-500/5 dark:to-blue-500/15 shadow-[inner_0_2px_8px_rgba(37,99,235,0.08)]' :
                     isLive ? 'bg-orange-50/40 dark:bg-orange-500/5' :
                         'bg-emerald-50/30 dark:bg-emerald-500/5'
                     }`}>
-                    <p className={`text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 ${isUpcoming ? 'text-blue-600' :
+                    <p className={`text-[11px] font-semibold uppercase tracking-[0.1em] flex items-center justify-center gap-2.5 ${isUpcoming ? 'text-blue-700 dark:text-blue-400' :
                         isLive ? 'text-orange-600' :
                             'text-emerald-700'
                         }`}>
                         {isUpcoming ? (
                             <>
-                                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                                {timeLeft || 'Waiting for start'}
+                                <span className="w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.4)]" />
+                                {tossInfo ? `${tossInfo.winnerName} won the toss & chose to ${tossInfo.decision}` : (timeLeft || 'Waiting for start')}
                             </>
                         ) : isLive ? (
                             <>

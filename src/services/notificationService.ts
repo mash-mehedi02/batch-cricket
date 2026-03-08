@@ -1,5 +1,4 @@
-import { getToken, onMessage, Messaging } from 'firebase/messaging'
-import { messaging } from '../config/firebase'
+import { getToken, onMessage, type Messaging } from 'firebase/messaging'
 import { Capacitor } from '@capacitor/core'
 import toast from 'react-hot-toast'
 
@@ -14,13 +13,21 @@ interface MatchNotificationSettings {
 const STORAGE_KEY = 'batchcrick_notifications'
 const TOURNAMENT_STORAGE_KEY = 'batchcrick_tournament_notifications'
 
-const IS_CAPACITOR = typeof (window as any).Capacitor !== 'undefined'
 const PRODUCTION_URL = 'https://batchcrick.vercel.app'
 
-// Use relative URLs for web to avoid CORS/Proxy issues, 
-// but absolute production URLs for native platforms.
-const FCM_SUBSCRIBE_URL = IS_CAPACITOR ? `${PRODUCTION_URL}/api/fcm-subscribe` : '/api/fcm-subscribe'
-const FCM_SEND_URL = IS_CAPACITOR ? `${PRODUCTION_URL}/api/fcm-send` : '/api/fcm-send'
+// Determine the base URL for API calls. 
+// On web, use relative URLs. On native (Capacitor), use absolute production URL.
+const getBaseUrl = () => {
+    if (typeof window === 'undefined') return '';
+    if (Capacitor.isNativePlatform()) return PRODUCTION_URL;
+    // If on localhost, use the production API for testing as localhost doesn't host /api
+    if (window.location.hostname === 'localhost') return PRODUCTION_URL;
+    return '';
+};
+
+const BASE_URL = getBaseUrl();
+const FCM_SUBSCRIBE_URL = `${BASE_URL}/api/fcm-subscribe`;
+const FCM_SEND_URL = `${BASE_URL}/api/fcm-send`;
 
 class NotificationService {
     private messaging: Messaging | null = null
@@ -89,18 +96,22 @@ class NotificationService {
                 // The actual token is received via the 'registration' listener
                 // We'll return a promise that resolves when the listener fires
                 return new Promise((resolve) => {
-                    const regListener = PushNotifications.addListener('registration', (token) => {
-                        this.token = token.value;
-                        console.log('[FCM] Native Token obtained:', token.value.substring(0, 20) + '...');
-                        regListener.remove();
-                        resolve(token.value);
-                    });
+                    const setupListeners = async () => {
+                        const regListener = await PushNotifications.addListener('registration', (token) => {
+                            this.token = token.value;
+                            console.log('[FCM] Native Token obtained:', token.value.substring(0, 20) + '...');
+                            regListener.remove();
+                            resolve(token.value);
+                        });
 
-                    const errListener = PushNotifications.addListener('registrationError', (err) => {
-                        console.error('[FCM] Native Registration error:', err);
-                        errListener.remove();
-                        resolve(null);
-                    });
+                        const errListener = await PushNotifications.addListener('registrationError', (err) => {
+                            console.error('[FCM] Native Registration error:', err);
+                            errListener.remove();
+                            resolve(null);
+                        });
+                    };
+
+                    setupListeners();
 
                     // Set a timeout in case listeners don't fire
                     setTimeout(() => resolve(this.token), 10000);
@@ -118,11 +129,33 @@ class NotificationService {
                 const msg = await this.getMessagingInstance();
                 if (!msg) return null;
 
+                // Explicitly register service worker to avoid "no active service worker" error
+                if ('serviceWorker' in navigator) {
+                    try {
+                        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                        // Wait for service worker to be ready
+                        await navigator.serviceWorker.ready;
+
+                        const token = await getToken(msg, {
+                            vapidKey: 'BK-cF82hQXHEq99VRHFqfJGcO1oQLiifIK_9RZbwkKTdlsg9ixWIB28cjrZAiR03gQGhhQtF_A77UUUmfBU_CWM',
+                            serviceWorkerRegistration: registration
+                        });
+
+                        this.token = token;
+                        console.log('[FCM] Web Token obtained:', token.substring(0, 20) + '...');
+                        return token;
+                    } catch (swError) {
+                        console.error('[FCM] Service Worker registration failed:', swError);
+                        // Fallback without explicit registration if it fails
+                    }
+                }
+
+                // Fallback for environments where SW might be handled differently
                 const token = await getToken(msg, {
                     vapidKey: 'BK-cF82hQXHEq99VRHFqfJGcO1oQLiifIK_9RZbwkKTdlsg9ixWIB28cjrZAiR03gQGhhQtF_A77UUUmfBU_CWM'
                 });
                 this.token = token;
-                console.log('[FCM] Web Token obtained:', token.substring(0, 20) + '...');
+                console.log('[FCM] Web Token obtained (fallback):', token.substring(0, 20) + '...');
                 return token;
             } else {
                 console.warn('[FCM] Web Notification permission denied');
@@ -279,9 +312,20 @@ class NotificationService {
                     action: 'subscribe'
                 })
             })
+
+            if (!res.ok) {
+                const text = await res.text();
+                let errorDetails: any = text;
+                try { errorDetails = JSON.parse(text); } catch (e) { /* ignore */ }
+                console.error(`[FCM] Subscribe failed (${res.status}):`, errorDetails);
+                if (errorDetails?.details) {
+                    console.error('[FCM] Error Details:', errorDetails.details);
+                }
+                return;
+            }
+
             const data = await res.json()
-            if (!res.ok) console.error(`[FCM] Subscribe failed:`, data)
-            else console.log(`[FCM] ✅ Subscribed to ${topic}`)
+            console.log(`[FCM] ✅ Subscribed to ${topic}`, data)
         } catch (error) {
             console.error(`[FCM] Failed to subscribe to ${topic}`, error)
         }
@@ -299,8 +343,20 @@ class NotificationService {
                     action: 'unsubscribe'
                 })
             })
+
+            if (!res.ok) {
+                const text = await res.text();
+                let errorDetails: any = text;
+                try { errorDetails = JSON.parse(text); } catch (e) { /* ignore */ }
+                console.error(`[FCM] Unsubscribe failed (${res.status}):`, errorDetails);
+                if (errorDetails?.details) {
+                    console.error('[FCM] Error Details:', errorDetails.details);
+                }
+                return;
+            }
+
             const data = await res.json()
-            if (!res.ok) console.error(`[FCM] Unsubscribe failed:`, data)
+            console.log(`[FCM] ✅ Unsubscribed from ${topic}`, data)
         } catch (error) {
             console.error(`[FCM] Failed to unsubscribe from ${topic}`, error)
         }
