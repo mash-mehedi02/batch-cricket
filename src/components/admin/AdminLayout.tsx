@@ -20,6 +20,7 @@ import {
     ShieldAlert,
     Sparkles
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { db } from '@/config/firebase';
@@ -35,6 +36,7 @@ const AdminLayout = () => {
     const [verifyingRole, setVerifyingRole] = useState(true);
     const [isPlayerRestricted, setIsPlayerRestricted] = useState(false);
     const [isPromoting, setIsPromoting] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     // Cleanse Workspace Helper (Fresh Start for Admin)
     const cleanseAdminWorkspace = () => {
@@ -220,16 +222,21 @@ const AdminLayout = () => {
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    const handleLogout = async () => {
-        if (confirm('Are you sure you want to logout?')) {
-            try {
-                await logout();
-                navigate('/');
-            } catch (error) {
-                console.error('Logout failed:', error);
-            }
+    const handleLogout = () => {
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = async () => {
+        try {
+            await logout();
+            navigate('/');
+        } catch (error) {
+            console.error('Logout failed:', error);
+            toast.error('Failed to sign out');
+        } finally {
+            setShowLogoutConfirm(false);
         }
-    }
+    };
 
     if (loading || verifyingRole) {
         return (
@@ -427,6 +434,51 @@ const AdminLayout = () => {
                     <Outlet />
                 </main>
             </div>
+
+            {/* Custom Logout Confirmation Modal */}
+            <AnimatePresence>
+                {showLogoutConfirm && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowLogoutConfirm(false)}
+                            className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl shadow-blue-900/20 overflow-hidden border border-slate-100"
+                        >
+                            <div className="p-8 text-center text-slate-900">
+                                <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                                    <LogOut className="w-10 h-10 text-red-500" />
+                                </div>
+                                <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-2">Sign Out</h3>
+                                <p className="text-slate-500 font-medium text-sm leading-relaxed">
+                                    Are you sure you want to end your active session and logout?
+                                </p>
+                            </div>
+                            <div className="p-6 bg-slate-50/50 flex gap-3">
+                                <button
+                                    onClick={() => setShowLogoutConfirm(false)}
+                                    className="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-50 transition-all active:scale-95"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmLogout}
+                                    className="flex-1 py-4 bg-red-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-red-200 hover:bg-red-700 transition-all active:scale-95"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

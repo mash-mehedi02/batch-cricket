@@ -11,14 +11,14 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
 // Analytics is optional - may be blocked by ad blockers
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBBspPU6lQyxbuU0Bt8L2UKEThGlmYHiYc",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "sma-cricket-league.firebaseapp.com",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://sma-cricket-league-default-rtdb.firebaseio.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "sma-cricket-league",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "sma-cricket-league.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "899272110972",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:899272110972:web:62fe0c9bddf2129f7e6af9",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-W2G5TD37XE",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL as string,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID as string,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string,
 }
 
 // Initialize Firebase

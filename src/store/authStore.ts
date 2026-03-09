@@ -21,25 +21,17 @@ import { auth, db } from '@/config/firebase'
 import { User } from '@/types'
 import toast from 'react-hot-toast'
 
+import { loginRateLimiter } from '@/utils/rateLimiter'
+
 // Role-based access is controlled via Firestore 'admins' collection.
 const processingLogins = new Set<string>();
 
 /**
  * Fetch IP and basic location info for security logging
+ * Disabled on client-side for privacy and performance.
  */
 async function fetchConnectivityInfo() {
-  try {
-    const res = await fetch('https://ipapi.co/json/').catch(() => null);
-    if (!res) return { ip: 'unknown', city: 'unknown', country: 'unknown' };
-    const data = await res.json();
-    return {
-      ip: data.ip || 'unknown',
-      city: data.city || 'unknown',
-      country: data.country_name || 'unknown'
-    };
-  } catch (err) {
-    return { ip: 'unknown', city: 'unknown', country: 'unknown' };
-  }
+  return { ip: 'unknown', city: 'unknown', country: 'unknown' };
 }
 
 
@@ -68,12 +60,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Legacy Login
   login: async (email: string, password: string): Promise<boolean> => {
+    const status = loginRateLimiter.getStatus();
+    if (status.isLocked) {
+      set({ loading: false });
+      const mins = Math.ceil(status.remainingMs / 60000);
+      throw { code: 'auth/too-many-requests', message: `Too many attempts. Try again in ${mins} minutes.` };
+    }
+
     try {
       const normalizedEmail = email.trim().toLowerCase();
       console.log("[AuthStore] Attempting login for:", normalizedEmail);
       const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      loginRateLimiter.reset();
       return await get().processLogin(userCredential.user);
     } catch (error: any) {
+      // Record the failed attempt
+      loginRateLimiter.increment();
       console.error("[AuthStore] Login Error:", error.code, error.message);
       set({ loading: false });
       throw error;
@@ -277,6 +279,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (!adminSnap.empty) {
             const adminData = adminSnap.docs[0].data();
             if (adminData.isActive) {
+              // Check verification for standard admins only (not Super Admin fallback)
+              if (adminData.emailVerified === false && !user.emailVerified) {
+                console.warn("[AuthStore] Unverified admin attempted login:", emailLower);
+                await signOut(auth);
+                processingLogins.delete(user.uid);
+                set({ isProcessing: false });
+                throw { code: 'auth/unverified-email', message: 'This account requires email verification. Please check your inbox and verify your email.' };
+              }
+
               console.log("[AuthStore] Admin email match found! Granting privileges.");
               userRole = adminData.role || 'admin';
               isAdmin = true;
@@ -287,6 +298,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 await setDoc(doc(db, 'admins', user.uid), {
                   ...adminData,
                   uid: user.uid,
+                  updatedAt: serverTimestamp()
+                });
+              }
+
+              // Auto-sync email verification status from Firebase Auth
+              if (user.emailVerified && adminData.emailVerified === false) {
+                console.log("[AuthStore] Syncing emailVerified=true for admin:", user.email);
+                await updateDoc(doc(db, 'admins', adminSnap.docs[0].id), {
+                  emailVerified: true,
                   updatedAt: serverTimestamp()
                 });
               }
@@ -515,7 +535,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     } catch (error: any) {
       console.error("[AuthStore] Process Login Error:", error);
-      // Don't throw — Google Auth already succeeded. 
+
+      // CRITICAL: Do not swallow intentional auth blocks (like unverified emails)
+      if (error.code && error.code.startsWith('auth/')) {
+        throw error;
+      }
+
+      // Don't throw for other errors (like Firestore permissions).
       // Set a basic user state so the user isn't stuck in a broken state.
       const fallbackUser = {
         uid: user.uid,
@@ -663,9 +689,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const data = docSnap.data() as User;
             console.log("[AuthStore] REAL-TIME Update: User Role =", data.role);
 
+            // DOUBLE CHECK VERIFICATION FOR ADMINS ON EVERY SNAPSHOT
+            if ((data.role === 'admin' || data.role === 'super_admin') && firebaseUser.email) {
+              const { SUPER_ADMIN_EMAIL } = await import('@/services/firestore/admins');
+              if (firebaseUser.email.toLowerCase().trim() !== SUPER_ADMIN_EMAIL.toLowerCase()) {
+                // If the Auth user is unverified, check the Admins collection flag as final arbiter
+                if (!firebaseUser.emailVerified) {
+                  const adminDoc = await getDoc(doc(db, 'admins', firebaseUser.uid));
+                  if (adminDoc.exists() && adminDoc.data().emailVerified === false) {
+                    console.warn("[AuthStore] Unverified admin blocked by snapshot listener.");
+                    toast.error('This account requires email verification. Please check your inbox.', { id: 'auth-revoked', duration: 5000 });
+                    await get().logout();
+                    return; // Stop execution, don't set user
+                  }
+                }
+              }
+            }
+
             // SYNC METADATA ONCE PER SESSION (For all users)
             get().syncSessionMetadata(firebaseUser);
-
             // If user is a player, we always verify identity sync to catch admin changes
             if (data.isRegisteredPlayer && firebaseUser.email) {
               try {

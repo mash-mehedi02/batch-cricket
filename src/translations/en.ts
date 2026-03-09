@@ -142,4 +142,22 @@ export const en = {
     all_batches: 'All Batches',
     no_squads_found: 'No squads found',
     view_squad: 'View Squad',
+
+    // Auth Errors
+    auth_error_wrong_password: 'Incorrect password! Please try again.',
+    auth_error_user_not_found: 'No account found with this email.',
+    auth_error_invalid_email: 'Invalid email address.',
+    auth_error_too_many_attempts: 'Too many attempts. Account temporarily locked.',
+    auth_error_generic: 'Authentication failed. Please check your credentials.',
+    auth_error_email_in_use: 'This email is already registered.',
+    auth_error_weak_password: 'Password should be at least 6 characters.',
+    auth_error_no_permission: 'You do not have permission to access this application.',
+    auth_error_unverified_email: 'You must verify your email first before logging in. Please check your inbox!',
+    auth_success_password_reset: 'Password reset email sent!',
+    auth_success_password_updated: 'Password updated successfully!',
+    auth_email_reset_sent: 'Password reset email sent!',
+    auth_account_created: 'Account successfully created!',
+    auth_locked_out: 'Too many wrong attempts! Try again after {minutes} minutes.',
+    auth_attempts_remaining: '{count} attempts remaining.',
+    auth_wait_seconds: 'Wait {seconds} seconds...',
 };

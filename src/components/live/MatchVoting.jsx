@@ -31,12 +31,17 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, is
 
         setIsCasting(true);
         try {
-            const success = await voteService.castVote(matchId, team);
-            if (success) {
+            const result = await voteService.castVote(matchId, team);
+            if (result.success) {
                 setUserVote(team);
                 toast.success('Vote recorded!');
             } else {
-                toast.error('Failed to record vote. Try again later.');
+                if (result.reason === 'ALREADY_VOTED') {
+                    setUserVote('unknown');
+                    toast.error('Multiple votes not allowed.');
+                } else {
+                    toast.error('Failed to record vote. Try again later.');
+                }
             }
         } catch (err) {
             toast.error('Connection error while voting.');

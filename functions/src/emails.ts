@@ -240,6 +240,24 @@ export async function sendMatchEndEmails(matchId: string) {
 }
 
 /**
+ * Callable: Trigger Match End Emails (Admin/Super Admin Only)
+ */
+export const triggerMatchEndEmails = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const userDoc = await db.collection('users').doc(context.auth.uid).get();
+    const role = userDoc.data()?.role;
+    if (role !== 'admin' && role !== 'super_admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Admin only');
+    }
+
+    const { matchId } = data;
+    if (!matchId) throw new functions.https.HttpsError('invalid-argument', 'Match ID required');
+
+    await sendMatchEndEmails(matchId);
+    return { success: true };
+});
+
+/**
  * Callable: Send Manual Email (Super Admin Only)
  */
 export const sendManualEmail = functions.https.onCall(async (data, context) => {
@@ -285,6 +303,35 @@ export const sendManualEmail = functions.https.onCall(async (data, context) => {
 
     // Batch send
     const promises = uniqueEmails.map(email => sendEmail(email, subject, html, { type: 'manual', by: context.auth?.uid }));
+    await Promise.all(promises);
+
+    return { success: true, count: uniqueEmails.length };
+});
+
+/**
+ * Callable: Send Proxy Email (Admin/Super Admin Only)
+ * Allows frontend to trigger Brevo emails securely without exposing the API key
+ */
+export const sendProxyEmail = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+
+    // Check Admin rights
+    const userDoc = await db.collection('users').doc(context.auth.uid).get();
+    const role = userDoc.data()?.role;
+    if (role !== 'admin' && role !== 'super_admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Admin only');
+    }
+
+    const { to, subject, htmlContent } = data;
+    if (!to || !Array.isArray(to) || !subject || !htmlContent) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid payload');
+    }
+
+    // Extract emails from the 'to' array [{email: string, name: string}]
+    const uniqueEmails = [...new Set(to.map((recipient: any) => recipient.email))];
+
+    // Batch send
+    const promises = uniqueEmails.map(email => sendEmail(email, subject, htmlContent, { type: 'proxy', by: context.auth?.uid }));
     await Promise.all(promises);
 
     return { success: true, count: uniqueEmails.length };

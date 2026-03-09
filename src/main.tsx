@@ -64,12 +64,16 @@ if (typeof window !== 'undefined') {
   }, true)
 }
 
+import { ErrorBoundary } from './components/ErrorBoundary'
+
 // Initialize auth state
 useAuthStore.getState().initialize()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>,
 )
 

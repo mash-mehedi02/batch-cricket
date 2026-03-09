@@ -9,7 +9,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import schoolConfig from '@/config/school'
-import { User, Shield, ChevronRight, Lock, Mail, Camera, X, Upload } from 'lucide-react'
+import { User, Shield, ChevronRight, Lock, Mail, Camera, X, Upload, ShieldAlert, Eye, EyeOff } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
 import { useTranslation } from '@/hooks/useTranslation'
@@ -17,6 +17,7 @@ import { uploadImage } from '@/services/cloudinary/uploader'
 import { squadService } from '@/services/firestore/squads'
 import { playerRequestService } from '@/services/firestore/playerRequests'
 import { Squad } from '@/types'
+import { loginRateLimiter, LockoutStatus } from '@/utils/rateLimiter'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -27,6 +28,9 @@ export default function Login() {
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [isPendingApproval, setIsPendingApproval] = useState(false)
   const [squads, setSquads] = useState<Squad[]>([])
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [_lockoutStatus, setLockoutStatus] = useState<LockoutStatus>(loginRateLimiter.getStatus())
+  const [lockoutCountdown, setLockoutCountdown] = useState(0)
 
   const handlePasswordReset = async () => {
     if (!email) {
@@ -51,6 +55,7 @@ export default function Login() {
   // Input States
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   // Check login status and profile completeness
   useEffect(() => {
@@ -94,6 +99,31 @@ export default function Login() {
 
     }
   }, [user, loading, isProcessing, navigate, location, isLoading, params.get('setup')])
+
+  // Lockout countdown timer
+  useEffect(() => {
+    const status = loginRateLimiter.getStatus();
+    setLockoutStatus(status);
+    if (status.isLocked) {
+      setLockoutCountdown(Math.ceil(status.remainingMs / 1000));
+    }
+  }, [])
+
+  useEffect(() => {
+    if (lockoutCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setLockoutStatus(loginRateLimiter.getStatus());
+          setAuthError(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutCountdown])
 
   // Fetch Squads for Registration
   useEffect(() => {
@@ -182,35 +212,75 @@ export default function Login() {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
+
+    // Check lockout
+    const currentStatus = loginRateLimiter.getStatus();
+    if (currentStatus.isLocked) {
+      const mins = Math.ceil(currentStatus.remainingMs / 60000);
+      const msg = t('auth_locked_out').replace('{minutes}', String(mins));
+      setAuthError(msg);
+      setLockoutCountdown(Math.ceil(currentStatus.remainingMs / 1000));
+      setLockoutStatus(currentStatus);
+      return;
+    }
+
     setIsLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
       if (isSignUp) {
-        // Register
         await signup(normalizedEmail, password, {
           name: name || normalizedEmail.split('@')[0],
-          role: 'All Rounder', // Defaults, user will confirm in next step
+          role: 'All Rounder',
           battingStyle: 'Right Hand',
           bowlingStyle: 'None'
         });
         toast.success("Account created! Please complete your profile.");
+        loginRateLimiter.reset();
       } else {
-        // Login
         await login(normalizedEmail, password);
+        loginRateLimiter.reset();
       }
+      setLockoutStatus(loginRateLimiter.getStatus());
     } catch (error: any) {
       console.error("Auth Error:", error);
+
       if (error.code === 'auth/email-already-in-use') {
-        toast.error("Account already exists! Please Login.", { duration: 5000 });
-        toast("Tip: Use 'Forgot Password' if you signed up with Google.", { icon: '💡', duration: 6000 });
-        setIsSignUp(false); // Switch to Login mode
+        toast.error(t('auth_error_email_in_use'));
+        setIsSignUp(false);
         return;
       }
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        toast.error("Incorrect Password!");
-        toast("Tip: Click 'Forgot Password?' to set a new one.", { icon: '🔑', duration: 6000 });
+
+      // Record the failed attempt and update status
+      const newStatus = loginRateLimiter.getStatus();
+      setLockoutStatus(newStatus);
+
+      if (newStatus.isLocked) {
+        const mins = Math.ceil(newStatus.remainingMs / 60000);
+        const msg = t('auth_locked_out').replace('{minutes}', String(mins));
+        setAuthError(msg);
+        setLockoutCountdown(Math.ceil(newStatus.remainingMs / 1000));
+        toast.error(msg);
       } else {
-        toast.error(`Authentication Failed: ${error.message}`);
+        // Determine the error message
+        const msg = error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password'
+          ? t('auth_error_wrong_password')
+          : error.code === 'auth/user-not-found'
+            ? t('auth_error_user_not_found')
+            : error.code === 'auth/too-many-requests'
+              ? t('auth_error_too_many_attempts')
+              : error.code === 'auth/invalid-email'
+                ? t('auth_error_invalid_email')
+                : (error.message || t('auth_error_generic'));
+
+        // Show remaining attempts warning
+        const remaining = newStatus.remainingAttempts;
+        const fullMsg = remaining > 0
+          ? `${msg} ${t('auth_attempts_remaining').replace('{count}', String(remaining))}`
+          : msg;
+
+        setAuthError(fullMsg);
+        toast.error(msg);
       }
     } finally {
       setIsLoading(false);
@@ -219,13 +289,55 @@ export default function Login() {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
+
+    // Check lockout
+    const currentStatus = loginRateLimiter.getStatus();
+    if (currentStatus.isLocked) {
+      const mins = Math.ceil(currentStatus.remainingMs / 60000);
+      const msg = t('auth_locked_out').replace('{minutes}', String(mins));
+      setAuthError(msg);
+      setLockoutCountdown(Math.ceil(currentStatus.remainingMs / 1000));
+      setLockoutStatus(currentStatus);
+      return;
+    }
+
     setIsLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     try {
       await login(normalizedEmail, password);
-      // Effect will handle redirect
+      loginRateLimiter.reset();
+      setLockoutStatus(loginRateLimiter.getStatus());
     } catch (error: any) {
-      toast.error('Admin Login failed: ' + (error.message || 'Check credentials'));
+      // Update status after failed attempt
+      const newStatus = loginRateLimiter.getStatus();
+      setLockoutStatus(newStatus);
+
+      if (newStatus.isLocked) {
+        const mins = Math.ceil(newStatus.remainingMs / 60000);
+        const msg = t('auth_locked_out').replace('{minutes}', String(mins));
+        setAuthError(msg);
+        setLockoutCountdown(Math.ceil(newStatus.remainingMs / 1000));
+        toast.error(msg);
+      } else {
+        const msg = error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password'
+          ? t('auth_error_wrong_password')
+          : error.code === 'auth/user-not-found'
+            ? t('auth_error_user_not_found')
+            : error.code === 'auth/too-many-requests'
+              ? t('auth_error_too_many_attempts')
+              : error.code === 'auth/unverified-email'
+                ? t('auth_error_unverified_email')
+                : (error.message || t('auth_error_generic'));
+
+        const remaining = newStatus.remainingAttempts;
+        const fullMsg = remaining > 0
+          ? `${msg} ${t('auth_attempts_remaining').replace('{count}', String(remaining))}`
+          : msg;
+
+        setAuthError(fullMsg);
+        toast.error(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -361,22 +473,43 @@ export default function Login() {
                         <Lock className="h-5 w-5 text-slate-400" />
                       </div>
                       <input
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="block w-full pl-10 pr-3 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 dark:text-white placeholder-slate-400"
+                        className="block w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 dark:text-white placeholder-slate-400"
                         placeholder="••••••••"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
                     </div>
                   </div>
 
+                  {authError && isAdminLogin && (
+                    <div className={`${lockoutCountdown > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50' : 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'} border p-3 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300`}>
+                      <ShieldAlert className={`w-4 h-4 ${lockoutCountdown > 0 ? 'text-amber-500' : 'text-rose-500'} shrink-0 mt-0.5`} />
+                      <div className="flex-1">
+                        <p className={`text-xs font-bold ${lockoutCountdown > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'} leading-tight`}>{authError}</p>
+                        {lockoutCountdown > 0 && (
+                          <p className="text-[11px] font-black text-amber-500 dark:text-amber-400 mt-1.5 tabular-nums">
+                            ⏱️ {Math.floor(lockoutCountdown / 60)}:{String(lockoutCountdown % 60).padStart(2, '0')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    disabled={isLoading}
+                    disabled={isLoading || lockoutCountdown > 0}
                     className="w-full flex items-center justify-center py-3.5 px-4 rounded-xl shadow-lg border-transparent text-sm font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                   >
-                    {isLoading ? 'Verifying...' : 'Sign In'}
+                    {isLoading ? 'Verifying...' : lockoutCountdown > 0 ? `🔒 ${Math.floor(lockoutCountdown / 60)}:${String(lockoutCountdown % 60).padStart(2, '0')}` : 'Sign In'}
                   </button>
 
                   <p className="mt-4 text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
@@ -479,23 +612,46 @@ export default function Login() {
                             </button>
                           )}
                         </div>
-                        <input
-                          type="password"
-                          required
-                          minLength={6}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="block w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white"
-                          placeholder="••••••••"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            minLength={6}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="block w-full px-4 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-teal-500 font-bold text-slate-900 dark:text-white"
+                            placeholder="••••••••"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          </button>
+                        </div>
                       </div>
+
+                      {authError && !isAdminLogin && (
+                        <div className={`${lockoutCountdown > 0 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800/50' : 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800/50'} border p-3 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300`}>
+                          <ShieldAlert className={`w-4 h-4 ${lockoutCountdown > 0 ? 'text-amber-500' : 'text-rose-500'} shrink-0 mt-0.5`} />
+                          <div className="flex-1">
+                            <p className={`text-xs font-bold ${lockoutCountdown > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'} leading-tight`}>{authError}</p>
+                            {lockoutCountdown > 0 && (
+                              <p className="text-[11px] font-black text-amber-500 dark:text-amber-400 mt-1.5 tabular-nums">
+                                ⏱️ {Math.floor(lockoutCountdown / 60)}:{String(lockoutCountdown % 60).padStart(2, '0')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <button
                         type="submit"
-                        disabled={isLoading}
-                        className="w-full py-3.5 px-4 rounded-xl shadow-lg text-sm font-black uppercase tracking-wider text-white bg-slate-900 hover:bg-slate-800 transition-all"
+                        disabled={isLoading || lockoutCountdown > 0}
+                        className="w-full py-3.5 px-4 rounded-xl shadow-lg text-sm font-black uppercase tracking-wider text-white bg-slate-900 hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                        {isLoading ? 'Processing...' : lockoutCountdown > 0 ? `🔒 ${Math.floor(lockoutCountdown / 60)}:${String(lockoutCountdown % 60).padStart(2, '0')}` : (isSignUp ? 'Create Account' : 'Sign In')}
                       </button>
 
                       <div className="text-center">

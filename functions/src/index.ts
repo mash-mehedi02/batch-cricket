@@ -199,5 +199,29 @@ export * from './playerSecurity';
 
 // Export notification functions
 export * from './notifications';
+
+/**
+ * Trigger: Sync Custom Claims when an Admin is modified
+ */
+export const onAdminStatusChange = functions.firestore
+  .document('admins/{adminId}')
+  .onWrite(async (change, context) => {
+    const uid = context.params.adminId;
+    const newData = change.after.exists ? change.after.data() : null;
+
+    if (!newData || !newData.isActive || (newData.role !== 'admin' && newData.role !== 'super_admin')) {
+      console.log(`[Custom Claims] Revoking admin claims for ${uid}`);
+      await admin.auth().setCustomUserClaims(uid, { admin: false, super_admin: false });
+    } else {
+      if (newData.role === 'super_admin') {
+        console.log(`[Custom Claims] Granting SUPER ADMIN to ${uid}`);
+        await admin.auth().setCustomUserClaims(uid, { admin: true, super_admin: true });
+      } else {
+        console.log(`[Custom Claims] Granting ADMIN to ${uid}`);
+        await admin.auth().setCustomUserClaims(uid, { admin: true, super_admin: false });
+      }
+    }
+  });
+
 import { sendMatchEndEmails } from './emails';
 export * from './emails';

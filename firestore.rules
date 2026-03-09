@@ -1,10 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
+    match /databases/{database}/documents {
     
-    // ======================================================
-    // SECURITY HELPERS
-    // ======================================================
+    // VOTE SYSTEM (DEBUG - TOP PRIORITY)
+    match /matchVotes/{matchId=**} {
+      allow read, write: if true;
+    }
     
     function isAuthenticated() {
       return request.auth != null;
@@ -260,11 +261,6 @@ service cloud.firestore {
     match /email_logs/{logId} {
       allow read: if isSuperAdmin();
       allow create: if isAdmin() || isSuperAdmin();
-    }
-
-    match /matchVotes/{matchId} {
-      allow read: if true;
-      allow create, update: if true;
     }
 
     // Login Activity Logs

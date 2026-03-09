@@ -142,4 +142,22 @@ export const bn = {
     all_batches: 'সব ব্যাচ',
     no_squads_found: 'কোন স্কোয়াড পাওয়া যায়নি',
     view_squad: 'স্কোয়াড দেখুন',
+
+    // Auth Errors
+    auth_error_wrong_password: 'ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।',
+    auth_error_user_not_found: 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি।',
+    auth_error_invalid_email: 'ইমেইল অ্যাড্রেসটি সঠিক নয়।',
+    auth_error_too_many_attempts: 'অধিকবার চেষ্টা করার কারণে অ্যাকাউন্টটি সাময়িকভাবে লক করা হয়েছে। পরে চেষ্টা করুন।',
+    auth_error_generic: 'লগইন করতে সমস্যা হয়েছে। দয়া করে আপনার তথ্য যাচাই করুন।',
+    auth_error_email_in_use: 'এই ইমেইলটি ইতিমধ্যে নিবন্ধিত।',
+    auth_error_weak_password: 'পাসওয়ার্ডটি অন্তত ৬ অক্ষরের হতে হবে।',
+    auth_error_no_permission: 'আপনার এই অ্যাপ্লিকেশনটিতে প্রবেশ করার অনুমতি নেই।',
+    auth_error_unverified_email: 'লগইন করার আগে আপনাকে অবশ্যই ইমেইলটি ভেরিফাই করতে হবে। আপনার ইনবক্স চেক করুন!',
+    auth_success_password_reset: 'পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে!',
+    auth_success_password_updated: 'পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে!',
+    auth_email_reset_sent: 'পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে!',
+    auth_account_created: 'অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!',
+    auth_locked_out: 'অধিকবার ভুল চেষ্টা! {minutes} মিনিট পর আবার চেষ্টা করুন।',
+    auth_attempts_remaining: 'আর {count} বার চেষ্টা করতে পারবেন।',
+    auth_wait_seconds: '{seconds} সেকেন্ড অপেক্ষা করুন...',
 };

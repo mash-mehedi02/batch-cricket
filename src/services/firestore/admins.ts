@@ -22,11 +22,11 @@ export interface AdminUser {
     managedSchools: string[]; // List of school names this admin can manage
     organizationName: string;
     isActive: boolean;
+    emailVerified: boolean;
     phone: string;
     createdAt: any;
     lastLogin?: any;
     updatedAt?: any;
-    pwd?: string; // Stored for recovery by Super Admin
 }
 
 export const SUPER_ADMIN_EMAIL = 'batchcrick@gmail.com';
@@ -129,7 +129,6 @@ export const adminService = {
             // 3. Update the Firestore record so Super Admin can see the new one
             const adminRef = doc(db, COLLECTIONS.ADMINS, userCredential.user.uid);
             await updateDoc(adminRef, {
-                pwd: newPassword,
                 updatedAt: serverTimestamp()
             });
 
@@ -146,7 +145,7 @@ export const adminService = {
     // Account Creation
     async createAdminAccount(data: { name: string; email: string; password: string; role: 'admin' | 'super_admin'; phone: string }) {
         const { initializeApp, deleteApp } = await import('firebase/app');
-        const { getAuth, createUserWithEmailAndPassword, signOut } = await import('firebase/auth');
+        const { getAuth, createUserWithEmailAndPassword, sendEmailVerification, signOut } = await import('firebase/auth');
 
         const { default: app } = await import('@/config/firebase');
         const config = (app as any).options;
@@ -157,8 +156,21 @@ export const adminService = {
         try {
             const normalizedEmail = data.email.trim().toLowerCase();
 
+            // Check if email already exists before trying to create Auth user
+            const emailCheck = await adminService.checkEmailExists(normalizedEmail);
+            if (emailCheck.exists) {
+                throw new Error('This email is already in use. You cannot create a new admin account with an existing user/player/admin email.');
+            }
+
             const userCredential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, data.password);
             const uid = userCredential.user.uid;
+
+            // Send verification email to confirm the email exists
+            try {
+                await sendEmailVerification(userCredential.user);
+            } catch (verifyErr) {
+                console.warn('[adminService] Verification email failed:', verifyErr);
+            }
 
             const adminRef = doc(db, COLLECTIONS.ADMINS, uid);
             await setDoc(adminRef, {
@@ -168,9 +180,9 @@ export const adminService = {
                 role: data.role,
                 managedSchools: [],
                 isActive: true,
+                emailVerified: false,
                 phone: data.phone || '',
                 organizationName: 'BatchCrick',
-                pwd: data.password, // Save for Super Admin reference
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             });
@@ -189,8 +201,74 @@ export const adminService = {
             await deleteApp(secondaryApp);
 
             return { success: true, uid };
-            throw new Error('This email is already in use. You cannot create a new admin account with an existing user/player/admin email.');
         } catch (error: any) {
+            await deleteApp(secondaryApp);
+            throw error;
+        }
+    },
+
+    // Re-send verification email for an existing admin
+    async resendVerificationEmail(email: string, password: string) {
+        const { initializeApp, deleteApp } = await import('firebase/app');
+        const { getAuth, signInWithEmailAndPassword, sendEmailVerification, signOut } = await import('firebase/auth');
+        const { default: app } = await import('@/config/firebase');
+        const config = (app as any).options;
+
+        const secondaryApp = initializeApp(config, 'SecondaryVerifyResend');
+        const secondaryAuth = getAuth(secondaryApp);
+
+        try {
+            const cred = await signInWithEmailAndPassword(secondaryAuth, email, password);
+
+            if (cred.user.emailVerified) {
+                // Already verified — update Firestore
+                const adminQ = query(collection(db, COLLECTIONS.ADMINS), where('email', '==', email.trim().toLowerCase()), limit(1));
+                const snap = await getDocs(adminQ);
+                if (!snap.empty) {
+                    await updateDoc(doc(db, COLLECTIONS.ADMINS, snap.docs[0].id), { emailVerified: true, updatedAt: serverTimestamp() });
+                }
+                await signOut(secondaryAuth);
+                await deleteApp(secondaryApp);
+                return { alreadyVerified: true };
+            }
+
+            await sendEmailVerification(cred.user);
+            await signOut(secondaryAuth);
+            await deleteApp(secondaryApp);
+            return { sent: true };
+        } catch (error) {
+            await deleteApp(secondaryApp);
+            throw error;
+        }
+    },
+
+    // Check if a Firebase Auth user has verified their email
+    async checkEmailVerified(email: string, password: string) {
+        const { initializeApp, deleteApp } = await import('firebase/app');
+        const { getAuth, signInWithEmailAndPassword, signOut } = await import('firebase/auth');
+        const { default: app } = await import('@/config/firebase');
+        const config = (app as any).options;
+
+        const secondaryApp = initializeApp(config, 'SecondaryVerifyCheck');
+        const secondaryAuth = getAuth(secondaryApp);
+
+        try {
+            const cred = await signInWithEmailAndPassword(secondaryAuth, email, password);
+            const verified = cred.user.emailVerified;
+
+            if (verified) {
+                // Sync to Firestore
+                const adminQ = query(collection(db, COLLECTIONS.ADMINS), where('email', '==', email.trim().toLowerCase()), limit(1));
+                const snap = await getDocs(adminQ);
+                if (!snap.empty) {
+                    await updateDoc(doc(db, COLLECTIONS.ADMINS, snap.docs[0].id), { emailVerified: true, updatedAt: serverTimestamp() });
+                }
+            }
+
+            await signOut(secondaryAuth);
+            await deleteApp(secondaryApp);
+            return verified;
+        } catch (error) {
             await deleteApp(secondaryApp);
             throw error;
         }
