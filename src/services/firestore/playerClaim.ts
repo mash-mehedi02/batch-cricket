@@ -1,5 +1,5 @@
 import { db, auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from '@/config/firebase'
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, addDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { Capacitor } from '@capacitor/core'
 
 /**

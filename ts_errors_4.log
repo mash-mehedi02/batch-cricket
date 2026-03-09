@@ -1,0 +1,31 @@
+src/components/match/BallTimeline.tsx(7,1): error TS6133: 'getBallColor' is declared but its value is never read.
+src/components/match/MatchSettingsSheet.tsx(21,11): error TS6133: '_togglePin' is declared but its value is never read.
+src/components/notifications/NotificationSettingsSheet.tsx(28,11): error TS6133: '_isAdmin' is declared but its value is never read.
+src/components/notifications/NotificationSettingsSheet.tsx(73,11): error TS6133: '_saveSettings' is declared but its value is never read.
+src/components/scorecard/CrexScorecardPage.tsx(44,9): error TS6133: '_bowlingTeam' is declared but its value is never read.
+src/pages/admin/AdminMatches.tsx(2349,33): error TS6133: '_tourneyName' is declared but its value is never read.
+src/pages/MatchLive.tsx(60,10): error TS6133: 'relatedLoading' is declared but its value is never read.
+src/pages/MatchLive.tsx(559,10): error TS6133: 'isWicketDisplay' is declared but its value is never read.
+src/pages/MatchLive.tsx(560,10): error TS6133: 'animationEvent' is declared but its value is never read.
+src/pages/MatchLive.tsx(561,10): error TS6133: 'showAnimation' is declared but its value is never read.
+src/pages/Rankings.tsx(40,11): error TS6133: 'loadData' is declared but its value is never read.
+src/pages/TournamentDetails.tsx(24,1): error TS6133: 'motion' is declared but its value is never read.
+src/services/ai/aiAnomaly.ts(86,41): error TS2367: This comparison appears to be unintentional because the types '"no-ball"' and '"bye"' have no overlap.
+src/services/ai/aiAnomaly.ts(86,70): error TS2367: This comparison appears to be unintentional because the types '"no-ball"' and '"leg-bye"' have no overlap.
+src/services/ai/aiAnomaly.ts(112,15): error TS6133: 'playerId' is declared but its value is never read.
+src/services/ai/aiAnomaly.ts(246,3): error TS6133: 'matchState' is declared but its value is never read.
+src/services/ai/aiInsights.ts(87,3): error TS6133: 'matchContext' is declared but its value is never read.
+src/services/ai/aiInsights.ts(200,3): error TS6133: 'matchContext' is declared but its value is never read.
+src/services/ai/winProbabilityEngine.ts(88,11): error TS6133: 'crr' is declared but its value is never read.
+src/services/firestore/cascadingUpdates.ts(24,19): error TS6133: 'inningRef' is declared but its value is never read.
+src/services/firestore/playerClaim.ts(2,42): error TS6133: 'deleteDoc' is declared but its value is never read.
+src/services/stats/index.ts(12,1): error TS2308: Module './notOutDetector' has already exported a member named 'MatchContext'. Consider explicitly re-exporting to resolve the ambiguity.
+src/services/stats/index.ts(18,1): error TS2308: Module './seasonAggregator' has already exported a member named 'MatchWithSummary'. Consider explicitly re-exporting to resolve the ambiguity.
+src/services/stats/notOutDetector.ts(74,38): error TS2367: This comparison appears to be unintentional because the types 'false | undefined' and 'true' have no overlap.
+src/services/stats/testUtils.ts(7,1): error TS6133: 'calculateBattingStats' is declared but its value is never read.
+src/services/stats/testUtils.ts(8,1): error TS6133: 'calculateBowlingStats' is declared but its value is never read.
+src/services/stats/testUtils.ts(9,1): error TS6133: 'countMatches' is declared but its value is never read.
+src/services/stats/testUtils.ts(87,45): error TS18047: 'test.expected' is possibly 'null'.
+src/services/stats/validateBallEvent.ts(49,9): error TS6133: 'batRuns' is declared but its value is never read.
+src/utils/icc-rules.ts(6,16): error TS6133: 'BallExtras' is declared but its value is never read.
+src/utils/scorecardFormatters.ts(38,3): error TS6133: 'dismissedBy' is declared but its value is never read.

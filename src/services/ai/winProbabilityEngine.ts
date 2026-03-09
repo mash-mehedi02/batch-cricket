@@ -85,7 +85,7 @@ export function calculateWinProbability(input: WinProbabilityInput): WinProbabil
     // --- SECOND INNINGS LOGIC (THE CHASE) ---
     const runsNeeded = (target || 0) - currentRuns
     const rrr = ballsRemaining > 0 ? (runsNeeded / ballsRemaining) * 6 : (runsNeeded > 0 ? 100 : 0)
-    const crr = legalBalls > 0 ? (currentRuns / (legalBalls / 6)) : 0
+
 
     // 1. DYNAMIC CAPABILITY
     // Scales based on wickets remaining

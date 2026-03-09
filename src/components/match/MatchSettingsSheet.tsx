@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Pin, Settings, Bell, Info } from 'lucide-react';
+import { X, Pin, Settings, Bell } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -10,15 +10,16 @@ interface Props {
     matchTitle: string;
 }
 
-export const MatchSettingsSheet: React.FC<Props> = ({ isOpen, onClose, matchId, matchTitle }) => {
-    const [isPinned, setIsPinned] = useState(false);
+export const MatchSettingsSheet: React.FC<Props> = ({ isOpen, onClose, matchId, matchTitle: _matchTitle }) => {
+    const [_isPinned, _setIsPinned] = useState(false);
 
     useEffect(() => {
         const pinnedId = localStorage.getItem('pinnedMatchId');
-        setIsPinned(pinnedId === matchId);
+        _setIsPinned(pinnedId === matchId);
     }, [matchId, isOpen]);
 
-    const togglePin = () => {
+    // @ts-ignore: reserved for future premium feature
+    const _togglePin = () => {
         import('react-hot-toast').then(({ default: toast }) => {
             toast('Premium subscription is required to pin scores 🏏', {
                 icon: '💎',

@@ -83,11 +83,8 @@ function checkImpossibleCombinations(event: BallEventInput): AnomalyResult | nul
   }
 
   // No-ball + Bye/Leg-bye (leg bye can happen, but check logic)
-  if (event.extraType === 'no-ball' && (event.extraType === 'bye' || event.extraType === 'leg-bye')) {
-    // This is actually allowed, but both shouldn't be set as extraType
-    // The extraType should be 'no-ball', and leg bye runs are separate
-    // This check might need refinement based on your data model
-  }
+  // Note: extraType is a single value, so it can't be both 'no-ball' and 'bye'/'leg-bye' at the same time.
+  // This validation would need a separate field for secondary extras to be meaningful.
 
   // Wide with runs > 1 but no bat runs (should be 0 or 1)
   if (event.extraType === 'wide' && event.runs > 1 && (event.batRuns || 0) > 0) {
@@ -109,7 +106,7 @@ function checkImpossibleCombinations(event: BallEventInput): AnomalyResult | nul
 function checkBattingStats(
   batsmanStats: Record<string, { runs: number; balls: number }>
 ): AnomalyResult | null {
-  for (const [playerId, stats] of Object.entries(batsmanStats)) {
+  for (const [_playerId, stats] of Object.entries(batsmanStats)) {
     const { runs, balls } = stats
 
     // Impossible strike rate (> 600 is suspicious, > 1000 is definitely wrong)
@@ -243,7 +240,7 @@ function checkBowlerOvers(
  */
 function checkStrikePosition(
   event: BallEventInput,
-  matchState: MatchStateInput
+  _matchState: MatchStateInput
 ): AnomalyResult | null {
   // This is a basic check - in a real system, you'd track strike rotation
   // For now, we'll just check if striker and non-striker are different

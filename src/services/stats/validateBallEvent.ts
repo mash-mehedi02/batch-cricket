@@ -46,7 +46,7 @@ export function validateBallEvent(event: BallEvent): {
 
   // Check runs consistency
   const totalRuns = Number(event.runs || 0)
-  const batRuns = Number(event.batRuns || 0)
+
 
   if (event.extraType === EXTRA_TYPES.WIDE) {
     // Wide: minimum 1 run (the wide itself)

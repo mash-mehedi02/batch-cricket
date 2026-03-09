@@ -8,7 +8,6 @@
 import type {
   Bracket,
   BracketMatch,
-  KnockoutConfig,
   KnockoutMatchSpec,
   KnockoutRound,
   QualificationSlot,
@@ -17,7 +16,6 @@ import type {
   ValidationIssue,
 } from './types'
 import { buildSeedIndex } from './qualification'
-import { getAuth } from 'firebase/auth'
 import { auth } from '@/config/firebase'
 
 const err = (code: string, message: string, path?: string): ValidationIssue => ({ severity: 'error', code, message, path })
@@ -117,15 +115,15 @@ export function validateCustomMapping(specs: KnockoutMatchSpec[], seedIndex: Map
     if (!m.id) errors.push(err('KO_MATCH_ID', 'Match id is required.', `${base}.id`))
     if (!m.a || !m.b) errors.push(err('KO_SEED_MISSING', 'Both seed labels are required.', base))
     if (m.a === m.b) errors.push(err('KO_SEED_DUP', 'A and B cannot be the same seed.', base))
-    ;[m.a, m.b].forEach((s) => {
-      if (!s) return
-      if (usedSeeds.has(s)) errors.push(err('KO_SEED_REUSED', `Seed "${s}" is used multiple times.`, base))
-      usedSeeds.add(s)
-      // If we already know seeds, validate existence. If not present, allow (will resolve later).
-      if (seedIndex.size > 0 && !seedIndex.has(s)) {
-        errors.push(err('KO_SEED_UNKNOWN', `Unknown seed "${s}".`, base))
-      }
-    })
+      ;[m.a, m.b].forEach((s) => {
+        if (!s) return
+        if (usedSeeds.has(s)) errors.push(err('KO_SEED_REUSED', `Seed "${s}" is used multiple times.`, base))
+        usedSeeds.add(s)
+        // If we already know seeds, validate existence. If not present, allow (will resolve later).
+        if (seedIndex.size > 0 && !seedIndex.has(s)) {
+          errors.push(err('KO_SEED_UNKNOWN', `Unknown seed "${s}".`, base))
+        }
+      })
   })
   return errors
 }
@@ -138,7 +136,7 @@ export async function generateKnockoutFixtures(tournamentId: string): Promise<vo
     if (!token) {
       throw new Error('Authentication token not found');
     }
-    
+
     const response = await fetch(`/api/tournaments/${tournamentId}/seed-knockout`, {
       method: 'POST',
       headers: {
@@ -146,12 +144,12 @@ export async function generateKnockoutFixtures(tournamentId: string): Promise<vo
         'Authorization': `Bearer ${token}`,
       },
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to generate knockout fixtures');
     }
-    
+
     const result = await response.json();
     console.log('Knockout fixtures generated successfully:', result);
   } catch (error) {

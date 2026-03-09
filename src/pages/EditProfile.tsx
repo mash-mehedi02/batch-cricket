@@ -129,7 +129,7 @@ export default function EditProfilePage() {
         battingStyle: (user?.playerProfile?.battingStyle as BattingStyle) || 'right-handed',
         bowlingStyle: (user?.playerProfile?.bowlingStyle as BowlingStyle) || 'right-arm-medium',
         dateOfBirth: user?.playerProfile?.dateOfBirth || '',
-        school: user?.playerProfile?.school || user?.playerProfile?.batch || '',
+        school: (user?.playerProfile as any)?.school || (user?.playerProfile as any)?.batch || '',
         socialLinks: (user?.playerProfile?.socialLinks as SocialLink[]) || []
     });
 

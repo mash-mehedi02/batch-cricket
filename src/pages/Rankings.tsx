@@ -37,27 +37,6 @@ export default function Rankings() {
         }
     }, [currentModeIndex, x]);
 
-    const loadData = async () => {
-        try {
-            setLoading(true)
-            const [allPlayers, allSquads, allTournaments] = await Promise.all([
-                playerService.getAll(),
-                squadService.getAll(),
-                tournamentService.getAll()
-            ])
-
-            setSquads(allSquads)
-            setTournaments(allTournaments)
-
-            setPlayers(allPlayers)
-        } catch (error) {
-            console.error('Error loading data:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-
 
     useEffect(() => {
         // Subscribe to players for instant ranking updates

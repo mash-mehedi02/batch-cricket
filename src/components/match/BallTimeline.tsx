@@ -4,11 +4,7 @@
  */
 
 import { RecentOver } from '@/types'
-import { getBallColor } from '@/utils/ballFormatters'
 
-function getBallColorFromType(type: string): string {
-  return getBallColor(type)
-}
 
 interface BallTimelineProps {
   recentOvers: RecentOver[]
@@ -45,9 +41,9 @@ export default function BallTimeline({ recentOvers }: BallTimelineProps) {
                       {ball ? (
                         <div
                           className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm border ${ball.type === 'wicket' || ball.value === 'W' ? 'bg-rose-600 text-white border-rose-500' :
-                              ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
-                                ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
-                                  'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800'
+                            ball.value === '6' ? 'bg-emerald-600 text-white border-emerald-600' :
+                              ball.value === '4' ? 'bg-blue-600 text-white border-blue-600' :
+                                'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800'
                             }`}
                           style={{ width: 'auto', minWidth: '1.75rem', padding: (ball.value || '').length > 1 ? '0 6px' : '0' }}
                         >

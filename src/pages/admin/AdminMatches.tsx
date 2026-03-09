@@ -179,10 +179,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       const match = matches.find(m => m.matchNo === matchNum && m.tournamentId === selectedTournament.id)
       if (match?.status === 'finished') {
         const wid = String(match.winnerId).trim()
-        if (wid === String(match.teamAId) || wid === String(match.teamASquadId) || wid === String((match as any).teamA)) {
+        if (wid === String((match as any).teamAId) || wid === String((match as any).teamASquadId) || wid === String((match as any).teamA)) {
           return { name: match.teamAName || 'Team A', id: wid }
         }
-        if (wid === String(match.teamBId) || wid === String(match.teamBSquadId) || wid === String((match as any).teamB)) {
+        if (wid === String((match as any).teamBId) || wid === String((match as any).teamBSquadId) || wid === String((match as any).teamB)) {
           return { name: match.teamBName || 'Team B', id: wid }
         }
       }
@@ -677,7 +677,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
       toast.success('Toss updated successfully.')
 
       if (formData.tossWinner) {
-        const winnerName = formData.tossWinner === 'teamA' ? teamAName : teamBName;
+        const winnerName = formData.tossWinner === 'teamA' ? formData.teamAName : formData.teamBName;
         notificationService.sendToMatch(
           id,
           "Toss Update 🎲",
@@ -825,7 +825,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
     const toastId = toast.loading('Syncing tournament brackets...')
     try {
       // Find all finished matches that have a winner
-      const finishedMatches = matches.filter(m => (m.status === 'finished' || m.status === 'completed') && m.winnerId)
+      const finishedMatches = matches.filter(m => (m.status === 'finished' || (m.status as string) === 'completed') && m.winnerId)
       let count = 0;
 
       for (const match of finishedMatches) {
@@ -1224,7 +1224,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                     groupId: '',
                     teamA: '',
                     teamB: '',
-                    oversLimit: t?.oversLimit || 20, // Auto-sync overs with tournament limit
+                    oversLimit: (t as any)?.oversLimit || 20, // Auto-sync overs with tournament limit
                   }))
 
                   // Auto-generate match number if creating a new match
@@ -1316,10 +1316,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                         setFormData((prev) => ({
                           ...prev,
                           matchNo: newSlot, // e.g. QF1
-                          teamA: pair.a.id || '', // Use actual ID if resolved
-                          teamB: pair.b.id || '',
-                          teamAName: pair.a.name,
-                          teamBName: pair.b.name
+                          teamA: (pair.a as any).id || '', // Use actual ID if resolved
+                          teamB: (pair.b as any).id || '',
+                          teamAName: (pair.a as any).name,
+                          teamBName: (pair.b as any).name
                         }))
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
@@ -2346,7 +2346,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                           const statusRaw = String((match as any).status || '').toLowerCase();
                           const isLive = statusRaw === 'live';
                           const isUpcoming = statusRaw === 'upcoming';
-                          const tourneyName = tournaments.find(t => t.id === match.tournamentId)?.name || 'Friendly Match';
+
 
                           return (
                             <div key={match.id} className="p-4 bg-white active:bg-slate-50 transition-colors">

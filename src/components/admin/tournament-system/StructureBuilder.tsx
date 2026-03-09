@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Tournament, TournamentStageInfo, Match } from '@/types';
 import {
     Plus, Trash2, CheckCircle2, PlayCircle, ShieldCheck, X, Clock,
-    Calendar, Trophy, ChevronRight, ChevronUp, ChevronDown, Zap,
+    Calendar, Trophy, ChevronUp, ChevronDown, Zap,
     Circle, Loader2, Award, ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';

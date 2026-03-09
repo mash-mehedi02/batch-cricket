@@ -31,11 +31,11 @@ interface CrexHeroScoreboardProps {
 }
 
 export default function CrexHeroScoreboard({
-  teamAName,
-  teamBName,
+  teamAName: _teamAName,
+  teamBName: _teamBName,
   battingTeam,
   bowlingTeam,
-  currentInnings,
+  currentInnings: _currentInnings,
   inningsNumber,
   score,
   runRate,
@@ -53,23 +53,23 @@ export default function CrexHeroScoreboard({
   // Format last ball display
   const lastBallDisplay = lastBall
     ? {
-        value: lastBall.value || String(lastBall.runsOffBat || 0),
-        type: lastBall.type || (lastBall.runsOffBat === 4 ? 'four' : lastBall.runsOffBat === 6 ? 'six' : 'run'),
-        color: getBallColor(lastBall),
-      }
+      value: lastBall.value || String(lastBall.runsOffBat || 0),
+      type: lastBall.type || (lastBall.runsOffBat === 4 ? 'four' : lastBall.runsOffBat === 6 ? 'six' : 'run'),
+      color: getBallColor(lastBall),
+    }
     : null
 
   // State for score animations
   const [runsChanged, setRunsChanged] = React.useState(false);
   const [wicketsChanged, setWicketsChanged] = React.useState(false);
-  
+
   // Effect to detect score changes and trigger animations
   React.useEffect(() => {
     setRunsChanged(true);
     const timer1 = setTimeout(() => setRunsChanged(false), 1000);
     return () => clearTimeout(timer1);
   }, [score.runs]);
-  
+
   React.useEffect(() => {
     setWicketsChanged(true);
     const timer2 = setTimeout(() => setWicketsChanged(false), 1000);

@@ -26,8 +26,8 @@ const WinProbability: React.FC<WinProbabilityProps> = ({
     oversLimit = 20,
     teamAName = 'Team A',
     teamBName = 'Team B',
-    batsmenForm = [],
-    remainingBowlers = [],
+    batsmenForm: _batsmenForm = [],
+    remainingBowlers: _remainingBowlers = [],
     partnership = { runs: 0, balls: 0 }
 }) => {
     // Calculate win probability using engine
@@ -86,9 +86,9 @@ const WinProbability: React.FC<WinProbabilityProps> = ({
             )}
 
             {/* Recommended Bowler */}
-            {probability.recommendedBowler && (
+            {(probability as any).recommendedBowler && (
                 <div className="text-xs text-gray-600 mt-2">
-                    <span className="font-semibold">Recommended:</span> {probability.recommendedBowler.reason}
+                    <span className="font-semibold">Recommended:</span> {(probability as any).recommendedBowler.reason}
                 </div>
             )}
         </div>

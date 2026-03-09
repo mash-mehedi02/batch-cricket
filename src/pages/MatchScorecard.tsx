@@ -3,8 +3,8 @@
  * CREX-style full scorecard with innings tabs
  */
 
-import React, { useEffect, useMemo, useState, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useEffect, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
@@ -247,7 +247,7 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
     }
   }, [inningsTabs, selectedInning])
 
-  const currentTab = inningsTabs.find(t => t.id === selectedInning) || inningsTabs[0]
+
 
   // Auto-select live innings tab once match data is available
   useEffect(() => {
@@ -274,60 +274,9 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
     }
   }, [matchData, inningsTabs])
 
-  const currentInningsDataRaw = useMemo(() => {
-    if (!currentTab) return null
-    const iid = currentTab.inningId
-    if (iid === 'teamA') return teamAInnings
-    if (iid === 'teamB') return teamBInnings
-    if (iid === 'teamA_super') return teamASuperInnings
-    if (iid === 'teamB_super') return teamBSuperInnings
-    return null
-  }, [currentTab, teamAInnings, teamBInnings, teamASuperInnings, teamBSuperInnings])
 
-  // Fallback: Build batsmanStats from playingXI if innings data exists but batsmanStats is empty
-  const currentInningsData = useMemo(() => {
-    if (!matchData || !currentTab) return currentInningsDataRaw
 
-    const isSuper = currentTab.inningId.includes('super')
-    const isTeamA = currentTab.inningId.startsWith('teamA')
-    const mainTotal = !isSuper ? (isTeamA ? matchData.mainMatchScore?.teamA : matchData.mainMatchScore?.teamB) : null
 
-    // Case 1: Active Inning with real ball-by-ball data
-    if (currentInningsDataRaw && (currentInningsDataRaw.totalRuns > 0 || currentInningsDataRaw.legalBalls > 0)) {
-      // If our summary has MORE runs than detail (sync delay), update summary fields but keep stats
-      if (mainTotal && mainTotal.runs > currentInningsDataRaw.totalRuns) {
-        return {
-          ...currentInningsDataRaw,
-          totalRuns: mainTotal.runs,
-          totalWickets: mainTotal.wickets,
-          overs: mainTotal.overs,
-        }
-      }
-      return currentInningsDataRaw
-    }
-
-    // Case 2: Inning has not "truly" started but we have summary data (for main match tabs during SO)
-    if (!isSuper && mainTotal && (mainTotal.runs > 0 || mainTotal.wickets > 0)) {
-      return {
-        matchId: matchData.id,
-        inningId: currentTab.inningId,
-        totalRuns: mainTotal.runs,
-        totalWickets: mainTotal.wickets,
-        overs: mainTotal.overs,
-        legalBalls: 0,
-        batsmanStats: currentInningsDataRaw?.batsmanStats || [],
-        bowlerStats: currentInningsDataRaw?.bowlerStats || [],
-        fallOfWickets: currentInningsDataRaw?.fallOfWickets || [],
-        partnership: currentInningsDataRaw?.partnership || { runs: 0, balls: 0, overs: '0.0' },
-        extras: currentInningsDataRaw?.extras || { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 },
-        recentOvers: [],
-        _isSummaryOnly: !((currentInningsDataRaw?.batsmanStats?.length || 0) > 0),
-        _playingXI: isTeamA ? (matchData.teamAPlayingXI || []) : (matchData.teamBPlayingXI || [])
-      } as any
-    }
-
-    return currentInningsDataRaw
-  }, [currentInningsDataRaw, matchData, currentTab, playersMap])
 
 
 

@@ -38,10 +38,10 @@ export function detectNotOut(
 ): boolean {
   // Explicitly marked as not out
   if (playerInnings.notOut === true) return true
-  
+
   // Explicitly dismissed
   if (playerInnings.dismissed === true || playerInnings.notOut === false) return false
-  
+
   // Has wicket type
   if (playerInnings.wicketType) {
     // Retired hurt is not out
@@ -50,32 +50,32 @@ export function detectNotOut(
     // All other wicket types = dismissed
     return false
   }
-  
+
   // Match abandoned = not out
   if (matchContext.matchAbandoned === true) return true
-  
+
   // If innings completed but player wasn't dismissed
   if (matchContext.inningsComplete === true && !playerInnings.wicketType) {
     // Check if target was reached (chase completed)
     if (matchContext.targetReached === true) return true
-    
+
     // Check if overs completed
     if (matchContext.oversComplete === true) return true
-    
+
     // Check if all out (last partner got out)
     if (matchContext.allOut === true) return true
-    
+
     // Innings ended for other reason = not out
     return true
   }
-  
+
   // If player has runs/balls but no dismissal = not out
   if ((playerInnings.runs || 0) > 0 || (playerInnings.balls || 0) > 0) {
-    if (!playerInnings.wicketType && playerInnings.dismissed !== true) {
+    if (!playerInnings.wicketType) {
       return true
     }
   }
-  
+
   // Default: if no clear indication, assume not out
   return true
 }
@@ -93,18 +93,18 @@ export function getNotOutFromSummary(matchSummary: {
   // Explicit flags
   if (matchSummary.notOut === true) return true
   if (matchSummary.dismissed === true || matchSummary.notOut === false) return false
-  
+
   // Wicket type
   if (matchSummary.wicketType) {
     if (matchSummary.wicketType === WICKET_TYPES.RETIRED_HURT) return true
     if (matchSummary.retiredHurt === true) return true
     return false
   }
-  
+
   // Status field
   if (matchSummary.status === 'not out' || matchSummary.status === 'not-out') return true
   if (matchSummary.status === 'out' || matchSummary.status === 'dismissed') return false
-  
+
   // Default: assume not out if no dismissal info
   return true
 }

@@ -14,10 +14,11 @@ import { useAuthStore } from '@/store/authStore'
 import { generateMatchNumber } from '@/utils/matchNumber'
 
 import toast from 'react-hot-toast'
-import { format } from 'date-fns'
+// Removed date-fns format import
 import { formatShortTeamName } from '@/utils/teamName'
 import { Timestamp } from 'firebase/firestore'
 import { generateGroupFixtures } from '@/engine/tournament/fixtures'
+import { generateKnockoutFixtures } from '@/engine/tournament/knockout'
 import TableSkeleton from '@/components/skeletons/TableSkeleton'
 import { Trash2, Plus, Trophy, Calendar, Search, Settings, Edit2, User, CheckCircle, AlertCircle, LayoutDashboard } from 'lucide-react'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
@@ -52,7 +53,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
     year: new Date().getFullYear(),
     tournamentType: 'standard' as 'standard' | 'custom',
     school: '',
-    format: 'T20' as 'T20' | 'ODI' | 'Test' | 'Batch Cricket',
+    format: 'T20' as 'T20' | 'ODI' | 'Test' | 'Batch Cricket' | 'Custom',
     status: 'upcoming' as 'upcoming' | 'ongoing' | 'completed' | 'paused',
     startDate: '',
     endDate: '',
@@ -446,7 +447,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
         if (persistPayload.status === 'completed') {
           toast.loading("Sending tournament summaries to all players...", { id: 'tourney-email' });
           emailService.sendTournamentEndEmails(id).then(res => {
-            if (res.success) toast.success("Summary emails sent!", { id: 'tourney-email' });
+            if (res?.success) toast.success("Summary emails sent!", { id: 'tourney-email' });
             else toast.error("Tournament saved, but emails failed.", { id: 'tourney-email' });
           });
         }
@@ -1403,7 +1404,7 @@ export default function AdminTournaments({ mode = 'list' }: AdminTournamentsProp
                           </td>
                         </tr>
                       ) : (
-                        groupStandings.map((team, index) => (
+                        groupStandings.map((team, _index) => (
                           <tr key={team.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                               {team.position}

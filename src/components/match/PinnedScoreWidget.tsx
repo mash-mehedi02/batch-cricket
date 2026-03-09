@@ -9,7 +9,7 @@ import { X, Maximize2, ExternalLink } from 'lucide-react';
 export const PinnedScoreWidget: React.FC = () => {
     const [match, setMatch] = useState<Match | null>(null);
     const [innings, setInnings] = useState<InningsStats | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [_loading, _setLoading] = useState(false);
     const [showCloseZone, setShowCloseZone] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -29,7 +29,7 @@ export const PinnedScoreWidget: React.FC = () => {
                 return;
             }
 
-            setLoading(true);
+            _setLoading(true);
             unsubMatch = matchService.subscribeToMatch(pinnedId, (data) => {
                 setMatch(data);
                 if (data?.currentBatting) {
@@ -40,10 +40,10 @@ export const PinnedScoreWidget: React.FC = () => {
 
                     unsubInnings = matchService.subscribeToInnings(pinnedId, side as any, (innData) => {
                         setInnings(innData);
-                        setLoading(false);
+                        _setLoading(false);
                     });
                 } else {
-                    setLoading(false);
+                    _setLoading(false);
                 }
             });
         };
@@ -116,7 +116,7 @@ export const PinnedScoreWidget: React.FC = () => {
             // Footer - CRR & Info
             ctx.fillStyle = '#475569';
             ctx.font = 'bold 20px Inter, Arial';
-            const crr = innings.crr || (innings.totalRuns / (parseFloat(innings.overs.split('.')[0] || '1') + (parseFloat(innings.overs.split('.')[1] || '0') / 6))).toFixed(2);
+            const crr = (innings as any).crr || (innings.totalRuns / (parseFloat(innings.overs.split('.')[0] || '1') + (parseFloat(innings.overs.split('.')[1] || '0') / 6))).toFixed(2);
             ctx.fillText(`CRR: ${crr}`, 100, 185);
 
             // Toss/Status Info (Bottom line)
@@ -174,7 +174,7 @@ export const PinnedScoreWidget: React.FC = () => {
                     drag
                     dragMomentum={false}
                     onDragStart={() => setShowCloseZone(true)}
-                    onDragEnd={(event, info) => {
+                    onDragEnd={(_event, info) => {
                         setShowCloseZone(false);
                         if (info.point.y > window.innerHeight - 120) {
                             closeWidget();
@@ -203,9 +203,9 @@ export const PinnedScoreWidget: React.FC = () => {
                                 <div className="text-[9px] font-bold text-slate-500 tabular-nums">
                                     {innings?.overs || '0.0'} ov
                                 </div>
-                                {innings?.crr && (
+                                {(innings as any)?.crr && (
                                     <div className="text-[8px] font-medium text-slate-400 mt-0.5">
-                                        CRR: {innings.crr}
+                                        CRR: {(innings as any).crr}
                                     </div>
                                 )}
                             </div>

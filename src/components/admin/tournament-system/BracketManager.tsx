@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { Tournament, Squad, Match } from '@/types';
 import { GitPullRequest, Trophy, Medal } from 'lucide-react';
-import { computeGroupStandings } from '@/engine/tournament/standings';
 import toast from 'react-hot-toast';
 
 interface BracketManagerProps {
@@ -12,7 +11,7 @@ interface BracketManagerProps {
     onUpdate: (data: Partial<Tournament>) => Promise<void>;
 }
 
-export default function BracketManager({ tournament, squads, matches, inningsMap, onUpdate }: BracketManagerProps) {
+export default function BracketManager({ tournament, squads, matches: _matches, inningsMap: _inningsMap, onUpdate }: BracketManagerProps) {
     const config = (tournament as any).config || {};
     const knockout = config.knockout || { custom: { matches: [] } };
     const koMatches = knockout.custom?.matches || [];

@@ -35,7 +35,7 @@ export function formatOvers(overs: string | number): string {
  */
 export function formatDismissal(
   dismissalType: string,
-  dismissedBy?: string,
+  _dismissedBy?: string,
   bowler?: string,
   fielder?: string
 ): string {

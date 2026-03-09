@@ -4,9 +4,6 @@
  */
 
 import { shouldCountInnings } from './iccDefinitions'
-import { calculateBattingStats } from './battingCalculator'
-import { calculateBowlingStats } from './bowlingCalculator'
-import { countMatches } from './matchCounter'
 import { detectNotOut } from './notOutDetector'
 import { validateBallEvent } from './validateBallEvent'
 
@@ -84,7 +81,7 @@ export function testBattingAverage() {
     const { calculateBattingAverage } = require('./iccDefinitions')
     const result = calculateBattingAverage(test.runs, test.innings, test.notOuts)
     const passed = result === test.expected ||
-      (result !== null && Math.abs(result - test.expected) < 0.01)
+      (result !== null && test.expected !== null && Math.abs(result - test.expected) < 0.01)
     return {
       ...test,
       result,

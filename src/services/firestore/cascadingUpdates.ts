@@ -21,7 +21,7 @@ export async function propagatePlayerRename(playerId: string, newName: string): 
     for (const mDoc of allMatchDocs) {
         const matchId = mDoc.id
         for (const side of ['teamA', 'teamB'] as const) {
-            const inningRef = doc(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS, side)
+
             const inningSnap = await getDocs(query(collection(db, COLLECTIONS.MATCHES, matchId, SUBCOLLECTIONS.INNINGS)))
             const inningDoc = inningSnap.docs.find(d => d.id === side)
 

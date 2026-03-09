@@ -25,7 +25,8 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
     tournamentId
 }) => {
     const { user } = useAuthStore()
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+    // @ts-ignore: reserved for future admin-specific feature
+    const _isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
 
     const [settings, setSettings] = useState({
         enabled: false,
@@ -70,7 +71,8 @@ export const NotificationSettingsSheet: React.FC<Props> = ({
         })
     }
 
-    const saveSettings = (matchEnabled: boolean, tournamentEnabled: boolean) => {
+    // @ts-ignore: reserved for future use
+    const _saveSettings = (matchEnabled: boolean, tournamentEnabled: boolean) => {
         const stored = localStorage.getItem(STORAGE_KEY)
         let data: any = {}
         if (stored) {

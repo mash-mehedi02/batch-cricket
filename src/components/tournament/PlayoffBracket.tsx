@@ -221,7 +221,7 @@ export default function PlayoffBracket({ tournament, squads, matches }: PlayoffB
         });
 
         // Only keep rounds that have at least one match with something configured
-        return Object.entries(groups).filter(([round, matches]) => {
+        return Object.entries(groups).filter(([_round, matches]) => {
             return matches.some(m => (m.a && m.a !== 'TBD') || (m.b && m.b !== 'TBD'));
         }).map(([_, matches]) => ({
             id: _,

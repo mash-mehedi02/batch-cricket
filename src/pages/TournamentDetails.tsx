@@ -21,7 +21,7 @@ import MatchCard from '@/components/match/MatchCard'
 import { memo } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { notificationService } from '@/services/notificationService'
-import { motion } from 'framer-motion'
+// motion import removed (unused)
 import toast from 'react-hot-toast'
 import { followService } from '@/services/firestore/followService'
 

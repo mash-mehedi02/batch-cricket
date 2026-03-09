@@ -23,8 +23,7 @@ import {
     MapPin,
     Globe,
     History,
-    ExternalLink,
-    ChevronRight
+    ExternalLink
 } from 'lucide-react'
 import { adminService, AdminUser } from '@/services/firestore/admins'
 import { playerService } from '@/services/firestore/players'
@@ -34,17 +33,17 @@ import PlayerAvatar from '@/components/common/PlayerAvatar'
 import toast from 'react-hot-toast'
 import { userService } from '@/services/firestore/users'
 import { squadService } from '@/services/firestore/squads'
-import { doc, setDoc, serverTimestamp, query, collection, where, orderBy, limit, getDocs } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp, query, collection, where, orderBy, limit, getDocs, onSnapshot } from 'firebase/firestore'
 import { db } from '@/config/firebase'
 import { COLLECTIONS } from '@/services/firestore/collections'
-import { playerRequestService, PlayerRegistrationRequest } from '@/services/firestore/playerRequests'
+import { PlayerRegistrationRequest } from '@/services/firestore/playerRequests'
 
 export default function AdminUsers() {
     const navigate = useNavigate()
     const { user: currentUser, loading: authLoading } = useAuthStore()
     const isSuperAdmin = currentUser?.role === 'super_admin'
 
-    const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'requests' | 'guests'>('admins')
+    const [activeTab, setActiveTab] = useState<'admins' | 'users' | 'requests'>('admins')
     const [showInviteModal, setShowInviteModal] = useState(false)
     const [showSquadModal, setShowSquadModal] = useState(false)
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -155,10 +154,67 @@ export default function AdminUsers() {
                 toast.error('Access Denied: Super Admin privileges required.')
                 navigate('/admin')
             } else {
-                loadData()
+                // Real-time Synchronized Data Fetching
+                const unsubscribes: (() => void)[] = []
+
+                setLoading(true)
+
+                // 1. Listen for Admins
+                const adminsUnsub = onSnapshot(collection(db, COLLECTIONS.ADMINS), (snap) => {
+                    const list = snap.docs.map(d => ({ uid: d.id, ...d.data() } as AdminUser))
+                    setAdmins(list)
+                }, (err) => console.error("Admins listener failed:", err))
+                unsubscribes.push(adminsUnsub)
+
+                // 2. Listen for Users
+                const usersUnsub = onSnapshot(query(collection(db, COLLECTIONS.USERS), orderBy('lastLogin', 'desc')), (snap) => {
+                    const list = snap.docs.map(d => ({ uid: d.id, ...d.data() } as User))
+                    setAllUsers(list)
+                    setLoading(false)
+                }, (err) => {
+                    console.warn("Users listener with order failed, falling back:", err)
+                    const usersFallback = onSnapshot(collection(db, COLLECTIONS.USERS), (s) => {
+                        setAllUsers(s.docs.map(d => ({ uid: d.id, ...d.data() } as User)))
+                        setLoading(false)
+                    })
+                    unsubscribes.push(usersFallback)
+                })
+                unsubscribes.push(usersUnsub)
+
+                // 3. Listen for Pending Requests
+                const requestsQ = isSuperAdmin
+                    ? query(collection(db, 'player_requests'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'))
+                    : query(collection(db, 'player_requests'), where('status', '==', 'pending'), where('adminId', '==', currentUser?.uid))
+
+                const requestsUnsub = onSnapshot(requestsQ, (snap) => {
+                    setPendingRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as PlayerRegistrationRequest)))
+                }, (err) => {
+                    console.warn("Requests listener with order failed, falling back:", err)
+                    const requestsFallback = onSnapshot(query(collection(db, 'player_requests'), where('status', '==', 'pending')), (s) => {
+                        setPendingRequests(s.docs.map(d => ({ id: d.id, ...d.data() } as PlayerRegistrationRequest)))
+                    })
+                    unsubscribes.push(requestsFallback)
+                })
+                unsubscribes.push(requestsUnsub)
+
+                // 4. Static Load for Squads & Players (Less frequent change)
+                loadStaticData()
+
+                return () => unsubscribes.forEach(u => u())
             }
         }
-    }, [isSuperAdmin, authLoading, navigate])
+    }, [isSuperAdmin, authLoading, navigate, currentUser?.uid])
+
+    const loadStaticData = async () => {
+        try {
+            const squadList = await squadService.getAll()
+            setSquads(squadList)
+            const playerList = await playerService.getAll()
+            setPlayers(playerList)
+        } catch (error) {
+            console.error('Error loading static data:', error)
+        }
+    }
 
     const handleViewDetails = async (user: User) => {
         setSelectedDetailUser(user)
@@ -195,38 +251,8 @@ export default function AdminUsers() {
     }
 
     const loadData = async () => {
-        setLoading(true)
-        try {
-            // 1. Load Admins
-            const adminList = await adminService.getAll()
-            setAdmins(adminList)
-
-            // 2. Load Registered Users
-            const users = await userService.getAll()
-            setAllUsers(users)
-
-            // 3. Load Squads
-            const squadList = await squadService.getAll()
-            setSquads(squadList)
-
-            // 4. Load Players (To filter them out of user list)
-            const playerList = await playerService.getAll()
-            setPlayers(playerList)
-
-            // 5. Load Pending Requests (Filtered for Sub-admins)
-            let requests: PlayerRegistrationRequest[] = []
-            if (isSuperAdmin) {
-                requests = await playerRequestService.getPendingRequests()
-            } else if (currentUser?.uid) {
-                requests = await playerRequestService.getPendingRequestsByAdmin(currentUser.uid)
-            }
-            setPendingRequests(requests)
-        } catch (error) {
-            console.error('Error loading user data:', error)
-            toast.error('Failed to load data lists')
-        } finally {
-            setLoading(false)
-        }
+        // Redundant but keeping signature for potential manual refresh triggers
+        loadStaticData()
     }
 
     const handleAddToSquad = async () => {
@@ -428,16 +454,16 @@ export default function AdminUsers() {
     }
 
     const filteredAdmins = admins.filter(a =>
-        a.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         a.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         a.uid.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     const filteredUsers = allUsers.filter(u => {
-        // Exclude anyone who is an admin
-        if (admins.some(a => a.uid === u.uid)) return false;
+        // Only show users who are NOT admins and ARE verified players
+        const isAdmin = admins.some(a => a.uid === u.uid);
+        if (isAdmin) return false;
 
-        // ONLY verified players for the 'users' tab
         const isVerifiedPlayer = (u.role === 'player') || (u.linkedPlayerId || u.playerId) || players.some(p => p.ownerUid === u.uid || p.id === u.uid);
         if (!isVerifiedPlayer) return false;
 
@@ -445,6 +471,13 @@ export default function AdminUsers() {
             u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.uid.toLowerCase().includes(searchTerm.toLowerCase())
     })
+
+    const filteredPendingRequests = pendingRequests.filter(r =>
+        r.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.uid.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.squadName?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
     const filteredGuests = allUsers.filter(u => {
         // Exclude anyone who is an admin
@@ -500,16 +533,7 @@ export default function AdminUsers() {
                             <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             Users
                         </button>
-                        <button
-                            onClick={() => setActiveTab('guests')}
-                            className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'guests'
-                                ? 'bg-white text-blue-600 shadow-lg'
-                                : 'text-slate-500 hover:text-slate-900'
-                                }`}
-                        >
-                            <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            Guests
-                        </button>
+
                         <button
                             onClick={() => setActiveTab('requests')}
                             className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all relative whitespace-nowrap ${activeTab === 'requests'
@@ -519,9 +543,9 @@ export default function AdminUsers() {
                         >
                             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             Requests
-                            {pendingRequests.length > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                                    {pendingRequests.length}
+                            {(pendingRequests.length + filteredGuests.length) > 0 && (
+                                <span className={`absolute -top-1 -right-1 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-lg animate-pulse ${pendingRequests.length > 0 ? 'bg-rose-500' : 'bg-amber-500'}`}>
+                                    {pendingRequests.length + filteredGuests.length}
                                 </span>
                             )}
                         </button>
@@ -873,176 +897,156 @@ export default function AdminUsers() {
                             </div>
 
                         </>
-                    ) : activeTab === 'guests' ? (
-                        <>
-                            {/* Desktop Table */}
-                            <div className="hidden lg:block overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50/50 border-b border-slate-100">
-                                        <tr>
-                                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">User</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">Signed In</th>
-                                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {filteredGuests.length > 0 ? (
-                                            filteredGuests.map((guest) => (
-                                                <tr key={guest.uid} className="hover:bg-slate-50/30 transition-all group">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
+                    ) : (
+                        <div className="p-2 sm:p-6">
+                            <div className="space-y-10">
+                                {/* Section 1: Formal Requests */}
+                                {(filteredPendingRequests.length > 0 || searchTerm === '') && (
+                                    <div>
+                                        <div className="flex items-center justify-between mb-6 px-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-2 h-2 bg-rose-500 rounded-full animate-ping" />
+                                                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Registration Requests</h2>
+                                            </div>
+                                            <div className="bg-rose-50 dark:bg-rose-900/20 px-3 py-1 rounded-full border border-rose-100 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase tracking-widest">
+                                                {filteredPendingRequests.length} Immediate
+                                            </div>
+                                        </div>
+
+                                        {filteredPendingRequests.length === 0 ? (
+                                            <div className="py-12 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-800/20 rounded-[2rem] border border-dashed border-slate-200 dark:border-white/5 opacity-50">
+                                                <CheckCircle2 size={32} className="text-slate-300 mb-4" />
+                                                <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">No formal requests pending</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {filteredPendingRequests.map(request => (
+                                                    <div key={request.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-white/5 p-6 shadow-sm hover:shadow-xl transition-all group flex flex-col gap-4">
+                                                        <div className="flex gap-5">
+                                                            <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 shadow-inner border border-slate-100 dark:border-white/10">
+                                                                {request.photoUrl ? (
+                                                                    <img src={request.photoUrl} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-slate-300"><UserCheck size={24} /></div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{request.name}</h4>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <p className="text-[10px] font-bold text-slate-400">{request.email}</p>
+                                                                    <span className="text-[10px] text-slate-300">•</span>
+                                                                    <p className="text-[10px] font-bold text-blue-500 flex items-center gap-1">
+                                                                        <Smartphone size={10} />
+                                                                        {request.phone || 'No Phone'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase rounded">{request.role}</span>
+                                                                    <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] font-black uppercase rounded">{request.batch}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2 border border-slate-100/50 dark:border-white/5">
+                                                            <div className="flex items-center justify-between text-[10px]">
+                                                                <span className="font-black text-slate-400 uppercase tracking-tighter">Requesting Squad</span>
+                                                                <span className="font-bold text-slate-700 dark:text-slate-300">{request.squadName}</span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[10px]">
+                                                                <span className="font-black text-slate-400 uppercase tracking-tighter">School</span>
+                                                                <span className="font-bold text-slate-700 dark:text-slate-300">{request.school}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex gap-3 pt-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const user = allUsers.find(u => u.uid === request.uid);
+                                                                    if (user) {
+                                                                        handleViewDetails(user);
+                                                                    } else {
+                                                                        toast.error('User profile not found');
+                                                                    }
+                                                                }}
+                                                                className="px-4 py-3 bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                            >
+                                                                <Activity size={14} className="text-blue-500" />
+                                                                Activity
+                                                            </button>
+                                                            <button
+                                                                onClick={() => navigate('/admin/player-approvals')}
+                                                                className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 hover:bg-blue-700 transition-all font-inter"
+                                                            >
+                                                                Review & Approve
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Section 2: New Members Awaiting Setup */}
+                                {(filteredGuests.length > 0 || searchTerm === '') && (
+                                    <div>
+                                        <div className="flex items-center justify-between mb-6 px-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                                                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Awaiting Setup (New Guests)</h2>
+                                            </div>
+                                            <div className="bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase tracking-widest">
+                                                {filteredGuests.length} Waiting
+                                            </div>
+                                        </div>
+
+                                        {filteredGuests.length === 0 ? (
+                                            <div className="py-12 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-800/20 rounded-[2rem] border border-dashed border-slate-200 dark:border-white/5 opacity-50">
+                                                <CheckCircle2 size={32} className="text-slate-300 mb-4" />
+                                                <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">No new joiners needing setup</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {filteredGuests.map(guest => (
+                                                    <div key={guest.uid} className="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between group">
+                                                        <div className="flex items-center gap-4 mb-4">
                                                             <PlayerAvatar
                                                                 photoUrl={guest.photoURL}
                                                                 name={guest.displayName || guest.email}
-                                                                size="sm"
-                                                                className="ring-2 ring-slate-50 shadow-inner"
+                                                                size="lg"
+                                                                className="shadow-sm ring-2 ring-slate-50"
                                                             />
-                                                            <div>
-                                                                <div className="text-slate-900 font-bold text-sm">
-                                                                    {guest.displayName || guest.email.split('@')[0]}
+                                                            <div className="min-w-0">
+                                                                <h4 className="font-black text-slate-900 dark:text-white truncate uppercase tracking-tight text-sm">{guest.displayName || guest.email.split('@')[0]}</h4>
+                                                                <p className="text-[10px] font-bold text-slate-400 truncate">{guest.email}</p>
+                                                                <div className="flex items-center gap-1.5 text-[8px] font-black text-amber-500 uppercase mt-1">
+                                                                    <Clock size={10} />
+                                                                    Joined {guest.lastLogin?.seconds ? new Date(guest.lastLogin.seconds * 1000).toLocaleDateString() : 'Now'}
                                                                 </div>
-                                                                <div className="text-[10px] text-slate-400 font-medium">{guest.email}</div>
                                                             </div>
                                                         </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                                                            <Clock size={12} className="text-blue-500" />
-                                                            {guest.lastLogin?.seconds ? new Date(guest.lastLogin.seconds * 1000).toLocaleString() : 'N/A'}
+
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => handleViewDetails(guest)}
+                                                                className="flex-1 py-2.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95"
+                                                            >
+                                                                Details
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedUser(guest);
+                                                                    setShowSquadModal(true);
+                                                                }}
+                                                                className="flex-[2] py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
+                                                            >
+                                                                Invite to Squad
+                                                            </button>
                                                         </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <button
-                                                            onClick={() => handleViewDetails(guest)}
-                                                            className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-wider rounded-lg hover:bg-blue-600 hover:text-white transition-all active:scale-95"
-                                                        >
-                                                            Details
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan={4} className="py-32 text-center">
-                                                    <Search className="w-16 h-16 text-slate-100 mx-auto mb-4" />
-                                                    <h3 className="text-slate-900 font-bold text-xl">No guests found</h3>
-                                                    <p className="text-slate-400 font-medium">Try adjusting your search filters.</p>
-                                                </td>
-                                            </tr>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Mobile Card View */}
-                            <div className="lg:hidden space-y-3 p-4">
-                                {filteredGuests.length > 0 ? (
-                                    filteredGuests.map((guest) => (
-                                        <div
-                                            key={guest.uid}
-                                            onClick={() => handleViewDetails(guest)}
-                                            className="bg-white rounded-2xl p-3 border border-slate-100 shadow-sm active:scale-[0.98] transition-all flex items-center gap-4"
-                                        >
-                                            <PlayerAvatar
-                                                photoUrl={guest.photoURL}
-                                                name={guest.displayName || guest.email}
-                                                size="md"
-                                                className="shadow-sm ring-2 ring-slate-50"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className="font-black text-slate-900 truncate uppercase tracking-tight text-sm">{guest.displayName || guest.email.split('@')[0]}</h4>
-                                                <p className="text-[10px] font-bold text-slate-400 truncate">{guest.email}</p>
-                                            </div>
-                                            <ChevronRight size={16} className="text-slate-300" />
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="py-20 text-center">
-                                        <Search className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No guests found</p>
-                                    </div>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="p-2 sm:p-6">
-                            <div className="space-y-6">
-                                <div className="flex items-center justify-between mb-4 px-2">
-                                    <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Pending Approvals</h2>
-                                    <div className="bg-amber-50 dark:bg-amber-900/20 px-3 py-1 rounded-full border border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400 text-[10px] font-black uppercase">
-                                        {pendingRequests.length} Waiting
-                                    </div>
-                                </div>
-
-                                {pendingRequests.length === 0 ? (
-                                    <div className="py-20 flex flex-col items-center justify-center text-center opacity-50">
-                                        <CheckCircle2 size={48} className="text-slate-300 mb-4" />
-                                        <p className="font-bold text-slate-400 uppercase tracking-widest text-sm">No pending requests</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {pendingRequests.map(request => (
-                                            <div key={request.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-white/5 p-6 shadow-sm hover:shadow-xl transition-all group flex flex-col gap-4">
-                                                <div className="flex gap-5">
-                                                    <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 shadow-inner border border-slate-100 dark:border-white/10">
-                                                        {request.photoUrl ? (
-                                                            <img src={request.photoUrl} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-slate-300"><UserCheck size={24} /></div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase truncate">{request.name}</h4>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <p className="text-[10px] font-bold text-slate-400">{request.email}</p>
-                                                            <span className="text-[10px] text-slate-300">•</span>
-                                                            <p className="text-[10px] font-bold text-blue-500 flex items-center gap-1">
-                                                                <Smartphone size={10} />
-                                                                {request.phone || 'No Phone'}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-2 mt-2">
-                                                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase rounded">{request.role}</span>
-                                                            <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] font-black uppercase rounded">{request.batch}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2 border border-slate-100/50 dark:border-white/5">
-                                                    <div className="flex items-center justify-between text-[10px]">
-                                                        <span className="font-black text-slate-400 uppercase tracking-tighter">Requesting Squad</span>
-                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{request.squadName}</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between text-[10px]">
-                                                        <span className="font-black text-slate-400 uppercase tracking-tighter">School</span>
-                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{request.school}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex gap-3 pt-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            const user = allUsers.find(u => u.uid === request.uid);
-                                                            if (user) {
-                                                                handleViewDetails(user);
-                                                            } else {
-                                                                toast.error('User profile not found');
-                                                            }
-                                                        }}
-                                                        className="px-4 py-3 bg-white border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                                    >
-                                                        <Activity size={14} className="text-blue-500" />
-                                                        Activity
-                                                    </button>
-                                                    <button
-                                                        onClick={() => navigate('/admin/player-approvals')}
-                                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 hover:bg-blue-700 transition-all font-inter"
-                                                    >
-                                                        Review & Approve
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -1052,425 +1056,435 @@ export default function AdminUsers() {
             </div>
 
             {/* Invite Modal (Admin Creation) remains as is logic wise but I'll ensure it stays */}
-            {showInviteModal && (
-                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    {/* ... Existing Modal Content ... */}
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 shadow-2xl animate-in zoom-in-95 duration-300">
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><ShieldCheck className="w-6 h-6" /></div>
-                                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Create Admin</h3>
-                            </div>
-                            <button onClick={() => setShowInviteModal(false)} className="p-2.5 hover:bg-slate-100 rounded-full transition-all active:rotate-90">
-                                <X className="w-5 h-5 text-slate-500" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreateAdmin} className="space-y-6">
-                            {/* Form fields were in original code, I'll keep them consistent */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Display Name</label>
-                                    <input type="text" required value={inviteName} onChange={(e) => setInviteName(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
+            {
+                showInviteModal && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        {/* ... Existing Modal Content ... */}
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><ShieldCheck className="w-6 h-6" /></div>
+                                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Create Admin</h3>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Email Address</label>
-                                    <div className="relative">
-                                        <input
-                                            type="email"
-                                            required
-                                            value={inviteEmail}
-                                            onChange={(e) => setInviteEmail(e.target.value)}
-                                            className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:ring-4 transition-all font-bold ${emailError ? 'border-rose-500 focus:ring-rose-100' : 'border-slate-200 focus:ring-blue-100'}`}
-                                        />
-                                        {isCheckingEmail && (
-                                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                                            </div>
+                                <button onClick={() => setShowInviteModal(false)} className="p-2.5 hover:bg-slate-100 rounded-full transition-all active:rotate-90">
+                                    <X className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreateAdmin} className="space-y-6">
+                                {/* Form fields were in original code, I'll keep them consistent */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Display Name</label>
+                                        <input type="text" required value={inviteName} onChange={(e) => setInviteName(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Email Address</label>
+                                        <div className="relative">
+                                            <input
+                                                type="email"
+                                                required
+                                                value={inviteEmail}
+                                                onChange={(e) => setInviteEmail(e.target.value)}
+                                                className={`w-full px-5 py-4 bg-slate-50 border rounded-2xl outline-none focus:ring-4 transition-all font-bold ${emailError ? 'border-rose-500 focus:ring-rose-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                                            />
+                                            {isCheckingEmail && (
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        {emailError && (
+                                            <p className="text-[10px] text-rose-500 font-bold mt-2 px-1 leading-tight">{emailError}</p>
                                         )}
                                     </div>
-                                    {emailError && (
-                                        <p className="text-[10px] text-rose-500 font-bold mt-2 px-1 leading-tight">{emailError}</p>
-                                    )}
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Initial Password</label>
-                                <input type="password" required minLength={6} value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-1">Access Level</label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button type="button" onClick={() => setInviteRole('admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'admin' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>Admin</button>
-                                    <button type="button" onClick={() => setInviteRole('super_admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'super_admin' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100'}`}>Super Admin</button>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Initial Password</label>
+                                    <input type="password" required minLength={6} value={invitePassword} onChange={(e) => setInvitePassword(e.target.value)} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold" />
                                 </div>
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={isInviting || !!emailError || isCheckingEmail}
-                                className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
-                            >
-                                {isInviting ? 'Initializing...' : 'Confirm Account Creation'}
-                            </button>
-                        </form>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-1">Access Level</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button type="button" onClick={() => setInviteRole('admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'admin' ? 'border-blue-600 bg-blue-50' : 'border-slate-100'}`}>Admin</button>
+                                        <button type="button" onClick={() => setInviteRole('super_admin')} className={`p-4 rounded-2xl border-2 transition-all font-black text-xs ${inviteRole === 'super_admin' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100'}`}>Super Admin</button>
+                                    </div>
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={isInviting || !!emailError || isCheckingEmail}
+                                    className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {isInviting ? 'Initializing...' : 'Confirm Account Creation'}
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Squad Assignment Modal */}
-            {showSquadModal && selectedUser && (
-                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300 border border-white/20">
-                        <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-2xl font-black text-slate-900">Add to Squad</h3>
-                            <button onClick={() => setShowSquadModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
-                                <X className="w-5 h-5 text-slate-500" />
-                            </button>
-                        </div>
+            {
+                showSquadModal && selectedUser && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300 border border-white/20">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-2xl font-black text-slate-900">Add to Squad</h3>
+                                <button onClick={() => setShowSquadModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+                                    <X className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
 
-                        <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
-                            <PlayerAvatar
-                                photoUrl={selectedUser.playerProfile?.photoUrl}
-                                name={selectedUser.displayName || selectedUser.email}
-                                size="xl"
-                                className="mx-auto mb-4 border-4 border-white shadow-xl"
-                            />
-                            <h4 className="text-xl font-black text-slate-900">{selectedUser.displayName}</h4>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Verification Required</p>
-                        </div>
+                            <div className="mb-8 p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
+                                <PlayerAvatar
+                                    photoUrl={selectedUser.playerProfile?.photoUrl}
+                                    name={selectedUser.displayName || selectedUser.email}
+                                    size="xl"
+                                    className="mx-auto mb-4 border-4 border-white shadow-xl"
+                                />
+                                <h4 className="text-xl font-black text-slate-900">{selectedUser.displayName}</h4>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Verification Required</p>
+                            </div>
 
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1 text-center">Select Destination Squad</label>
-                                <select
-                                    className="w-full px-6 py-4 bg-slate-100 border-none rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-100 transition-all"
-                                    value={selectedSquadId}
-                                    onChange={(e) => setSelectedSquadId(e.target.value)}
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1 text-center">Select Destination Squad</label>
+                                    <select
+                                        className="w-full px-6 py-4 bg-slate-100 border-none rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-100 transition-all"
+                                        value={selectedSquadId}
+                                        onChange={(e) => setSelectedSquadId(e.target.value)}
+                                    >
+                                        <option value="">-- Choose a Squad --</option>
+                                        {squads.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} ({s.year})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] text-blue-700 font-medium leading-relaxed">
+                                    <b>⚠️ Note:</b> This action will "activate" this user as a public player. Their stats and profile will become visible to all users in the system.
+                                </div>
+
+                                <button
+                                    onClick={handleAddToSquad}
+                                    disabled={isSquadLinking || !selectedSquadId}
+                                    className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-30 disabled:shadow-none"
                                 >
-                                    <option value="">-- Choose a Squad --</option>
-                                    {squads.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} ({s.year})</option>
-                                    ))}
-                                </select>
+                                    {isSquadLinking ? 'Assigning...' : 'Assign to Squad'}
+                                </button>
                             </div>
-
-                            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] text-blue-700 font-medium leading-relaxed">
-                                <b>⚠️ Note:</b> This action will "activate" this user as a public player. Their stats and profile will become visible to all users in the system.
-                            </div>
-
-                            <button
-                                onClick={handleAddToSquad}
-                                disabled={isSquadLinking || !selectedSquadId}
-                                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-30 disabled:shadow-none"
-                            >
-                                {isSquadLinking ? 'Assigning...' : 'Assign to Squad'}
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Password Edit Modal */}
-            {showPassEditModal && editingAdmin && (
-                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><Key className="w-6 h-6" /></div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-900 leading-tight">
-                                        {editingAdmin.pwd ? 'Update Password' : 'Reset Account'}
-                                    </h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{editingAdmin.email}</p>
+            {
+                showPassEditModal && editingAdmin && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><Key className="w-6 h-6" /></div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-900 leading-tight">
+                                            {editingAdmin.pwd ? 'Update Password' : 'Reset Account'}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{editingAdmin.email}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <button onClick={() => setShowPassEditModal(false)} className="p-2.5 hover:bg-slate-100 rounded-full transition-all">
-                                <X className="w-5 h-5 text-slate-500" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleUpdatePassword} className="space-y-6">
-                            {editingAdmin.pwd ? (
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">New Password</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        minLength={6}
-                                        value={newAdminPass}
-                                        onChange={(e) => setNewAdminPass(e.target.value)}
-                                        placeholder="Enter minimum 6 characters"
-                                        className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold"
-                                    />
-                                </div>
-                            ) : (
-                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center space-y-3">
-                                    <ShieldAlert className="w-10 h-10 text-amber-500 mx-auto" />
-                                    <p className="text-sm font-bold text-slate-700">Legacy Account Detected</p>
-                                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                                        This account was created before password tracking. To regain access, we must send a reset link to their email address.
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] text-blue-700 font-medium leading-relaxed">
-                                {editingAdmin.pwd
-                                    ? <span><b>Note:</b> This will update both the login account and our internal copy. They must use the new password next time.</span>
-                                    : <span><b>Security Note:</b> Once they click the link in their email, they can choose a new password and log in.</span>
-                                }
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={isUpdatingPass}
-                                className={`w-full py-5 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl transition-all active:scale-95 disabled:opacity-50 ${editingAdmin.pwd ? 'bg-slate-900 hover:bg-slate-800' : 'bg-blue-600 hover:bg-blue-700'}`}
-                            >
-                                {isUpdatingPass
-                                    ? 'Processing Security...'
-                                    : editingAdmin.pwd ? 'Update Security Now' : 'Send Reset Link Now'
-                                }
-                            </button>
-
-                            {editingAdmin.pwd && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleUpdatePassword(null as any, true)}
-                                    className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors"
-                                >
-                                    Login issue? Send Password Reset Link instead
+                                <button onClick={() => setShowPassEditModal(false)} className="p-2.5 hover:bg-slate-100 rounded-full transition-all">
+                                    <X className="w-5 h-5 text-slate-500" />
                                 </button>
-                            )}
-                        </form>
-                    </div>
-                </div>
-            )}
-            {/* Delete Confirmation Modal */}
-            {showDeleteModal && adminToDelete && (
-                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[70] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
-                        <div className="flex flex-col items-center text-center">
-                            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-500 mb-6 shadow-inner">
-                                <ShieldAlert size={40} />
                             </div>
-                            <h3 className="text-2xl font-black text-slate-900 mb-2">Security Check</h3>
-                            <p className="text-slate-500 text-sm font-medium mb-8">
-                                You are about to permanently delete <b>{adminToDelete.name}</b>.
-                                This action is irreversible and will revoke all access immediately.
-                            </p>
-                        </div>
 
-                        <div className="space-y-6">
-                            <div className="p-5 bg-rose-50 rounded-2xl border border-rose-100 italic">
-                                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest text-center mb-1">Confirmation Required</p>
-                                <p className="text-xs text-rose-500 text-center font-bold">
-                                    Type <span className="text-rose-700 select-all">{adminToDelete.email}</span> to confirm.
+                            <form onSubmit={handleUpdatePassword} className="space-y-6">
+                                {editingAdmin.pwd ? (
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">New Password</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            minLength={6}
+                                            value={newAdminPass}
+                                            onChange={(e) => setNewAdminPass(e.target.value)}
+                                            placeholder="Enter minimum 6 characters"
+                                            className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 transition-all font-bold"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center space-y-3">
+                                        <ShieldAlert className="w-10 h-10 text-amber-500 mx-auto" />
+                                        <p className="text-sm font-bold text-slate-700">Legacy Account Detected</p>
+                                        <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                                            This account was created before password tracking. To regain access, we must send a reset link to their email address.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-[10px] text-blue-700 font-medium leading-relaxed">
+                                    {editingAdmin.pwd
+                                        ? <span><b>Note:</b> This will update both the login account and our internal copy. They must use the new password next time.</span>
+                                        : <span><b>Security Note:</b> Once they click the link in their email, they can choose a new password and log in.</span>
+                                    }
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isUpdatingPass}
+                                    className={`w-full py-5 text-white rounded-[1.5rem] font-bold uppercase tracking-widest shadow-xl transition-all active:scale-95 disabled:opacity-50 ${editingAdmin.pwd ? 'bg-slate-900 hover:bg-slate-800' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                >
+                                    {isUpdatingPass
+                                        ? 'Processing Security...'
+                                        : editingAdmin.pwd ? 'Update Security Now' : 'Send Reset Link Now'
+                                    }
+                                </button>
+
+                                {editingAdmin.pwd && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdatePassword(null as any, true)}
+                                        className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors"
+                                    >
+                                        Login issue? Send Password Reset Link instead
+                                    </button>
+                                )}
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+            {/* Delete Confirmation Modal */}
+            {
+                showDeleteModal && adminToDelete && (
+                    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[70] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-500 mb-6 shadow-inner">
+                                    <ShieldAlert size={40} />
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-900 mb-2">Security Check</h3>
+                                <p className="text-slate-500 text-sm font-medium mb-8">
+                                    You are about to permanently delete <b>{adminToDelete.name}</b>.
+                                    This action is irreversible and will revoke all access immediately.
                                 </p>
                             </div>
 
-                            <input
-                                type="email"
-                                value={deleteConfirmEmail}
-                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                                placeholder="Enter admin email address"
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-rose-100 focus:border-rose-300 transition-all text-center"
-                            />
+                            <div className="space-y-6">
+                                <div className="p-5 bg-rose-50 rounded-2xl border border-rose-100 italic">
+                                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest text-center mb-1">Confirmation Required</p>
+                                    <p className="text-xs text-rose-500 text-center font-bold">
+                                        Type <span className="text-rose-700 select-all">{adminToDelete.email}</span> to confirm.
+                                    </p>
+                                </div>
 
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeleteModal(false)}
-                                    className="flex-1 py-4 bg-slate-100 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={executeDeleteAdmin}
-                                    disabled={deleteConfirmEmail.trim().toLowerCase() !== adminToDelete.email.toLowerCase() || isDeleting}
-                                    className="flex-[2] py-4 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all disabled:opacity-30 disabled:shadow-none animate-pulse"
-                                >
-                                    {isDeleting ? 'Removing...' : 'Permanently Delete'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* User Details Modal */}
-            {showDetailModal && selectedDetailUser && (
-                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[80] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
-                        {/* Modal Header */}
-                        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                            <div className="flex items-center gap-5">
-                                <PlayerAvatar
-                                    photoUrl={selectedDetailUser.photoURL || selectedDetailUser.playerProfile?.photoUrl}
-                                    name={selectedDetailUser.displayName || selectedDetailUser.email}
-                                    size="xl"
-                                    className="ring-4 ring-white shadow-xl"
+                                <input
+                                    type="email"
+                                    value={deleteConfirmEmail}
+                                    onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                    placeholder="Enter admin email address"
+                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-rose-100 focus:border-rose-300 transition-all text-center"
                                 />
-                                <div>
-                                    <h3 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight truncate max-w-[150px] sm:max-w-none">
-                                        {selectedDetailUser.displayName || 'Unnamed User'}
-                                    </h3>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 truncate max-w-[100px] sm:max-w-none">{selectedDetailUser.email}</span>
-                                        <span className={`text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${selectedDetailUser.role === 'super_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
-                                            {selectedDetailUser.role}
-                                        </span>
-                                    </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowDeleteModal(false)}
+                                        className="flex-1 py-4 bg-slate-100 text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={executeDeleteAdmin}
+                                        disabled={deleteConfirmEmail.trim().toLowerCase() !== adminToDelete.email.toLowerCase() || isDeleting}
+                                        className="flex-[2] py-4 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-200 hover:bg-rose-700 transition-all disabled:opacity-30 disabled:shadow-none animate-pulse"
+                                    >
+                                        {isDeleting ? 'Removing...' : 'Permanently Delete'}
+                                    </button>
                                 </div>
                             </div>
-                            <button onClick={() => setShowDetailModal(false)} className="p-2 sm:p-3 hover:bg-slate-200 rounded-full transition-all active:scale-90 shrink-0">
-                                <X size={20} className="sm:w-6 sm:h-6 text-slate-500" />
-                            </button>
-                        </div>
-
-                        {/* Modal Content */}
-                        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-8 sm:space-y-10 custom-scrollbar">
-                            {isLoadingDetails ? (
-                                <div className="py-20 flex flex-col items-center justify-center gap-4">
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Activity...</p>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Login History */}
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-5 sm:mb-6">
-                                            <div className="p-2 sm:p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><ShieldCheck size={18} className="sm:w-5 sm:h-5" /></div>
-                                            <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Device & Access</h4>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
-                                                <div className="p-2 bg-white rounded-xl shadow-sm"><Globe size={18} className="text-blue-500" /></div>
-                                                <div>
-                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Last IP / Location</div>
-                                                    <div className="text-xs font-bold text-slate-800">{selectedDetailUser.ip || 'Unknown'}</div>
-                                                    <div className="text-[10px] text-slate-500 font-medium">{selectedDetailUser.location || 'Unknown Location'}</div>
-                                                </div>
-                                            </div>
-                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
-                                                <div className="p-2 bg-white rounded-xl shadow-sm"><Smartphone size={18} className="text-indigo-500" /></div>
-                                                <div>
-                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Device / Platform</div>
-                                                    <div className="text-xs font-bold text-slate-800">{selectedDetailUser.deviceInfo?.platform || 'Unknown'}</div>
-                                                    <div className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]" title={selectedDetailUser.deviceInfo?.userAgent}>
-                                                        {selectedDetailUser.deviceInfo?.userAgent?.split(')')[1]?.trim() || 'Generic Browser'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center gap-4 sm:col-span-2">
-                                                <div className="p-2 bg-white rounded-xl shadow-sm"><Clock size={18} className="text-blue-600" /></div>
-                                                <div>
-                                                    <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Last Active Date & Time</div>
-                                                    <div className="text-sm font-black text-blue-900">
-                                                        {selectedDetailUser.lastLogin?.seconds
-                                                            ? new Date(selectedDetailUser.lastLogin.seconds * 1000).toLocaleString(undefined, {
-                                                                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                                                            })
-                                                            : 'No login record recorded'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-3 mb-5 sm:mb-6">
-                                            <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl"><History size={18} className="sm:w-5 sm:h-5" /></div>
-                                            <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Recent Activity</h4>
-                                        </div>
-                                        <div className="space-y-3 sm:space-y-4">
-                                            {loginLogs.length > 0 ? loginLogs.map((log) => (
-                                                <div key={log.id} className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
-                                                    <div className="flex items-center gap-3 sm:gap-4">
-                                                        <div className="p-2 sm:p-2.5 bg-white rounded-xl shadow-sm"><Globe size={16} className="text-slate-400 sm:w-[18px] sm:h-[18px]" /></div>
-                                                        <div>
-                                                            <div className="text-xs sm:text-sm font-bold text-slate-800">{log.ip}</div>
-                                                            <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase mt-1">
-                                                                <MapPin size={10} className="text-rose-400" />
-                                                                {log.location}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right shrink-0">
-                                                        <div className="text-[10px] sm:text-xs font-black text-slate-900">
-                                                            {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleString(undefined, {
-                                                                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                                                            }) : 'Recently'}
-                                                        </div>
-                                                        <div className="text-[8px] sm:text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter truncate max-w-[80px] sm:max-w-[150px]">
-                                                            {log.userAgent?.split(')')[1]?.trim() || 'Mobile'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )) : (
-                                                <div className="py-8 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No logs found</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Name Change History */}
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-5 sm:mb-6">
-                                            <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl"><History size={18} className="sm:w-5 sm:h-5" /></div>
-                                            <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Name Changes</h4>
-                                        </div>
-                                        <div className="space-y-3 sm:space-y-4">
-                                            {nameChangeLogs.length > 0 ? nameChangeLogs.map((log) => (
-                                                <div key={log.id} className="p-4 sm:p-5 bg-amber-50/30 rounded-2xl border border-amber-100/50 flex items-center justify-between">
-                                                    <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
-                                                        <div className="w-1 h-8 sm:w-1.5 sm:h-10 bg-amber-200 rounded-full shrink-0" />
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                                                <span className="text-[10px] sm:text-xs font-bold text-slate-500 line-through truncate max-w-[80px]">{log.oldName}</span>
-                                                                <span className="text-[11px] sm:text-sm font-black text-slate-900 truncate max-w-[100px]">→ {log.newName}</span>
-                                                            </div>
-                                                            <div className="text-[9px] sm:text-[10px] text-amber-600 font-bold uppercase mt-1">
-                                                                {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="hidden sm:block px-3 py-1 bg-white rounded-lg text-[9px] font-black text-slate-400 uppercase border border-amber-100 shadow-sm shrink-0">
-                                                        Logged
-                                                    </div>
-                                                </div>
-                                            )) : (
-                                                <div className="py-8 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No history</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="p-5 sm:p-8 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:gap-4">
-                            <button
-                                onClick={() => setShowDetailModal(false)}
-                                className="w-full sm:flex-1 py-3.5 sm:py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-white hover:shadow-xl transition-all"
-                            >
-                                Close
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowDetailModal(false);
-                                    if (selectedDetailUser.linkedPlayerId || selectedDetailUser.playerId) {
-                                        navigate(`/admin/players/${selectedDetailUser.linkedPlayerId || selectedDetailUser.playerId}/edit`);
-                                    } else {
-                                        toast.error("Not linked to player");
-                                    }
-                                }}
-                                className="w-full sm:flex-1 py-3.5 sm:py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                            >
-                                <ExternalLink size={14} />
-                                Manage
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+            {/* User Details Modal */}
+            {
+                showDetailModal && selectedDetailUser && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-[80] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+                            {/* Modal Header */}
+                            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                <div className="flex items-center gap-5">
+                                    <PlayerAvatar
+                                        photoUrl={selectedDetailUser.photoURL || selectedDetailUser.playerProfile?.photoUrl}
+                                        name={selectedDetailUser.displayName || selectedDetailUser.email}
+                                        size="xl"
+                                        className="ring-4 ring-white shadow-xl"
+                                    />
+                                    <div>
+                                        <h3 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight truncate max-w-[150px] sm:max-w-none">
+                                            {selectedDetailUser.displayName || 'Unnamed User'}
+                                        </h3>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 truncate max-w-[100px] sm:max-w-none">{selectedDetailUser.email}</span>
+                                            <span className={`text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${selectedDetailUser.role === 'super_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {selectedDetailUser.role}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowDetailModal(false)} className="p-2 sm:p-3 hover:bg-slate-200 rounded-full transition-all active:scale-90 shrink-0">
+                                    <X size={20} className="sm:w-6 sm:h-6 text-slate-500" />
+                                </button>
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-8 sm:space-y-10 custom-scrollbar">
+                                {isLoadingDetails ? (
+                                    <div className="py-20 flex flex-col items-center justify-center gap-4">
+                                        <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin" />
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Activity...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Login History */}
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                                                <div className="p-2 sm:p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><ShieldCheck size={18} className="sm:w-5 sm:h-5" /></div>
+                                                <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Device & Access</h4>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                                                    <div className="p-2 bg-white rounded-xl shadow-sm"><Globe size={18} className="text-blue-500" /></div>
+                                                    <div>
+                                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Last IP / Location</div>
+                                                        <div className="text-xs font-bold text-slate-800">{selectedDetailUser.ip || 'Unknown'}</div>
+                                                        <div className="text-[10px] text-slate-500 font-medium">{selectedDetailUser.location || 'Unknown Location'}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                                                    <div className="p-2 bg-white rounded-xl shadow-sm"><Smartphone size={18} className="text-indigo-500" /></div>
+                                                    <div>
+                                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Device / Platform</div>
+                                                        <div className="text-xs font-bold text-slate-800">{selectedDetailUser.deviceInfo?.platform || 'Unknown'}</div>
+                                                        <div className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]" title={selectedDetailUser.deviceInfo?.userAgent}>
+                                                            {selectedDetailUser.deviceInfo?.userAgent?.split(')')[1]?.trim() || 'Generic Browser'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center gap-4 sm:col-span-2">
+                                                    <div className="p-2 bg-white rounded-xl shadow-sm"><Clock size={18} className="text-blue-600" /></div>
+                                                    <div>
+                                                        <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Last Active Date & Time</div>
+                                                        <div className="text-sm font-black text-blue-900">
+                                                            {selectedDetailUser.lastLogin?.seconds
+                                                                ? new Date(selectedDetailUser.lastLogin.seconds * 1000).toLocaleString(undefined, {
+                                                                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                                })
+                                                                : 'No login record recorded'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                                                <div className="p-2 sm:p-2.5 bg-blue-50 text-blue-600 rounded-xl"><History size={18} className="sm:w-5 sm:h-5" /></div>
+                                                <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Recent Activity</h4>
+                                            </div>
+                                            <div className="space-y-3 sm:space-y-4">
+                                                {loginLogs.length > 0 ? loginLogs.map((log) => (
+                                                    <div key={log.id} className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+                                                        <div className="flex items-center gap-3 sm:gap-4">
+                                                            <div className="p-2 sm:p-2.5 bg-white rounded-xl shadow-sm"><Globe size={16} className="text-slate-400 sm:w-[18px] sm:h-[18px]" /></div>
+                                                            <div>
+                                                                <div className="text-xs sm:text-sm font-bold text-slate-800">{log.ip}</div>
+                                                                <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase mt-1">
+                                                                    <MapPin size={10} className="text-rose-400" />
+                                                                    {log.location}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-[10px] sm:text-xs font-black text-slate-900">
+                                                                {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleString(undefined, {
+                                                                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                                }) : 'Recently'}
+                                                            </div>
+                                                            <div className="text-[8px] sm:text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter truncate max-w-[80px] sm:max-w-[150px]">
+                                                                {log.userAgent?.split(')')[1]?.trim() || 'Mobile'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )) : (
+                                                    <div className="py-8 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No logs found</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Name Change History */}
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-5 sm:mb-6">
+                                                <div className="p-2 sm:p-2.5 bg-amber-50 text-amber-600 rounded-xl"><History size={18} className="sm:w-5 sm:h-5" /></div>
+                                                <h4 className="text-base sm:text-lg font-black text-slate-900 italic uppercase">Name Changes</h4>
+                                            </div>
+                                            <div className="space-y-3 sm:space-y-4">
+                                                {nameChangeLogs.length > 0 ? nameChangeLogs.map((log) => (
+                                                    <div key={log.id} className="p-4 sm:p-5 bg-amber-50/30 rounded-2xl border border-amber-100/50 flex items-center justify-between">
+                                                        <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+                                                            <div className="w-1 h-8 sm:w-1.5 sm:h-10 bg-amber-200 rounded-full shrink-0" />
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                                                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 line-through truncate max-w-[80px]">{log.oldName}</span>
+                                                                    <span className="text-[11px] sm:text-sm font-black text-slate-900 truncate max-w-[100px]">→ {log.newName}</span>
+                                                                </div>
+                                                                <div className="text-[9px] sm:text-[10px] text-amber-600 font-bold uppercase mt-1">
+                                                                    {log.timestamp?.seconds ? new Date(log.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="hidden sm:block px-3 py-1 bg-white rounded-lg text-[9px] font-black text-slate-400 uppercase border border-amber-100 shadow-sm shrink-0">
+                                                            Logged
+                                                        </div>
+                                                    </div>
+                                                )) : (
+                                                    <div className="py-8 text-center bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No history</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="p-5 sm:p-8 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:gap-4">
+                                <button
+                                    onClick={() => setShowDetailModal(false)}
+                                    className="w-full sm:flex-1 py-3.5 sm:py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-white hover:shadow-xl transition-all"
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowDetailModal(false);
+                                        if (selectedDetailUser.linkedPlayerId || selectedDetailUser.playerId) {
+                                            navigate(`/admin/players/${selectedDetailUser.linkedPlayerId || selectedDetailUser.playerId}/edit`);
+                                        } else {
+                                            toast.error("Not linked to player");
+                                        }
+                                    }}
+                                    className="w-full sm:flex-1 py-3.5 sm:py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <ExternalLink size={14} />
+                                    Manage
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     )
 }

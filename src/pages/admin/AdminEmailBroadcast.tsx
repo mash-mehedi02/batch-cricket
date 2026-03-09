@@ -11,8 +11,7 @@ import {
     AlertCircle,
     CheckCircle2
 } from 'lucide-react';
-import { db } from '@/config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+
 import { playerService } from '@/services/firestore/players';
 import { squadService } from '@/services/firestore/squads';
 import { getPlayerSecretEmail } from '@/services/firestore/playerClaim';
@@ -279,8 +278,8 @@ const AdminEmailBroadcast = () => {
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
                             {filteredPlayers.map(p => {
-                                const isSelected = selectedPlayerIds.has(p.id) || selectedSquadIds.has(p.squadId);
-                                const isViaSquad = !selectedPlayerIds.has(p.id) && selectedSquadIds.has(p.squadId);
+                                const isSelected = selectedPlayerIds.has(p.id!) || selectedSquadIds.has(p.squadId || '');
+                                const isViaSquad = !selectedPlayerIds.has(p.id!) && selectedSquadIds.has(p.squadId || '');
 
                                 return (
                                     <button

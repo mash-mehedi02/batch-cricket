@@ -10,7 +10,9 @@ import ExtrasSection from './ExtrasSection'
 import YetToBatGrid from './YetToBatGrid'
 import FallOfWickets from './FallOfWickets'
 import PartnershipSection from './PartnershipSection'
+// @ts-expect-error - No declaration file for JSX
 import BallTimeline from '../live/BallTimeline'
+// @ts-expect-error - No declaration file for JSX
 import ProjectedScoreTable from '../live/ProjectedScoreTable'
 import WinProbability from '../live/WinProbability'
 
@@ -39,7 +41,6 @@ const CrexScorecardPage: React.FC<CrexScorecardPageProps> = ({
   }
 
   const battingTeam = currentInnings === 'teamA' ? teamAName : teamBName
-  const bowlingTeam = currentInnings === 'teamA' ? teamBName : teamAName
 
   return (
     <div className="min-h-screen bg-gray-50">

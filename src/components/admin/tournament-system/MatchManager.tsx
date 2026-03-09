@@ -377,7 +377,7 @@ export default function MatchManager({ tournament, matches, squads }: MatchManag
 
                             <div className="grid grid-cols-2 gap-4 pt-2">
                                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <CalendarIcon size={14} className="text-slate-300" />
+                                    <Calendar size={14} className="text-slate-300" />
                                     {formatMatchDate(match.date)}
                                 </div>
                                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider justify-end">

@@ -10,7 +10,7 @@ import { doc, onSnapshot, collection, query, where, updateDoc, serverTimestamp }
 import { db, auth } from '@/config/firebase'
 import { signOut } from 'firebase/auth'
 import { squadService } from '@/services/firestore/squads'
-import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle, Squad } from '@/types'
+import { Player, SocialLink, PlayerRole, BattingStyle, BowlingStyle } from '@/types'
 import { formatShortTeamName } from '@/utils/teamName'
 import PlayerProfileSkeleton from '@/components/skeletons/PlayerProfileSkeleton'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
@@ -21,7 +21,7 @@ import { useAuthStore } from '@/store/authStore'
 import { verifyPlayerAccess, handleGoogleRedirectResult, finalizeClaim } from '@/services/firestore/playerClaim'
 import toast from 'react-hot-toast'
 import GSAPImageViewer from '@/components/common/GSAPImageViewer'
-import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Upload, Check, ZoomIn } from 'lucide-react'
+import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Check, ZoomIn } from 'lucide-react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImg } from '@/utils/cropImage'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
@@ -108,7 +108,7 @@ export default function PlayerProfile() {
     if (!playerId) return
     setSaving(true)
     try {
-      await updatePlayerPersonalInfo(playerId, {
+      await playerService.update(playerId, {
         name: editForm.name,
         username: editForm.username,
         bio: editForm.bio,
@@ -150,7 +150,7 @@ export default function PlayerProfile() {
 
   const [viewMode, setViewMode] = useState<'batting' | 'bowling'>('batting')
   const [isEditing, setIsEditing] = useState(false)
-  const [screenshotImage, setScreenshotImage] = useState('')
+
   const [viewerImage, setViewerImage] = useState<string | null>(null)
   const [isViewerOpen, setIsViewerOpen] = useState(false)
   const pageRef = useRef<HTMLDivElement>(null)
@@ -566,7 +566,7 @@ export default function PlayerProfile() {
         notOut: s.notOut ?? (batting.runs !== undefined && !batting.dismissed) ?? false,
         wickets: s.wickets ?? s.bowlingWickets ?? bowling.wickets ?? 0,
         runsConceded: s.runsConceded ?? s.bowlingRuns ?? bowling.runsConceded ?? 0,
-        ballsBowled: s.ballsBowled ?? (s.oversBowled ? Math.floor(s.oversBowled) * 6 + Math.round((s.oversBowled % 1) * 10) : 0) ?? (bowling.overs ? Math.floor(bowling.overs) * 6 + Math.round((bowling.overs % 1) * 10) : 0) ?? 0,
+        ballsBowled: s.ballsBowled ?? (s.oversBowled ? Math.floor(s.oversBowled) * 6 + Math.round((s.oversBowled % 1) * 10) : (bowling.overs ? Math.floor(bowling.overs) * 6 + Math.round((bowling.overs % 1) * 10) : 0)),
         oversBowled: s.oversBowled ?? bowling.overs ?? 0,
         inPlayingXI: true,
         date: s.date || m?.date,
@@ -784,7 +784,7 @@ export default function PlayerProfile() {
 
   // Use pre-computed player.stats as instant fallback, then override with live-computed careerStats once ready
   const hasLiveStats = mergedMatches.length > 0
-  const effectiveCareer = hasLiveStats ? careerStats : (player?.stats ? { matches: player.stats.matches || 0, batting: player.stats.batting || {}, bowling: player.stats.bowling || {} } : careerStats)
+  const effectiveCareer = hasLiveStats ? careerStats : (player?.stats ? { matches: (player.stats as any).matches || 0, batting: (player.stats as any).batting || {}, bowling: (player.stats as any).bowling || {} } : careerStats)
   const matchesCount = Number(effectiveCareer?.matches || 0)
   const battingStats = effectiveCareer?.batting
   const bowlingStats = effectiveCareer?.bowling

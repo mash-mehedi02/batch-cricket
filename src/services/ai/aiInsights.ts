@@ -84,7 +84,7 @@ export interface WinProbabilityResult {
  */
 export function recommendBowler(
   availableBowlers: PlayerStats[],
-  matchContext: MatchContext
+  _matchContext: MatchContext
 ): BowlerRecommendation | null {
   // Ensure availableBowlers is an array
   if (!availableBowlers || !Array.isArray(availableBowlers) || availableBowlers.length === 0) {
@@ -159,7 +159,7 @@ export function detectBatsmanWeakness(
 } {
   // Simplified: Check if batsman has low strike rate or high dismissal rate
   // In production, analyze by bowling type (spin vs pace)
-  
+
   const stats = batsman.stats || {}
   const strikeRate = stats.strikeRate || 100
 
@@ -197,7 +197,7 @@ export function detectBatsmanWeakness(
 export function ratePartnership(
   partnershipRuns: number,
   partnershipBalls: number,
-  matchContext: MatchContext
+  _matchContext: MatchContext
 ): PartnershipInsight {
   const partnershipOvers = `${Math.floor(partnershipBalls / 6)}.${partnershipBalls % 6}`
   const partnershipRR = partnershipBalls > 0
@@ -298,16 +298,16 @@ export function calculateWinProbability(
     // Formula: Projected = Current Run Rate * Total Overs
     // Example: 10 over match, 2 overs bowled, 15 runs (RR = 7.5)
     // Projected = 7.5 * 10 = 75 runs
-    
+
     // Apply wicket factor: More wickets lost = teams slow down
     // Wicket factor: 10 wickets = 1.0, 7 wickets = 0.85, 5 wickets = 0.7, 3 wickets = 0.55, 1 wicket = 0.4
     const wicketFactor = Math.max(0.4, 0.4 + (wicketsRemaining / 10) * 0.6) // 0.4 to 1.0 based on wickets
-    
+
     // Simple formula: Current Run Rate * Total Overs * Wicket Factor
-    const projectedRuns = currentRR > 0 
+    const projectedRuns = currentRR > 0
       ? currentRR * totalOvers * wicketFactor
       : 0
-    
+
     return {
       winProbability: 50, // Neutral for first innings
       factors: {
@@ -429,7 +429,7 @@ export function getMatchInsights(
 } {
   // Ensure availableBowlers is an array
   const bowlersArray = Array.isArray(availableBowlers) ? availableBowlers : []
-  
+
   return {
     winProbability: calculateWinProbability(matchContext),
     bowlerRecommendation: recommendBowler(bowlersArray, matchContext),

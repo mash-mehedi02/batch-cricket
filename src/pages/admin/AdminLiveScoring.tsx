@@ -9,7 +9,7 @@ import { tournamentService } from '@/services/firestore/tournaments';
 import { addBall, BallUpdateResult } from '@/services/matchEngine/ballUpdateService';
 import * as emailService from '@/services/emailService';
 import { recalculateInnings } from '@/services/matchEngine/recalculateInnings';
-import { Match, InningsStats, Player, Tournament } from '@/types';
+import { Match, InningsStats, Player } from '@/types';
 import {
     Loader2,
     CloudRain,
@@ -25,7 +25,6 @@ import {
     Send,
     SwitchCamera,
     X,
-    Flame,
     SunDim,
     Stethoscope,
     AlertCircle
@@ -1077,7 +1076,7 @@ const AdminLiveScoring = () => {
             const batterName = getPlayerName(nextBatterId);
             const currentOvers = currentInnings?.overs || '0.0';
             const currentBalls = currentInnings?.legalBalls || 0;
-            const inningId = (match.currentBatting as any) || 'teamA';
+            const inningId = (match?.currentBatting as any) || 'teamA';
 
             await commentaryService.addManualCommentary(
                 matchId,
@@ -1121,7 +1120,7 @@ const AdminLiveScoring = () => {
             const bowlerName = getPlayerName(nextBowlerId);
             const currentOvers = currentInnings?.overs || '0.0';
             const currentBalls = currentInnings?.legalBalls || 0;
-            const inningId = (match.currentBatting as any) || 'teamA';
+            const inningId = (match?.currentBatting as any) || 'teamA';
 
             await commentaryService.addManualCommentary(
                 matchId,
@@ -1206,9 +1205,9 @@ const AdminLiveScoring = () => {
             await matchService.update(matchId, {
                 status: 'finished',
                 matchPhase: 'finished',
-                playerOfTheMatch: chosenPotmId,
-                resultSummary: finalResult,
-                winnerId: winnerSquadId ? (winnerSquadId as string) : null
+                playerOfTheMatch: chosenPotmId || undefined,
+                resultSummary: finalResult || undefined,
+                winnerId: winnerSquadId ? (winnerSquadId as string) : undefined
             });
 
             // Auto-fill downstream tournament matches
@@ -1264,7 +1263,7 @@ const AdminLiveScoring = () => {
                                     if (!b.batsmanId) return;
                                     playerIds.add(b.batsmanId);
                                     runsMap[b.batsmanId] = {
-                                        name: b.name || (b as any).playerName || runsMap[b.batsmanId]?.name || 'Unknown',
+                                        name: (b as any).name || (b as any).playerName || runsMap[b.batsmanId]?.name || 'Unknown',
                                         runs: (runsMap[b.batsmanId]?.runs || 0) + (Number(b.runs) || 0)
                                     };
                                 });
@@ -1272,7 +1271,7 @@ const AdminLiveScoring = () => {
                                     if (!bw.bowlerId) return;
                                     playerIds.add(bw.bowlerId);
                                     wktsMap[bw.bowlerId] = {
-                                        name: bw.name || (bw as any).playerName || wktsMap[bw.bowlerId]?.name || 'Unknown',
+                                        name: (bw as any).name || (bw as any).playerName || wktsMap[bw.bowlerId]?.name || 'Unknown',
                                         wkts: (wktsMap[bw.bowlerId]?.wkts || 0) + (Number(bw.wickets) || 0)
                                     };
                                 });
@@ -1423,8 +1422,8 @@ const AdminLiveScoring = () => {
                         currentStrikerId: '',
                         currentNonStrikerId: '',
                         currentBowlerId: '',
-                        winnerId: null,
-                        resultSummary: null
+                        winnerId: undefined,
+                        resultSummary: undefined
                     });
 
                     if (matchId) {
@@ -1526,7 +1525,9 @@ const AdminLiveScoring = () => {
                                         title: 'Repair Match?',
                                         message: 'This will move misplaced balls to Super Over and fix main match scores.',
                                         bengali: 'এটি ভুল করে রেকর্ড হওয়া বলগুলো সুপার ওভারে সরিয়ে নেবে এবং মেইন ম্যাচের স্কোর ঠিক করে দেবে। আপনি কি নিশ্চিত?',
-                                        onConfirm: () => handleRepairCorruptedMatch()
+                                        onConfirm: () => {
+                                            toast.error("Repair function not implemented in this version.");
+                                        }
                                     });
                                     return;
                                 }
@@ -1623,7 +1624,7 @@ const AdminLiveScoring = () => {
                                             if (!matchId) return;
                                             setProcessing(true);
                                             try {
-                                                await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: null, resultSummary: 'Match Tied' });
+                                                await matchService.update(matchId, { status: 'finished', matchPhase: 'finished', winnerId: undefined, resultSummary: 'Match Tied' });
                                                 toast.success('Tied!');
                                             } catch (e: any) {
                                                 toast.error(e.message);
@@ -1961,13 +1962,13 @@ const AdminLiveScoring = () => {
                         </div>
                         {/* Quick Status Bar */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px' }}>
-                            <button onClick={() => handleQuickStatus('DrinksBreak', 'Drinks Break')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'DrinksBreak' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'DrinksBreak' ? 'inset 0 0 0 2px #3b82f6' : 'none' }}><Coffee size={12} strokeWidth={2.5} className="text-blue-500" /> DRINKS</button>
-                            <button onClick={() => handleQuickStatus('RainDelay', 'Match Delay due to Rain')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'RainDelay' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'RainDelay' ? 'inset 0 0 0 2px #6366f1' : 'none' }}><CloudRain size={12} strokeWidth={2.5} className="text-indigo-500" /> RAIN</button>
-                            <button onClick={() => handleQuickStatus('Paused', 'Match Paused for Technical Issues')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'Paused' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'Paused' ? 'inset 0 0 0 2px #f59e0b' : 'none' }}><PauseCircle size={12} strokeWidth={2.5} className="text-amber-500" /> PAUSE</button>
+                            <button onClick={() => handleQuickStatus('DrinksBreak', 'Drinks Break')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: (match.matchPhase as string) === 'DrinksBreak' ? '#f1f5f9' : '#fff', boxShadow: (match.matchPhase as string) === 'DrinksBreak' ? 'inset 0 0 0 2px #3b82f6' : 'none' }}><Coffee size={12} strokeWidth={2.5} className="text-blue-500" /> DRINKS</button>
+                            <button onClick={() => handleQuickStatus('RainDelay', 'Match Delay due to Rain')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: (match.matchPhase as string) === 'RainDelay' ? '#f1f5f9' : '#fff', boxShadow: (match.matchPhase as string) === 'RainDelay' ? 'inset 0 0 0 2px #6366f1' : 'none' }}><CloudRain size={12} strokeWidth={2.5} className="text-indigo-500" /> RAIN</button>
+                            <button onClick={() => handleQuickStatus('Paused', 'Match Paused for Technical Issues')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: (match.matchPhase as string) === 'Paused' ? '#f1f5f9' : '#fff', boxShadow: (match.matchPhase as string) === 'Paused' ? 'inset 0 0 0 2px #f59e0b' : 'none' }}><PauseCircle size={12} strokeWidth={2.5} className="text-amber-500" /> PAUSE</button>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '6px' }}>
-                            <button onClick={() => handleQuickStatus('BadLight', 'Match Delay due to Bad Light')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'BadLight' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'BadLight' ? 'inset 0 0 0 2px #64748b' : 'none' }}><SunDim size={14} strokeWidth={2.5} className="text-slate-500" /> BAD LIGHT</button>
-                            <button onClick={() => handleQuickStatus('PlayerInjured', 'Match Paused: Player Injured')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: match.matchPhase === 'PlayerInjured' ? '#f1f5f9' : '#fff', boxShadow: match.matchPhase === 'PlayerInjured' ? 'inset 0 0 0 2px #ef4444' : 'none' }}><Stethoscope size={14} strokeWidth={2.5} className="text-rose-500" /> INJURED</button>
+                            <button onClick={() => handleQuickStatus('BadLight', 'Match Delay due to Bad Light')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: (match.matchPhase as string) === 'BadLight' ? '#f1f5f9' : '#fff', boxShadow: (match.matchPhase as string) === 'BadLight' ? 'inset 0 0 0 2px #64748b' : 'none' }}><SunDim size={14} strokeWidth={2.5} className="text-slate-500" /> BAD LIGHT</button>
+                            <button onClick={() => handleQuickStatus('PlayerInjured', 'Match Paused: Player Injured')} disabled={processing} style={{ ...kbtn('#fff', '#475569'), fontSize: '10px', border: '1px solid #e2e8f0', minHeight: '44px', display: 'flex', gap: '4px', background: (match.matchPhase as string) === 'PlayerInjured' ? '#f1f5f9' : '#fff', boxShadow: (match.matchPhase as string) === 'PlayerInjured' ? 'inset 0 0 0 2px #ef4444' : 'none' }}><Stethoscope size={14} strokeWidth={2.5} className="text-rose-500" /> INJURED</button>
                         </div>
 
                         {/* Sync + Commentary */}

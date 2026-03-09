@@ -4,7 +4,6 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
@@ -58,9 +57,8 @@ export default function MatchLive() {
   const [activeCommentaryFilter, setActiveCommentaryFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [tournamentMatches, setTournamentMatches] = useState<Match[]>([])
-  const [relatedLoading, setRelatedLoading] = useState(false)
+  const [_relatedLoading, setRelatedLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('summary')
-  const [isAnimating, setIsAnimating] = useState(false)
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['summary']))
   const didInitTab = useRef(false)
   const [now, setNow] = useState<Date>(() => new Date())
@@ -98,9 +96,7 @@ export default function MatchLive() {
   }
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
   const [showPlayingXIModal, setShowPlayingXIModal] = useState(false)
-  const [screenshotImage, setScreenshotImage] = useState('')
   const pageRef = useRef<HTMLDivElement>(null)
 
   // Long-press share removed
@@ -560,9 +556,9 @@ export default function MatchLive() {
   }
 
   const [centerEventText, setCenterEventText] = useState('')
-  const [isWicketDisplay, setIsWicketDisplay] = useState(false)
-  const [animationEvent, setAnimationEvent] = useState('')
-  const [showAnimation, setShowAnimation] = useState(false)
+  const [_isWicketDisplay, setIsWicketDisplay] = useState(false)
+  const [_animationEvent, setAnimationEvent] = useState('')
+  const [_showAnimation, setShowAnimation] = useState(false)
   const [showBoundaryAnim, setShowBoundaryAnim] = useState(false)
 
   // Center event animation sequence:
@@ -1792,7 +1788,7 @@ export default function MatchLive() {
       case 'playing-xi':
         return <MatchPlayingXI compact={false} match={match || undefined} />
       case 'info':
-        return <MatchInfo compact={true} onSwitchTab={setActiveTab} onOpenPlayingXI={() => setShowPlayingXIModal(true)} match={match || undefined} />
+        return <MatchInfo compact={true} match={match || undefined} />
       case 'summary':
         if (isUpcomingMatch) return renderUpcoming()
         return (

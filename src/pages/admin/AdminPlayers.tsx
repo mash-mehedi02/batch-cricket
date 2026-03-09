@@ -15,7 +15,7 @@ import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
-import { Trash2, Search, Plus, Edit2, Filter, User, Trophy, Medal, Zap, Calendar } from 'lucide-react'
+import { Trash2, Search, Plus, Edit2, User, Trophy, Medal, Zap, Calendar } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { formatDateLabel } from '@/utils/date'
 
@@ -156,7 +156,7 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
           bowlingStyle: data.bowlingStyle || 'right-arm-fast',
           dateOfBirth: data.dateOfBirth || '',
           photoUrl: data.photoUrl || '',
-          squadId: data.squadId,
+          squadId: data.squadId || '',
           email: secretEmail || '',
           school: data.school || 'BatchCrick High',
           address: data.address || '',

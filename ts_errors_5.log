@@ -1,0 +1,3 @@
+﻿src/services/ai/winProbabilityEngine.ts(88,11): error TS6133: '_crr' is declared but its value is never read.
+src/services/firestore/cascadingUpdates.ts(24,19): error TS6133: '_inningRef' is declared but its value is never read.
+src/services/stats/validateBallEvent.ts(49,9): error TS6133: '_batRuns' is declared but its value is never read.

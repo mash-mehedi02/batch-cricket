@@ -3,7 +3,7 @@
  * Win probability, projected scores, match summary
  */
 
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 
 interface CrexInsightsPanelProps {
   matchData: any
@@ -23,23 +23,23 @@ export default function CrexInsightsPanel({
   // Calculate win probability (simplified)
   const winProbability = useMemo(() => {
     if (!target || !currentInningsData) return null
-    
+
     const runsNeeded = target - (currentInningsData.totalRuns || 0)
     const ballsRemaining = currentInningsData.remainingBalls || 0
-    
+
     if (runsNeeded <= 0) return { teamA: 0, teamB: 100 }
     if (ballsRemaining === 0) return { teamA: 100, teamB: 0 }
-    
+
     const requiredRunRate = (runsNeeded / ballsRemaining) * 6
     const currentRunRate = currentInningsData.currentRunRate || 0
-    
+
     // Simple probability based on RRR vs CRR
     let probB = 50
     if (requiredRunRate > currentRunRate * 1.5) probB = 20
     else if (requiredRunRate > currentRunRate) probB = 40
     else if (requiredRunRate < currentRunRate * 0.8) probB = 70
     else if (requiredRunRate < currentRunRate) probB = 60
-    
+
     return { teamA: 100 - probB, teamB: probB }
   }, [target, currentInningsData])
 

@@ -3,7 +3,7 @@
  * Implements official ICC rules for scoring
  */
 
-import { Ball, BallExtras } from '@/types'
+import { Ball } from '@/types'
 
 /**
  * Check if a ball counts as a legal delivery

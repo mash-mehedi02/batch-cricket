@@ -8,7 +8,6 @@ import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 import { getAuth, connectAuthEmulator } from 'firebase/auth'
 import { getStorage, connectStorageEmulator } from 'firebase/storage'
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
-import { getMessaging } from 'firebase/messaging'
 // Analytics is optional - may be blocked by ad blockers
 
 const firebaseConfig = {

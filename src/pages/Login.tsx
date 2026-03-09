@@ -257,7 +257,8 @@ export default function Login() {
         role: role as any,
         battingStyle: battingStyle as any,
         bowlingStyle: bowlingStyle as any,
-        photoUrl: photoUrl
+        photoUrl: photoUrl,
+        phone: ''
       })
 
       // 2. We don't call updatePlayerProfile yet (which sets isRegisteredPlayer: true)
