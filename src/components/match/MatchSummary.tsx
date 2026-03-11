@@ -8,7 +8,7 @@ import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { getMatchResultString } from '@/utils/matchWinner'
-import { formatShortTeamName } from '@/utils/teamName'
+import { formatShortTeamName, stripBatch } from '@/utils/teamName'
 import { formatDateLabel } from '@/utils/date'
 import { formatKnockoutTitle } from '@/utils/matchFormatters'
 import { Trophy, Edit3, Calendar, Users, MapPin, ChevronRight, Bell, Settings, BarChart2, Table } from 'lucide-react'
@@ -346,8 +346,23 @@ const MatchSummary: React.FC<MatchSummaryProps> = ({
                     </div>
 
                     {/* Result Line */}
-                    <div className="mt-4 text-center text-[11px] font-semibold text-amber-500 uppercase tracking-[0.15em]">
-                        {resultText}
+                    <div className="mt-4 text-center text-[11px] font-semibold uppercase tracking-[0.15em]">
+                        {(() => {
+                            if (!resultText) return null;
+                            const lower = resultText.toLowerCase();
+                            const wonIdx = lower.indexOf(' won');
+                            if (wonIdx !== -1) {
+                                const teamPart = resultText.substring(0, wonIdx);
+                                const restPart = resultText.substring(wonIdx);
+                                return (
+                                    <>
+                                        <span className="text-amber-500">{teamPart}</span>
+                                        <span className="text-white">{restPart}</span>
+                                    </>
+                                );
+                            }
+                            return <span className="text-amber-500">{resultText}</span>;
+                        })()}
                     </div>
                 </div>
             </div>

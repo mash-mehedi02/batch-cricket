@@ -264,7 +264,7 @@ export default function Home() {
       </div>
 
       {/* MATCH SECTIONS - Clean Tabs - Sticky */}
-      <div id="match-sections" className="bg-white dark:bg-[#080E1C] border-b border-slate-100 dark:border-white/5 sticky top-0 z-30 shadow-sm">
+      <div id="match-sections" className="bg-white dark:bg-[#080E1C] border-b border-slate-100 dark:border-white/5 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto flex overflow-x-auto scrollbar-hide px-2">
           {[
             { id: 'featured', label: 'For You' },

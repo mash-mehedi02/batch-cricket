@@ -149,15 +149,6 @@ export default function Layout({ children }: LayoutProps) {
 
 
 
-                {/* Mobile Menu Button */}
-                <Link
-                  to="/menu"
-                  className={`md:hidden p-2 rounded-lg transition-colors ${isHome ? 'text-slate-300 hover:text-white hover:bg-white/10' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </Link>
               </div>
             </div>
           </div>
@@ -166,7 +157,7 @@ export default function Layout({ children }: LayoutProps) {
       )}
 
       {/* Main Content */}
-      <main className="min-h-[calc(100vh-8rem)] pb-16 md:pb-0">{children}</main>
+      <main className="min-h-0 pb-16 md:pb-0">{children}</main>
 
       {/* Mobile Bottom Navigation */}
       <BottomNav />

@@ -30,6 +30,9 @@ export const en = {
     menu_terms_privacy: 'Terms & Privacy',
     menu_partner: 'Partner with us',
     menu_logout: 'Log Out',
+    menu_select_language: 'Select Language',
+    language_english: 'English',
+    language_bengali: 'Bengali',
 
     // Theme
     theme_light: 'Light',

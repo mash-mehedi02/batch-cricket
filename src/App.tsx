@@ -92,7 +92,7 @@ function App() {
       <AuthLoadingOverlay isVisible={isAuthProcessing} />
       <AppUpdatePopup />
       <AnimatePresence mode="wait">
-        <Suspense fallback={<div className="h-screen w-screen bg-slate-950 flex items-center justify-center text-white font-black animate-pulse">Loading...</div>}>
+        <Suspense fallback={<div className="h-screen w-screen bg-[#050B18]" />}>
           <Routes>
             {/* Login Route - Redirect to Home with popup trigger */}
             <Route path="/login" element={<Navigate to="/menu?login=true" replace />} />

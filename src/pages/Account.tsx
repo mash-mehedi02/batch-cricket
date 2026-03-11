@@ -12,7 +12,8 @@ import {
     ArrowLeft,
     Trophy,
     Users,
-    Clock
+    Clock,
+    ShieldCheck
 } from 'lucide-react';
 import { useState } from 'react';
 import { tournamentService } from '@/services/firestore/tournaments';
@@ -117,9 +118,17 @@ export default function AccountPage() {
                             )}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h3 className={`text-lg font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                                {user?.displayName || 'Cricket Fan'}
-                            </h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className={`text-lg font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                    {user?.displayName || 'Cricket Fan'}
+                                </h3>
+                                {useAuthStore.getState().isSyncingIdentity && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-[9px] font-black uppercase animate-pulse">
+                                        <ShieldCheck size={10} />
+                                        Syncing
+                                    </div>
+                                )}
+                            </div>
                             <p className={`text-sm truncate ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                                 {user?.email || 'Login to access full features'}
                             </p>
@@ -190,6 +199,25 @@ export default function AccountPage() {
 
                 {/* Actions */}
                 <div className={`border-b ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                    {/* Admin Portal (Added for visibility) */}
+                    {(user.role === 'admin' || user.role === 'super_admin') && (
+                        <button
+                            onClick={() => navigate('/admin')}
+                            className={`w-full flex items-center justify-between px-5 py-4 transition-colors ${isDarkMode ? 'text-blue-400 hover:bg-[#1e293b]' : 'text-blue-600 hover:bg-blue-50'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 flex items-center justify-center text-blue-500">
+                                    <ShieldCheck size={20} className="animate-pulse" />
+                                </div>
+                                <span className="font-bold text-[15px]">Admin Dashboard</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 px-2 py-1 rounded-lg">Panel</span>
+                                <ChevronRight size={18} className="text-slate-400" />
+                            </div>
+                        </button>
+                    )}
+
                     {/* Edit Profile - Hidden for Admins */}
                     {(user.role !== 'admin' && user.role !== 'super_admin') && (
                         <button

@@ -15,6 +15,7 @@ import toast from 'react-hot-toast'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Trash2, Search, Plus, Edit2, User, Trophy, Medal, Zap, Calendar } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { formatDateLabel } from '@/utils/date'
@@ -88,13 +89,40 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
     // Fetch unique schools for autocomplete
     const fetchSchools = async () => {
       try {
-        const { tournamentService } = await import('@/services/firestore/tournaments')
-        const schools = await tournamentService.getUniqueSchools()
-        setExistingSchools(schools)
-      } catch (err) {
-        console.error('Error fetching schools:', err)
+        const { collection, getDocs } = await import('firebase/firestore');
+        const { db } = await import('@/config/firebase'); 
+        const playersRef = collection(db, 'players');
+        const snapshot = await getDocs(playersRef);
+        const schoolMap = new Map<string, string>(); // lowercase -> original case
+
+        const processSchool = (schoolStr: string) => {
+          if (!schoolStr) return;
+          const trimmed = schoolStr.trim();
+          if (!trimmed) return;
+
+          const lower = trimmed.toLowerCase();
+          if (!schoolMap.has(lower)) {
+            schoolMap.set(lower, trimmed);
+          }
+        };
+
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          processSchool(data.school);
+        });
+
+        const squadsRef = collection(db, 'squads');
+        const squadsSnap = await getDocs(squadsRef);
+        squadsSnap.docs.forEach(doc => {
+          const data = doc.data();
+          processSchool(data.school);
+        });
+
+        setExistingSchools(Array.from(schoolMap.values()).sort());
+      } catch (error) {
+        console.error('Error fetching schools:', error);
       }
-    }
+    };
     fetchSchools()
   }, [mode, id])
 
@@ -538,9 +566,10 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
                       <div
                         key={idx}
                         className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm font-medium text-slate-700 border-b border-slate-50 last:border-0 flex items-center justify-between group"
-                        onClick={() => {
-                          setFormData({ ...formData, school })
-                          setShowSchoolSuggestions(false)
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // Prevent onBlur from firing first
+                          setFormData({ ...formData, school });
+                          setShowSchoolSuggestions(false);
                         }}
                       >
                         <span className="truncate">{school}</span>
@@ -573,24 +602,17 @@ export default function AdminPlayers({ mode = 'list' }: AdminPlayersProps) {
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Squad <span className="text-red-500">*</span>
               </label>
-              <select
-                required
+              <SearchableSelect
                 disabled={mode === 'edit'}
-                value={formData.squadId}
-                onChange={(e) => {
-                  setFormData({ ...formData, squadId: e.target.value });
+                value={formData.squadId || ''}
+                onChange={(val: string) => {
+                  setFormData({ ...formData, squadId: val });
                   if (errors.squadId) setErrors(prev => ({ ...prev, squadId: '' }));
                 }}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-teal-500 transition ${errors.squadId ? 'border-red-500' : 'border-gray-300'
-                  } ${mode === 'edit' ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`}
-              >
-                <option value="">Select Squad</option>
-                {squads.map((squad) => (
-                  <option key={squad.id} value={squad.id}>
-                    {squad.name} ({squad.year})
-                  </option>
-                ))}
-              </select>
+                className={`w-full ${errors.squadId ? 'border-red-500' : 'border-gray-300'} ${mode === 'edit' ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`}
+                placeholder="Select Squad"
+                options={squads.map(squad => ({ id: squad.id, name: `${squad.name} (${squad.year})` }))}
+              />
               {mode === 'edit' && (
                 <p className="text-[10px] text-slate-500 mt-1 font-bold uppercase tracking-tight">
                   ℹ️ Squad selection is permanent after registration.

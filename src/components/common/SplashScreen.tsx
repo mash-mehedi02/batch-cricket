@@ -108,16 +108,16 @@ const SplashScreen: React.FC<{ onFinish: () => void }> = ({ onFinish }) => {
                 className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-110 group-hover:scale-125"
               />
 
-              {/* Overlay Badge */}
+              {/* Overlay Badge - Mourning Ribbon */}
               <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: stage >= 2 ? 1 : 0, x: 0 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-                className="absolute top-6 right-6 z-20 w-12 h-12 bg-white rounded-full flex items-center justify-center border-4 border-slate-950 shadow-xl"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: stage >= 2 ? 1 : 0, scale: stage >= 2 ? 1 : 0.8 }}
+                transition={{ delay: 0.5, duration: 0.6, type: "spring", bounce: 0.4 }}
+                className="absolute top-5 right-5 z-20 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] ring-4 ring-black/10"
               >
-                <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                </div>
+                <svg viewBox="0 0 512 512" className="w-[22px] h-[22px] text-zinc-900 drop-shadow-md" fill="currentColor">
+                  <path d="M129.6 128C129.6 57.3 186.9 0 257.6 0s128 57.3 128 128c0 52-29.2 108.8-74 163.7l64.1 128.2c6.1 12.2 .7 27.2-11.8 32.7s-27.4 .5-33.8-11L263 291c-1.8 .4-3.6 .7-5.4 .7s-3.6-.3-5.4-.7L185.2 441.6c-6.4 11.5-21.3 16.5-33.8 11s-17.9-20.5-11.8-32.7l64.1-128.2c-44.8-54.9-74-111.7-74-163.7zm128 96c44.2 0 80-43 80-96s-35.8-96-80-96-80 43-80 96 35.8 96 80 96z" />
+                </svg>
               </motion.div>
 
               {/* Text on Image */}

@@ -8,7 +8,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/config/firebase'
 
 // ⚠️ IMPORTANT: Update this every time you build a new APK
-export const APP_VERSION = '1.0.2'
+export const APP_VERSION = '1.0.3'
 
 export interface AppUpdateInfo {
     enabled?: boolean // New: Toggle for the whole update system

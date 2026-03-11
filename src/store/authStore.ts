@@ -24,7 +24,7 @@ import toast from 'react-hot-toast'
 import { loginRateLimiter } from '@/utils/rateLimiter'
 
 // Role-based access is controlled via Firestore 'admins' collection.
-const processingLogins = new Set<string>();
+const activeProcessings = new Map<string, Promise<boolean>>();
 
 /**
  * Fetch IP and basic location info for security logging
@@ -48,6 +48,7 @@ interface AuthState {
   initialize: () => void
   syncSessionMetadata: (user: any) => Promise<void>
   isProcessing: boolean
+  isSyncingIdentity: boolean
   hasUpdatedMetadata: boolean
 }
 
@@ -56,6 +57,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
   isProcessing: false,
+  isSyncingIdentity: false,
   hasUpdatedMetadata: false,
 
   // Legacy Login
@@ -105,8 +107,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
 
       await setDoc(userRef, newUser);
-      // Removed redundant updatePlayerProfile call here as setDoc handles it.
-
       set({
         user: newUser,
         loading: false
@@ -129,21 +129,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   googleLogin: async () => {
     try {
       console.log("[AuthStore] Initiating Google Login...");
+      set({ isProcessing: true });
 
       const { Capacitor } = await import('@capacitor/core');
 
-      // --- NATIVE ANDROID/IOS PATH ---
       if (Capacitor.isNativePlatform()) {
         console.log("[AuthStore] Native Android detected. Using Capacitor Google Auth.");
         const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
         const { GoogleAuthProvider, signInWithCredential } = await import('firebase/auth');
 
         try {
-          // Explicitly call signIn (Initialization is handled in main.tsx)
+          console.log("[AuthStore] Native GoogleAuth.signIn() started...");
           const result = await GoogleAuth.signIn();
 
           if (!result || !result.authentication.idToken) {
             console.warn("[AuthStore] Native Sign-In: No ID Token received.");
+            set({ isProcessing: false });
             return false;
           }
 
@@ -154,7 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return await get().processLogin(userCredential.user);
 
         } catch (nativeError: any) {
-          // Catch cancellations specifically (12501 or message)
+          set({ isProcessing: false });
           const isCancel =
             nativeError.message?.toLowerCase().includes('cancel') ||
             nativeError.code === 'CANCELLED' ||
@@ -174,7 +175,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      // --- WEB PATH ---
       console.log("[AuthStore] Web detected. Using Popup/Redirect.");
       const { GoogleAuthProvider, signInWithPopup, signInWithRedirect, setPersistence, browserLocalPersistence } = await import('firebase/auth');
 
@@ -187,7 +187,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (result && result.user) {
           return await get().processLogin(result.user);
         }
+        set({ isProcessing: false });
       } catch (popupError: any) {
+        set({ isProcessing: false });
         if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
           console.log("[AuthStore] Web Popup blocked. Falling back to Redirect...");
           await signInWithRedirect(auth, provider);
@@ -196,19 +198,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.error('[AuthStore] Web Login Error:', popupError);
         toast.error(`Login Failed: ${popupError.message}`);
       }
+      set({ isProcessing: false });
       return false;
     } catch (error: any) {
+      set({ isProcessing: false });
       console.error('[AuthStore] Fatal Google Login Error:', error);
       toast.error("An unexpected error occurred.");
       return false;
     }
   },
 
-  // Centralized Login Processing - Returns true if it's a new account
   syncSessionMetadata: async (firebaseUser: any) => {
     if (get().hasUpdatedMetadata || !firebaseUser?.uid) return;
-
-    // Flag immediately to prevent multiple concurrent calls
     set({ hasUpdatedMetadata: true });
 
     try {
@@ -228,347 +229,206 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log("[AuthStore] Session Metadata Synced.");
     } catch (err) {
       console.warn("[AuthStore] Session Metadata Sync Failed (likely expected if offline):", err);
-      // We don't reset flag, we only try once per session to avoid noise
     }
   },
 
   processLogin: async (user: any): Promise<boolean> => {
-    if (processingLogins.has(user.uid)) {
-      console.log("[AuthStore] Login already in process for:", user.uid);
-      return false;
+    const uid = user?.uid;
+    if (!uid) return false;
+
+    if (activeProcessings.has(uid)) {
+      console.log("[AuthStore] Joining existing processLogin for:", uid);
+      return activeProcessings.get(uid)!;
     }
-    processingLogins.add(user.uid);
-    set({ isProcessing: true });
-    console.log("[AuthStore] Processing Login for:", user.email);
 
-    try {
+    const processPromise = (async () => {
+      set({ isProcessing: true, isSyncingIdentity: true });
+      console.log("[AuthStore] processLogin START for:", user.email || uid);
 
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      try {
+        const userRef = doc(db, 'users', uid);
+        const userSnap = await getDoc(userRef);
+        const existingData = userSnap.exists() ? userSnap.data() : {};
 
-      let userRole: any = 'guest';
-      if (userSnap.exists()) {
-        const storedRole = userSnap.data().role;
-        // Keep special roles, otherwise default to guest for identity check
-        if (storedRole === 'admin' || storedRole === 'super_admin' || storedRole === 'player' || storedRole === 'scorer') {
-          userRole = storedRole;
+        let userRole: any = existingData.role || 'guest';
+        if (!['admin', 'super_admin', 'player', 'scorer'].includes(userRole)) {
+          userRole = 'guest';
         }
-      }
 
-      const isNewUser = !userSnap.exists();
-      let emailMatchPlayer: any = null;
-      let emailMatchPlayerId: string | null = null;
+        const isNewUser = !userSnap.exists();
+        let emailMatchPlayer: any = null;
+        let emailMatchPlayerId: string | null = null;
+        let isAdmin = false;
 
-      // --- STEP 1: ADMIN DISCOVERY (BY EMAIL) ---
-      // PRIORITY: Admins can't be players (for UI/Action strictness)
-      let isAdmin = false;
-      if (user.email) {
-        const emailLower = user.email.toLowerCase().trim();
-        console.log("[AuthStore] Checking for Admin rights for:", emailLower);
-
-        // HARDCODED SUPER ADMIN FALLBACK (Safety net for the primary account)
-        const { SUPER_ADMIN_EMAIL } = await import('@/services/firestore/admins');
-        if (emailLower === SUPER_ADMIN_EMAIL.toLowerCase()) {
-          console.log("[AuthStore] Hardcoded Super Admin detected.");
-          userRole = 'super_admin';
-          isAdmin = true;
-        } else {
-          const adminQ = query(collection(db, 'admins'), where('email', '==', emailLower), limit(1));
-          const adminSnap = await getDocs(adminQ);
-
-          if (!adminSnap.empty) {
-            const adminData = adminSnap.docs[0].data();
-            if (adminData.isActive) {
-              // Check verification for standard admins only (not Super Admin fallback)
-              if (adminData.emailVerified === false && !user.emailVerified) {
-                console.warn("[AuthStore] Unverified admin attempted login:", emailLower);
-                await signOut(auth);
-                processingLogins.delete(user.uid);
-                set({ isProcessing: false });
-                throw { code: 'auth/unverified-email', message: 'This account requires email verification. Please check your inbox and verify your email.' };
-              }
-
-              console.log("[AuthStore] Admin email match found! Granting privileges.");
-              userRole = adminData.role || 'admin';
+        // --- STEP 1: ADMIN DISCOVERY ---
+        try {
+          if (user.email) {
+            const emailLower = user.email.toLowerCase().trim();
+            const { SUPER_ADMIN_EMAIL } = await import('@/services/firestore/admins');
+            if (emailLower === SUPER_ADMIN_EMAIL.toLowerCase()) {
+              userRole = 'super_admin';
               isAdmin = true;
-
-              // Sync UID if needed
-              if (adminData.uid !== user.uid) {
-                console.log("[AuthStore] Syncing Admin UID from", adminData.uid, "to", user.uid);
-                await setDoc(doc(db, 'admins', user.uid), {
-                  ...adminData,
-                  uid: user.uid,
-                  updatedAt: serverTimestamp()
-                });
-              }
-
-              // Auto-sync email verification status from Firebase Auth
-              if (user.emailVerified && adminData.emailVerified === false) {
-                console.log("[AuthStore] Syncing emailVerified=true for admin:", user.email);
-                await updateDoc(doc(db, 'admins', adminSnap.docs[0].id), {
-                  emailVerified: true,
-                  updatedAt: serverTimestamp()
-                });
+            } else {
+              const adminDoc = await getDoc(doc(db, 'admins', uid));
+              if (adminDoc.exists() && adminDoc.data().isActive) {
+                userRole = adminDoc.data().role || 'admin';
+                isAdmin = true;
+              } else {
+                const adminQ = query(collection(db, 'admins'), where('email', '==', emailLower), limit(1));
+                const adminSnap = await getDocs(adminQ);
+                if (!adminSnap.empty && adminSnap.docs[0].data().isActive) {
+                  const adminData = adminSnap.docs[0].data();
+                  userRole = adminData.role || 'admin';
+                  isAdmin = true;
+                  if (adminSnap.docs[0].id !== uid) {
+                    await setDoc(doc(db, 'admins', uid), { ...adminData, uid, updatedAt: serverTimestamp() });
+                  }
+                }
               }
             }
           }
+        } catch (adminErr) {
+          console.warn("[AuthStore] Admin discovery skipped (permission issue):", adminErr);
         }
-      }
 
-      // --- STEP 2: PLAYER IDENTITY LOOKUP (STRICT EMAIL MAPPING) ---
-      // ONLY if not an admin
-      if (user.email && !isAdmin) {
-        const emailLower = user.email.toLowerCase().trim();
-        console.log("[AuthStore] Querying player_secrets for:", emailLower);
-        const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
-        const secretsSnap = await getDocs(q);
+        // --- STEP 2: PLAYER IDENTITY LOOKUP ---
+        try {
+          if (user.email && !isAdmin) {
+            const emailLower = user.email.toLowerCase().trim();
+            const q = query(collection(db, 'player_secrets'), where('email', '==', emailLower));
+            const secretsSnap = await getDocs(q);
 
-        if (!secretsSnap.empty) {
-          emailMatchPlayerId = secretsSnap.docs[0].id;
-          const playerSnap = await getDoc(doc(db, 'players', emailMatchPlayerId));
-
-          if (playerSnap.exists()) {
-            const playerData = playerSnap.data();
-
-            // SECURITY RULE: Ensure this UID is either the owner or the profile is unclaimed
-            if (!playerData.ownerUid || playerData.ownerUid === user.uid) {
-              emailMatchPlayer = playerData;
-              console.log("[AuthStore] Secure Match Found:", emailMatchPlayerId);
-
-              // Claim it if unclaimed
-              if (!playerData.ownerUid) {
-                console.log("[AuthStore] Attempting to claim player profile:", emailMatchPlayerId);
-                await updateDoc(doc(db, 'players', emailMatchPlayerId), {
-                  claimed: true,
-                  ownerUid: user.uid,
-                  lastVerifiedAt: serverTimestamp(),
-                  updatedAt: serverTimestamp()
-                });
-                console.log("[AuthStore] Profile claim successful.");
-                toast.success('Player profile linked!', { icon: '🔗' });
+            if (!secretsSnap.empty) {
+              emailMatchPlayerId = secretsSnap.docs[0].id;
+              const playerSnap = await getDoc(doc(db, 'players', emailMatchPlayerId));
+              if (playerSnap.exists()) {
+                const playerData = playerSnap.data();
+                if (!playerData.ownerUid || playerData.ownerUid === uid) {
+                  emailMatchPlayer = playerData;
+                  if (!playerData.ownerUid) {
+                    await updateDoc(doc(db, 'players', emailMatchPlayerId), {
+                      claimed: true,
+                      ownerUid: uid,
+                      lastVerifiedAt: serverTimestamp(),
+                      updatedAt: serverTimestamp()
+                    });
+                    toast.success('Player profile linked!', { icon: '🔗' });
+                  }
+                  if (userRole === 'guest') userRole = 'player';
+                }
               }
-
-              if (userRole === 'viewer') userRole = 'player';
             } else {
-              console.warn("[AuthStore] SECURITY: Player is owned by another UID. Skipping link.");
+              const pQ = query(collection(db, 'players'), where('email', '==', emailLower), limit(1));
+              const pSnap = await getDocs(pQ);
+              if (!pSnap.empty) {
+                const pData = pSnap.docs[0].data();
+                const pId = pSnap.docs[0].id;
+                if (!pData.ownerUid || pData.ownerUid === uid) {
+                  emailMatchPlayer = pData;
+                  emailMatchPlayerId = pId;
+                  if (!pData.ownerUid) {
+                    await updateDoc(doc(db, 'players', pId), { claimed: true, ownerUid: uid, updatedAt: serverTimestamp() });
+                  }
+                  if (userRole === 'guest') userRole = 'player';
+                }
+              }
             }
+          }
+        } catch (playerErr) {
+          console.warn("[AuthStore] Player identity discovery skipped (permission issue):", playerErr);
+        }
+
+        // --- STEP 3: CONSTRUCT FINAL USER DATA ---
+        let finalUserData: any = {
+          ...existingData,
+          uid: uid,
+          email: user.email || existingData.email || null,
+          displayName: user.displayName || existingData.displayName || null,
+          photoURL: user.photoURL || existingData.photoURL || null,
+          role: userRole,
+          lastLogin: serverTimestamp(),
+          deviceInfo: {
+            userAgent: navigator.userAgent,
+            platform: (navigator as any).userAgentData?.platform || navigator.platform,
+          }
+        };
+
+        if (isNewUser) finalUserData.createdAt = serverTimestamp();
+
+        if (emailMatchPlayer && !isAdmin) {
+          finalUserData.isRegisteredPlayer = true;
+          finalUserData.playerId = emailMatchPlayerId;
+          finalUserData.linkedPlayerId = emailMatchPlayerId;
+          finalUserData.playerProfile = {
+            ...(finalUserData.playerProfile || {}),
+            name: emailMatchPlayer.name,
+            role: emailMatchPlayer.role || 'batsman',
+            isRegisteredPlayer: true,
+            photoUrl: emailMatchPlayer.photoUrl,
+            squadId: emailMatchPlayer.squadId,
+            battingStyle: emailMatchPlayer.battingStyle,
+            bowlingStyle: emailMatchPlayer.bowlingStyle
+          };
+        } else if (!isAdmin) {
+          if (!existingData.isRegisteredPlayer) {
+            finalUserData.isRegisteredPlayer = false;
+            finalUserData.playerId = null;
+            finalUserData.playerProfile = null;
           }
         } else {
-          // FALLBACK 1: Search players collection directly for matching email (Legacy or Admin-Created)
-          console.log("[AuthStore] No secret match, searching players collection directly for:", emailLower);
-          const pQ = query(collection(db, 'players'), where('email', '==', emailLower), limit(1));
-          const pSnap = await getDocs(pQ);
+          finalUserData.isRegisteredPlayer = false;
+          finalUserData.playerId = null;
+          finalUserData.playerProfile = null;
+        }
 
-          if (!pSnap.empty) {
-            const playerData = pSnap.docs[0].data();
-            const pId = pSnap.docs[0].id;
-
-            if (!playerData.ownerUid || playerData.ownerUid === user.uid) {
-              emailMatchPlayer = playerData;
-              emailMatchPlayerId = pId;
-
-              // AUTO-UPGRADE: Create the secret entry to future-proof this account
-              console.log("[AuthStore] Legacy/Admin-Created match found. Upgrading identity...");
-              await setDoc(doc(db, 'player_secrets', pId), {
-                email: emailLower,
-                playerId: pId,
-                uid: user.uid,
-                upgradedAt: serverTimestamp()
-              }).catch(e => console.warn("Identity upgrade failed:", e));
-
-              // Claim it if unclaimed
-              if (!playerData.ownerUid) {
-                console.log("[AuthStore] Attempting to claim legacy player profile:", pId);
-                await updateDoc(doc(db, 'players', pId), {
-                  claimed: true,
-                  ownerUid: user.uid,
-                  lastVerifiedAt: serverTimestamp(),
-                  updatedAt: serverTimestamp()
-                });
-                console.log("[AuthStore] Profile claim successful.");
-                toast.success('Player profile linked!', { icon: '🔗' });
-              }
-
-              if (userRole === 'viewer') userRole = 'player';
-            }
-          } else if (userSnap.exists() && userSnap.data().playerId) {
-            // FALLBACK 2: No secret match found, but user document already has a playerId.
-            const existingPlayerId = userSnap.data().playerId;
-            console.log("[AuthStore] No email match, checking existing document playerId:", existingPlayerId);
-            const playerSnap = await getDoc(doc(db, 'players', existingPlayerId));
-
-            if (playerSnap.exists()) {
-              const playerData = playerSnap.data();
-              if (playerData.ownerUid === user.uid) {
-                console.log("[AuthStore] Ownership verified for existing playerId.");
-                emailMatchPlayer = playerData;
-                emailMatchPlayerId = existingPlayerId;
-                if (userRole === 'viewer') userRole = 'player';
-
-                // Also upgrade this to secrets for faster future lookup
-                await setDoc(doc(db, 'player_secrets', existingPlayerId), {
-                  email: emailLower,
-                  playerId: existingPlayerId,
-                  uid: user.uid,
-                  upgradedAt: serverTimestamp()
-                }).catch(() => { });
-              }
-            }
+        if (isNewUser) {
+          await setDoc(userRef, finalUserData);
+        } else {
+          // If update fails due to permissions (e.g. creating own doc for first time but rule says allow write if auth != null)
+          try {
+            await updateDoc(userRef, finalUserData);
+          } catch (updateErr) {
+            console.log("[AuthStore] updateDoc failed, falling back to setDoc:", updateErr);
+            await setDoc(userRef, finalUserData);
           }
         }
-      }
 
-      // --- STEP 2: CONSTRUCT FINAL USER DATA ---
-      // We start with minimum required fields
-      let finalUserData: any = {
-        uid: user.uid,
-        email: user.email || null,
-        displayName: user.displayName || null,
-        photoURL: user.photoURL || null,
-        role: userRole,
-        lastLogin: serverTimestamp(),
-      };
+        console.log("[AuthStore] processLogin SUCCESS. Role:", finalUserData.role);
+        set({ user: finalUserData as User, loading: false });
 
-      // --- STEP 2.1: CAPTURE METADATA ---
-      finalUserData.ip = 'unknown';
-      finalUserData.location = 'unknown';
-      finalUserData.deviceInfo = {
-        userAgent: navigator.userAgent,
-        platform: (navigator as any).userAgentData?.platform || navigator.platform,
-      };
+        const { followService } = await import('@/services/firestore/followService');
+        followService.processPendingFollow();
 
-      try {
-        const connectivity = await fetchConnectivityInfo();
-        if (connectivity.ip !== 'unknown') {
-          finalUserData.ip = connectivity.ip;
-          finalUserData.location = `${connectivity.city}, ${connectivity.country}`;
-        }
-      } catch (metaErr) {
-        console.warn("[AuthStore] Metadata fetch failed, using defaults:", metaErr);
-      }
+        return isNewUser;
+      } catch (error: any) {
+        console.error("[AuthStore] processLogin ERROR:", error);
 
-      if (isNewUser) {
-        finalUserData.createdAt = serverTimestamp();
-      } else {
-        // Merge with existing data but we will selectively overwrite identity fields
-        finalUserData = { ...userSnap.data(), ...finalUserData };
-      }
-
-      // --- STEP 4: FORCE IDENTITY OVERWRITE ---
-      // If we have a valid email match, NOTHING in the old record matters.
-      // We overwrite everything related to player identity.
-      if (emailMatchPlayer && !isAdmin) {
-        console.log("[AuthStore] Overwriting profile with identity from:", emailMatchPlayerId);
-        finalUserData.isRegisteredPlayer = true;
-        finalUserData.playerId = emailMatchPlayerId;
-        finalUserData.linkedPlayerId = emailMatchPlayerId;
-        finalUserData.displayName = emailMatchPlayer.name || finalUserData.displayName;
-        finalUserData.photoURL = emailMatchPlayer.photoUrl || finalUserData.photoURL;
-        finalUserData.role = userRole;
-
-        // Sync playerProfile object
-        finalUserData.playerProfile = {
-          ...(finalUserData.playerProfile || {}),
-          name: emailMatchPlayer.name,
-          role: emailMatchPlayer.role || 'batsman',
-          isRegisteredPlayer: true,
-          photoUrl: emailMatchPlayer.photoUrl,
-          squadId: emailMatchPlayer.squadId,
-          battingStyle: emailMatchPlayer.battingStyle,
-          bowlingStyle: emailMatchPlayer.bowlingStyle
+        // Final fallback: Ensure user is logged in as guest even on fatal Firestore errors
+        const fallbackUser: any = {
+          uid: uid,
+          email: user.email || null,
+          displayName: user.displayName || null,
+          photoURL: user.photoURL || null,
+          role: 'guest',
+          userType: 'regular',
+          createdAt: serverTimestamp()
         };
-      } else {
-        // NO MATCH OR IS ADMIN: Revoke all player permissions and clear IDs
-        console.log("[AuthStore] Cleaning up player identity (Admin or No Match).");
-        finalUserData.isRegisteredPlayer = false;
-        finalUserData.playerId = null;
-        finalUserData.linkedPlayerId = null;
-        finalUserData.playerProfile = null; // Clear profile for admins
+        set({ user: fallbackUser as User, loading: false });
 
-        if (finalUserData.role === 'player') finalUserData.role = 'guest';
+        return false;
+      } finally {
+        activeProcessings.delete(uid);
+        set({ isProcessing: false, isSyncingIdentity: false });
       }
+    })();
 
-      // --- STEP 4: SAVE TO FIRESTORE ---
-      console.log("[AuthStore] Finalizing User Document update...");
-      if (isNewUser) {
-        // Ensure guest role for real new users
-        if (!isAdmin && !emailMatchPlayer) {
-          finalUserData.role = 'guest';
-        }
-        await setDoc(userRef, finalUserData);
-        console.log("[AuthStore] User document created.");
-      } else {
-        await updateDoc(userRef, finalUserData);
-        console.log("[AuthStore] User document updated.");
-      }
-
-      set({
-        user: finalUserData as User,
-        loading: false,
-      });
-
-      // Process any pending follow actions
-      const { followService } = await import('@/services/firestore/followService');
-      followService.processPendingFollow();
-
-      console.log("[AuthStore] Identity Processing Complete. Final Role:", finalUserData.role);
-
-      // --- STEP 5: LOG LOGIN ACTIVITY (non-blocking) ---
-      // This must NEVER crash the login flow
-      try {
-        const connectivity = await fetchConnectivityInfo();
-        const loginLogRef = doc(collection(db, 'login_logs'));
-        await setDoc(loginLogRef, {
-          uid: user.uid,
-          email: user.email,
-          timestamp: serverTimestamp(),
-          ip: connectivity.ip,
-          location: `${connectivity.city}, ${connectivity.country}`,
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-        });
-      } catch (logErr) {
-        console.warn('[AuthStore] Login log write failed (non-critical):', logErr);
-      }
-
-      return isNewUser;
-
-    } catch (error: any) {
-      console.error("[AuthStore] Process Login Error:", error);
-
-      // CRITICAL: Do not swallow intentional auth blocks (like unverified emails)
-      if (error.code && error.code.startsWith('auth/')) {
-        throw error;
-      }
-
-      // Don't throw for other errors (like Firestore permissions).
-      // Set a basic user state so the user isn't stuck in a broken state.
-      const fallbackUser = {
-        uid: user.uid,
-        email: user.email || null,
-        displayName: user.displayName || null,
-        photoURL: user.photoURL || null,
-        role: 'guest' as const,
-      };
-      set({ user: fallbackUser as User, loading: false });
-
-      if (error.message?.includes('insufficient permissions') || error.code === 'permission-denied') {
-        console.warn("[AuthStore] Firestore permissions issue - user logged in with basic profile");
-      } else {
-        toast.error(`Profile sync issue: ${error.message}`);
-      }
-      return false;
-    } finally {
-      processingLogins.delete(user.uid);
-      set({ isProcessing: false, loading: false });
-    }
+    activeProcessings.set(uid, processPromise);
+    return processPromise;
   },
-
 
   updatePlayerProfile: async (uid: string, data: any) => {
     try {
       const userRef = doc(db, 'users', uid);
-
       const profileUpdates: any = {
         playerProfile: {
           ...data,
@@ -582,8 +442,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
 
       const currentUser = get().user;
-
-      // Log name change if applicable
       if (currentUser && data.displayName && data.displayName !== currentUser.displayName) {
         const changeLogRef = doc(collection(db, 'name_changes'));
         await setDoc(changeLogRef, {
@@ -597,7 +455,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await updateDoc(userRef, profileUpdates);
       if (currentUser?.playerId) {
-        console.log("[AuthStore] Syncing public player profile for:", currentUser.playerId);
         const playerRef = doc(db, 'players', currentUser.playerId);
         await updateDoc(playerRef, {
           name: data.displayName || data.name || currentUser.displayName,
@@ -612,16 +469,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }).catch(err => console.warn("[AuthStore] Public player sync failed:", err));
       }
 
-      // Update local state
       set((state) => ({
-        user: state.user ? {
-          ...state.user,
-          displayName: profileUpdates.displayName || state.user.displayName,
-          photoURL: profileUpdates.photoURL || state.user.photoURL,
-          playerProfile: profileUpdates.playerProfile
-        } : null
+        user: state.user ? { ...state.user, ...profileUpdates } : null
       }));
-
       toast.success("Profile Setup Complete!");
     } catch (error) {
       console.error('Update Profile error:', error);
@@ -646,13 +496,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: () => {
     console.log("[AuthStore] Initializing Auth System...");
-
-    // Force persistence once during init to be safe
     setPersistence(auth, browserLocalPersistence).catch((e: any) => console.error("Persistence error:", e));
 
     let userUnsubscribe: (() => void) | null = null;
 
-    // Check for Redirect Result (Mobile/Fallback)
     getRedirectResult(auth).then(async (result: any) => {
       if (result && result.user) {
         console.log("[AuthStore] Redirect Result found:", result.user.email);
@@ -662,14 +509,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }).catch((e: any) => {
       if (e.code !== 'auth/popup-closed-by-user') {
         console.error("[AuthStore] Redirect Result Error:", e);
-        if (e.message && !e.message.includes('redirect-result')) {
-          toast.error(`Redirect Login Error: ${e.message}`);
-        }
       }
     });
 
     onAuthStateChanged(auth, async (firebaseUser: any) => {
-      // Clean up previous listener
       if (userUnsubscribe) {
         userUnsubscribe();
         userUnsubscribe = null;
@@ -679,36 +522,49 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.log("[AuthStore] AuthStateChanged: User Logged In", firebaseUser.email);
         set({ loading: true });
 
-        // --- REAL-TIME USER DOCUMENT LISTENER ---
-        // This ensures INSTANT updates when admin changes email, role, or unlinks profile
         const { onSnapshot } = await import('firebase/firestore');
         const userRef = doc(db, 'users', firebaseUser.uid);
 
         userUnsubscribe = onSnapshot(userRef, async (docSnap) => {
+          if (get().isProcessing || get().isSyncingIdentity) {
+            console.log("[AuthStore] Snapshot ignored - processing in progress.");
+            return;
+          }
+
           if (docSnap.exists()) {
             const data = docSnap.data() as User;
-            console.log("[AuthStore] REAL-TIME Update: User Role =", data.role);
+            const currentLocalUser = get().user;
 
-            // DOUBLE CHECK VERIFICATION FOR ADMINS ON EVERY SNAPSHOT
+            if (currentLocalUser && currentLocalUser.uid === firebaseUser.uid) {
+              const localRole = currentLocalUser.role;
+              const localIsPlayer = currentLocalUser.isRegisteredPlayer;
+
+              const isRoleDowngrade = (localRole === 'admin' || localRole === 'super_admin' || localRole === 'player') &&
+                (data.role === 'viewer' || data.role === 'guest' || !data.role);
+              const isIdentityDowngrade = localIsPlayer && !data.isRegisteredPlayer;
+
+              if (isRoleDowngrade || isIdentityDowngrade) {
+                console.log("[AuthStore] Snapshot blocked identity/role downgrade (local priority).");
+                return;
+              }
+            }
+
             if ((data.role === 'admin' || data.role === 'super_admin') && firebaseUser.email) {
               const { SUPER_ADMIN_EMAIL } = await import('@/services/firestore/admins');
               if (firebaseUser.email.toLowerCase().trim() !== SUPER_ADMIN_EMAIL.toLowerCase()) {
-                // If the Auth user is unverified, check the Admins collection flag as final arbiter
                 if (!firebaseUser.emailVerified) {
                   const adminDoc = await getDoc(doc(db, 'admins', firebaseUser.uid));
                   if (adminDoc.exists() && adminDoc.data().emailVerified === false) {
-                    console.warn("[AuthStore] Unverified admin blocked by snapshot listener.");
-                    toast.error('This account requires email verification. Please check your inbox.', { id: 'auth-revoked', duration: 5000 });
+                    toast.error('This account requires email verification.', { id: 'auth-revoked' });
                     await get().logout();
-                    return; // Stop execution, don't set user
+                    return;
                   }
                 }
               }
             }
 
-            // SYNC METADATA ONCE PER SESSION (For all users)
             get().syncSessionMetadata(firebaseUser);
-            // If user is a player, we always verify identity sync to catch admin changes
+
             if (data.isRegisteredPlayer && firebaseUser.email) {
               try {
                 const emailLower = firebaseUser.email.toLowerCase().trim();
@@ -716,7 +572,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 const secretsSnap = await getDocs(q);
                 let verifiedPlayerId = !secretsSnap.empty ? secretsSnap.docs[0].id : null;
 
-                // FALLBACK: If no secret found, check players collection directly (Legacy/Admin-created)
                 if (!verifiedPlayerId) {
                   const pQ = query(collection(db, 'players'), where('email', '==', emailLower), limit(1));
                   const pSnap = await getDocs(pQ);
@@ -728,23 +583,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                   }
                 }
 
-                // IDENTITY CHECK: If admin changed the email or unlinked the player
-                // we force a LOGOUT to ensure security and prevent ghost access.
                 if (data.playerId !== verifiedPlayerId) {
-                  console.warn("[AuthStore] Identity mismatch/revocation detected. Force Logout.");
-                  toast.error("Your profile access has been updated. Please login again.", { id: 'auth-revoked' });
+                  console.warn("[AuthStore] Identity mismatch. Force Logout.");
+                  toast.error("Your profile access has been updated.", { id: 'auth-revoked' });
                   await get().logout();
                   return;
                 }
               } catch (checkErr: any) {
-                // If this fails (e.g. permission issue during session init), we don't log them out immediately
-                // but we log it for debugging.
-                console.warn("[AuthStore] Identity check failed (likely temporary):", checkErr.message);
+                console.warn("[AuthStore] Identity check failed:", checkErr.message);
               }
             }
 
             set({ user: data, loading: false });
-
           } else {
             console.log("[AuthStore] No user profile found. Creating...");
             await get().processLogin(firebaseUser);
@@ -755,10 +605,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
 
       } else {
-        console.log("[AuthStore] AuthStateChanged: Clear (No Session)");
+        console.log("[AuthStore] AuthStateChanged: Clear");
         set({ user: null, loading: false });
       }
     });
   }
-
-}))
+}));

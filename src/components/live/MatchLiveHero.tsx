@@ -66,7 +66,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const currentSquad = baseBatting === 'teamB' ? teamBSquad : teamASquad
     const logoUrl = currentSquad?.logoUrl || (match as any)[baseBatting === 'teamB' ? 'teamBLogoUrl' : 'teamALogoUrl']
 
-    const currentTeamAbbr = formatShortTeamName(currentTeamName, currentSquad?.batch)
+    const currentTeamAbbr = formatShortTeamName(currentTeamName)
 
     // --- Toss Logic ---
     const m = match as any;
@@ -179,29 +179,69 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const isRun = !isFinishedMatch && !isInningsBreak && ['0', '1', '2', '3', '4', '5', '6'].includes(displayEvent);
     const isPenalty = !isFinishedMatch && !isInningsBreak && displayEvent.includes('PENALTY');
 
+    // --- Maiden Over & Hattrick Logic ---
+    const [showHattrick, setShowHattrick] = React.useState(false);
+    const [isMaidenOver, setIsMaidenOver] = React.useState(false);
+
+    // Detect Maiden Over
+    React.useEffect(() => {
+        if (!currentInnings || isInningsBreak || isFinishedMatch) return;
+
+        const lastOver = currentInnings.recentOvers?.[0];
+        if (lastOver && lastOver.isLocked && lastOver.totalRuns === 0) {
+            setIsMaidenOver(true);
+            const timer = setTimeout(() => setIsMaidenOver(false), 8000);
+            return () => clearTimeout(timer);
+        }
+    }, [currentInnings?.recentOvers?.[0]?.isLocked, currentInnings?.totalRuns]);
+
+    // Detect Hattrick (2 wickets in a row)
+    const consecutiveWickets = React.useMemo(() => {
+        if (!currentInnings || !currentInnings.currentOverBalls) return false;
+        const balls = currentInnings.currentOverBalls;
+        if (balls.length < 2) return false;
+
+        // Check if last two balls were wickets
+        const lastTwo = balls.slice(-2);
+        return lastTwo.every(b => b.type === 'wicket' || b.value === 'W');
+    }, [currentInnings?.currentOverBalls]);
+
+    React.useEffect(() => {
+        if (consecutiveWickets) {
+            const timer = setTimeout(() => {
+                setShowHattrick(true);
+            }, 5000);
+            return () => clearTimeout(timer);
+        } else {
+            setShowHattrick(false);
+        }
+    }, [consecutiveWickets]);
+
+    // Update displayEvent if hattrick is active
+    const finalDisplayEvent = showHattrick ? 'ON A HATTRICK' : displayEvent;
+
     // Determine if event text needs to be smaller
     const isSmallEventText = useMemo(() => {
-        const lowerEvent = displayEvent.toLowerCase();
-        const smallEvents = ['bowled', 'caught', 'drinks break', 'run out', 'paused', 'bad light delay', 'rain delay', 'lbw', 'stumped', 'hit wicket'];
+        const lowerEvent = finalDisplayEvent.toLowerCase();
+        const smallEvents = ['bowled', 'caught', 'drinks break', 'run out', 'paused', 'bad light delay', 'rain delay', 'lbw', 'stumped', 'hit wicket', 'innings break', 'on a hattrick', 'player entering', 'waiting for super over'];
         return smallEvents.some(evt => lowerEvent.includes(evt) || lowerEvent === evt);
-    }, [displayEvent]);
+    }, [finalDisplayEvent]);
 
-    // Result split logic for finished matches
+    // Result split logic
     const { resultMain, resultSub } = useMemo(() => {
-        if (!isFinishedMatch) return { resultMain: displayEvent, resultSub: '' };
+        if (!isFinishedMatch && !showHattrick) return { resultMain: finalDisplayEvent, resultSub: '' };
 
-        const lowerRes = displayEvent.toLowerCase();
+        const lowerRes = finalDisplayEvent.toLowerCase();
         const wonIdx = lowerRes.indexOf(' won');
-        // Split before " won" so team name is on main and "won by..." is on sub
         if (wonIdx !== -1) {
             return {
-                resultMain: displayEvent.substring(0, wonIdx).trim(),
-                resultSub: displayEvent.substring(wonIdx).trim()
+                resultMain: finalDisplayEvent.substring(0, wonIdx).trim(),
+                resultSub: finalDisplayEvent.substring(wonIdx).trim()
             };
         }
 
-        return { resultMain: displayEvent, resultSub: '' };
-    }, [isFinishedMatch, displayEvent]);
+        return { resultMain: finalDisplayEvent, resultSub: '' };
+    }, [isFinishedMatch, finalDisplayEvent, showHattrick]);
 
     // GSAP Animation for Ball Update Sequence (BALL -> Result)
     useEffect(() => {
@@ -285,8 +325,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
     const chasingSide = (isSecondInnings && isInningsBreak) ? otherSide : currentBattingSide;
 
     const chasingTeamName = chasingSide === 'teamB' ? teamBName : teamAName;
-    const chasingTeamSquad = chasingSide === 'teamB' ? teamBSquad : teamASquad;
-    const chasingTeamAbbr = formatShortTeamName(chasingTeamName, chasingTeamSquad?.batch);
+    const chasingTeamAbbr = formatShortTeamName(chasingTeamName);
 
     // Only subtract runs if the current batting team IS the chasing team
     const actualChasingRuns = (chasingSide === currentBattingSide && !isInningsBreak)
@@ -305,6 +344,7 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
         : 0;
 
     const displayRRR = (isInningsBreak || actualChasingLegals === 0) ? (targetScore / matchOvers) : liveReqRunRate;
+
 
     return (
         <div className="relative">
@@ -352,17 +392,22 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                             <span className="text-[9px] font-semibold text-amber-500 uppercase tracking-widest">Super Over</span>
                                         </div>
                                     )}
-
                                 </div>
                                 <div className="flex items-baseline gap-1.5 sm:gap-2.5 overflow-hidden">
                                     <span className={`text-[25px] min-[400px]:text-3xl sm:text-4xl md:text-5xl font-medium tabular-nums tracking-tighter leading-none transition-all duration-500 ${textGlowClass} truncate`}>
                                         {runs}-{wkts}
                                     </span>
-                                    <span className="text-[13px] min-[400px]:text-base sm:text-xl font-semibold text-slate-500/80 tabular-nums uppercase shrink-0">
-                                        {(isChasing && wkts >= 10) || isFinishedMatch ? 'Final' : `${overs}`}
-                                    </span>
+                                    <div className="flex flex-col">
+                                        <span className="text-[13px] min-[400px]:text-base sm:text-xl font-semibold text-slate-500/80 tabular-nums uppercase shrink-0">
+                                            {(isChasing && wkts >= 10) || isFinishedMatch ? 'Final' : `${overs}`}
+                                        </span>
+                                        {isMaidenOver && (
+                                            <span className="text-[9px] sm:text-[11px] font-bold text-amber-500 uppercase tracking-widest leading-none animate-pulse">
+                                                Maiden Over
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-
                             </div>
                         </div>
 
@@ -392,27 +437,24 @@ const MatchLiveHero: React.FC<MatchLiveHeroProps> = ({
                                 </div>
                             ) : (
                                 <div className={`relative z-10 text-center flex items-center justify-center w-full px-2 ${eventColorClass}`}>
-
-
                                     <div className="flex flex-col items-center justify-center gap-1.5">
                                         <span
                                             ref={eventTextRef}
-                                            className={`tracking-tight uppercase drop-shadow-md
-                                        ${isFinishedMatch || !isRun
-                                                    ? (isFinishedMatch ? 'text-[16px] sm:text-[20px] font-black tracking-widest' : (isSmallEventText || resultMain.length > 15) ? 'text-[10px] sm:text-[12px] leading-[1.1] font3 font-bold' : 'font3 leading-tight font-bold')
-                                                    : 'font1 leading-none font-bold'
+                                            className={`tracking-tight uppercase drop-shadow-md font-diatype
+                                        ${isFinishedMatch || showHattrick || !isRun
+                                                    ? (isFinishedMatch ? 'text-[16px] sm:text-[20px] font-black tracking-widest' : (isSmallEventText || resultMain.length > 15) ? 'text-[12px] sm:text-[14px] leading-tight font-bold' : 'text-[24px] sm:text-[30px] leading-tight font-bold')
+                                                    : 'text-[40px] sm:text-[56px] leading-none font-bold'
                                                 }`}>
                                             {resultMain === '—' || resultMain === 'BALL' ? '' : resultMain}
                                         </span>
                                         {resultSub && (
                                             <div className="mt-0.5">
-                                                <span className="text-[10px] sm:text-[12px] font-bold text-amber-500 uppercase tracking-widest leading-none">
+                                                <span className="text-[10px] sm:text-[12px] font-bold text-white uppercase tracking-widest leading-none">
                                                     {resultSub}
                                                 </span>
                                             </div>
                                         )}
                                     </div>
-
                                 </div>
                             )}
                         </div>

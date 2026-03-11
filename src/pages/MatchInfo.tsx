@@ -9,7 +9,7 @@ import { matchService } from '@/services/firestore/matches'
 import { tournamentService } from '@/services/firestore/tournaments'
 import { squadService } from '@/services/firestore/squads'
 import { Match, Tournament } from '@/types'
-import { formatShortTeamName } from '@/utils/teamName'
+import { formatShortTeamName, stripBatch } from '@/utils/teamName'
 import { coerceToDate } from '@/utils/date'
 import { ChevronRight, ChevronDown, Info } from 'lucide-react'
 
@@ -328,8 +328,8 @@ export default function MatchInfo({ compact = false, match: initialMatch }: Matc
         )
     }
 
-    const teamAName = match.teamAName || teamASquad?.name || (match as any).teamA || 'Team A'
-    const teamBName = match.teamBName || teamBSquad?.name || (match as any).teamB || 'Team B'
+    const teamAName = stripBatch(match.teamAName || teamASquad?.name || (match as any).teamA || 'Team A')
+    const teamBName = stripBatch(match.teamBName || teamBSquad?.name || (match as any).teamB || 'Team B')
 
 
     const tossMessage = (match.tossWinner || (match as any).tossWinner) ? (() => {

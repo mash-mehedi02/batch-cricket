@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { voteService } from '@/services/firestore/voteService';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'react-hot-toast';
+import { formatShortTeamName } from '@/utils/teamName';
 
 const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, isFinished }) => {
     const { user } = useAuthStore();
@@ -29,21 +30,38 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, is
     const handleVote = async (team) => {
         if (userVote || isCasting || isFinished) return;
 
+        // Optimistic Update
+        const previousVotes = { ...votes };
+        const previousUserVote = userVote;
+
+        setUserVote(team);
+        setVotes(prev => ({
+            ...prev,
+            [team === 'teamA' ? 'teamAVotes' : 'teamBVotes']: prev[team === 'teamA' ? 'teamAVotes' : 'teamBVotes'] + 1,
+            totalVotes: prev.totalVotes + 1
+        }));
         setIsCasting(true);
+
         try {
             const result = await voteService.castVote(matchId, team);
             if (result.success) {
-                setUserVote(team);
                 toast.success('Vote recorded!');
+                // No need to set state again, subscription will handle sync if needed
             } else {
+                // Revert on failure
+                setUserVote(previousUserVote);
+                setVotes(previousVotes);
                 if (result.reason === 'ALREADY_VOTED') {
                     setUserVote('unknown');
                     toast.error('Multiple votes not allowed.');
                 } else {
-                    toast.error('Failed to record vote. Try again later.');
+                    toast.error('Failed to record vote.');
                 }
             }
         } catch (err) {
+            // Revert on error
+            setUserVote(previousUserVote);
+            setVotes(previousVotes);
             toast.error('Connection error while voting.');
         } finally {
             setIsCasting(false);
@@ -58,12 +76,7 @@ const MatchVoting = ({ matchId, teamAName, teamBName, teamABatch, teamBBatch, is
     const bPercent = 100 - aPercent;
 
     const getTeamLabel = (name, batch) => {
-        const shortName = name?.split(' ')[0]?.substring(0, 3)?.toUpperCase() || 'TM';
-        if (batch) {
-            const shortBatch = String(batch).length > 2 ? String(batch).slice(-2) : batch;
-            return `${shortName} - ${shortBatch}`;
-        }
-        return name?.split(' ')[0]?.substring(0, 4)?.toUpperCase() || 'TEAM';
+        return formatShortTeamName(name);
     };
 
     return (

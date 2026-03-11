@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { Match, InningsStats } from '@/types'
-import { formatShortTeamName } from '@/utils/teamName'
+import { formatShortTeamName, stripBatch } from '@/utils/teamName'
 import MatchLiveSkeleton from '@/components/skeletons/MatchLiveSkeleton'
 
 export default function MatchGraphs({ compact = false }: { compact?: boolean }) {
@@ -45,8 +45,8 @@ export default function MatchGraphs({ compact = false }: { compact?: boolean }) 
   }, [matchId])
 
   // IMPORTANT: all hooks (useMemo/useEffect/etc.) must run before any conditional return.
-  const teamAName = (match as any)?.teamAName || (match as any)?.teamA || 'Team A'
-  const teamBName = (match as any)?.teamBName || (match as any)?.teamB || 'Team B'
+  const teamAName = stripBatch((match as any)?.teamAName || (match as any)?.teamA || 'Team A')
+  const teamBName = stripBatch((match as any)?.teamBName || (match as any)?.teamB || 'Team B')
   const oversLimit = Number((match as any)?.oversLimit || 0)
 
   // Batting Order logic

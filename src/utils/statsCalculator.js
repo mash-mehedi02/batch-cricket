@@ -197,11 +197,17 @@ export const calculatePointsTable = (squads = [], matches = []) => {
       const teamAScore = match.score?.teamA || {}
       const teamBScore = match.score?.teamB || {}
 
+      const oversLimit = Number(match.oversLimit || 20)
+      const matchQuotaBalls = oversLimit * 6
+
       if (isTeamA) {
         runsScored += teamAScore.runs || 0
-        oversFaced += oversToBalls(teamAScore.overs || '0.0')
+        const isAAllOut = (teamAScore.wickets || 0) >= 10
+        oversFaced += isAAllOut ? matchQuotaBalls : oversToBalls(teamAScore.overs || '0.0')
+
         runsConceded += teamBScore.runs || 0
-        oversBowled += oversToBalls(teamBScore.overs || '0.0')
+        const isBAllOut = (teamBScore.wickets || 0) >= 10
+        oversBowled += isBAllOut ? matchQuotaBalls : oversToBalls(teamBScore.overs || '0.0')
 
         if (match.winnerSquadId === squad.id) {
           wins++
@@ -212,9 +218,12 @@ export const calculatePointsTable = (squads = [], matches = []) => {
         }
       } else {
         runsScored += teamBScore.runs || 0
-        oversFaced += oversToBalls(teamBScore.overs || '0.0')
+        const isBAllOut = (teamBScore.wickets || 0) >= 10
+        oversFaced += isBAllOut ? matchQuotaBalls : oversToBalls(teamBScore.overs || '0.0')
+
         runsConceded += teamAScore.runs || 0
-        oversBowled += oversToBalls(teamAScore.overs || '0.0')
+        const isAAllOut = (teamAScore.wickets || 0) >= 10
+        oversBowled += isAAllOut ? matchQuotaBalls : oversToBalls(teamAScore.overs || '0.0')
 
         if (match.winnerSquadId === squad.id) {
           wins++

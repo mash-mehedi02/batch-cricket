@@ -23,6 +23,7 @@ import { addManualCommentary } from '@/services/commentary/commentaryService'
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
 import { coerceToDate, formatDateLabel, formatTimeLabel } from '@/utils/date'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 
 interface AdminMatchesProps {
   mode?: 'list' | 'create' | 'edit' | 'view'
@@ -1211,10 +1212,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Tournament (Optional)</label>
-              <select
-                value={formData.tournamentId}
-                onChange={(e) => {
-                  const nextTournamentId = e.target.value
+              <SearchableSelect
+                value={formData.tournamentId || ''}
+                onChange={(val: string) => {
+                  const nextTournamentId = val
                   const t = tournaments.find(x => x.id === nextTournamentId)
 
                   // Reset group + teams when tournament changes (prevents invalid cross-tournament/group selections)
@@ -1236,15 +1237,12 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                     }
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="">Friendship / Independent Match</option>
-                {tournaments.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.year})
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...tournaments.map(t => ({ id: t.id, name: `${t.name} (${t.year})` }))
+                ]}
+                placeholder="Friendship / Independent Match"
+                className="w-full"
+              />
             </div>
 
             {tournamentGroups.length > 0 ? (
@@ -1278,11 +1276,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                 {roundType === 'group' ? (
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Group *</label>
-                    <select
-                      required
-                      value={formData.groupId}
-                      onChange={(e) => {
-                        const nextGroupId = e.target.value
+                    <SearchableSelect
+                      value={formData.groupId || ''}
+                      onChange={(val: string) => {
+                        const nextGroupId = val
                         setFormData((prev) => ({
                           ...prev,
                           groupId: nextGroupId,
@@ -1291,15 +1288,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                           teamB: '',
                         }))
                       }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                    >
-                      <option value="">Select Group</option>
-                      {tournamentGroups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name} ({(g.squadIds || []).length} teams)
-                        </option>
-                      ))}
-                    </select>
+                      options={tournamentGroups.map(g => ({ id: g.id, name: `${g.name} (${(g.squadIds || []).length} teams)` }))}
+                      placeholder="Select Group"
+                      className="w-full"
+                    />
                     <p className="text-[10px] text-gray-500 mt-1">Group stage: only teams from the same group can play.</p>
                   </div>
                 ) : (
@@ -1366,11 +1358,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
               <>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Team A *</label>
-                  <select
-                    required
-                    value={formData.teamA}
-                    onChange={(e) => {
-                      const nextTeamA = e.target.value
+                  <SearchableSelect
+                    value={formData.teamA || ''}
+                    onChange={(val: string) => {
+                      const nextTeamA = val
                       setFormData((prev) => ({
                         ...prev,
                         teamA: nextTeamA,
@@ -1378,16 +1369,11 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                         teamB: prev.teamB === nextTeamA ? '' : prev.teamB,
                       }))
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    options={availableSquads.map(s => ({ id: s.id, name: s.name }))}
+                    placeholder="Select Squad"
+                    className="w-full"
                     disabled={tournamentGroups.length > 0 && !formData.groupId}
-                  >
-                    <option value="">Select Squad</option>
-                    {availableSquads.map((squad) => (
-                      <option key={squad.id} value={squad.id}>
-                        {squad.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   {tournamentGroups.length > 0 && !formData.groupId ? (
                     <p className="text-xs text-gray-500 mt-1">Select a group first.</p>
                   ) : null}
@@ -1395,11 +1381,10 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Team B *</label>
-                  <select
-                    required
-                    value={formData.teamB}
-                    onChange={(e) => {
-                      const nextTeamB = e.target.value
+                  <SearchableSelect
+                    value={formData.teamB || ''}
+                    onChange={(val: string) => {
+                      const nextTeamB = val
                       setFormData((prev) => ({
                         ...prev,
                         teamB: nextTeamB,
@@ -1407,16 +1392,11 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                         teamA: prev.teamA === nextTeamB ? '' : prev.teamA,
                       }))
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                    options={availableSquads.filter(s => s.id !== formData.teamA).map(s => ({ id: s.id, name: s.name }))}
+                    placeholder="Select Squad"
+                    className="w-full"
                     disabled={tournamentGroups.length > 0 && !formData.groupId}
-                  >
-                    <option value="">Select Squad</option>
-                    {availableSquads.map((squad) => (
-                      <option key={squad.id} value={squad.id} disabled={!!formData.teamA && squad.id === formData.teamA}>
-                        {squad.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </>
             ) : (
@@ -1473,7 +1453,7 @@ export default function AdminMatches({ mode = 'list' }: AdminMatchesProps) {
                   <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-slate-200 p-2">
                     <WheelDatePicker
                       value={formData.date}
-                      onChange={(val) => {
+                      onChange={(val: string) => {
                         setFormData({ ...formData, date: val })
                       }}
                     />

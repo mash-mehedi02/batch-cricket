@@ -30,6 +30,9 @@ export const bn = {
     menu_terms_privacy: 'শর্তাবলী এবং গোপনীয়তা',
     menu_partner: 'অংশীদার হোন',
     menu_logout: 'লগ আউট',
+    menu_select_language: 'ভাষা নির্বাচন করুন',
+    language_english: 'ইংরেজি',
+    language_bengali: 'বাংলা',
 
     // Theme
     theme_light: 'লাইট',

@@ -4,7 +4,7 @@ import { matchService } from '@/services/firestore/matches'
 import { playerService } from '@/services/firestore/players'
 import { squadService } from '@/services/firestore/squads'
 import { Match } from '@/types'
-import { formatShortTeamName } from '@/utils/teamName'
+import { formatShortTeamName, stripBatch } from '@/utils/teamName'
 import PlayerLink from '@/components/PlayerLink'
 import PlayerAvatar from '@/components/common/PlayerAvatar'
 
@@ -248,8 +248,8 @@ export default function MatchPlayingXI({ compact = false, match: initialMatch }:
     )
   }
 
-  const teamAName = match.teamAName || (match as any).teamA || 'Team A'
-  const teamBName = match.teamBName || (match as any).teamB || 'Team B'
+  const teamAName = stripBatch(match.teamAName || (match as any).teamA || 'Team A')
+  const teamBName = stripBatch(match.teamBName || (match as any).teamB || 'Team B')
   const teamAPlayingXI = match.teamAPlayingXI || []
   const teamBPlayingXI = match.teamBPlayingXI || []
 

@@ -12,10 +12,14 @@ import { adminService } from '@/services/firestore/admins'
 import { Squad, Player } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { Timestamp } from 'firebase/firestore'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/config/firebase'
 import toast from 'react-hot-toast'
+import { Plus } from 'lucide-react'
 import { SkeletonCard } from '@/components/skeletons/SkeletonCard'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import DeleteConfirmationModal from '@/components/admin/DeleteConfirmationModal'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 
 interface AdminSquadsProps {
   mode?: 'list' | 'create' | 'edit'
@@ -46,6 +50,11 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
+  // School Autocomplete state
+  const [existingSchools, setExistingSchools] = useState<string[]>([]);
+  const [filteredSchools, setFilteredSchools] = useState<string[]>([]);
+  const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false);
+
   // Deletion state
   const [itemToDelete, setItemToDelete] = useState<Squad | null>(null)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -59,6 +68,7 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
       }
     } else {
       loadPlayers()
+      fetchSchools()
       if (mode === 'edit' && id) {
         loadSquad(id)
       } else {
@@ -100,6 +110,42 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
       console.error('Error loading players:', error)
     }
   }
+
+  const fetchSchools = async () => {
+    try {
+      const playersRef = collection(db, 'players');
+      const snapshot = await getDocs(playersRef);
+      const schoolMap = new Map<string, string>(); // lowercase -> original case
+      
+      const processSchool = (schoolStr: string) => {
+        if (!schoolStr) return;
+        const trimmed = schoolStr.trim();
+        if (!trimmed) return;
+        
+        const lower = trimmed.toLowerCase();
+        // Keep the first variation we see (or you could prefer capitalized ones)
+        if (!schoolMap.has(lower)) {
+          schoolMap.set(lower, trimmed);
+        }
+      };
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        processSchool(data.school);
+      });
+      
+      const squadsRef = collection(db, 'squads');
+      const squadsSnap = await getDocs(squadsRef);
+      squadsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        processSchool(data.school);
+      });
+      
+      setExistingSchools(Array.from(schoolMap.values()).sort());
+    } catch (error) {
+      console.error('Error fetching schools:', error);
+    }
+  };
 
   const loadSquad = async (squadId: string) => {
     try {
@@ -399,15 +445,61 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
               />
             </div>
 
-            <div>
+            <div className="relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">School Name</label>
-              <input
-                type="text"
-                value={formData.school}
-                onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-                placeholder="e.g., Ideal School & College"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.school}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, school: val });
+                    if (val.trim()) {
+                      const filtered = existingSchools.filter(s =>
+                        s.toLowerCase().includes(val.toLowerCase())
+                      );
+                      setFilteredSchools(filtered);
+                      setShowSchoolSuggestions(filtered.length > 0);
+                    } else {
+                      setShowSchoolSuggestions(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (formData.school.trim()) {
+                      const filtered = existingSchools.filter(s =>
+                        s.toLowerCase().includes(formData.school.toLowerCase())
+                      );
+                      setFilteredSchools(filtered);
+                      setShowSchoolSuggestions(filtered.length > 0);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowSchoolSuggestions(false), 200);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+                  placeholder="e.g., Ideal School & College"
+                  autoComplete="off"
+                />
+
+                {showSchoolSuggestions && (
+                  <div className="absolute z-[110] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto overflow-x-hidden ring-1 ring-black/5">
+                    {filteredSchools.map((school, idx) => (
+                      <div
+                        key={idx}
+                        className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm font-medium text-slate-700 border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                        onMouseDown={(e) => {
+                          e.preventDefault(); // Prevent onBlur from firing first
+                          setFormData({ ...formData, school });
+                          setShowSchoolSuggestions(false);
+                        }}
+                      >
+                        <span className="truncate">{school}</span>
+                        <Plus size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="md:col-span-2">
@@ -517,38 +609,24 @@ export default function AdminSquads({ mode = 'list' }: AdminSquadsProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Captain</label>
-              <select
-                value={formData.captainId}
-                onChange={(e) => setFormData({ ...formData, captainId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="">Select Captain</option>
-                {players
-                  .filter((p) => formData.playerIds.includes(p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+              <SearchableSelect
+                value={formData.captainId || ''}
+                onChange={(val) => setFormData({ ...formData, captainId: val })}
+                options={players.filter(p => formData.playerIds.includes(p.id)).map(p => ({ id: p.id, name: p.name }))}
+                placeholder="Select Captain"
+                className="w-full"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Wicket Keeper</label>
-              <select
-                value={formData.wicketKeeperId}
-                onChange={(e) => setFormData({ ...formData, wicketKeeperId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="">Select Wicket Keeper</option>
-                {players
-                  .filter((p) => formData.playerIds.includes(p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+              <SearchableSelect
+                value={formData.wicketKeeperId || ''}
+                onChange={(val) => setFormData({ ...formData, wicketKeeperId: val })}
+                options={players.filter(p => formData.playerIds.includes(p.id)).map(p => ({ id: p.id, name: p.name }))}
+                placeholder="Select Wicket Keeper"
+                className="w-full"
+              />
             </div>
           </div>
 

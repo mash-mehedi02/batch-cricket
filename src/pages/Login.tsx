@@ -200,10 +200,12 @@ export default function Login() {
     }, 8000); // Increased timeout slightly for slower mobile connections
 
     try {
-      await googleLogin();
+      console.log("[Login] Calling authStore.googleLogin()...");
+      const success = await googleLogin();
+      console.log("[Login] Google login call finished. Success:", success);
     } catch (error: any) {
       toast.error('Google Sign-In failed: ' + (error.message || 'Unknown error'))
-      console.error(error)
+      console.error("[Login] Google Sign-In Error:", error)
     } finally {
       clearTimeout(timeout);
       setIsLoading(false)

@@ -305,6 +305,10 @@
     font-family: "Brush Script MT", "Brush Script Std", cursive, serif;
   }
 
+  .font-diatype {
+    font-family: 'DiatypeBold', 'Inter', sans-serif;
+  }
+
   /* Custom DiatypeBold Font Classes */
   .font1 {
     font-family: 'DiatypeBold', 'Inter', sans-serif;

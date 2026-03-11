@@ -23,6 +23,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { appUpdateService, APP_VERSION } from '@/services/appUpdateService';
 import { ensureAbsoluteUrl } from '@/utils/url';
 import ThemeSelectionSheet from '@/components/common/ThemeSelectionSheet';
+import LanguageSelectionSheet from '@/components/common/LanguageSelectionSheet';
 
 const CricketIcon = ({ size = 20 }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -47,6 +48,7 @@ export default function MenuPage() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [updateUrl, setUpdateUrl] = useState('');
     const [isThemeSheetOpen, setIsThemeSheetOpen] = useState(false);
+    const [isLanguageSheetOpen, setIsLanguageSheetOpen] = useState(false);
 
     // Check for app updates
     useEffect(() => {
@@ -80,7 +82,7 @@ export default function MenuPage() {
     };
 
     const toggleLanguage = () => {
-        setLanguage(language === 'en' ? 'bn' : 'en');
+        setIsLanguageSheetOpen(true);
     };
 
     const handlePremiumClick = () => {
@@ -412,6 +414,12 @@ export default function MenuPage() {
             <ThemeSelectionSheet
                 isOpen={isThemeSheetOpen}
                 onClose={() => setIsThemeSheetOpen(false)}
+            />
+
+            {/* Language Selection Sheet */}
+            <LanguageSelectionSheet
+                isOpen={isLanguageSheetOpen}
+                onClose={() => setIsLanguageSheetOpen(false)}
             />
         </div>
     );

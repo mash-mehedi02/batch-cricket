@@ -1,59 +1,53 @@
 /**
  * Formats a team name into a short code (3 letters for single word, initials for multiple words)
- * and appends the batch/year if available.
- * 
- * Rules:
- * - "Rangers - 19" -> "RAN - 19"
- * - "Night Owls - 22" -> "NO - 22"
+ * without any batch/year suffix.
  */
-export function formatShortTeamName(name: string, batch?: string): string {
+
+/**
+ * Strips the batch/year suffix from a team name.
+ * E.g., "Rangers - 19" -> "Rangers", "Boring Lagce 10" -> "Boring Lagce"
+ */
+export function stripBatch(name: string): string {
+    if (!name) return ''
+    // Matches suffixes like " - 19", "-19", " 19", "'19" at the end
+    const match = name.match(/^(.*?)\s*[-']?\s*\d{2,4}$/)
+    if (match) {
+        return match[1].trim()
+    }
+    return name.trim()
+}
+
+/**
+ * Formats a team name into a short code.
+ * Rules:
+ * - 1 word: first 3 letters (e.g., "Rangers" -> "RAN")
+ * - 2+ words: initials (e.g., "Elite Eagle" -> "EE")
+ * - Batch preservation: re-attach batch as " - XX" (e.g., "Rangers - 19" -> "RAN - 19")
+ */
+export function formatShortTeamName(name: string): string {
     if (!name) return ''
 
-    // Split name and batch if batch is not explicitly provided
-    let teamNamePart = name
-    let extractedBatch = batch || ''
+    // Extract batch suffix if exists (2-4 digits at the end)
+    const batchMatch = name.match(/\s*[-']?\s*(\d{2,4})$/)
+    const batch = batchMatch ? batchMatch[1] : null
 
-    // If name contains a hyphen and it looks like a year/batch at the end
-    if (name.includes('-')) {
-        const lastHyphenIndex = name.lastIndexOf('-')
-        const potentialBatch = name.substring(lastHyphenIndex + 1).trim()
+    // Get the clean team name part
+    const cleanName = stripBatch(name)
+    const words = cleanName.split(/\s+/).filter(Boolean)
 
-        // Check if the part after hyphen is purely numerical (likely a batch/year)
-        if (/^\d+$/.test(potentialBatch)) {
-            teamNamePart = name.substring(0, lastHyphenIndex).trim()
-            if (!extractedBatch) {
-                extractedBatch = potentialBatch
-            }
-        }
-    }
-
-    // Handle team name short code
-    const nameWords = teamNamePart.split(/\s+/).filter(Boolean)
     let shortCode = ''
 
-    if (nameWords.length === 1) {
-        // Single word: take first 3 letters OR 2 if it's very short
-        const word = nameWords[0]
-        if (word.length <= 3) {
-            shortCode = word.toUpperCase()
-        } else {
-            shortCode = word.substring(0, 3).toUpperCase()
-        }
+    if (words.length === 0) {
+        shortCode = 'TM'
+    } else if (words.length === 1) {
+        // Single word: first 3 characters
+        const word = words[0]
+        shortCode = word.length <= 3 ? word.toUpperCase() : word.substring(0, 3).toUpperCase()
     } else {
-        // Multiple words: take first letter of each word
-        // Special case: "Sri Lanka" -> "SL", "Night Owls" -> "NO"
-        shortCode = nameWords.map(word => word[0].toUpperCase()).join('')
+        // Multiple words: initials of the first two words
+        shortCode = (words[0][0] + words[1][0]).toUpperCase()
     }
 
-    // Clean the batch to only include last 2 digits if it's a year/number
-    let cleanBatch = ''
-    if (extractedBatch) {
-        const match = extractedBatch.match(/\d+/)
-        if (match) {
-            const fullNum = match[0]
-            cleanBatch = fullNum.length > 2 ? fullNum.slice(-2) : fullNum
-        }
-    }
-
-    return cleanBatch ? `${shortCode} - ${cleanBatch}` : shortCode
+    // Re-attach batch if it existed
+    return batch ? `${shortCode} - ${batch}` : shortCode
 }

@@ -358,7 +358,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, squadsMap, tournamentName 
                 </div>
 
                 {/* Footer Status Bar - Compressed & Refined colors */}
-                <div className={`mt-auto py-3 px-4 text-center border-t border-slate-100 dark:border-white/5 transition-colors ${isUpcoming ? 'bg-gradient-to-r from-blue-600/10 via-blue-500/5 to-blue-600/10 dark:from-blue-500/15 dark:via-blue-500/5 dark:to-blue-500/15 shadow-[inner_0_2px_8px_rgba(37,99,235,0.08)]' :
+                <div className={`mt-auto py-1.5 px-4 text-center border-t border-slate-100 dark:border-white/5 transition-colors ${isUpcoming ? 'bg-gradient-to-r from-blue-600/10 via-blue-500/5 to-blue-600/10 dark:from-blue-500/15 dark:via-blue-500/5 dark:to-blue-500/15 shadow-[inner_0_2px_8px_rgba(37,99,235,0.08)]' :
                     isLive ? 'bg-orange-50/40 dark:bg-orange-500/5' :
                         'bg-emerald-50/30 dark:bg-emerald-500/5'
                     }`}>

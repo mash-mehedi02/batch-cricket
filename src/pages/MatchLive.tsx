@@ -18,6 +18,7 @@ import { subscribeToCommentary, type CommentaryEntry } from '@/services/commenta
 import CrexLiveSection from '@/components/live/CrexLiveSection'
 import MatchLiveHero from '@/components/live/MatchLiveHero'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { stripBatch } from '@/utils/teamName'
 import PageHeader from '@/components/common/PageHeader'
 // Import all match page components to render inline
 import MatchScorecard from '@/pages/MatchScorecard'
@@ -117,7 +118,8 @@ export default function MatchLive() {
   const isUpcomingMatch = statusLower === '' || statusLower === 'upcoming' || statusLower === 'scheduled'
   const isFinishedMatch = statusLower === 'finished' || statusLower === 'completed'
 
-  const resolveSquadName = (m: any, side: 'A' | 'B') => {
+
+  const resolveSquadNameFull = (m: any, side: 'A' | 'B') => {
     const sidRaw = side === 'A'
       ? (m.teamAId || m.teamASquadId || m.teamA)
       : (m.teamBId || m.teamBSquadId || m.teamB)
@@ -127,8 +129,11 @@ export default function MatchLive() {
     if (side === 'A') return String(m.teamAName || m.teamA || m.teamAId || 'Team A')
     return String(m.teamBName || m.teamB || m.teamBId || 'Team B')
   }
-  const teamAName = match ? resolveSquadName(match as any, 'A') : 'Team A'
-  const teamBName = match ? resolveSquadName(match as any, 'B') : 'Team B'
+
+  const teamANameFull = match ? resolveSquadNameFull(match as any, 'A') : 'Team A'
+  const teamBNameFull = match ? resolveSquadNameFull(match as any, 'B') : 'Team B'
+  const teamAName = teamANameFull
+  const teamBName = teamBNameFull
 
   const resolveSquad = (m: any, side: 'A' | 'B') => {
     const sidRaw = side === 'A'
@@ -1088,7 +1093,7 @@ export default function MatchLive() {
         const nameFallback = side === 'A'
           ? String(m.teamAName || m.teamA || m.teamAId || 'Team A')
           : String(m.teamBName || m.teamB || m.teamBId || 'Team B')
-        return resolveSquadName(m, side) || nameFallback
+        return resolveSquadNameFull(m, side) || nameFallback
       }
       const keyForMatchSide = (m: any, side: 'A' | 'B') => {
         const nameFallback = side === 'A'
@@ -1674,8 +1679,8 @@ export default function MatchLive() {
           <div className="max-w-md mx-auto mb-12">
             <MatchVoting
               matchId={matchId || match.id}
-              teamAName={teamAName}
-              teamBName={teamBName}
+              teamAName={teamANameFull}
+              teamBName={teamBNameFull}
               teamABatch={teamASquad?.batch}
               teamBBatch={teamBSquad?.batch}
               isFinished={isFinishedMatch}
@@ -1763,8 +1768,8 @@ export default function MatchLive() {
               matchPhase={(match as any)?.matchPhase}
               currentInnings={effInningsComm as any}
               currentWickets={effInningsComm?.totalWickets || 0}
-              teamAName={teamAName}
-              teamBName={teamBName}
+              teamAName={teamANameFull}
+              teamBName={teamBNameFull}
               teamAInnings={teamAInnings}
               teamBInnings={teamBInnings}
               teamASuperInnings={teamASuperInnings}
@@ -1797,8 +1802,8 @@ export default function MatchLive() {
             teamAInnings={teamAInnings}
             teamBInnings={teamBInnings}
             playersMap={playersMap}
-            teamAName={teamAName}
-            teamBName={teamBName}
+            teamAName={teamANameFull}
+            teamBName={teamBNameFull}
             teamALogo={teamASquad?.logoUrl}
             teamBLogo={teamBSquad?.logoUrl}
             teamASuperInnings={teamASuperInnings}
@@ -1850,8 +1855,8 @@ export default function MatchLive() {
               matchPhase={(match as any)?.matchPhase}
               currentInnings={effInningsLive}
               currentWickets={effInningsLive?.totalWickets || 0}
-              teamAName={teamAName}
-              teamBName={teamBName}
+              teamAName={teamANameFull}
+              teamBName={teamBNameFull}
               teamAInnings={teamAInnings}
               teamBInnings={teamBInnings}
               teamASuperInnings={teamASuperInnings}
@@ -1882,7 +1887,7 @@ export default function MatchLive() {
     >
       {/* 1. Page Header (Sticky) */}
       <PageHeader
-        title={<span className="text-[11px] sm:text-lg">{isUpcomingMatch ? `${firstName} vs ${secondName}` : `${teamAName} vs ${teamBName}`}</span>}
+        title={<span className="text-[11px] sm:text-lg">{isUpcomingMatch ? `${firstName} vs ${secondName}` : `${teamANameFull} vs ${teamBNameFull}`}</span>}
         subtitle={isUpcomingMatch ? "Upcoming Match" : `${match.matchNo ? `#${match.matchNo} • ` : ''}${tournament?.name || 'Tournament'}`}
         rightContent={
           matchId && (
@@ -1922,8 +1927,8 @@ export default function MatchLive() {
             <MatchLiveHero
               key="sticky-hero"
               match={match}
-              teamAName={teamAName}
-              teamBName={teamBName}
+              teamAName={teamANameFull}
+              teamBName={teamBNameFull}
               teamASquad={teamASquad}
               teamBSquad={teamBSquad}
               currentInnings={displayedInnings || currentInnings}

@@ -394,20 +394,6 @@ export default function MatchScorecard({ compact = false }: { compact?: boolean 
         {/* 3. Main Body Sections - Carousel Style */}
         <div className="overflow-hidden">
           <motion.div
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.15}
-            onDragEnd={(_e, { offset, velocity }) => {
-              const swipe = offset.x + velocity.x * 0.5;
-              const threshold = 80;
-              const currentIndex = inningsTabs.findIndex(t => t.id === selectedInning);
-
-              if (swipe < -threshold && currentIndex < inningsTabs.length - 1) {
-                setSelectedInning(inningsTabs[currentIndex + 1].id);
-              } else if (swipe > threshold && currentIndex > 0) {
-                setSelectedInning(inningsTabs[currentIndex - 1].id);
-              }
-            }}
             animate={{ x: `-${inningsTabs.findIndex(t => t.id === selectedInning) * 100}%` }}
             transition={{ type: "spring", stiffness: 400, damping: 38 }}
             className="flex w-full"

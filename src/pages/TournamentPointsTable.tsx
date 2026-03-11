@@ -6,8 +6,9 @@ import { squadService } from '@/services/firestore/squads'
 import type { Match, Tournament, InningsStats } from '@/types'
 import type { MatchResult } from '@/engine/tournament'
 import { computeGroupStandings, validateTournamentConfig } from '@/engine/tournament'
-import { formatShortTeamName } from '@/utils/teamName'
+import { formatShortTeamName, stripBatch } from '@/utils/teamName'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
+import { calculateMatchNRRData } from '@/utils/cricket/nrr'
 
 function TournamentPointsTableSkeleton({ forcedDark }: { forcedDark?: boolean }) {
   return (
@@ -56,13 +57,14 @@ const resolveSquadId = (m: any, side: 'A' | 'B') => {
 }
 
 const getSquadDisplayName = (s: any): string => {
-  return (
+  const name = (
     String(s?.name || '').trim() ||
     String(s?.teamName || '').trim() ||
     String(s?.squadName || '').trim() ||
     String(s?.title || '').trim() ||
     ''
   )
+  return name
 }
 
 export default function TournamentPointsTable({
@@ -244,51 +246,15 @@ export default function TournamentPointsTable({
             return
           }
 
-          const mainARuns = Number(inn.teamA.totalRuns || 0);
-          const mainBRuns = Number(inn.teamB.totalRuns || 0);
-          const soARuns = Number(inn.aso?.totalRuns || 0);
-          const soBRuns = Number(inn.bso?.totalRuns || 0);
+          // NRR result logic moved to calculateMatchNRRData
 
-          let res: 'win' | 'loss' | 'tie' | 'no_result' = 'tie';
-
-          if (mainARuns > mainBRuns) {
-            res = 'win';
-          } else if (mainBRuns > mainARuns) {
-            res = 'loss';
-          } else {
-            // Main match tied - Check super over runs
-            if (soARuns > soBRuns) {
-              res = 'win';
-            } else if (soBRuns > soARuns) {
-              res = 'loss';
-            } else {
-              // Super over also tied or not played, fallback to winnerId or resultSummary
-              const winnerId = normalizeSquadRef(m.winnerId || (m as any).winner);
-              const resultSummary = String(m.resultSummary || '').toLowerCase();
-              const teamAName = String(m.teamAName || '').toLowerCase();
-              const teamBName = String(m.teamBName || '').toLowerCase();
-
-              if (winnerId === aId) res = 'win';
-              else if (winnerId === bId) res = 'loss';
-              else if (resultSummary.includes(teamAName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'win';
-              else if (resultSummary.includes(teamBName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'loss';
-              else res = 'tie';
-            }
+          const nrrData = calculateMatchNRRData(m, inn.teamA, inn.teamB);
+          if (nrrData) {
+            // Apply group IDs
+            nrrData.groupA = groupIdByTeam.get(aId) || '';
+            nrrData.groupB = groupIdByTeam.get(bId) || '';
+            results.push(nrrData);
           }
-
-          results.push({
-            matchId: m.id,
-            tournamentId: String(tournamentId || ''),
-            teamA: aId,
-            teamB: bId,
-            groupA: groupIdByTeam.get(aId) || '',
-            groupB: groupIdByTeam.get(bId) || '',
-            result: res as any,
-            teamARunsFor: inn.teamA.totalRuns,
-            teamABallsFaced: inn.teamA.legalBalls,
-            teamARunsAgainst: inn.teamB.totalRuns,
-            teamABallsBowled: inn.teamB.legalBalls,
-          })
         })
 
         const standings = computeGroupStandings(cfg, results)
@@ -357,10 +323,19 @@ export default function TournamentPointsTable({
 
         if (!inn?.teamA || !inn?.teamB) return
         rA.played++; rB.played++;
-        rA.runsFor += inn.teamA.totalRuns; rA.ballsFaced += inn.teamA.legalBalls;
-        rA.runsAgainst += inn.teamB.totalRuns; rA.ballsBowled += inn.teamB.legalBalls;
-        rB.runsFor += inn.teamB.totalRuns; rB.ballsFaced += inn.teamB.legalBalls;
-        rB.runsAgainst += inn.teamA.totalRuns; rB.ballsBowled += inn.teamA.legalBalls;
+
+        const oversLimit = Number(m.oversLimit || 20);
+        const matchQuotaBalls = oversLimit * 6;
+        const isAAllOut = (inn.teamA.totalWickets || 0) >= 10;
+        const isBAllOut = (inn.teamB.totalWickets || 0) >= 10;
+
+        const aFaced = isAAllOut ? matchQuotaBalls : inn.teamA.legalBalls;
+        const bFaced = isBAllOut ? matchQuotaBalls : inn.teamB.legalBalls;
+
+        rA.runsFor += inn.teamA.totalRuns; rA.ballsFaced += aFaced;
+        rA.runsAgainst += inn.teamB.totalRuns; rA.ballsBowled += bFaced;
+        rB.runsFor += inn.teamB.totalRuns; rB.ballsFaced += bFaced;
+        rB.runsAgainst += inn.teamA.totalRuns; rB.ballsBowled += aFaced;
 
         const mainARuns = inn.teamA.totalRuns;
         const mainBRuns = inn.teamB.totalRuns;
@@ -394,6 +369,7 @@ export default function TournamentPointsTable({
       })
 
       rowsMap.forEach(r => {
+        // We'll use a fixed 20 overs for legacy fallback if not specified
         const rf = ballsToOversDecimal(r.ballsFaced) > 0 ? r.runsFor / ballsToOversDecimal(r.ballsFaced) : 0
         const ra = ballsToOversDecimal(r.ballsBowled) > 0 ? r.runsAgainst / ballsToOversDecimal(r.ballsBowled) : 0
         r.nrr = Number((rf - ra).toFixed(3))

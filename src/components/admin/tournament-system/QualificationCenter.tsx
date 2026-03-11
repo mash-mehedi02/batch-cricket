@@ -8,8 +8,9 @@ import {
     RefreshCcw,
     Zap
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { computeGroupStandings, TournamentConfig, MatchResult } from '@/engine/tournament';
+import { calculateMatchNRRData } from '@/utils/cricket/nrr';
+import toast from 'react-hot-toast';
 
 interface QualificationCenterProps {
     tournament: Tournament;
@@ -71,48 +72,12 @@ export default function QualificationCenter({ tournament, squads, matches, innin
                 return;
             }
 
-            const aRuns = Number(inn.teamA.totalRuns || 0);
-            const bRuns = Number(inn.teamB.totalRuns || 0);
-            const aBalls = Number(inn.teamA.legalBalls || 0);
-            const bBalls = Number(inn.teamB.legalBalls || 0);
-
-            let res: 'win' | 'loss' | 'tie' | 'no_result' = 'tie';
-            if (aRuns > bRuns) res = 'win';
-            else if (aRuns < bRuns) res = 'loss';
-            else {
-                // Main innings tied, check Super Over
-                const asoRuns = Number(inn.aso?.totalRuns || 0);
-                const bsoRuns = Number(inn.bso?.totalRuns || 0);
-                if (asoRuns > bsoRuns) res = 'win';
-                else if (bsoRuns > asoRuns) res = 'loss';
-                else {
-                    // Super over also tied or not played, check winnerId/resultSummary
-                    const winnerId = m.winnerId || m.winnerSquadId || m.winner;
-                    const resultSummary = String(m.resultSummary || '').toLowerCase();
-                    const teamAName = String(m.teamAName || '').toLowerCase();
-                    const teamBName = String(m.teamBName || '').toLowerCase();
-
-                    if (winnerId === aId) res = 'win';
-                    else if (winnerId === bId) res = 'loss';
-                    else if (resultSummary.includes(teamAName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'win';
-                    else if (resultSummary.includes(teamBName) && (resultSummary.includes('won') || resultSummary.includes('win'))) res = 'loss';
-                    else res = 'tie';
-                }
+            const nrrData = calculateMatchNRRData(m as any, inn.teamA, inn.teamB);
+            if (nrrData) {
+                nrrData.groupA = groupIdByTeam.get(aId) || '';
+                nrrData.groupB = groupIdByTeam.get(bId) || '';
+                results.push(nrrData);
             }
-
-            results.push({
-                matchId: m.id,
-                tournamentId: tournament.id,
-                teamA: aId,
-                teamB: bId,
-                groupA: groupIdByTeam.get(aId) || '',
-                groupB: groupIdByTeam.get(bId) || '',
-                result: res as any,
-                teamARunsFor: aRuns,
-                teamABallsFaced: aBalls,
-                teamARunsAgainst: bRuns,
-                teamABallsBowled: bBalls,
-            });
         });
 
         const standings = computeGroupStandings(config, results);
