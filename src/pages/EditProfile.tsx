@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { uploadImage } from '@/services/cloudinary/uploader';
 import Cropper from 'react-easy-crop';
-import { getCroppedImg } from '@/utils/cropImage';
+import { getCroppedImgBase64 } from '@/utils/cropImage';
 
 type Point = { x: number, y: number };
 type Area = { x: number, y: number, width: number, height: number };
@@ -154,19 +154,17 @@ export default function EditProfilePage() {
 
         setUploading(true);
         try {
-            const croppedImageBlob = await getCroppedImg(tempImage, croppedAreaPixels);
-            if (!croppedImageBlob) throw new Error('Failed to crop image');
+            const croppedImageBase64 = await getCroppedImgBase64(tempImage, croppedAreaPixels);
+            if (!croppedImageBase64) throw new Error('Failed to crop image - base64 returned null');
 
-            // Convert Blob to File
-            const croppedFile = new File([croppedImageBlob], "profile_cropped.jpg", { type: "image/jpeg" });
-
-            const url = await uploadImage(croppedFile);
+            const url = await uploadImage(croppedImageBase64 as any);
             setForm(prev => ({ ...prev, photoURL: url }));
             setTempImage(null); // Close cropper
             toast.success('Photo updated!');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Crop/Upload error:', error);
-            toast.error('Failed to process image');
+            // Show actual error message to help the user identify reality check failures
+            toast.error(`Error: ${error.message || 'Failed to process image'}`);
         } finally {
             setUploading(false);
         }

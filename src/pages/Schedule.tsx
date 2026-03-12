@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { useSearchParams } from 'react-router-dom'
 import { matchService } from '@/services/firestore/matches'
 import { squadService } from '@/services/firestore/squads'

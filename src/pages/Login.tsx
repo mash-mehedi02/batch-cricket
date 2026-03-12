@@ -11,7 +11,7 @@ import toast from 'react-hot-toast'
 import schoolConfig from '@/config/school'
 import { User, Shield, ChevronRight, Lock, Mail, Camera, X, Upload, ShieldAlert, Eye, EyeOff } from 'lucide-react'
 import Cropper from 'react-easy-crop'
-import { getCroppedImg } from '@/utils/cropImage'
+import { getCroppedImgBase64 } from '@/utils/cropImage'
 import { useTranslation } from '@/hooks/useTranslation'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import { squadService } from '@/services/firestore/squads'
@@ -172,16 +172,15 @@ export default function Login() {
     if (!imageFile || !croppedAreaPixels) return
     setIsUploading(true)
     try {
-      const croppedImageBlob = await getCroppedImg(imageFile, croppedAreaPixels)
-      if (croppedImageBlob) {
-        const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' })
-        const url = await uploadImage(file, (p) => console.log(`Upload: ${p}%`))
-        setPhotoUrl(url)
-        toast.success('Photo uploaded!')
-      }
-    } catch (err) {
-      console.error('Crop save error:', err)
-      toast.error('Failed to process image')
+      const croppedImageBase64 = await getCroppedImgBase64(imageFile, croppedAreaPixels)
+      if (!croppedImageBase64) throw new Error('Failed to crop image - base64 returned null')
+
+      const url = await uploadImage(croppedImageBase64 as any, (p) => console.log(`Upload: ${p}%`))
+      setPhotoUrl(url)
+      toast.success('Photo uploaded!')
+    } catch (error: any) {
+      console.error('Crop/Upload error:', error)
+      toast.error(`Error: ${error.message || 'Failed to process image'}`)
     } finally {
       setIsUploading(false)
       setIsCropping(false)

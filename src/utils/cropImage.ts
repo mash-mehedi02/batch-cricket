@@ -97,3 +97,42 @@ export async function getCroppedImg(
         }
     })
 }
+
+/**
+ * Get cropped image as Base64 Data URL
+ * More stable for Android WebViews as it avoids Blob construction
+ */
+export async function getCroppedImgBase64(
+    imageSrc: string,
+    pixelCrop: { x: number; y: number; width: number; height: number }
+): Promise<string | null> {
+    try {
+        const image = await createImage(imageSrc)
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+
+        if (!ctx) {
+            throw new Error('Canvas context not available')
+        }
+
+        canvas.width = pixelCrop.width
+        canvas.height = pixelCrop.height
+
+        ctx.drawImage(
+            image,
+            pixelCrop.x,
+            pixelCrop.y,
+            pixelCrop.width,
+            pixelCrop.height,
+            0,
+            0,
+            pixelCrop.width,
+            pixelCrop.height
+        )
+
+        return canvas.toDataURL('image/jpeg', 0.9)
+    } catch (error: any) {
+        console.error('[getCroppedImgBase64] Error:', error)
+        throw new Error(error.message || 'Image processing failed')
+    }
+}

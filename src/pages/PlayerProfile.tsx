@@ -23,7 +23,7 @@ import toast from 'react-hot-toast'
 import GSAPImageViewer from '@/components/common/GSAPImageViewer'
 import { Edit, Camera, Facebook, Instagram, Twitter, Linkedin, Globe, ChevronDown, X, Check, ZoomIn } from 'lucide-react'
 import Cropper from 'react-easy-crop'
-import { getCroppedImg } from '@/utils/cropImage'
+import { getCroppedImgBase64 } from '@/utils/cropImage'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { uploadImage } from '@/services/cloudinary/uploader'
 import WheelDatePicker from '@/components/common/WheelDatePicker'
@@ -206,16 +206,15 @@ export default function PlayerProfile() {
     if (!imageFile || !croppedAreaPixels) return
     setUploadingPhoto(true)
     try {
-      const croppedImageBlob = await getCroppedImg(imageFile, croppedAreaPixels)
-      if (croppedImageBlob) {
-        const file = new File([croppedImageBlob], 'profile.jpg', { type: 'image/jpeg' })
-        const url = await uploadImage(file, (p) => console.log(`Upload: ${p}%`))
+      const croppedImageBase64 = await getCroppedImgBase64(imageFile, croppedAreaPixels)
+      if (croppedImageBase64) {
+        const url = await uploadImage(croppedImageBase64 as any, (p) => console.log(`Upload: ${p}%`))
         setEditForm(prev => ({ ...prev, photoUrl: url }))
         toast.success('Photo updated!')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Crop save error:', err)
-      toast.error('Failed to process image')
+      toast.error(`Error: ${err.message || 'Failed to process image'}`)
     } finally {
       setUploadingPhoto(false)
       setIsCropping(false)

@@ -31,21 +31,27 @@ export const uploadImage = (file, onProgress) => {
       return
     }
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
+    // Validate file type (skip for base64 strings)
+    if (typeof file !== 'string' && file.type && !file.type.startsWith('image/')) {
       reject(new Error('File must be an image'))
       return
     }
 
     // Validate file size (max 10MB)
     const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
+    const fileSize = typeof file === 'string' ? (file.length * 0.75) : file.size;
+    if (fileSize > maxSize) {
       reject(new Error('Image size must be less than 10MB'))
       return
     }
 
     const formData = new FormData()
-    formData.append('file', file)
+    // Append the file (or blob or base64 string)
+    if (typeof file === 'string' && file.startsWith('data:')) {
+      formData.append('file', file)
+    } else {
+      formData.append('file', file, file.name || 'upload.jpg')
+    }
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
     formData.append('cloud_name', CLOUDINARY_CLOUD_NAME)
 

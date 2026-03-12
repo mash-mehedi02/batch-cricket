@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Live Match Page
  * Screenshot-based design with tabs, dark blue header, tables
  */
@@ -18,7 +18,7 @@ import { subscribeToCommentary, type CommentaryEntry } from '@/services/commenta
 import CrexLiveSection from '@/components/live/CrexLiveSection'
 import MatchLiveHero from '@/components/live/MatchLiveHero'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
-import { stripBatch } from '@/utils/teamName'
+// import { stripBatch } from '@/utils/teamName'
 import PageHeader from '@/components/common/PageHeader'
 // Import all match page components to render inline
 import MatchScorecard from '@/pages/MatchScorecard'

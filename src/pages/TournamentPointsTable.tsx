@@ -6,7 +6,7 @@ import { squadService } from '@/services/firestore/squads'
 import type { Match, Tournament, InningsStats } from '@/types'
 import type { MatchResult } from '@/engine/tournament'
 import { computeGroupStandings, validateTournamentConfig } from '@/engine/tournament'
-import { formatShortTeamName, stripBatch } from '@/utils/teamName'
+import { formatShortTeamName } from '@/utils/teamName'
 import PlayoffBracket from '@/components/tournament/PlayoffBracket'
 import { calculateMatchNRRData } from '@/utils/cricket/nrr'
 

@@ -40,7 +40,7 @@ export default function MenuPage() {
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const { isDarkMode, themePreference } = useThemeStore();
-    const { language, setLanguage } = useLanguageStore();
+    const { language } = useLanguageStore();
     const { t } = useTranslation();
     const [vibration, setVibration] = useState(() => localStorage.getItem('match_vibration') === 'true');
     const [sound, setSound] = useState(() => localStorage.getItem('match_sound') === 'true');
